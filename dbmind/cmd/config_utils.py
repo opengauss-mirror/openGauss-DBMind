@@ -88,7 +88,7 @@ def check_config_validity(section, option, value, silent=False):
 
     if config_item == 'AGENT-master_url':
         if value.strip() == '':
-            return False, 'You should give the URL.'
+            return False, 'Invalid AGENT-master URL'
         success = ping_rpc_url(value)
         if not success:
             write_to_terminal(
@@ -128,7 +128,7 @@ def check_config_validity(section, option, value, silent=False):
     if 'dbtype' in option and value == 'sqlite' and not silent:
         write_to_terminal(
             'NOTE: SQLite currently only supports local deployment, so you only need to provide '
-            'METADATABASE-database information. if you provide other information, DBMind will '
+            'METADATABASE-database information. If you provide other information, DBMind will '
             'ignore them.',
             color='yellow'
         )

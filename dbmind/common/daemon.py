@@ -111,7 +111,7 @@ class Daemon:
 
         self.daemonize()
         self.status = Daemon.STATUS.RUNNING
-        write_info('The process has been started.\n')
+        write_info('The process is going to start.\n')
         self.run()
 
     def stop(self, level='low'):

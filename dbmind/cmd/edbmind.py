@@ -22,6 +22,7 @@ import traceback
 
 from dbmind import app
 from dbmind import constants
+from dbmind import controllers
 from dbmind import global_vars
 from dbmind.cmd.config_utils import (
     load_sys_configs,
@@ -33,6 +34,7 @@ from dbmind.common.daemon import Daemon, read_dbmind_pid_file
 from dbmind.common.dispatcher import TimedTaskManager
 from dbmind.common.dispatcher import get_worker_instance
 from dbmind.common.exceptions import SetupError
+from dbmind.common.http import HttpService
 from dbmind.common.rpc import RPCClient
 from dbmind.common.tsdb import TsdbClientFactory
 
@@ -44,6 +46,7 @@ except ImportError:
 
 SKIP_LIST = ('COMMENT', 'LOG')
 
+_http_service = HttpService()
 dbmind_master_should_exit = False
 
 
@@ -60,6 +63,7 @@ def _process_clean(force=False):
         time.sleep(.1)
     global_vars.worker.terminate(cancel_futures=force)
     TimedTaskManager.stop()
+    _http_service.shutdown()
 
 
 def signal_handler(signum, frame):
@@ -212,6 +216,27 @@ class DBMindMain(Daemon):
             return
 
         TimedTaskManager.start()
+        # Start to create a web service.
+        web_service_host = global_vars.configs.get('WEB-SERVICE', 'host')
+        web_service_port = global_vars.configs.getint('WEB-SERVICE', 'port')
+        ssl_certfile = global_vars.configs.get('WEB-SERVICE', 'ssl_certfile')
+        ssl_keyfile = global_vars.configs.get('WEB-SERVICE', 'ssl_keyfile')
+        ssl_keyfile_password = global_vars.configs.get('WEB-SERVICE', 'ssl_keyfile_password')
+        ssl_ca_file = global_vars.configs.get('WEB-SERVICE', 'ssl_ca_file')
+
+        # Attach rules for web service.
+        for c in controllers.get_dbmind_controller():
+            _http_service.register_controller_module(c)
+        _http_service.mount_static_files(constants.DBMIND_UI_DIRECTORY)
+
+        _http_service.start_listen(
+            web_service_host,
+            web_service_port,
+            ssl_certfile=ssl_certfile,
+            ssl_keyfile=ssl_keyfile,
+            ssl_keyfile_password=ssl_keyfile_password,
+            ssl_ca_file=ssl_ca_file
+        )
 
         # Main thread will block here under Python 3.7.
         while not dbmind_master_should_exit:
