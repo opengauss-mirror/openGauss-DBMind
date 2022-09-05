@@ -19,6 +19,7 @@ import types
 
 from ..exceptions import ConfigureError
 from dbmind.common.cmd_executor import ExecutorFactory
+from dbmind.common.utils import where_am_i
 
 # Create a local shell with resident memory.
 # We must pass a local shell as an API to benchmark instance,
@@ -41,7 +42,7 @@ def get_benchmark_instance(script, path, cmd, db_info):
                              'Enter the filename of the script in the benchmark directory '
                              'and ensure that the script file exists.')
 
-    bm = importlib.import_module('.benchmark.{}'.format(name))
+    bm = importlib.import_module('.{}'.format(name), where_am_i(globals()))
     # Verify the validity of the benchmark script.
     # An exception will be thrown if benchmark instance does not have specified attributes.
     if not getattr(bm, 'run', False):

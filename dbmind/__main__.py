@@ -13,6 +13,7 @@
 import ctypes
 import logging
 import sys
+import os
 
 # Explicitly mask sub-command's process title.
 if len(sys.argv) > 1 and sys.argv[1] == 'set':
@@ -35,6 +36,18 @@ if len(sys.argv) > 1 and sys.argv[1] == 'set':
             'Cannot mask the process title due to %s. '
             'There may be a security risk, please take notice of it.', e
         )
+
+# Discard the first item of the sys.path because
+# some submodules probably have the same name as
+# dependencies.
+path0 = os.path.realpath(sys.path[0])
+i = 0
+while i < len(sys.path):
+    if path0 == os.path.realpath(sys.path[i]):
+        sys.path.pop(i)
+        i -= 1
+    i += 1
+
 
 try:
     from dbmind.cmd import main

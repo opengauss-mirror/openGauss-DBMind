@@ -266,9 +266,10 @@ class ARIMA(ForecastingAlgorithm):
     ARIMA = AR(Auto-Regressive) + I(Integrated) + MA(Moving Average)
     """
 
-    def __init__(self, is_transparams=False, linear_fitting=True):
+    def __init__(self, is_transparams=False, linear_fitting=True, given_parameters=None):
         self.is_transparams = is_transparams
         self.linear_fitting = linear_fitting
+        self.given_parameters = given_parameters
         self.original_data = None
         self.order = None
         self.once_data = None
@@ -277,54 +278,59 @@ class ARIMA(ForecastingAlgorithm):
 
     def fit(self, sequence):
         self.original_data = np.array(sequence.values).astype('float32')
-        # To determine d by Augmented-Dickey-Fuller method.
-        n_diff = MIN_DIFF_TIMES
-        for n_diff in range(MIN_DIFF_TIMES, MAX_DIFF_TIMES + 1):
-            diff_data = np.diff(self.original_data, n=n_diff)
-            adf_res = adfuller(diff_data, max_lag=None)
-            if adf_res[1] < P_VALUE_THRESHOLD and adf_res[0] < adf_res[4]['5%']:
-                d = n_diff
-                break
-        else:
-            d = n_diff
-
         k = int(self.linear_fitting)
-        orders = []
-        p_q_pairs = itertools.product(
-            range(MIN_AR_ORDER, MAX_AR_ORDER + 1, 2),
-            range(MIN_MA_ORDER, MAX_MA_ORDER + 1, 2)
-        )
-        for p, q in p_q_pairs:  # Look for the optimal parameters (p, q).
-            if p == 0 and q == 0:
-                continue
+        if self.given_parameters is None:
+            # To determine d by Augmented-Dickey-Fuller method.
+            n_diff = MIN_DIFF_TIMES
+            for n_diff in range(MIN_DIFF_TIMES, MAX_DIFF_TIMES + 1):
+                diff_data = np.diff(self.original_data, n=n_diff)
+                adf_res = adfuller(diff_data, max_lag=None)
+                if adf_res[1] < P_VALUE_THRESHOLD and adf_res[0] < adf_res[4]['5%']:
+                    d = n_diff
+                    break
+            else:
+                d = n_diff
 
-            try:
-                self.fit_once(k, p, d, q)
-                if not np.isnan(self.bic):
-                    orders.append((self.bic, p, q))
-            except InvalidParameter:
-                continue
+            orders = []
+            p_q_pairs = itertools.product(
+                range(MIN_AR_ORDER, MAX_AR_ORDER + 1, 2),
+                range(MIN_MA_ORDER, MAX_MA_ORDER + 1, 2)
+            )
+            for p, q in p_q_pairs:  # Look for the optimal parameters (p, q).
+                if p == 0 and q == 0:
+                    continue
 
-        _, p0, q0 = sorted(orders)[0]
-        for p, q in [(p0-1, q0), (p0, q0-1), (p0+1, q0), (p0, q0+1)]:
-            if p < 0 or q < 0:
-                continue
+                try:
+                    self.fit_once(k, p, d, q)
+                    if not np.isnan(self.bic):
+                        orders.append((self.bic, p, q))
+                except InvalidParameter:
+                    continue
 
-            try:
-                self.fit_once(k, p, d, q)
-                if not np.isnan(self.bic):
-                    orders.append((self.bic, p, q))
-            except InvalidParameter:
-                continue
+            _, p0, q0 = sorted(orders)[0]
+            for p, q in [(p0-1, q0), (p0, q0-1), (p0+1, q0), (p0, q0+1)]:
+                if p < 0 or q < 0:
+                    continue
 
-        for _, p, q in sorted(orders):
-            try:
-                self.fit_once(k, p, d, q)
-                break
-            except InvalidParameter:
-                continue
+                try:
+                    self.fit_once(k, p, d, q)
+                    if not np.isnan(self.bic):
+                        orders.append((self.bic, p, q))
+                except InvalidParameter:
+                    continue
+
+            for _, p, q in sorted(orders):
+                try:
+                    self.fit_once(k, p, d, q)
+                    break
+                except InvalidParameter:
+                    continue
+            else:
+                raise AttributeError('Not any (p, d, q) combination is available.')
+
         else:
-            raise AttributeError('Not any (p, d, q) combination is available.')
+            p, d, q = self.given_parameters
+            self.fit_once(k, p, d, q)
 
     def fit_once(self, k, p, d, q):
         """
