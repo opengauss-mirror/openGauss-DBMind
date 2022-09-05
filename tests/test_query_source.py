@@ -559,33 +559,3 @@ def test_query_source_1(mock_get_slow_queries):
     assert timed_task_info[0].last_end_date == 1640139695000
 
 
-def test_query_source_2():
-    query_source = query_info_source.QueryContextFromDriver(slow_sql_instance)
-    pg_class = query_source.acquire_pg_class()
-    pg_lock_sql = query_source.acquire_lock_info()
-    pg_tables_structure = query_source.acquire_tables_structure_info()
-    database_info = query_source.acquire_database_info()
-    system_info = query_source.acquire_system_info()
-    pg_stat_replication_info = query_source.acquire_pg_replication_info()
-    pg_bgwriter_info = query_source.acquire_bgwriter_info()
-    node_network_info = query_source.acquire_network_info()
-    gs_sql_count_info = query_source.acquire_sql_count_info()
-    timed_task_info = query_source.acquire_timed_task()
-    wait_event_info = query_source.acquire_wait_event()
-    pg_settings_info = query_source.acquire_pg_settings()
-    rewritten_sql = query_source.acquire_rewritten_sql()
-    recommend_sql = query_source.acquire_recommend_index()
-    assert isinstance(pg_class, list) and len(pg_class) == 0
-    assert isinstance(pg_lock_sql, query_info_source.LockInfo)
-    assert isinstance(pg_tables_structure, list) and len(pg_tables_structure) == 0
-    assert isinstance(pg_settings_info, dict) and len(pg_settings_info) == 0
-    assert isinstance(system_info, query_info_source.SystemInfo)
-    assert isinstance(node_network_info, query_info_source.NetWorkInfo)
-    assert isinstance(pg_bgwriter_info, query_info_source.BgWriter)
-    assert isinstance(pg_stat_replication_info, list) and len(pg_stat_replication_info) == 0
-    assert isinstance(gs_sql_count_info, query_info_source.GsSQLCountInfo)
-    assert isinstance(timed_task_info, list) and len(timed_task_info) == 0
-    assert isinstance(wait_event_info, list) and len(wait_event_info) == 0
-    assert isinstance(database_info, query_info_source.DatabaseInfo)
-    assert recommend_sql == '' 
-    assert rewritten_sql == ''

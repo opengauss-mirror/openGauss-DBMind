@@ -41,7 +41,7 @@ help:
 	@sed -n '/^[^\.][a-zA-Z0-9_.]*:/s/:.*//p' <Makefile | sort
 
 tox:
-	tox
+	$(PYTHON) -m tox
 
 test:
 	$(PYTHON) -m pytest tests
