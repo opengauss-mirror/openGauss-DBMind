@@ -124,6 +124,8 @@ class RPCClient:
 
 def ping_rpc_url(url):
     p = urlparse(url)
+    if not p.hostname:
+        return False
 
     if p.port is None:
         if p.scheme == 'http':
