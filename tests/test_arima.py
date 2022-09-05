@@ -5074,7 +5074,7 @@ def test_arima_for_seasonal():
     forecasting_minutes = forecast_length * s.step / (60 * 1000)
     forecast_sequence = quickly_forecast(sequence=s, forecasting_minutes=forecasting_minutes)
     assert len(forecast_sequence) == forecast_length
-    assert mse(seasonal_data[train_length: train_length + forecast_length], forecast_sequence.values) <= 0.1
+    assert mse(seasonal_data[train_length: train_length + forecast_length], forecast_sequence.values) <= 0.15
 
 
 def test_cosine_sequence():
