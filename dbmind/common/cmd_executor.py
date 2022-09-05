@@ -18,6 +18,7 @@ import socket
 import subprocess
 import threading
 import time
+import os
 
 import paramiko
 
@@ -194,6 +195,12 @@ class SSH(Executor):
             else:
                 blocking_fd = kwargs.pop('fd')
 
+                # Some environments miss the path of /path/to/bin and /path/to/sbin,
+                # so we have to attach a common path to the environment PATH.
+                bin_paths = '/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin'
+                path_prefix = 'PATH=$PATH:%s && ' % bin_paths
+                command = path_prefix + command
+
                 chan = self.client.exec_command(command=command, **kwargs)
                 while not chan[blocking_fd].channel.exit_status_ready():  # Blocking here.
                     time.sleep(0.1)
@@ -286,40 +293,98 @@ class LocalExec(Executor):
 
 
 def dequote(text):
+    """Strip quotation marks."""
     return shlex.split(text)[0]
 
 
 def to_cmds(cmdline):
+    separators = {'|', '||', '&&', ';'}
+
+    def get_separator(candidates):
+        for token in candidates:
+            if token in separators:
+                return token
+        return None
+
     cmd_words = list(shlex.shlex(cmdline, punctuation_chars=True))
     cmds = []
+    require_stdin = [False]
     cmd_start = 0
-    while '|' in cmd_words[cmd_start:]:
-        sep_index = cmd_words[cmd_start:].index('|')
+    last_separator = get_separator(cmd_words[cmd_start:])
+    while last_separator:
+        sep_index = cmd_words[cmd_start:].index(last_separator)
         cmds.append(list(map(dequote, cmd_words[cmd_start:sep_index + cmd_start])))
+        require_stdin.append(last_separator == '|')
         cmd_start += sep_index + 1
+        last_separator = get_separator(cmd_words[cmd_start:])
     cmds.append(list(map(dequote, cmd_words[cmd_start:])))
-    return cmds
+    return cmds, require_stdin
+
 
 def multiple_cmd_exec(cmdline, **communicate_kwargs):
-    cmds = to_cmds(cmdline)
+    """This function only returns the execution result of the last
+    command. And only support the basic scenarios.
+
+    Notice: this function is only a simple wrapper of popen,
+     which doesn't support complicated scenarios. e.g.,
+    `echo $?`, `dirname $(pwd)`, `PATH=$PATH; echo $PATH`, `echo abc >&2`
+    """
+    cmds, require_stdin = to_cmds(cmdline)
     if not communicate_kwargs.get('input'):
         stdin = None
     else:
         stdin = subprocess.PIPE
     process_list = []
+    # Support some basic scenarios, for example,
+    # cd and export commands.
+    cwd = os.getcwd()
+    env = os.environ.copy()
     for index, cmd in enumerate(cmds):
+        # Try to render a simple scenario
+        # which contains $ and refer to and environment variable.
+        dollar_index = cmd.index('$') if cmd.count('$') > 0 else -1
+        if 0 < dollar_index < len(cmd) - 1 and cmd[dollar_index - 1] != '\\':
+            cmd.pop(dollar_index)
+            cmd[dollar_index] = env.get(cmd[dollar_index], '')
+
+        # Handle specific commands.
+        if cmd[0] == 'cd':
+            cwd = cmd[1]
+            continue
+        if cmd[0] == 'export' and '=' in cmd[1]:
+            k, v = cmd[1].split('=')
+            env[k] = v
+            continue
+
         if index == 0:
-            _p = subprocess.Popen(cmd, stdin=stdin, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=False)
+            _p = subprocess.Popen(
+                cmd, stdin=stdin, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, shell=False
+            )
             if communicate_kwargs.get('input'):
                 _p.stdin.write(communicate_kwargs.pop('input'))
-                _p.stdin.close()
         else:
-            _p = subprocess.Popen(cmd, stdin=process_list[index - 1].stdout, stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE, shell=False)
+            if require_stdin[index] and len(process_list):
+                prev_process = process_list[-1]
+                stdin = prev_process.stdout
+            else:
+                stdin = None
+            _p = subprocess.Popen(
+                cmd, stdin=stdin,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=False,
+                env=env,
+                cwd=cwd
+            )
         process_list.append(_p)
- 
- 
- 
-    outs, errs = process_list[-1].communicate(**communicate_kwargs)
-    return process_list[-1].returncode, outs, errs
 
+    last_process = process_list[-1]
+    # If the stdin pipe has been broken or closed, but we didn't close it explicitly,
+    # the subprocess will throw a
+    # ValueError which notifies this stdin is a closed file.
+    if last_process.stdin and last_process.stdin.closed:
+        last_process.stdin = None
+
+    outs, errs = last_process.communicate(**communicate_kwargs)
+    return last_process.returncode, outs, errs

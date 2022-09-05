@@ -63,8 +63,6 @@ def run(remote_server, local_host):
     terminal.exec_command_sync('rm -rf %s' % err_logfile)
     # Run benchmark
     stdout, stderr = terminal.exec_command_sync('cd %s; %s %s' % (path, shell_file, conf_file))
-    if len(stderr) > 0:
-        raise ExecutionError(stderr)
 
     # Find the tpmC result.
     tpmC = None
@@ -73,6 +71,8 @@ def run(remote_server, local_host):
         if "(NewOrders)" in st:
             tpmC = split_string[i + 2]
             break
+    if tpmC is None and len(stderr) > 0:
+        raise ExecutionError(stderr)
     stdout, stderr = terminal.exec_command_sync(
         "cat %s/benchmarksql-error.log" % path)
     nb_err = stdout.count("ERROR:")  # Penalty term.

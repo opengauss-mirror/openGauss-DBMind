@@ -248,11 +248,11 @@ class OpenGaussKnobAdvisor:
                                    "You are recommended to set max_connections based on the number of CPU cores. "
                                    "If your job/workload does not consume much CPU, you can also increase it.")
 
-        MIN_SETTING = 50
+        MIN_SETTING = 200
         if self.metric.workload_type == WORKLOAD_TYPE.TP:
-            upper = max(500, cores * 8)
-            lower = max(MIN_SETTING, cores * 3)
-            recommend = clip(recommend, max(MIN_SETTING, cores * 5), max(100, cores * 7))
+            upper = max(1024, cores * 32)
+            lower = max(MIN_SETTING, cores * 4)
+            recommend = clip(recommend, max(MIN_SETTING, cores * 5), max(400, cores * 12))
 
             return instantiate_knob(name="max_connections",
                                     recommend=recommend,
@@ -395,7 +395,12 @@ class OpenGaussKnobAdvisor:
 
     @property
     def maintenance_work_mem(self):
-        return
+        return instantiate_knob(name="maintenance_work_mem",
+                                recommend=self.work_mem.recommend * 10,
+                                knob_type=Knob.TYPE.INT,
+                                value_max=self.work_mem.recommend * 20,
+                                value_min=self.work_mem.recommend,
+                                restart=False)
 
     @property
     def effective_cache_size(self):
@@ -486,7 +491,7 @@ class OpenGaussKnobAdvisor:
             return instantiate_knob(name="random_page_cost",
                                     recommend=3,
                                     knob_type=Knob.TYPE.FLOAT,
-                                    value_max=3,
+                                    value_max=4,
                                     value_min=2,
                                     restart=False)
         else:
@@ -508,7 +513,7 @@ class OpenGaussKnobAdvisor:
             if search_modify_ratio > 20:
                 recommend = 1000
             elif search_modify_ratio < 2:
-                recommend = 100
+                recommend = 50
             else:
                 if fetch_return_ratio > 0.0005:
                     recommend = 200
@@ -526,7 +531,7 @@ class OpenGaussKnobAdvisor:
                                     recommend=recommend,
                                     knob_type=Knob.TYPE.INT,
                                     value_max=1000,
-                                    value_min=100,
+                                    value_min=50,
                                     restart=False)
         elif workload_type == WORKLOAD_TYPE.TP:
             if read_write_ratio < 0.5:

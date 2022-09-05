@@ -133,7 +133,7 @@ class Metric:
             """DISCARD means do nothing."""
             self.is_valid = False
         else:
-            raise ValueError('Not support usage %s.' % self.usage)
+            raise ValueError('Not supported usage %s.' % self.usage)
 
     def activate(self, labels=()):
         """Instantiate specific Prometheus metric objects."""

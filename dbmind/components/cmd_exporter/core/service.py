@@ -21,7 +21,7 @@ from prometheus_client import (
 from prometheus_client.exposition import generate_latest
 from prometheus_client.registry import CollectorRegistry
 
-from dbmind.common.utils import dbmind_assert, cast_to_int_or_float
+from dbmind.common.utils import dbmind_assert, cast_to_int_or_float, raise_fatal_and_exit
 from dbmind.common.cmd_executor import multiple_cmd_exec
 
 PROMETHEUS_TYPES = {
@@ -70,7 +70,7 @@ class Metric:
             """DISCARD means do nothing."""
             self.is_valid = False
         else:
-            raise ValueError('Not support usage %s.' % self.usage)
+            raise ValueError('Not supported usage %s.' % self.usage)
 
     def set_prefix(self, prefix):
         self._prefix = prefix
@@ -146,6 +146,12 @@ class QueryInstance:
 
         # `global_labels` is required and must be added anytime.
         self.label_names.extend(global_labels.keys())
+        if len(self.label_names) == 0:
+            raise_fatal_and_exit(
+                "Please specify at least one label "
+                "for '%s' in the configuration file." % self.name,
+                use_logging=False
+            )
 
     def attach(self, registry):
         for metric in self.metrics:

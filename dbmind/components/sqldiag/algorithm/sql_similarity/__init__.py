@@ -22,5 +22,5 @@ def calc_sql_distance(algorithm):
     elif algorithm == 'cosine_distance':
         from .cosine_distance import distance
     else:
-        raise NotImplementedError("do not support '{}'".format(algorithm))
+        raise NotImplementedError("Not supported '{}'.".format(algorithm))
     return distance

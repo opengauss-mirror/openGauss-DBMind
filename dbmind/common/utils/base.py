@@ -342,7 +342,7 @@ class ExceptionCatcher:
                     from .cli import raise_fatal_and_exit
                     raise_fatal_and_exit('An exception raised: %s' % e)
                 else:
-                    raise ValueError('Not support strategy %s' % self.strategy)
+                    raise ValueError('Not supported strategy %s' % self.strategy)
 
         return wrapper
 

@@ -25,7 +25,7 @@ used_mem_penalty_term = 1e-9  # Prevent taking up more memory.
 # Reinforcement Learning
 #------------------------------------------------------------------------------
 [Reinforcement Learning]
-rl_algorithm = ddpg  # ddpg, dqn. Not support dqn yet.
+rl_algorithm = ddpg  # ddpg, dqn. Not supported dqn yet.
 rl_model_path = model/rl.model
 rl_steps = 100
 max_episode_steps = 10

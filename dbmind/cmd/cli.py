@@ -20,11 +20,12 @@ from dbmind.common.exceptions import SetupError, ConfigSettingError
 from dbmind.common.utils.checking import path_type
 from dbmind.common.utils.cli import set_proc_title
 from dbmind.constants import __description__, __version__
+from dbmind import constants
+from dbmind import global_vars
+
 from . import config_utils
 from . import edbmind
 from . import setup
-from .. import constants
-from .. import global_vars
 
 
 def build_parser():

@@ -235,7 +235,7 @@ class Sequence(RPCJSONAble):
             end = OptionalContainer(item).get(1, default=OptionalContainer(self._timestamps).get(-1))
             return Sequence._create_sub_sequence(self, start, end)
         else:
-            raise ValueError('Not support %s type.' % type(item))
+            raise ValueError('Not supported %s type.' % type(item))
 
     def __len__(self):
         return self.length

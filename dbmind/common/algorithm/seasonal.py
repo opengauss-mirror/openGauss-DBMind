@@ -18,6 +18,7 @@ from scipy import signal
 
 warnings.filterwarnings("ignore")
 
+
 def acovf(x):  # auto-covariances function
     x = np.array(x)
     n = x.shape[0]

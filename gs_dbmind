@@ -39,11 +39,13 @@ ABSPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DBMIND_PATH=${ABSPATH}/dbmind
 
 ORIGIN_PATH=$(pwd)
-
 cd $ABSPATH
+
 # Check whether Python has been installed onto the OS.
 source constant
 
+# Set local Python VM if we have.
+export PATH={ABSPATH}/python/bin:$PATH
 PYTHON=$(which python3)
 if [[ "$?" != "0" ]]; then
     die "Not found the Python environment."
@@ -59,7 +61,7 @@ fi
 # Run set command
 if [[ $1 == "set" ]]; then
     cd $ORIGIN_PATH
-    echo "The SET operation will not detect the integrity of the module, please install the module in advance"
+    echo "The SET operation will not detect the integrity of the module, please install the module in advance."
     $PYTHON $DBMIND_PATH/ $@ &
     exit $?
 fi
@@ -82,7 +84,10 @@ else
 fi
 
 ## Secondly, check whether each library has been installed.
-export PYTHONPATH=${ABSPATH}/3rd:$PYTHONPATH
+if [[ $PYTHONPATH ]]; then
+    echo "You have set the variable PYTHONPATH. DBMind ignored it."
+fi
+export PYTHONPATH=${ABSPATH}/3rd
 installed_list=$($PYTHON -m pip list --disable-pip-version-check)
 while read line; do
     libname=$(extract_libname $line)
