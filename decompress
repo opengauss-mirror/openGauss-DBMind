@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# Copyright (c) 2022 Huawei Technologies Co.,Ltd.
+#
+# openGauss is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+
+echo ""
+echo "Welcome to DBMind Installer"
+echo ""
+
+homedir=$(getent passwd "$USER" | cut -d: -f6)
+inst=${homedir}/openGauss-DBMind
+
+echo "DBMind will now be installed into this location:"
+echo "$inst"
+echo "
+  - Press ENTER to confirm the location
+  - Press CTRL-C to abort the installation
+  - Or specify a different location below
+"
+
+read -e -p ">>>" input
+
+if [[ "$input" != "" ]]; then
+    inst=$input
+fi
+
+echo "PREFIX=$inst"
+echo "Unpacking payload ..."
+ARCHIVE=`awk '/^__ARCHIVE_BELOW__/ {print NR + 1; exit 0; }' $0`
+mkdir -p $inst
+tail -n+$ARCHIVE $0 | tar xz -C $inst
+
+if [[ $? -ne 0 ]]; then
+    echo "Failed to decompress."
+    exit 1
+fi
+
+echo "Do you wish the installer to append the path $inst into the enviroment variable? [yes|no]"
+read -e -p ">>>" input
+while [[ "$input" != "yes" && "$input" != "no" ]]; do
+    read -e -p ">>>" input
+done
+
+case "$input" in
+    "yes") echo "export PATH=${inst}:"'$PATH' >> $homedir/.bashrc
+    ;;
+    "no") 
+    ;;
+    *) echo "Wrong input."
+esac
+
+
+echo "Installed successfully."
+exit 0
+
+__ARCHIVE_BELOW__
