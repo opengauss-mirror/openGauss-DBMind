@@ -64,7 +64,7 @@ clean:
 
 package: clean ui dbmind 3rd 
 	@echo "Full packaging..."
-	tar cf payload.tar * --exclude=ui --exclude=tests --exclude=Makefile --exclude=decompress --exclude=tox.ini
+	tar --exclude='ui' --exclude='tests' --exclude='Makefile' --exclude='decompress' --exclude='tox.ini' -cf payload.tar *
 	tar --append --file=payload.tar ui/build
 	gzip payload.tar
 	cat decompress payload.tar.gz > $(installer_name)
@@ -73,7 +73,7 @@ package: clean ui dbmind 3rd
 
 package_without_3rd: clean ui dbmind 
 	@echo "Packaging without third-party dependencies..."
-	tar cf payload.tar * --exclude=ui --exclude=3rd --exclude=tests --exclude=Makefile --exclude=decompress --exclude=tox.ini
+	tar --exclude='ui' --exclude='tests' --exclude='Makefile' --exclude='decompress' --exclude='tox.ini' -cf payload.tar *
 	tar --append --file=payload.tar ui/build
 	gzip payload.tar
 	cat decompress payload.tar.gz > $(installer_name_without_3rd)
