@@ -11,6 +11,15 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
+from itertools import count
+
+try:
+    from .utils import get_placeholders
+except ImportError:
+    from utils import get_placeholders
+
+counter = count(start=0, step=1)
+
 
 def get_existing_index_sql(schema, tables):
     tables_string = ','.join(["'%s'" % table for table in tables])
@@ -27,6 +36,14 @@ def get_existing_index_sql(schema, tables):
     return sql
 
 
+def get_prepare_sqls(statement):
+    prepare_id = 'prepare_' + str(next(counter))
+    placeholder_size = len(get_placeholders(statement))
+    prepare_args = '' if not placeholder_size else '(%s)' % (','.join(['NULL'] * placeholder_size))
+    return [f'prepare {prepare_id} as {statement}', f'explain execute {prepare_id}{prepare_args}',
+            f'deallocate prepare {prepare_id}']
+
+
 def get_workload_cost_sqls(statements, indexes, is_multi_node):
     sqls = []
     if indexes:
@@ -39,8 +56,8 @@ def get_workload_cost_sqls(statements, indexes, is_multi_node):
         sqls.append('set enable_fast_query_shipping = off;')
         sqls.append('set enable_stream_operator = on; ')
     sqls.append("set explain_perf_mode = 'normal'; ")
-    for statement in statements:
-        sqls.append('EXPLAIN ' + statement + ';')
+    for index, statement in enumerate(statements):
+        sqls.extend(get_prepare_sqls(statement))
     return sqls
 
 
@@ -67,6 +84,16 @@ def get_index_check_sqls(query, indexes, is_multi_node):
                     (table, columns, index_type))
     sqls.append('SELECT pg_catalog.hypopg_display_index()')
     sqls.append("SET explain_perf_mode = 'normal';")
-    sqls.append("explain " + query)
+    sqls.extend(get_prepare_sqls(query))
     sqls.append('SELECT pg_catalog.hypopg_reset_index()')
     return sqls
+
+
+def get_table_info_sql(table, schema):
+    return f"select reltuples, parttype from pg_class where relname ilike '{table}' and " \
+           f"relnamespace = (select oid from pg_namespace where nspname = '{schema}');"
+
+
+def get_column_info_sql(table, schema):
+    return f"select n_distinct, attname from pg_stats where tablename ilike '{table}' " \
+           f"and schemaname = '{schema}';"
