@@ -49,7 +49,7 @@ class DriverExecutor(BaseExecutor):
             return [('ERROR',)]
         except Exception as e:
             logging.warning('Found %s while executing SQL statement.', e)
-            return [('ERROR',)]
+            return [('ERROR ' + str(e),)]
         finally:
             self.conn.rollback()
 

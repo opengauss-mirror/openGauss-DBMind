@@ -525,7 +525,7 @@ class IndexAdvisorTester(unittest.TestCase):
     def test_workload_compression(self):
         with patch('dbmind.components.index_advisor.index_advisor_workload.open',
                    mock_open(read_data=Case.sql_content)) as m:
-            queries = index_advisor_workload.workload_compression('test')
+            queries = index_advisor_workload.compress_workload('test')
         workloadCount = 7
         self.assertEqual(int(sum(query.get_frequency() for query in queries)), workloadCount)
 

@@ -21,35 +21,39 @@ import random
 import re
 import sys
 import select
+from collections import defaultdict
 from itertools import groupby, chain, combinations
 from typing import Tuple, List
 
 import sqlparse
+from sql_metadata import Parser
 
 try:
     from .sql_output_parser import parse_single_advisor_results, parse_explain_plan, \
-        get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results
+        get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results, parse_plan_cost
     from .sql_generator import get_single_advisor_sql, get_index_check_sqls, get_existing_index_sql, \
         get_workload_cost_sqls
     from .executors.common import BaseExecutor
     from .executors.gsql_executor import GsqlExecutor
     from .mcts import MCTS
+    from .table import get_table_context
     from .utils import match_table_name, IndexItemFactory, \
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
-        lookfor_subsets_configs, \
-        match_columns, infer_workload_benefit
+        lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
+        match_columns, infer_workload_benefit, UniqueList
 except ImportError:
     from sql_output_parser import parse_single_advisor_results, parse_explain_plan, \
-        get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results
+        get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results, parse_plan_cost
     from sql_generator import get_single_advisor_sql, get_index_check_sqls, get_existing_index_sql, \
         get_workload_cost_sqls
     from executors.common import BaseExecutor
     from executors.gsql_executor import GsqlExecutor
     from mcts import MCTS
+    from table import get_table_context
     from utils import match_table_name, IndexItemFactory, \
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
-        lookfor_subsets_configs, \
-        match_columns, infer_workload_benefit
+        lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
+        match_columns, infer_workload_benefit, UniqueList
 
 SAMPLE_NUM = 5
 MAX_INDEX_COLUMN_NUM = 4
@@ -151,6 +155,9 @@ class IndexAdvisor:
 
     def complex_index_advisor(self, candidate_indexes: List[AdvisedIndex]):
         atomic_config_total = generate_sorted_atomic_config(self.workload.get_queries(), candidate_indexes)
+        for atomic_config in generate_atomic_config_for_same_columns(candidate_indexes):
+            if atomic_config not in atomic_config_total:
+                atomic_config_total.append(atomic_config)
         if atomic_config_total and len(atomic_config_total[0]) != 0:
             raise ValueError("The empty atomic config isn't generated!")
         for atomic_config in atomic_config_total:
@@ -184,7 +191,7 @@ class IndexAdvisor:
                                                                                  self.workload)
         return candidate_indexes
 
-    def filter_low_benefit_index(self, opt_indexes: List[AdvisedIndex]):
+    def filter_low_benefit_index(self, opt_indexes: List[AdvisedIndex], improved_rate):
         for key, index in enumerate(opt_indexes):
             sql_optimized = 0
             negative_sql_ratio = 0
@@ -201,7 +208,7 @@ class IndexAdvisor:
             # Filter the candidate indexes that do not meet the conditions of optimization.
             if not positive_queries:
                 continue
-            if sql_optimized / sql_num['positive'] < 0.1:
+            if sql_optimized / sql_num['positive'] < improved_rate:
                 continue
             if sql_optimized / sql_num['positive'] < \
                     NEGATIVE_RATIO_THRESHOLD < negative_sql_ratio:
@@ -437,7 +444,7 @@ def get_workload_template(workload):
     return templates
 
 
-def workload_compression(input_path):
+def compress_workload(input_path):
     compressed_workload = []
     if isinstance(input_path, dict):
         templates = input_path
@@ -548,19 +555,27 @@ def is_multi_node(executor: BaseExecutor):
 
 def query_index_check(executor, query, indexes):
     """ Obtain valid indexes based on the optimizer. """
-    valid_indexes = {}
+    valid_indexes = []
     if len(indexes) == 0:
-        return valid_indexes
-
+        return valid_indexes, None
+    # When the cost values are the same, the execution plan picks the last index created.
+    # Sort indexes to ensure that short indexes have higher priority.
+    indexes = sorted(indexes, key=lambda index: -len(index.get_columns()))
     index_check_results = executor.execute_sqls(get_index_check_sqls(query, indexes, is_multi_node(executor)))
     valid_indexes = get_checked_indexes(index_check_results, set(index.get_table() for index in indexes))
-    return valid_indexes
+    cost = None
+    for res in index_check_results:
+        if '(cost' in res[0]:
+            cost = parse_plan_cost(res[0])
+            break
+    return valid_indexes, cost
 
 
 def get_valid_indexes(advised_indexes, statement, executor):
     need_check = False
     single_column_indexes = generate_single_column_indexes(advised_indexes)
-    valid_indexes = query_index_check(executor, statement, single_column_indexes)
+    valid_indexes, cost = query_index_check(executor, statement, single_column_indexes)
+    pre_indexes = valid_indexes[:]
 
     for i in range(MAX_INDEX_COLUMN_NUM):
         for table, index_group in groupby(valid_indexes, key=lambda x: x.get_table()):
@@ -580,7 +595,13 @@ def get_valid_indexes(advised_indexes, statement, executor):
                         add_more_column_index(valid_indexes, table, (columns, index_type),
                                               (single_column, single_index_type))
         if need_check:
-            valid_indexes = query_index_check(executor, statement, valid_indexes)
+            cur_indexes, cur_cost = query_index_check(executor, statement, valid_indexes)
+            # If the cost reduction does not exceed 5%, return the previous indexes.
+            if cost / cur_cost < 1.05:
+                return pre_indexes
+            valid_indexes = cur_indexes
+            pre_indexes = valid_indexes[:]
+            cost = cur_cost
             need_check = False
         else:
             break
@@ -661,6 +682,7 @@ def fetch_created_indexes(executor):
 
 
 def print_candidate_indexes(candidate_indexes):
+    print_header_boundary(" Generate candidate indexes ")
     for index in candidate_indexes:
         table = index.get_table()
         columns = index.get_columns()
@@ -669,6 +691,8 @@ def print_candidate_indexes(candidate_indexes):
             print("table: ", table, "columns: ", columns, "type: ", index_type)
         else:
             print("table: ", table, "columns: ", columns)
+    if not candidate_indexes:
+        print("No candidate indexes generated!")
 
 
 def index_sort_func(index):
@@ -708,13 +732,39 @@ def add_query_indexes(indexes: List[AdvisedIndex], queries: List[QueryItem], pos
             queries[pos].add_index(_index)
 
 
-def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor):
-    print_header_boundary(" Generate candidate indexes ")
+def generate_query_placeholder_indexes(query, executor: BaseExecutor, n_distinct=0.01, reltuples=10000,
+                                       use_all_columns=False):
+    indexes = []
+    if not has_dollar_placeholder(query) and not use_all_columns:
+        return []
+    parser = Parser(query)
+    try:
+        tables = parser.tables
+        columns = UniqueList()
+        for position, _columns in parser.columns_dict.items():
+            if position.upper() != 'SELECT':
+                columns.extend(_columns)
+    except (ValueError, AttributeError, KeyError) as e:
+        return []
+    for table in tables:
+        table_context = get_table_context(table, executor)
+        if not table_context or table_context.reltuples < reltuples:
+            continue
+        for column in columns:
+            if table_context.has_column(column) and table_context.get_n_distinct(column) <= n_distinct:
+                indexes.extend(generate_placeholder_indexes(table_context, column.split('.')[-1].lower()))
+    return indexes
 
+
+def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_distinct, reltuples, use_all_columns):
     all_indexes = []
     with executor.session():
         for pos, query in enumerate(workload.get_queries()):
             advised_indexes = query_index_advise(executor, query.get_statement())
+            for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
+                                                                    reltuples, use_all_columns):
+                if advised_index not in advised_indexes:
+                    advised_indexes.append(advised_index)
             valid_indexes = get_valid_indexes(advised_indexes, query.get_statement(), executor)
             add_query_indexes(valid_indexes, workload.get_queries(), pos)
             for index in valid_indexes:
@@ -723,10 +773,8 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor):
 
         # Filter redundant indexes.
         candidate_indexes = filter_redundant_indexes_with_same_type(all_indexes)
-        print_candidate_indexes(candidate_indexes)
 
         if len(candidate_indexes) == 0:
-            print("No candidate indexes generated!")
             estimate_workload_cost_file(executor, workload)
 
     return candidate_indexes
@@ -762,6 +810,17 @@ def generate_sorted_atomic_config(queries: List[QueryItem],
         if (index,) not in atomic_config_total:
             atomic_config_total.append((index,))
     return atomic_config_total
+
+
+def generate_atomic_config_for_same_columns(candidate_indexes: List[AdvisedIndex]) -> List[Tuple[AdvisedIndex]]:
+    atomic_configs = []
+    same_column_indexes = defaultdict(list)
+    for index in candidate_indexes:
+        same_column_id = (index.get_table(), index.get_index_type(), tuple(sorted(index.get_columns())))
+        same_column_indexes[same_column_id].append(index)
+    for _, indexes in same_column_indexes.items():
+        atomic_configs.extend(list(combinations(indexes, 2)))
+    return atomic_configs
 
 
 def display_redundant_indexes(redundant_indexes: List[ExistingIndex]):
@@ -847,10 +906,12 @@ def get_last_indexes_result(input_path):
 
 
 def index_advisor_workload(history_advise_indexes, executor: BaseExecutor, workload_file_path,
-                           multi_iter_mode: bool, show_detail: bool):
-    queries = workload_compression(workload_file_path)
+                           multi_iter_mode: bool, show_detail: bool, n_distinct: float, reltuples: int,
+                           use_all_columns: bool, **kwargs):
+    queries = compress_workload(workload_file_path)
     workload = WorkLoad(queries)
-    candidate_indexes = generate_candidate_indexes(workload, executor)
+    candidate_indexes = generate_candidate_indexes(workload, executor, n_distinct, reltuples, use_all_columns)
+    print_candidate_indexes(candidate_indexes)
     index_advisor = IndexAdvisor(executor, workload, multi_iter_mode)
     if candidate_indexes:
         print_header_boundary(" Determine optimal indexes ")
@@ -860,7 +921,7 @@ def index_advisor_workload(history_advise_indexes, executor: BaseExecutor, workl
             else:
                 opt_indexes = index_advisor.simple_index_advisor(candidate_indexes)
         if opt_indexes:
-            index_advisor.filter_low_benefit_index(opt_indexes)
+            index_advisor.filter_low_benefit_index(opt_indexes, kwargs.get('improved_rate', 0))
     index_advisor.display_advise_indexes_info(show_detail)
 
     index_advisor.generate_incremental_index(history_advise_indexes)
@@ -885,6 +946,15 @@ def check_parameter(args):
     if args.max_index_storage is not None and args.max_index_storage <= 0:
         raise argparse.ArgumentTypeError("%s is an invalid positive int value" %
                                          args.max_index_storage)
+    if args.max_n_distinct <= 0 or args.max_n_distinct > 1:
+        raise argparse.ArgumentTypeError(
+            '%s is an invalid max-n-distinct which ranges from 0 to 1' % args.max_n_distinct)
+    if args.min_improved_rate < 0 or args.min_improved_rate >= 1:
+        raise argparse.ArgumentTypeError(
+            '%s is an invalid min-improved-rate which must be greater than '
+            'or equal to 0 and less than 1' % args.min_improved_rate)
+    if args.min_reltuples <= 0:
+        raise argparse.ArgumentTypeError('%s is an invalid positive int value' % args.min_reltuples)
     JSON_TYPE = args.json
     MAX_INDEX_NUM = args.max_index_num
     MAX_INDEX_STORAGE = args.max_index_storage
@@ -913,6 +983,18 @@ def main(argv):
                             help="Maximum storage of suggested indexes/MB", type=int)
     arg_parser.add_argument("--multi-iter-mode", "--multi_iter_mode", action='store_true',
                             help="Whether to use multi-iteration algorithm", default=False)
+    arg_parser.add_argument("--max-n-distinct", type=float,
+                            help="Maximum n_distinct value (reciprocal of the distinct number)"
+                                 " for the index column.",
+                            default=0.01)
+    arg_parser.add_argument("--min-improved-rate", type=float,
+                            help="Minimum improved rate of the cost for the indexes",
+                            default=0.1)
+    arg_parser.add_argument("--min-reltuples", type=int,
+                            help="Minimum reltuples value for the index column.", default=10000)
+    arg_parser.add_argument('--use-all-columns', action='store_true',
+                            help="Specify all related columns as candidates",
+                            default=False)
     arg_parser.add_argument("--multi-node", "--multi_node", action='store_true',
                             help="Whether to support distributed scenarios", default=False)
     arg_parser.add_argument("--json", action='store_true',
@@ -943,7 +1025,8 @@ def main(argv):
     else:
         executor = GsqlExecutor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
     index_advisor_workload(get_last_indexes_result(args.file), executor, args.file,
-                           args.multi_iter_mode, args.show_detail)
+                           args.multi_iter_mode, args.show_detail, args.max_n_distinct, args.min_reltuples,
+                           args.use_all_columns, improved_rate=args.min_improved_rate)
 
 
 if __name__ == '__main__':
