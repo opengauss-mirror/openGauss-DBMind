@@ -16,7 +16,7 @@ import argparse
 import getpass
 import os
 import socket
-from logging.handlers import TimedRotatingFileHandler
+from logging.handlers import RotatingFileHandler
 
 import requests
 
@@ -149,14 +149,14 @@ def set_logger(filepath, level):
         '[%(funcName)s][%(levelname)s][%(thread)d] '
         '- %(message)s'
     )
-    handler = TimedRotatingFileHandler(
+    # Specify the size of logfiles.
+    max_bytes = 100 * 1024 * 1024  # 100Mb
+    backup_count = 5
+
+    handler = RotatingFileHandler(
         filename=filepath,
-        when='D',
-        interval=1,
-        backupCount=15,
-        encoding='UTF-8',
-        delay=False,
-        utc=True
+        maxBytes=max_bytes,
+        backupCount=backup_count
     )
     handler.setFormatter(formatter)
     handler.setLevel(level)

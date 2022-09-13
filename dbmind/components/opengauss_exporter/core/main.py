@@ -26,6 +26,7 @@ from dbmind.common.utils.cli import wipe_off_password_from_proc_title
 from dbmind.common.utils.exporter import KVPairAction, ListPairAction
 from dbmind.common.utils.exporter import is_exporter_alive, set_logger, parse_and_adjust_args
 from dbmind.constants import __version__
+
 from . import controller
 from . import service
 from .agent import create_agent_rpc_service
@@ -160,11 +161,14 @@ class ExporterMain(Daemon):
                 disable_cache=self.args.disable_cache,
                 constant_labels=self.args.constant_labels,
             )
-        except ConnectionError:
-            write_to_terminal('Failed to connect to the url, exiting...', color='red')
+        except ConnectionError as e:
+            # We can not throw the exception details due to the default security policy.
+            write_to_terminal('Failed to connect to the database using the url, exiting...', color='red')
             sys.exit(1)
         except Exception as e:
-            write_to_terminal('Failed to connect to the url due to exception, exiting...', color='red')
+            write_to_terminal(
+                'Failed to connect to the database using the url due to an exception %s, exiting...' % e.__class__.__name__, color='red'
+            )
             raise e
         if not self.args.disable_settings_metrics:
             with open(os.path.join(YAML_DIR_PATH, PG_SETTINGS_YAML), errors='ignore') as fp:
