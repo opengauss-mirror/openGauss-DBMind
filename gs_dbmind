@@ -45,7 +45,7 @@ cd $ABSPATH
 source constant
 
 # Set local Python VM if we have.
-export PATH={ABSPATH}/python/bin:$PATH
+export PATH=${ABSPATH}/python/bin:$PATH
 PYTHON=$(which python3)
 if [[ "$?" != "0" ]]; then
     die "Not found the Python environment."
@@ -124,8 +124,10 @@ fi
 
 set -f
 for arg in "${@}" ; do
-    arg=`echo $arg |sed 's/"""/\\\\\\"\\\\\\"\\\\\\"/g'`
-    arg=`${PYTHON} -c "import shlex;print(shlex.quote(\"\"\"$arg\"\"\"))"`
+    if [[ ${arg:0:1} != '-' ]]; then
+        arg=`echo $arg |sed 's/"""/\\\\\\"\\\\\\"\\\\\\"/g'`
+        arg=`${PYTHON} -c "import shlex;print(shlex.quote(\"\"\"$arg\"\"\"))"`
+    fi
     _args=$_args" "$arg
 done
 

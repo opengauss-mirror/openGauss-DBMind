@@ -34,7 +34,7 @@ def build_parser():
     parser = argparse.ArgumentParser(
         description=__description__
     )
-    parser.add_argument('--version', action='version', version=__version__)
+    parser.add_argument('-v', '--version', action='version', version=__version__)
 
     # Add sub-commands:
     subparsers = parser.add_subparsers(title='available subcommands',
