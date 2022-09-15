@@ -1,0 +1,34 @@
+.editable-cell {
+  position: relative;
+}
+
+.editable-cell-value-wrap {
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.editable-row:hover .editable-cell-value-wrap {
+  padding: 4px 11px;
+  border: 1px solid #d9d9d9;
+  border-radius: 2px;
+}
+
+[data-theme='dark'] .editable-row:hover .editable-cell-value-wrap {
+  border: 1px solid #434343;
+}
+/* dbmind-settings表格列宽 */
+.tablecellclass .ant-table-cell-fix-left{
+  width:200px;
+}
+@keyframes blink{
+  0%{opacity: 1;}
+  100%{opacity: 0;}
+}
+.blink{
+  color:#ff5500;
+  font-size: 14px;
+  animation: blink 500ms linear infinite;
+}
+.dbmindTable .ant-table-pagination.ant-pagination {
+  padding-right: 300px;
+}

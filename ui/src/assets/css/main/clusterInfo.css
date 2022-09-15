@@ -1,0 +1,7 @@
+.treeOperate li{
+  padding: 2px;
+}
+.treeOperate li:hover{
+  background-color: #2d93f3;
+  color: aliceblue;
+}

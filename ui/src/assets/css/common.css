@@ -1,0 +1,78 @@
+.ant-tabs-card.ant-tabs-top > .ant-tabs-nav .ant-tabs-tab,
+.ant-tabs-card.ant-tabs-top > div > .ant-tabs-nav .ant-tabs-tab {
+  background: transparent !important;
+  border: 1px solid #f2f2f2;
+  border-left: none;
+}
+.ant-tabs-card.ant-tabs-top > .ant-tabs-nav .ant-tabs-tab-active,
+.ant-tabs-card.ant-tabs-top > div > .ant-tabs-nav .ant-tabs-tab-active {
+  background: #fff;
+  border-color: #f2f2f2;
+}
+.ant-tabs-content-holder {
+  padding: 0 10px 0 !important;
+}
+ul,li{
+  list-style: none;
+}
+.mb-20 {
+  margin-bottom: 20px;
+}
+.mb-80{
+  margin-bottom: 80px;
+}
+.mr-20{
+  margin-right: 20px;
+}
+.contentWrap {
+  border: 1px solid #f2f2f2;
+  border-top: none;
+  background: #f1f1f1;
+  padding:20px 20px 0 20px;
+}
+.plr-0{
+  padding-right: 0!important;
+  padding-left: 0!important;
+}
+.mlr-0{
+  margin-right: 0!important;
+  margin-left: 0!important;
+}
+.ant-tabs-card.ant-tabs-top > .ant-tabs-nav .ant-tabs-tab-active, .ant-tabs-card.ant-tabs-top > div > .ant-tabs-nav .ant-tabs-tab-active{
+  border-top: 1px solid #1890ff;
+}
+.ant-layout-sider-trigger{
+  position: absolute;
+  top:0
+}
+.ant-menu{
+  margin-top: 48px;
+}
+.more_link{
+  color: #40b1ff;
+  cursor: pointer;
+}
+.pointer{
+  cursor: pointer;
+}
+/* 表格拖拽宽度 */
+.react-resizable {
+  position: relative;
+  background-clip: padding-box;
+}
+.react-resizable-handle {
+  position: absolute;
+  width: 10px;
+  height: 100%;
+  bottom: 0;
+  right: -5px;
+  cursor: col-resize;
+  z-index: 1;
+}
+.ant-steps{
+  width: 80%;
+  margin: 20px auto;
+}
+.contentBag::-webkit-scrollbar{
+  display:none;
+}
