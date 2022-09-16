@@ -275,7 +275,11 @@ def main(argv):
     host = args.host
     anomaly = args.anomaly
     if end_time - start_time < 30000:
-        parser.exit(1, f"The start time must be at least 30 seconds earlier than the end time.")
+        parser.exit(1, "The start time must be at least 30 seconds earlier than the end time.")
+
+    if args.action == 'plot' and None in (host, anomaly):
+        parser.exit(1, "Quitting plot action due to missing parameters. "
+                       "(--host or --anomaly)")
 
     start_datetime = datetime.fromtimestamp(start_time / 1000)
     end_datetime = datetime.fromtimestamp(end_time / 1000)
@@ -302,7 +306,7 @@ def main(argv):
         anomalies_set[metric_host] = {}
         if anomaly:
             if anomaly not in ANOMALY_DETECTORS:
-                parser.exit(1, f"anomaly not found in {list(ANOMALY_DETECTORS.keys())}.")
+                parser.exit(1, f"Not found anomaly in {list(ANOMALY_DETECTORS.keys())}.")
 
             anomalies_set[metric_host][anomaly] = anomaly_detect(sequence, anomaly, metric)
         else:
@@ -312,9 +316,6 @@ def main(argv):
     if args.action == 'overview':
         overview(anomalies_set, metric, start_time, end_time)
     elif args.action == 'plot':
-        if None in (host, anomaly):
-            parser.exit(1, "Quitting plotting action due to missing parameters. "
-                           "(--host or --anomaly)")
         plot(sequences_set, anomalies_set, metric, start_time, end_time)
 
 
