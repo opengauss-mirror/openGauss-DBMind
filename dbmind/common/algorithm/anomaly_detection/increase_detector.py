@@ -63,9 +63,9 @@ def increase_condition(values, side, max_increase_rate):
     length = len(values)
     values = np.array(values)
     if side == "positive":
-        increase_rate = (values[1:] - values[:-1] > 0).sum() / length
+        increase_rate = (values[1:] - values[:-1] >= 0).sum() / length
     elif side == "negative":
-        increase_rate = (values[1:] - values[:-1] < 0).sum() / length
+        increase_rate = (values[1:] - values[:-1] <= 0).sum() / length
     else:
         raise ValueError(side)
 
@@ -101,7 +101,7 @@ class IncreaseDetector(AbstractDetector):
             increase_rate, over_increase_rate = increase_condition(fragment, self.side, self.max_increase_rate)
             coef, _ = linear_fitting(fragment, stable_fragment_mean)
             if over_increase_rate or over_max_coef(coef, self.side, self.max_coef):
-                predicted[i: i + self.window] = [True] * self.window
+                predicted[i: i + self.window] = [True] * len(fragment)
 
         return predicted
 
