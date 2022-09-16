@@ -1,0 +1,45 @@
+.loginbox{
+    width: 100%;
+    display: flex;
+    height: 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    background-color: #001529;
+}
+.loginwrap{
+    position: relative;
+    width: 1000px;
+    background: #808a94;
+    border-radius: 10px;
+    height: 100px;
+}
+.logintip{
+    position: absolute;
+    left: -2.64%;
+    top: -25%;
+}
+.btnboxrow{
+    width: 100%;
+    height: 100px;
+    position: relative; 
+}
+.btnboxrow .ant-form{
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    display: flex;
+    justify-content: center;
+}
+#loginbtn{
+    width: 10%;
+    border-radius: 10px;
+}
+.LogInTwoBtn{
+    border-radius: 10px;
+}
+.ant-form-item-with-help .ant-form-item-explain{
+    height: 0 !important;
+}

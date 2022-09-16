@@ -1,0 +1,25 @@
+
+.flexbox {
+  display: flex;
+}
+.flextitle1 {
+  width: 120px;
+}
+.flextitle2 {
+  width: 130px;
+}
+.ant-spin-container ul {
+  justify-content: flex-end;
+  background-color: #fff;
+}
+.flexcheckbox {
+  display: flex;
+  justify-content: space-around;
+}
+.ant-form-horizontal .ant-form-item-label{
+  width: 120px!important;
+}
+.errorinvalied .ant-form-item-explain-error{
+  width: 200px;
+}
+
