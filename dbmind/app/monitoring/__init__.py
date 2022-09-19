@@ -53,7 +53,7 @@ def detect_history(sequences):
     # prevent cross-reference
     from ..diagnosis import diagnose_for_sequences
     for sequence in sequences:
-        if sequence in MUST_BE_DETECTED_METRICS.BUILTIN_GOLDEN_KPI:
+        if sequence.name in MUST_BE_DETECTED_METRICS.BUILTIN_GOLDEN_KPI:
             anomalies = generic_detect(sequence.name, sequence)
             alarms.extend(diagnose_for_sequences(host, sequence.name, anomalies))
     return alarms

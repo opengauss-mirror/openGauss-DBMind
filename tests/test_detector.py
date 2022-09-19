@@ -456,8 +456,8 @@ def test_volatility_shift_detector():
 def test_increase_detector():
     input_data = [i for i in list(range(50))] + [i for i in list(range(50))][::-1]
     raw_data = Sequence(timestamps=list(range(len(input_data))), values=input_data)
-    model = anomaly_detection.IncreaseDetector(side="positive", window=20, max_coef=0.3)
-    res = model.fit_predict(raw_data)
+    detector = anomaly_detection.IncreaseDetector(side="positive", window=20, max_coef=0.3)
+    res = detector.fit_predict(raw_data)
     correct_data = (
         True, True, True, True, True, True, True, True, True, True,
         True, True, True, True, True, True, True, True, True, True,
@@ -472,6 +472,16 @@ def test_increase_detector():
         False, False, False, False, False, False
     )
     assert res.values == correct_data
+
+    # test case: the length of sequence cannot be divided evenly by the window.
+    input_data = (1, 2, 3, 4, 5, 6, 20, 30, 40)
+    sequence_case = Sequence(timestamps=tuple(range(len(input_data))), values=input_data)
+    detector = anomaly_detection.IncreaseDetector(side="positive", window=4, max_coef=1)
+    res = detector.fit_predict(sequence_case)
+    expected = (
+        True, True, True, True, True, True, True, True, True
+    )
+    assert res.values == expected
 
 
 def test_merge_contiguous_anomalies_timestamps():
