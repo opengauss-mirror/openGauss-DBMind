@@ -11,17 +11,14 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import logging
-import re
 import math
+import re
 from datetime import datetime, timedelta
 from functools import wraps
 
-from dbmind import global_vars
 from dbmind.common.parser import plan_parsing
 from dbmind.common.parser.sql_parsing import to_ts
 from dbmind.common.utils import ExceptionCatcher
-from dbmind.components.sql_rewriter import sql_rewriter
-from dbmind.components.sql_rewriter.executor import Executor
 from dbmind.global_vars import agent_rpc_client
 from dbmind.service import dai
 from dbmind.service.web import toolkit_rewrite_sql
@@ -36,7 +33,7 @@ def exception_follower(output=None):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logging.exception("Function execution error: %s" % func.__name__)
+                logging.exception("Function %s execution error: %s." % (func.__name__, e))
                 if callable(output):
                     return output()
                 return output
@@ -266,6 +263,16 @@ def parse_field_from_indexdef(indexdef):
     return []
 
 
+def convert_float_to_int(value, nan_fallback=0, inf_fallback=100000):
+    if value != value:  # Determine if the value is NaN?
+        return nan_fallback
+    if value == float('inf'):
+        return inf_fallback
+    if value == -float('inf'):
+        return -inf_fallback
+    return int(value)
+
+
 class QueryContextFromTSDB(QueryContext):
     """The object of slow query data processing factory"""
 
@@ -297,6 +304,9 @@ class QueryContextFromTSDB(QueryContext):
     @exception_follower(output=None)
     @exception_catcher
     def acquire_plan(self, query):
+        if not agent_rpc_client:
+            return ''
+
         query_plan = ''
         stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
                                                         query)
@@ -314,7 +324,8 @@ class QueryContextFromTSDB(QueryContext):
     def acquire_pg_class(self) -> list:
         """Get all object information in the database"""
         pg_classes = []
-        sequences = dai.get_metric_sequence('pg_class_relsize', self.query_start_time, self.query_end_time).from_server(
+        sequences = dai.get_metric_sequence(
+            'pg_class_relsize', self.query_start_time, self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
             datname=self.slow_sql_instance.db_name).fetchall()
         sequences = [sequence for sequence in sequences if sequence.labels]
@@ -453,23 +464,25 @@ class QueryContextFromTSDB(QueryContext):
                 if dead_rate_info.values:
                     table_info.dead_rate = round(float(dead_rate_info.values[0]), 4)
                 if live_tup_info.values:
-                    table_info.live_tuples = int(live_tup_info.values[0])
+                    table_info.live_tuples = convert_float_to_int(live_tup_info.values[0])
                 if dead_tup_info.values:
-                    table_info.dead_tuples = int(dead_tup_info.values[0])
+                    table_info.dead_tuples = convert_float_to_int(dead_tup_info.values[0])
                 if columns_info.values:
-                    table_info.column_number = int(columns_info.values[0])
+                    table_info.column_number = convert_float_to_int(columns_info.values[0])
                 if last_analyze_info.values:
                     filtered_values = [float(item) for item in last_analyze_info.values if not math.isnan(float(item))]
-                    table_info.analyze = int(max(filtered_values)) if filtered_values else 0
+                    table_info.analyze = convert_float_to_int(max(filtered_values)) if filtered_values else 0
                 if last_autoanalyze_info.values:
-                    filtered_values = [float(item) for item in last_autoanalyze_info.values if not math.isnan(float(item))]
-                    table_info.last_autoanalyze = int(max(filtered_values)) if filtered_values else 0
+                    filtered_values = [float(item) for item in last_autoanalyze_info.values if
+                                       not math.isnan(float(item))]
+                    table_info.last_autoanalyze = convert_float_to_int(max(filtered_values)) if filtered_values else 0
                 if last_vacuum_info.values:
                     filtered_values = [float(item) for item in last_vacuum_info.values if not math.isnan(float(item))]
-                    table_info.vacuum = int(max(filtered_values)) if filtered_values else 0
+                    table_info.vacuum = convert_float_to_int(max(filtered_values)) if filtered_values else 0
                 if last_autovacuum_info.values:
-                    filtered_values = [float(item) for item in last_autovacuum_info.values if not math.isnan(float(item))]
-                    table_info.last_autovacuum = int(max(filtered_values)) if filtered_values else 0
+                    filtered_values = [float(item) for item in last_autovacuum_info.values if
+                                       not math.isnan(float(item))]
+                    table_info.last_autovacuum = convert_float_to_int(max(filtered_values)) if filtered_values else 0
 
                 if pg_table_size_info.values:
                     table_info.table_size = round(float(max(pg_table_size_info.values)) / 1024 / 1024, 4)
@@ -500,9 +513,9 @@ class QueryContextFromTSDB(QueryContext):
                 pg_setting.name = parameter
                 pg_setting.vartype = sequence.labels['vartype']
                 if pg_setting.vartype in ('integer', 'int64', 'bool'):
-                    pg_setting.setting = int(sequence.values[-1])
+                    pg_setting.setting = convert_float_to_int(sequence.values[-1])
                 if pg_setting.vartype == 'real':
-                    pg_setting.setting = float(sequence.values[-1])
+                    pg_setting.setting = convert_float_to_int(sequence.values[-1])
             pg_settings[parameter] = pg_setting
         return pg_settings
 
@@ -534,21 +547,27 @@ class QueryContextFromTSDB(QueryContext):
         if cur_tps_sequences.values:
             database_info.current_tps = [float(item) for item in cur_tps_sequences.values]
         if max_conn_sequence.values:
-            database_info.max_conn = int(max(max_conn_sequence.values))
+            database_info.max_conn = convert_float_to_int(max(max_conn_sequence.values))
         if used_conn_sequence.values:
-            database_info.used_conn = int(max(used_conn_sequence.values))
+            database_info.used_conn = convert_float_to_int(max(used_conn_sequence.values))
         worker_info_default, worker_info_idle = 1, 0
         session_info_total, session_info_waiting = 1, 0
         session_info_running, session_info_idle = 0, 0
         if thread_pool_sequence:
             work_info_list = [item.labels['worker_info'] for item in thread_pool_sequence if item.labels]
             session_info_list = [item.labels['session_info'] for item in thread_pool_sequence if item.labels]
-            worker_info_default = sum(int(re.search(r"default: (\d+)", item).group(1)) for item in work_info_list)
-            worker_info_idle = sum(int(re.search(r"idle: (\d+)", item).group(1)) for item in work_info_list)
-            session_info_total = sum(int(re.search(r"total: (\d+)", item).group(1)) for item in session_info_list)
-            session_info_waiting = sum(int(re.search(r"waiting: (\d+)", item).group(1)) for item in session_info_list)
-            session_info_running = sum(int(re.search(r"running:(\d+)", item).group(1)) for item in session_info_list)
-            session_info_idle = sum(int(re.search(r"idle: (\d+)", item).group(1)) for item in session_info_list)
+            worker_info_default = sum(
+                convert_float_to_int(re.search(r"default: (\d+)", item).group(1)) for item in work_info_list)
+            worker_info_idle = sum(
+                convert_float_to_int(re.search(r"idle: (\d+)", item).group(1)) for item in work_info_list)
+            session_info_total = sum(
+                convert_float_to_int(re.search(r"total: (\d+)", item).group(1)) for item in session_info_list)
+            session_info_waiting = sum(
+                convert_float_to_int(re.search(r"waiting: (\d+)", item).group(1)) for item in session_info_list)
+            session_info_running = sum(
+                convert_float_to_int(re.search(r"running:(\d+)", item).group(1)) for item in session_info_list)
+            session_info_idle = sum(
+                convert_float_to_int(re.search(r"idle: (\d+)", item).group(1)) for item in session_info_list)
             logging.debug("[SLOW QUERY] acquire_database_info[thread pool]: %s  %s", str(work_info_list),
                           str(session_info_list))
         database_info.thread_pool['worker_info_default'] = worker_info_default
@@ -575,7 +594,7 @@ class QueryContextFromTSDB(QueryContext):
             wait_event_info.node_name = sequence.labels['nodename']
             wait_event_info.type = sequence.labels['type']
             wait_event_info.event = sequence.labels['event']
-            wait_event_info.last_updated = int(max(sequence.values))
+            wait_event_info.last_updated = convert_float_to_int(max(sequence.values))
             wait_event.append(wait_event_info)
         return wait_event
 
@@ -622,11 +641,11 @@ class QueryContextFromTSDB(QueryContext):
                                                           self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
         if iops_info.values:
-            system_info.iops = int(max(iops_info.values))
+            system_info.iops = convert_float_to_int(max(iops_info.values))
         if process_fds_rate_info.values:
             system_info.process_fds_rate = round(float(max(process_fds_rate_info.values)), 4)
         if cpu_process_number_info:
-            system_info.cpu_core_number = int(max(cpu_process_number_info.values))
+            system_info.cpu_core_number = convert_float_to_int(max(cpu_process_number_info.values))
         if ioutils_info:
             ioutils_dict = {item.labels['device']: round(float(max(item.values)), 4) for item in ioutils_info if
                             item.labels}
@@ -783,11 +802,11 @@ class QueryContextFromTSDB(QueryContext):
                 pg_replication_replay_diff_info):
             pg_replication = PgReplicationInfo()
             pg_replication.application_name = lsn_info.labels['application_name']
-            pg_replication.pg_replication_lsn = int(max(lsn_info.values))
-            pg_replication.pg_replication_write_diff = int(max(write_diff_info.values))
-            pg_replication.pg_replication_sent_diff = int(max(sent_diff_info.values))
-            pg_replication.pg_replication_flush_diff = int(max(flush_diff_info.values))
-            pg_replication.pg_replication_replay_diff = int(max(replay_diff_info.values))
+            pg_replication.pg_replication_lsn = convert_float_to_int(max(lsn_info.values))
+            pg_replication.pg_replication_write_diff = convert_float_to_int(max(write_diff_info.values))
+            pg_replication.pg_replication_sent_diff = convert_float_to_int(max(sent_diff_info.values))
+            pg_replication.pg_replication_flush_diff = convert_float_to_int(max(flush_diff_info.values))
+            pg_replication.pg_replication_replay_diff = convert_float_to_int(max(replay_diff_info.values))
             pg_replication_info.append(pg_replication)
         return pg_replication_info
 
@@ -812,13 +831,13 @@ class QueryContextFromTSDB(QueryContext):
                                                       self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
         if gs_sql_count_select.values:
-            gs_sql_count_info.select_count = int(max(gs_sql_count_select.values))
+            gs_sql_count_info.select_count = convert_float_to_int(max(gs_sql_count_select.values))
         if gs_sql_count_delete.values:
-            gs_sql_count_info.delete_count = int(max(gs_sql_count_delete.values))
+            gs_sql_count_info.delete_count = convert_float_to_int(max(gs_sql_count_delete.values))
         if gs_sql_count_update.values:
-            gs_sql_count_info.update_count = int(max(gs_sql_count_update.values))
+            gs_sql_count_info.update_count = convert_float_to_int(max(gs_sql_count_update.values))
         if gs_sql_count_insert.values:
-            gs_sql_count_info.insert_count = int(max(gs_sql_count_insert.values))
+            gs_sql_count_info.insert_count = convert_float_to_int(max(gs_sql_count_insert.values))
 
         return gs_sql_count_info
 
@@ -849,17 +868,22 @@ class QueryContextFromTSDB(QueryContext):
     @exception_follower(output=str)
     @exception_catcher
     def acquire_recommend_index(self) -> str:
+        if not agent_rpc_client:
+            return ''
+
         if not self.slow_sql_instance.track_parameter or \
                 not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
             return ''
-        recommend_indexes = []
         query = self.slow_sql_instance.query.replace('\'', '\'\'')
-        stmt = "set current_schema=%s;select * from gs_index_advise('%s')" % (self.slow_sql_instance.schema_name,
-                                                                              query)
+        stmt = "set current_schema=%s;select * from gs_index_advise('%s')" % (
+            self.slow_sql_instance.schema_name,
+            query
+        )
         rows = agent_rpc_client.call('query_in_database',
                                      stmt,
                                      self.slow_sql_instance.db_name,
                                      return_tuples=True)
+        recommend_indexes = []
         for row in rows:
             if row[2]:
                 index = Index()
