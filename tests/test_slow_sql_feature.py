@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 import csv
 import os
+import logging
 
 import numpy as np
 
@@ -34,7 +35,7 @@ def test_calculate_weight():
     from dbmind.app.diagnosis.query.slow_sql.featurelib.feature_model import calculate_weight
 
     features, labels = np.zeros((FEATURES_NUMBER, FEATURES_DIMENSION)), np.zeros(FEATURES_NUMBER)
-    print(FEATURE_PATH)
+    logging.debug('slow query feature lib: %s.', FEATURE_PATH)
     with open(FEATURE_PATH, mode='r') as f:
         csv_reader = csv.reader(f)
         for line in csv_reader:

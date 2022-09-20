@@ -11,6 +11,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import multiprocessing
+import logging
 import os
 import shutil
 import time
@@ -38,7 +39,7 @@ class DaemonTester(Daemon):
 
     def clean(self):
         self.q.put(3)
-        print('I am cleaning garbage and closing resources.')
+        logging.debug('I am cleaning garbage and closing resources.')
 
     def run(self):
         working_dir = os.path.dirname(self.pid_file)
@@ -46,7 +47,7 @@ class DaemonTester(Daemon):
         self.q.put(2)
         while True:
             # blocking
-            print('I am running.')
+            logging.debug('I am running.')
             time.sleep(1)
 
     def start(self):

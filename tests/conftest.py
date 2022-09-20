@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 import configparser
 import glob
+import logging
 import os
 import random
 import time
@@ -188,6 +189,10 @@ def mock_get_slow_query_sequences():
     return fetchers[counter % len(fetchers)]
 
 
+def mock_save(*args, **kwargs):
+    logging.debug('mock save: args: %s, kwargs: %s.', args, kwargs)
+
+
 @pytest.fixture(autouse=True)
 def mock_dai(monkeypatch):
     from dbmind.service import dai  # Must be here
@@ -206,10 +211,10 @@ def mock_dai(monkeypatch):
         return_value=()
     )
 
-    dai.save_history_alarms = print
-    dai.save_slow_queries = print
-    dai.save_forecast_sequence = print
-    dai.save_future_alarms = print
+    dai.save_history_alarms = mock_save
+    dai.save_slow_queries = mock_save
+    dai.save_forecast_sequence = mock_save
+    dai.save_future_alarms = mock_save
 
     return dai
 

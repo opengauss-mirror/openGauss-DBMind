@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 import os
 import shutil
+import logging
 from unittest import mock
 
 import pytest
@@ -35,7 +36,7 @@ def startup(tmpdir):
     importlib.reload(task_scheduler)
 
     confpath = tmpdir.realpath()
-    print(confpath)
+    logging.debug('confpath: %s.', confpath)
     mock_setup_directory(confpath)
     task_scheduler.TimedTaskManager.start = mock.Mock()
     assert len(task_scheduler.TimedTaskManager.timers) == 0
