@@ -183,10 +183,24 @@ def positive_int_type(integer: str):
     if not integer.isdigit():
         raise argparse.ArgumentTypeError('Invalid value %s.' % integer)
 
-    integer = int(integer)
+    try:
+        integer = int(integer)
+    except ValueError:
+        raise argparse.ArgumentTypeError('Invalid value %s.' % integer)
     if integer == 0:
         raise argparse.ArgumentTypeError('Invalid value 0.')
 
+    return integer
+
+
+def not_negative_int_type(integer: str):
+    if not integer.isdigit():
+        raise argparse.ArgumentTypeError('Invalid value %s.' % integer)
+
+    try:
+        integer = int(integer)
+    except ValueError:
+        raise argparse.ArgumentTypeError('Invalid value %s.' % integer)
     return integer
 
 
