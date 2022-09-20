@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 
 import unittest
+import logging
 
 import numpy as np
 
@@ -40,8 +41,8 @@ class TestPSO(unittest.TestCase):
     def _test_function(self, dim, optimal, func, x_min, x_max):
         pso = Pso(func=func, dim=dim, particle_nums=5, max_iteration=100, max_vel=5, x_min=x_min, x_max=x_max)
         best_val, best_X = pso.minimize()
-        print("function: %s, best reward: %d, best X: %s." % (func.__name__, best_val, best_X))
-        print("fitness list: %s." % pso.fitness_val_list)
+        logging.debug("function: %s, best reward: %d, best X: %s." % (func.__name__, best_val, best_X))
+        logging.debug("fitness list: %s." % pso.fitness_val_list)
         self.assertLessEqual(np.abs((optimal - best_val)/ (optimal + 0.001)), 0.2)
 
     def test_one_dim(self):
