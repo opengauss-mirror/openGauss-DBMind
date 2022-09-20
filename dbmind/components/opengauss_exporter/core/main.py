@@ -20,7 +20,8 @@ import yaml
 from dbmind.common.daemon import Daemon
 from dbmind.common.utils import write_to_terminal
 from dbmind.common.utils.checking import (
-    warn_ssl_certificate, CheckPort, CheckIP, CheckDSN, path_type, positive_int_type
+    warn_ssl_certificate, CheckPort, CheckIP, CheckDSN, path_type,
+    positive_int_type, not_negative_int_type
 )
 from dbmind.common.utils.cli import wipe_off_password_from_proc_title
 from dbmind.common.utils.exporter import KVPairAction, ListPairAction
@@ -66,6 +67,9 @@ def parse_argv(argv):
                              ' a list of database name (format is label=dbname or dbname) separated by comma(,).')
     parser.add_argument('--constant-labels', default='', action=KVPairAction,
                         help='a list of label=value separated by comma(,).')
+    parser.add_argument('--scrape-interval-seconds', type=not_negative_int_type, default=0,
+                        help='specify the scrape interval in seconds to reduce redundant results. '
+                             'If set 0, it means automatically calculate.')
     parser.add_argument('--web.listen-address', default='127.0.0.1', action=CheckIP,
                         help='address on which to expose metrics and web interface')
     parser.add_argument('--web.listen-port', type=int, default=9187, action=CheckPort,
@@ -160,6 +164,7 @@ class ExporterMain(Daemon):
                 parallel=self.args.parallel,
                 disable_cache=self.args.disable_cache,
                 constant_labels=self.args.constant_labels,
+                scrape_interval_seconds=self.args.scrape_interval_seconds,
             )
         except ConnectionError as e:
             # We can not throw the exception details due to the default security policy.
