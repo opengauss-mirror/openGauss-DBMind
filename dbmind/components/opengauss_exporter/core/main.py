@@ -23,11 +23,16 @@ from dbmind.common.utils.checking import (
     warn_ssl_certificate, CheckPort, CheckIP, CheckDSN, path_type,
     positive_int_type, not_negative_int_type
 )
-from dbmind.common.utils.cli import wipe_off_password_from_proc_title
-from dbmind.common.utils.exporter import KVPairAction, ListPairAction
-from dbmind.common.utils.exporter import is_exporter_alive, set_logger, parse_and_adjust_args
+from dbmind.common.utils.exporter import (
+    KVPairAction, ListPairAction, wipe_off_password_from_proc_title,
+    wipe_off_dsn_password
+)
+from dbmind.common.utils.exporter import (
+    is_exporter_alive,
+    set_logger,
+    exporter_parse_and_adjust_ssl_args
+)
 from dbmind.constants import __version__
-
 from . import controller
 from . import service
 from .agent import create_agent_rpc_service
@@ -108,7 +113,7 @@ def parse_argv(argv):
                      'in the argument --include-databases and '
                      '--exclude-database at the same time.' % both_set_database)
 
-    return parse_and_adjust_args(parser, argv)
+    return exporter_parse_and_adjust_ssl_args(parser, argv)
 
 
 class ExporterMain(Daemon):
@@ -149,7 +154,7 @@ class ExporterMain(Daemon):
         # Wipe off password of url for the process title.
         try:
             url = self.args.url
-            wipe_off_password_from_proc_title(url)
+            wipe_off_password_from_proc_title(url, wipe_off_dsn_password(url))
         except FileNotFoundError:
             # ignore
             pass
@@ -172,7 +177,9 @@ class ExporterMain(Daemon):
             sys.exit(1)
         except Exception as e:
             write_to_terminal(
-                'Failed to connect to the database using the url due to an exception %s, exiting...' % e.__class__.__name__, color='red'
+                'Failed to connect to the database using the url due to an exception %s, exiting...'
+                % e.__class__.__name__,
+                color='red'
             )
             raise e
         if not self.args.disable_settings_metrics:

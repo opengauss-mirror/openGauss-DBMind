@@ -12,7 +12,6 @@
 # See the Mulan PSL v2 for more details.
 import logging
 import os
-import re
 import select
 import sys
 import multiprocessing
@@ -20,38 +19,6 @@ import signal
 
 from dbmind.common.utils import dbmind_assert
 from dbmind.common.utils.base import WHITE_FMT, RED_FMT, GREEN_FMT, YELLOW_FMT
-
-
-def wipe_off_password_from_proc_title(db_connection_string):
-    """
-    Removes the password from the database connection string from the process title
-    @param db_connection_string: database connection string
-    @return: None
-    """
-    wiped_url = wipe_off_password(db_connection_string)
-    with open('/proc/self/cmdline') as fp:
-        cmdline = fp.readline().replace('\x00', ' ')
-    wiped_cmdline = cmdline.replace(db_connection_string, wiped_url)
-    set_proc_title(wiped_cmdline)
-
-
-def wipe_off_password(db_connection_string):
-    """
-    Removes the password from the database connection string
-    @param db_connection_string: database connection string
-    @return: the database connection string with the password removed
-    """
-    result = re.findall(r'.*://.*:(.+)@.*:.*/.*', db_connection_string)
-    if len(result) == 0:
-        result = re.findall(r'password=(.*)\s', db_connection_string)
-        if len(result) == 0:
-            return '*********'
-
-    password = result[0]
-    if len(password) == 0:
-        return '*********'
-
-    return db_connection_string.replace(password, '******')
 
 
 def set_proc_title(name: str):

@@ -29,12 +29,14 @@ class PrometheusMetricConfig:
         return repr((self.name, self.promql, self.labels))
 
 
-def set_prometheus_client(url):
+def set_prometheus_client(url, username, password):
     global _prometheus_client
 
-    client = PrometheusClient(url)
+    client = PrometheusClient(
+        url, username=username, password=password
+    )
     if not client.check_connection():
-        raise ConnectionRefusedError("failed to connect TSDB url: %s" % url)
+        raise ConnectionRefusedError("Failed to connect to the TSDB url: %s" % url)
 
     _prometheus_client = client
 
