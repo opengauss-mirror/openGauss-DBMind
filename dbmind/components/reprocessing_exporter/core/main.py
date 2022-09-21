@@ -22,7 +22,8 @@ from dbmind.common.utils.checking import (
     positive_int_type
 )
 from dbmind.common.utils.exporter import (
-    is_exporter_alive, set_logger, parse_and_adjust_args
+    is_exporter_alive, set_logger, exporter_parse_and_adjust_ssl_args,
+    wipe_off_password_from_proc_title
 )
 from dbmind.constants import __version__
 from . import controller
@@ -45,6 +46,10 @@ def parse_argv(argv):
     parser.add_argument('prometheus_host', help='from which host to pull data')
     parser.add_argument('prometheus_port', type=positive_int_type,
                         help='the port to connect to the Prometheus host')
+    parser.add_argument('--prometheus-auth-user',
+                        help='use this user for basic authorization to connect to the Prometheus server')
+    parser.add_argument('--prometheus-auth-password',
+                        help='use this password for basic authorization to connect to the Prometheus server')
     parser.add_argument('--disable-https', action='store_true',
                         help='disable Https scheme')
     parser.add_argument('--ssl-keyfile', type=path_type, help='set the path of ssl key file')
@@ -64,11 +69,15 @@ def parse_argv(argv):
                              ' Valid levels: [debug, info, warn, error, fatal]')
     parser.add_argument('-v', '--version', action='version', version=__version__)
 
-    args = parse_and_adjust_args(parser, argv)
-    alive, scheme = exporter.is_prometheus_alive(args.prometheus_host, args.prometheus_port)
+    args = exporter_parse_and_adjust_ssl_args(parser, argv)
+    alive, scheme, msg = exporter.get_prometheus_status(
+        args.prometheus_host, args.prometheus_port,
+        args.prometheus_auth_user,
+        args.prometheus_auth_password
+    )
     if not alive:
         parser.error(
-            'Prometheus service is abnormal, please check for it, exiting...'
+            'Failed to connect to the Prometheus server due to %s, exiting...' % msg
         )
         return
 
@@ -123,11 +132,21 @@ class ExporterMain(Daemon):
             os.chmod(self.pid_file, 0o600)
 
     def run(self):
+        # Wipe off sensitive string.
+        try:
+            auth_password = self.args.prometheus_auth_password
+            wipe_off_password_from_proc_title(auth_password, '******')
+        except FileNotFoundError:
+            # ignore
+            pass
+
         set_logger(self.args.__dict__['log.filepath'],
                    self.args.__dict__['log.level'])
         self.change_file_permissions()
         dao.set_prometheus_client(
-            url=self.args.__dict__['prometheus_url']
+            url=self.args.__dict__['prometheus_url'],
+            username=self.args.prometheus_auth_user,
+            password=self.args.prometheus_auth_password
         )
         service.register_prometheus_metrics(
             rule_filepath=self.args.__dict__['collector.config']
