@@ -17,7 +17,7 @@ pg_sql_statement_history:
   query:
     - name: pg_sql_statement_history
       sql: "
-  SELECT H.unique_query_id,
+  with HS as (select H.unique_query_id,
 		H.db_name AS datname,
 		H.schema_name AS SCHEMA,
 	  H.query,
@@ -52,14 +52,20 @@ pg_sql_statement_history:
 			S.hash_spill_count / S.n_calls AS hash_spill_count
   FROM dbe_perf.statement_history H inner join dbe_perf.statement S
   on H.unique_query_id = S.unique_sql_id
-  WHERE H.query !='COMMIT'
-	AND H.application_name != 'gs_clean'
+  WHERE H.query != 'COMMIT'
+	AND H.application_name NOT IN ('gs_clean', 'DBMind-openGauss-exporter')
 	AND S.n_calls > 1
 	AND H.finish_time > (now() - interval '{scrape_interval_seconds} seconds')
-  ORDER BY H.start_time DESC
-  LIMIT 50;"
+    )
+    SELECT * FROM (SELECT unique_query_id, count(1) FROM HS GROUP BY unique_query_id) count_view
+        INNER JOIN (
+            SELECT *, row_number() over (PARTITION BY unique_query_id ORDER BY exc_time DESC) as rn
+            FROM HS
+            ) sample_view
+        ON count_view.unique_query_id = sample_view.unique_query_id WHERE sample_view.rn = 1;
+"
       version: '>=0.0.0'
-      timeout: 10
+      timeout: 9
       status: enable
   metrics:
     - name: datname
@@ -155,9 +161,12 @@ pg_sql_statement_history:
     - name: hash_spill_count
       description: hash spill count
       usage: LABEL
+    - name: count
+      description: count how many same queries we research
+      usage: LABEL
   status: enable
   ttl: 0
-  timeout: 1
+  timeout: 9
 
 
 pg_sql_statement_full:
@@ -166,27 +175,29 @@ pg_sql_statement_full:
   query:
     - name: pg_sql_statement_full
       sql: "
-      SELECT   count(1),
-               datname,
-               application_name,
-               query
-      FROM     pg_stat_activity
-      WHERE    application_name NOT IN ('Asp',
-                                        'statement flush thread',
-                                        'JobScheduler',
-                                        'WDRSnapshot',
-                                        'PercentileJob',
-                                        'gs_clean')
-      AND      Pg_current_sessid() != sessionid
-      AND      query ilike '%FROM%'
-      AND      (
-                        query_start > now() - (1 / 24 / 60 / 60) * ({scrape_interval} / 1000))
-      GROUP BY datname,
-               application_name,
-               query;
+  SELECT   count(1),
+           datname,
+           application_name,
+           query
+  FROM     pg_stat_activity
+  WHERE    application_name NOT IN ('Asp',
+                                    'statement flush thread',
+                                    'JobScheduler',
+                                    'WDRSnapshot',
+                                    'PercentileJob',
+                                    'gs_clean',
+                                    'DBMind-openGauss-exporter')
+  AND      pg_current_sessid() != sessionid
+  AND      query ilike '%FROM%'
+  AND      (
+                    query_start > now() - interval '{scrape_interval_seconds} seconds')
+  AND state != 'idle'
+  GROUP BY datname,
+           application_name,
+           query;
       "
       version: '>=0.0.0'
-      timeout: 10
+      timeout: 9
       status: enable
   metrics:
     - name: count
@@ -203,4 +214,120 @@ pg_sql_statement_full:
       usage: LABEL
   status: enable
   ttl: 0
+  timeout: 9
+
+
+pg_sql_statement_db_time:
+  name: pg_sql_statement_db_time
+  desc: Extract full SQL statements from openGauss, which is a sampling process.
+  query:
+    - name: pg_sql_statement_db_time
+      sql: |-
+        WITH avgtime AS ( SELECT node_name, user_name, unique_sql_id,
+        substring(regexp_replace(query,'[^\x00-\x7F]+','','g'), 1, 20) AS query_sort, query, n_calls, db_time,
+        ROUND((db_time / n_calls),0) AS avg_db_time, min_elapse_time, max_elapse_time, total_elapse_time, n_returned_rows,
+        n_tuples_fetched, n_tuples_returned, n_tuples_inserted, n_tuples_updated, n_tuples_deleted, n_blocks_fetched,
+        n_blocks_hit, n_soft_parse, n_hard_parse, cpu_time, execution_time, parse_time, plan_time, rewrite_time,
+        pl_execution_time, pl_compilation_time, data_io_time FROM dbe_perf.SUMMARY_STATEMENT WHERE n_calls > 0 ORDER BY
+        avg_db_time DESC limit 50 ) , num AS ( SELECT node_name, user_name, unique_sql_id,
+        substring(regexp_replace(query,'[^\x00-\x7F]+','','g'), 1, 20) AS query_sort, query, n_calls, db_time,
+        ROUND((db_time / n_calls),0) AS avg_db_time, min_elapse_time, max_elapse_time, total_elapse_time, n_returned_rows,
+         n_tuples_fetched, n_tuples_returned, n_tuples_inserted, n_tuples_updated, n_tuples_deleted, n_blocks_fetched,
+         n_blocks_hit, n_soft_parse, n_hard_parse, cpu_time, execution_time, parse_time, plan_time, rewrite_time,
+         pl_execution_time, pl_compilation_time, data_io_time FROM dbe_perf.SUMMARY_STATEMENT WHERE n_calls > 0
+         ORDER BY n_calls DESC limit 50 ) SELECT * FROM avgtime UNION SELECT * FROM num;
+      version: '>=0.0.0'
+      timeout: 9
+      status: disable
+  metrics:
+    - name: node_name
+      description: Name of database
+      usage: LABEL
+    - name: user_name
+      description: Name of schema
+      usage: LABEL
+    - name: unique_sql_id
+      description: start executing time
+      usage: LABEL
+    - name: query_sort
+      description: finish executing time
+      usage: LABEL
+    - name: query
+      description: query text
+      usage: LABEL
+    - name: n_calls
+      description: query plan text
+      usage: GAUGE
+    - name: db_time
+      description: unique query id
+      usage: LABEL
+    - name: avg_db_time
+      description: debug query id
+      usage: LABEL
+    - name: min_elapse_time
+      description: select returned rows
+      usage: LABEL
+    - name: max_elapse_time
+      description: n tuples return
+      usage: LABEL
+    - name: total_elapse_time
+      description: select fetch rows
+      usage: LABEL
+    - name: n_returned_rows
+      description: insert tuples
+      usage: LABEL
+    - name: n_tuples_fetched
+      description: update tuples
+      usage: LABEL
+    - name: n_tuples_returned
+      description: delete tuples
+      usage: LABEL
+    - name: n_tuples_inserted
+      description: hit ratio
+      usage: LABEL
+    - name: n_tuples_updated
+      description: fetch rate
+      usage: LABEL
+    - name: n_tuples_deleted
+      description: lock wait count
+      usage: LABEL
+    - name: n_blocks_fetched
+      description: lwclock wait count
+      usage: LABEL
+    - name: n_blocks_hit
+      description: cpu time
+      usage: LABEL
+    - name: n_soft_parse
+      description: data_io_time
+      usage: LABEL
+    - name: n_hard_parse
+      description: plan time
+      usage: LABEL
+    - name: cpu_time
+      description: parse time
+      usage: LABEL
+    - name: execution_time
+      description: db time
+      usage: LABEL
+    - name: parse_time
+      description: time taken to execute
+      usage: GAUGE
+    - name: plan_time
+      description: the number of calls
+      usage: LABEL
+    - name: rewrite_time
+      description: sort count
+      usage: LABEL
+    - name: pl_execution_time
+      description: sort mem used
+      usage: LABEL
+    - name: pl_compilation_time
+      description: sort spill count
+      usage: LABEL
+    - name: data_io_time
+      description: hash count
+      usage: LABEL
+  status: disable
+  ttl: 0
   timeout: 1
+
