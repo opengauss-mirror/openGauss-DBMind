@@ -48,10 +48,10 @@ def do_index_recomm(templatization_args, db_name, schemas, database_templates, o
     queries = (
         standardize_sql(fill_value(pg_sql_statement_full_count.labels['query']))
         for pg_sql_statement_full_count in (
-            dai.get_metric_sequence('pg_sql_statement_full_count',
-                                    datetime.now() - timedelta(seconds=optimization_interval),
-                                    datetime.now()).fetchall()
-        ) if pg_sql_statement_full_count.labels['datname'] == db_name
+        dai.get_metric_sequence('pg_sql_statement_full_count',
+                                datetime.now() - timedelta(seconds=optimization_interval),
+                                datetime.now()).fetchall()
+    ) if pg_sql_statement_full_count.labels['datname'] == db_name
     )
     get_workload_template(database_templates, queries, templatization_args)
     index_advisor_workload.MAX_INDEX_NUM = global_vars.configs.getint('SELF-OPTIMIZATION', 'max_index_num')
@@ -59,7 +59,9 @@ def do_index_recomm(templatization_args, db_name, schemas, database_templates, o
     index_advisor_workload.print = lambda *args, **kwargs: None
 
     detail_info = index_advisor_workload.index_advisor_workload({'historyIndexes': {}}, executor, database_templates,
-                                                                multi_iter_mode=False, show_detail=True)
+                                                                multi_iter_mode=False, show_detail=True, n_distinct=1,
+                                                                reltuples=10,
+                                                                use_all_columns=True, improved_rate=0.1)
     detail_info['db_name'] = db_name
     detail_info['host'] = dai.get_latest_metric_value('pg_class_relsize').fetchone().labels['from_instance']
     return detail_info, {db_name: database_templates}

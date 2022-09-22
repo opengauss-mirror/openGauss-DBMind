@@ -84,7 +84,7 @@ def parse_explain_plan(results, query_num):
         text = cur_tuple[0]
         if 'QUERY PLAN' in text or text == 'EXPLAIN':
             found_plan = True
-        if 'ERROR' in text:
+        if 'ERROR' in text and 'prepared statement' not in text:
             if i >= query_num:
                 raise ValueError("The size of queries is not correct!")
             costs.append(0)
@@ -192,7 +192,7 @@ def get_checked_indexes(index_check_results, tables) -> list:
         if text.strip().startswith('(<') and 'btree' in text:
             if len(text.split(',', 3)) == hypo_index_info_length:
                 hypo_index_info = text.split(',', 3)
-                table_name = re.search(r'btree(_global|_local|)_(.*%s)' % hypo_index_info[table_idx],
+                table_name = re.search(r'btree(_global|_local|)_(.*?%s)' % hypo_index_info[table_idx],
                                        hypo_index_info[btree_idx]).group(2)
                 match_flag, table_name = match_table_name(table_name, tables)
                 if not match_flag:
