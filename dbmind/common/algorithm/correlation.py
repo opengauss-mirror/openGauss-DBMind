@@ -11,7 +11,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-
 import numpy as np
 from scipy.stats import pearsonr, zscore
 
@@ -105,19 +104,17 @@ def iter_shift(arr, num, fill_value=0):
 
 
 def cross_correlation(data1, data2, shift_num):
-    return np.dot(data1, iter_shift(data2, shift_num)) /\
-           np.sqrt(np.dot(data1, data1) * np.dot(data2, data2))
+    return pearson(data1, iter_shift(data2, shift_num))
 
 
-def max_cross_correlation(data1, data2, left=10000, right=10000):
+def max_cross_correlation(data1, data2, left=0, right=0):
     left = min(left, len(data2))
     right = min(right, len(data2))
     max_correlation = 0
     final_shift = 0
-    for shift in range(-left + 1, right):
+    for shift in range(-left, right + 1):
         correlation = cross_correlation(data1, data2, shift)
         if abs(correlation) > abs(max_correlation):
             max_correlation = correlation
             final_shift = shift
     return max_correlation, final_shift
-
