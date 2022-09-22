@@ -51,6 +51,14 @@ class Driver:
         return '%s:%s' % (self.parsed_dsn['host'], self.parsed_dsn['port'])
 
     @property
+    def host(self):
+        return self.parsed_dsn['host']
+
+    @property
+    def port(self):
+        return self.parsed_dsn['port']
+
+    @property
     def dbname(self):
         return self.parsed_dsn['dbname']
 
