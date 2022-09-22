@@ -5063,7 +5063,7 @@ def test_arima_for_nonlinear():
     forecasting_minutes = forecast_length * s.step / (60 * 1000)
     forecast_sequence = quickly_forecast(sequence=s, forecasting_minutes=forecasting_minutes)
     assert forecast_sequence.timestamps[0] == train_length * 10
-    assert mse(data[train_length: train_length + forecast_length], forecast_sequence.values) <= 160000
+    assert mse(data[train_length: train_length + forecast_length], forecast_sequence.values) <= 220000
 
 
 def test_arima_for_seasonal():

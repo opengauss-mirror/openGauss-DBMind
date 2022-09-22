@@ -407,12 +407,12 @@ def test_level_shift_detector():
     model = anomaly_detection.LevelShiftDetector(window=5, side='positive')
     res = model.fit_predict(raw_data)
     correct_data = (
-        True, True, True, False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, True, True,
-        True, True, True, True, True, True, True, True, True, True
+        False, False, False, False, False, False, False, False, False, False,
+        False, False, False, False, False, False, False, False, False, False,
+        True,  False, False, False, False, False, False, False, False, False
     )
     assert res.values == correct_data
 
@@ -420,7 +420,7 @@ def test_level_shift_detector():
 def test_spike_detector():
     input_data = [0, 1, 0, 1, 0, 0, 1, -15, -1, -2, 1, 1, 1, 0] + [1, 0] * 8
     raw_data = Sequence(timestamps=list(range(len(input_data))), values=input_data)
-    model = anomaly_detection.SpikeDetector(window=2, side="negative")
+    model = anomaly_detection.SpikeDetector(side="negative")
     res = model.fit_predict(raw_data)
 
     correct_data = (
@@ -433,21 +433,19 @@ def test_spike_detector():
 
 
 def test_volatility_shift_detector():
-    input_data = [0, 1] * 40 + [100, -100] * 10
+    input_data = [-1, 1] * 20 + [-1000, 1000] * 20
     raw_data = Sequence(timestamps=list(range(len(input_data))), values=input_data)
-    model = anomaly_detection.VolatilityShiftDetector(outliers=(None, 3), window=10)
+    model = anomaly_detection.VolatilityShiftDetector(outliers=(None, 6), window=5)
     res = model.fit_predict(raw_data)
     correct_data = (
+        True,  True,  True,  False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
+        False, False, False, False, False, False, False, False, True,  True,
+        True,  True,  True,  False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, True, True, True, True,
-        True, True, True, True, True, True, True, True, True, True,
-        True, True, True, True, True, True, True, True, True, True
+        False, False, False, False, False, False, False, False, False, False
     )
 
     assert res.values == correct_data
@@ -522,3 +520,24 @@ def test_gradient_detector():
     detector = anomaly_detection.GradientDetector(side='positive', max_coef=0.001, timed_window=300)
     anomalies = detector.fit_predict(sequence)
     assert True in anomalies.values
+
+
+def test_quantile_detector():
+    detector = anomaly_detection.QuantileDetector(high=0.9)
+    sequence = Sequence([1, 2, 3, 4, 5, 6], [1, 1, 12, 2, 2, 2])
+    anomalies = detector.fit_predict(sequence)
+    assert anomalies.values == (False, False, True, False, False, False)
+
+
+def test_esd_test_detector():
+    detector = anomaly_detection.EsdTestDetector(alpha=0.05)
+    sequence = Sequence([1, 2, 3, 4, 5, 6], [1, 1, 12, 2, 2, 2])
+    anomalies = detector.fit_predict(sequence)
+    assert anomalies.values == (False, False, True, False, False, False)
+
+
+def test_iqr_detector():
+    detector = anomaly_detection.InterQuartileRangeDetector(outliers=(3, 3))
+    sequence = Sequence([1, 2, 3, 4, 5, 6], [1, 1, 12, 2, 2, 2])
+    anomalies = detector.fit_predict(sequence)
+    assert anomalies.values == (False, False, True, False, False, False)

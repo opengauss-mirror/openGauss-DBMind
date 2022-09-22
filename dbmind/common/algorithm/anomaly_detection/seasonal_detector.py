@@ -45,7 +45,7 @@ class SeasonalDetector(AbstractDetector):
                                                 low=THRESHOLD.get(self.side)[1])
 
     def _predict(self, s: Sequence) -> Sequence:
-        moving_average = stat_utils.np_moving_avg(s.values, window=self.window)
+        moving_average = stat_utils.np_rolling(s.values, window=self.window, trim=True, agg='mean')
         deseasonal_residual = seasonal_decompose(moving_average, period=self.period)[2]
         residual_sequence = Sequence(timestamps=s.timestamps, values=deseasonal_residual)
 
