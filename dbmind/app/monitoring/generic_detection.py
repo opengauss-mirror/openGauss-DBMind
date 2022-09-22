@@ -34,8 +34,8 @@ class AnomalyDetections(object):
     }
 
     @staticmethod
-    def do_spike_detect(sequence, outliers=(None, 3), n_std=0.5):
-        spike_detector = SpikeDetector(outliers=outliers, n_std=n_std)
+    def do_spike_detect(sequence, outliers=(None, 3)):
+        spike_detector = SpikeDetector(outliers=outliers)
         anomalies = spike_detector.fit_predict(sequence)
         return anomalies
 

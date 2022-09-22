@@ -20,3 +20,6 @@ from .seasonal_detector import SeasonalDetector
 from .spike_detector import SpikeDetector
 from .threshold_detector import ThresholdDetector
 from .volatility_shift_detector import VolatilityShiftDetector
+from .quantile_detector import QuantileDetector
+from .esd_test_detector import EsdTestDetector
+from .spike_detector import remove_spike

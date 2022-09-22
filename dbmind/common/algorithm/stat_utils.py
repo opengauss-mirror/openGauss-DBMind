@@ -27,48 +27,51 @@ def double_padding(values, window):
     return values
 
 
-def np_shift(values, shift_distance=1):
+def np_shift(values, shift_distance=1, fill_value=np.nan):
     """shift values a shift_distance"""
     if len(values) < 2:
         return values
-    shifted_values = np.roll(values, shift_distance)
+    shifted_values = np.roll(values, shift_distance).astype('float')
     for i in range(shift_distance):
-        shifted_values[i] = shifted_values[shift_distance]
+        shifted_values[i] = fill_value
     return shifted_values
 
 
-def np_moving_avg(values, window=5, mode="same"):
-    """Computes the moving average for sequence
-    and returns a new sequence padded with valid
-    value at both ends.
-    """
-    moving_avg_values = np.convolve(values, np.ones((window,)) / window, mode=mode)
-    moving_avg_values = double_padding(moving_avg_values, window)
-    return moving_avg_values
+def np_nanstd(values):
+    if len(values) == 1:
+        return 0.0
+    else:
+        return np.nanstd(values, ddof=1)
 
 
-def np_moving_std(values, window=10):
-    """Computes the standard deviation for sequence
-    and returns a new sequence padded with valid
-    value at both ends.
+def np_rolling(values, window=1, trim=False, agg='median'):
+    """Transformer that rolls a sliding window along a time series, and
+    aggregates using a user-selected operation.
     """
+    funcs = {
+        'median': np.nanmedian,
+        'mean': np.nanmean,
+        'std': np_nanstd
+    }
+    func = funcs[agg]
     sequence_length = len(values)
-    moving_std_values = np.zeros(sequence_length)
+    res = np.zeros(sequence_length)
     left_idx = window - 1 - (window - 1) // 2
-    for i in range(sequence_length - window + 1):
-        moving_std_values[left_idx + i] = np.std(values[i:i + window])
+    for i in range(sequence_length):
+        segment = values[max(0, i - left_idx):i + window - left_idx]
+        res[i] = func(segment)
+    if trim:
+        res = double_padding(res, window)
+    return res
 
-    moving_std_values = double_padding(moving_std_values, window)
-    return moving_std_values
 
-
-def np_double_rolling(values, window1=5, window2=1, diff_mode="diff"):
+def np_double_rolling(values, window1=1, window2=1, diff_mode="diff", agg='median'):
     values_length = len(values)
     window1 = 1 if values_length < window1 else window1
     window2 = 1 if values_length < window2 else window2
 
-    left_rolling = np_moving_avg(np_shift(values), window=window1)
-    right_rolling = np_moving_avg(values[::-1], window=window2)[::-1]
+    left_rolling = np_rolling(np_shift(values, 1), window=window1, trim=False, agg=agg)
+    right_rolling = np_rolling(values[::-1], window=window2, trim=False, agg=agg)[::-1]
     r_data = right_rolling - left_rolling
 
     functions = {
