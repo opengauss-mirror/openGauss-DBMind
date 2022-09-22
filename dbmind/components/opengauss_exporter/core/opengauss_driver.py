@@ -24,6 +24,16 @@ from dbmind.common.utils import dbmind_assert
 from dbmind.common.utils.exporter import warn_logging_and_terminal
 
 
+def psycopg2_connect(dsn):
+    # Set the session_timeout to prevent connection leak.
+    conn = psycopg2.connect(
+        dsn, options="-c session_timeout=15 -c search_path=public",
+        application_name='DBMind-openGauss-exporter',
+
+    )
+    return conn
+
+
 class Driver:
     def __init__(self):
         self._url = None
@@ -34,10 +44,7 @@ class Driver:
     def initialize(self, url):
         try:
             # Specify default schema is public.
-            conn = psycopg2.connect(
-                url, options="-c search_path=public",
-                application_name='DBMind-openGauss-exporter'
-            )
+            conn = psycopg2_connect(url)
             conn.cursor().execute('select 1;')
             conn.close()
             self._url = url
@@ -120,8 +127,7 @@ class Driver:
             dsn = self._url
 
         if not hasattr(self._conn, db_name) or getattr(self._conn, db_name).closed:
-            setattr(self._conn, db_name, psycopg2.connect(
-                dsn, application_name='DBMind-openGauss-exporter'))
+            setattr(self._conn, db_name, psycopg2_connect(dsn))
         # Check whether the connection is timeout or invalid.
         try:
             getattr(self._conn, db_name).cursor().execute('select 1;')
@@ -134,12 +140,10 @@ class Driver:
             logging.warning(
                 'Cached database connection to openGauss has been timeout due to %s, reconnecting.' % e
             )
-            setattr(self._conn, db_name, psycopg2.connect(
-                dsn, application_name='DBMind-openGauss-exporter'))
+            setattr(self._conn, db_name, psycopg2_connect(dsn))
         except Exception as e:
             logging.error('Failed to connect to openGauss with cached connection (%s), try to reconnect.' % e)
-            setattr(self._conn, db_name, psycopg2.connect(
-                dsn, application_name='DBMind-openGauss-exporter'))
+            setattr(self._conn, db_name, psycopg2_connect(dsn))
         return getattr(self._conn, db_name)
 
 
