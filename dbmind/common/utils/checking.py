@@ -40,10 +40,10 @@ def check_path_valid(path):
 
 def check_ip_valid(value):
     ip_pattern = re.compile(
-        r'^(1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|[1-9])\.'
-        '(1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|\d)\.'
-        '(1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|\d)\.'
-        '(1\d{2}|2[0-4]\d|25[0-5]|[1-9]\d|\d)$'
+        r'^(1\\d{2}|2[0-4]\\d|25[0-5]|[1-9]\\d|[1-9])\\.'
+        '(1\\d{2}|2[0-4]\\d|25[0-5]|[1-9]\\d|\\d)\\.'
+        '(1\\d{2}|2[0-4]\\d|25[0-5]|[1-9]\\d|\\d)\\.'
+        '(1\\d{2}|2[0-4]\\d|25[0-5]|[1-9]\\d|\\d)$'
     )
     if ip_pattern.match(value):
         return True
@@ -183,10 +183,24 @@ def positive_int_type(integer: str):
     if not integer.isdigit():
         raise argparse.ArgumentTypeError('Invalid value %s.' % integer)
 
-    integer = int(integer)
+    try:
+        integer = int(integer)
+    except ValueError:
+        raise argparse.ArgumentTypeError('Invalid value %s.' % integer)
     if integer == 0:
         raise argparse.ArgumentTypeError('Invalid value 0.')
 
+    return integer
+
+
+def not_negative_int_type(integer: str):
+    if not integer.isdigit():
+        raise argparse.ArgumentTypeError('Invalid value %s.' % integer)
+
+    try:
+        integer = int(integer)
+    except ValueError:
+        raise argparse.ArgumentTypeError('Invalid value %s.' % integer)
     return integer
 
 

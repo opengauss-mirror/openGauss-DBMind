@@ -10,6 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import logging
 
 from dbmind.common.sequence_buffer import SequenceBufferPool
 from dbmind.common.sequence_buffer import SequenceTree
@@ -144,7 +145,7 @@ def generate_sequence(start, end, step=1, name='os_usage_rate', labels=None):
     global latest_fetch_range
 
     latest_fetch_range = (start, end, step)
-    print("Generate sequence: ", start, end, step, labels)
+    logging.debug("Generate sequence: ", start, end, step, labels)
     if not labels:
         return [Sequence(
             range(start, end + 1, step), range(start, end + 1, step), name, labels={'ip': '127.0.0.1'}

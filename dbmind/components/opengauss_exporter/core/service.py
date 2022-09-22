@@ -45,6 +45,9 @@ FROM_INSTANCE_KEY = 'from_instance'
 
 driver = None
 
+# yaml macros
+scrape_interval_seconds = 0
+
 _thread_pool_executor = None
 _registry = CollectorRegistry()
 
@@ -87,10 +90,11 @@ class Query:
 
     def fetch(self, alternative_timeout, force_connection_db=None):
         current_timestamp = int(time.time() * 1000)
-        mapper = {
+        macro_mapper = {
             'last_scrape_timestamp': self._last_scrape_timestamp,
-            'scrape_interval': current_timestamp - self._last_scrape_timestamp,
-            'scrape_interval_seconds': int((current_timestamp - self._last_scrape_timestamp) / 1000)
+            'scrape_interval': scrape_interval_seconds * 1000 or current_timestamp - self._last_scrape_timestamp,
+            'scrape_interval_seconds': scrape_interval_seconds or int(
+                (current_timestamp - self._last_scrape_timestamp) / 1000)
         }
 
         if self._cache and (current_timestamp - self._last_scrape_timestamp) < (self.ttl * 1000):
@@ -99,7 +103,7 @@ class Query:
         # Refresh cache:
         # If the query gives explict timeout, then use it,
         # otherwise use passed `alternative_timeout`.
-        formatted = self.sql.format_map(mapper)  # If the SQL has placeholder, render it.
+        formatted = self.sql.format_map(macro_mapper)  # If the SQL has the placeholder, render it.
         logging.debug('Query the SQL statement: %s.', formatted)
         self._cache = driver.query(formatted,
                                    self.timeout or alternative_timeout,
@@ -275,9 +279,13 @@ def config_collecting_params(
         exclude_databases,
         parallel,
         disable_cache,
-        constant_labels
+        constant_labels,
+        **kwargs
 ):
-    global _use_cache, _thread_pool_executor, driver
+    global _use_cache, _thread_pool_executor, driver, scrape_interval_seconds
+
+    # Set global yaml config macros.
+    scrape_interval_seconds = kwargs.get('scrape_interval_seconds', 0)
 
     driver = DriverBundle(url, include_databases, exclude_databases)
     _thread_pool_executor = ThreadPoolExecutor(max_workers=parallel)
