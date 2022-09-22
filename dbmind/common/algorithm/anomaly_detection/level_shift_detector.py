@@ -21,11 +21,11 @@ from ...types import Sequence
 
 
 class LevelShiftDetector(AbstractDetector):
-    def __init__(self, outliers=(3, 3), side="both", min_periods=1, window=5):
+    def __init__(self, outliers=(None, 6), side="both", window=5, agg='median'):
         self.outliers = outliers
         self.side = side
-        self.min_periods = min_periods
         self.window = window
+        self.agg = agg
 
     def _fit(self, s: Sequence) -> None:
         self._iqr_detector = InterQuartileRangeDetector(outliers=self.outliers)
@@ -37,13 +37,15 @@ class LevelShiftDetector(AbstractDetector):
             s.values,
             window1=self.window,
             window2=self.window,
-            diff_mode="abs_diff"
+            diff_mode="abs_diff",
+            agg=self.agg
         )
         diff_values = stat_utils.np_double_rolling(
             s.values,
             window1=self.window,
             window2=self.window,
-            diff_mode="diff"
+            diff_mode="diff",
+            agg=self.agg
         )
 
         iqr_result = self._iqr_detector.fit_predict(Sequence(s.timestamps, abs_diff_values))

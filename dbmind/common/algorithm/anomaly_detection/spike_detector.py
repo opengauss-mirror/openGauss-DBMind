@@ -11,8 +11,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-import numpy as np
-
 from ._abstract_detector import AbstractDetector
 from .agg import merge_with_and_operator
 from .detector_params import THRESHOLD
@@ -23,33 +21,46 @@ from ...types import Sequence
 
 
 class SpikeDetector(AbstractDetector):
-    def __init__(self, outliers=(None, 6), side="both", window=10, n_std=3):
+    def __init__(self, outliers=(None, 3), side="both", window=1, agg='median'):
         self.outliers = outliers
         self.side = side
         self.window = window
-        self.n_std = n_std
+        self.agg = agg
 
     def _fit(self, s: Sequence) -> None:
         self._iqr_detector = InterQuartileRangeDetector(outliers=self.outliers)
         self._sign_detector = ThresholdDetector(high=THRESHOLD.get(self.side)[0],
                                                 low=THRESHOLD.get(self.side)[1])
-        mean, std = np.mean(s.values), np.std(s.values)
-        high, low = mean + std * self.n_std, mean - std * self.n_std
-        self._threshold_detector = ThresholdDetector(high=high, low=low)
 
     def _predict(self, s: Sequence) -> Sequence:
         abs_diff_values = stat_utils.np_double_rolling(
             s.values,
             window1=self.window,
-            diff_mode="abs_diff"
+            window2=1,
+            diff_mode="abs_diff",
+            agg=self.agg
         )
         diff_values = stat_utils.np_double_rolling(
             s.values,
             window1=self.window,
-            diff_mode="diff"
+            window2=1,
+            diff_mode="diff",
+            agg=self.agg
         )
 
         iqr_result = self._iqr_detector.fit_predict(Sequence(s.timestamps, abs_diff_values))
         sign_check_result = self._sign_detector.fit_predict(Sequence(s.timestamps, diff_values))
-        threshold_result = self._threshold_detector.fit_predict(s)
-        return merge_with_and_operator([iqr_result, sign_check_result, threshold_result])
+        return merge_with_and_operator([iqr_result, sign_check_result])
+
+
+def remove_spike(s: Sequence, outliers=(None, 3), side="positive", window=1):
+    spike_ad_sequence = SpikeDetector(outliers=outliers, side=side, window=window).fit_predict(s)
+    values = list(s.values)
+    for i, v in enumerate(spike_ad_sequence.values):
+        if v:
+            if i:
+                values[i] = s.values[i - 1]
+            else:
+                idx = spike_ad_sequence.values.index(False)  # find the nearest element
+                values[i] = s.values[idx]
+    return Sequence(timestamps=s.timestamps, values=values)
