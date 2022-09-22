@@ -17,7 +17,7 @@ import numpy as np
 
 from ._abstract_detector import AbstractDetector
 from ._utils import over_max_coef
-from .iqr_detector import remove_spike
+from .spike_detector import remove_spike
 from ...types import Sequence
 
 
