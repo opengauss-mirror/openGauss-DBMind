@@ -15,7 +15,10 @@ import re
 from collections import defaultdict
 from enum import Enum
 from functools import lru_cache
-from typing import List, Tuple
+from typing import List, Tuple, Sequence, Any
+
+import sqlparse
+from sqlparse.tokens import Name
 
 COLUMN_DELIMITER = ', '
 
@@ -30,6 +33,17 @@ class IndexType(Enum):
     ADVISED = 1
     REDUNDANT = 2
     INVALID = 3
+
+
+class UniqueList(list):
+
+    def append(self, item: Any) -> None:
+        if item not in self:
+            super().append(item)
+
+    def extend(self, items: Sequence[Any]) -> None:
+        for item in items:
+            self.append(item)
 
 
 class ExistingIndex:
@@ -378,3 +392,28 @@ def infer_workload_benefit(workload: WorkLoad, config: List[AdvisedIndex], atomi
                 config[-1].set_association_indexes(association_indexes, association_benefit)
 
     return total_benefit
+
+
+def has_dollar_placeholder(query):
+    tokens = sqlparse.parse(query)[0].flatten()
+    return any(item.ttype is Name.Placeholder
+               and item.value.startswith('$') for item in tokens)
+
+
+def get_placeholders(query):
+    placeholders = set()
+    for item in sqlparse.parse(query)[0].flatten():
+        if item.ttype is Name.Placeholder:
+            placeholders.add(item.value)
+    return placeholders
+
+
+def generate_placeholder_indexes(table_cxt, column):
+    indexes = []
+    schema_table = f'{table_cxt.schema}.{table_cxt.table}'
+    if table_cxt.is_partitioned_table:
+        indexes.append(IndexItemFactory().get_index(schema_table, column, 'global'))
+        indexes.append(IndexItemFactory().get_index(schema_table, column, 'local'))
+    else:
+        indexes.append(IndexItemFactory().get_index(schema_table, column, ''))
+    return indexes

@@ -34,7 +34,3 @@ class BaseExecutor:
     @abstractmethod
     def session(self):
         pass
-
-
-
-
