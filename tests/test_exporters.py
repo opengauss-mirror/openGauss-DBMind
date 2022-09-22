@@ -40,13 +40,13 @@ def test_reprocessing_exporter(monkeypatch):
                                name='os_cpu_usage',
                                labels={'from_instance': '127.0.0.1'})]
     ))
-    is_prometheus_alive = mock.MagicMock(return_value=(True, 'http'))
+    get_prometheus_status = mock.MagicMock(return_value=(True, 'http', None))
 
     monkeypatch.setattr(PrometheusClient, 'check_connection', mock.Mock(return_value=True))
     monkeypatch.setattr(re_controller, 'run', mock.MagicMock())
-    monkeypatch.setattr(exporter_utils, 'is_prometheus_alive', is_prometheus_alive)
+    monkeypatch.setattr(exporter_utils, 'get_prometheus_status', get_prometheus_status)
     ExporterMain(parse_argv(['127.0.0.1', '1234', '--disable-https'])).run()
-    is_prometheus_alive.assert_called_once()
+    get_prometheus_status.assert_called_once()
     re_controller.run.assert_called_once()
 
     assert re_controller.query_all_metrics().startswith(b'# HELP')

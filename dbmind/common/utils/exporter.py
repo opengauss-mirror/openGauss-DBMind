@@ -10,16 +10,17 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
 import logging
 import argparse
 import getpass
 import os
+import re
 import socket
 from logging.handlers import RotatingFileHandler
 
 import requests
 
+from .cli import set_proc_title
 from .cli import write_to_terminal
 
 
@@ -53,56 +54,40 @@ def is_port_used(host, port):
         s.close()
 
 
-def can_access_the_url(url):
-    try:
-        response = requests.get(
-            url,
-            headers={"Content-Type": "application/json"},
-        )
-        if response.status_code == 200:
-            return True
-        return False
+def get_prometheus_status(host, port, user, password):
+    """Check for Prometheus's status.
 
-    except requests.exceptions.ConnectionError:
-        return False
-
-    except Exception as e:
-        logging.exception(e)
-        return False
-
-
-def is_prometheus_alive(host, port):
+    :param host: string type
+    :param port: int type
+    :param user: user name for basic authorization
+    :param password: password for basic authorization
+    :return: triplet (status, scheme, error message)
+    """
     if not is_port_used(host, port):
-        return False, None
+        return False, None, None
 
     for scheme in ('http', 'https'):
         url = "{}://{}:{}/api/v1/query?query=up".format(scheme, host, port)
-        if can_access_the_url(url):
-            return True, scheme
-    return False, None
+        try:
+            session = requests.session()
+            if user and password:
+                session.auth = (user, password)  # basic authorization
+            response = session.get(
+                url,
+                headers={"Content-Type": "application/json"},
+            )
+            if response.status_code == 200:
+                return True, scheme, None
+            elif response.status_code == 401:
+                return False, scheme, 'an unauthorized connection'
 
+        except requests.exceptions.ConnectionError:
+            return False, None, 'a connection refused'
 
-def exporter_ssl_logic(parser, args):
-    ssl_keyfile_pwd = None
-    if args.disable_https:
-        # Clear up redundant arguments.
-        args.ssl_keyfile = None
-        args.ssl_certfile = None
-    else:
-        if not (args.ssl_keyfile and args.ssl_certfile):
-            parser.error('If you use the Https protocol (default), you need to give the argument values '
-                         'of --ssl-keyfile and --ssl-certfile. '
-                         'Otherwise, use the --disable-https argument to disable the Https protocol.')
-        else:
-            # Need to check whether the key file has been encrypted.
-            with open(args.ssl_keyfile) as fp:
-                for line in fp.readlines():
-                    if line.startswith('Proc-Type') and 'ENCRYPTED' in line.upper():
-                        ssl_keyfile_pwd = ''
-                        while not ssl_keyfile_pwd:
-                            ssl_keyfile_pwd = getpass.getpass('Enter PEM pass phrase:')
-    setattr(args, 'keyfile_password', ssl_keyfile_pwd)
-    return args
+        except Exception as e:
+            logging.exception(e)
+            return False, scheme, 'an unexpected error: %s' % e.__class__.__name__
+    return False, None, 'a connection refused'
 
 
 class KVPairAction(argparse.Action):
@@ -165,7 +150,7 @@ def set_logger(filepath, level):
     default_logger.addHandler(handler)
 
 
-def parse_and_adjust_args(parser, argv):
+def exporter_parse_and_adjust_ssl_args(parser, argv):
     args = parser.parse_args(argv)
 
     ssl_keyfile_pwd = None
@@ -189,3 +174,35 @@ def parse_and_adjust_args(parser, argv):
     setattr(args, 'keyfile_password', ssl_keyfile_pwd)
     return args
 
+
+def wipe_off_password_from_proc_title(old, new):
+    """
+    Removes the password from the process title.
+
+    :param old: old string that needs to be removed.
+    :param new: use this new string to replace the old one.
+    :return None
+    """
+    with open('/proc/self/cmdline') as fp:
+        cmdline = fp.readline().replace('\x00', ' ')
+    wiped_cmdline = cmdline.replace(old, new)
+    set_proc_title(wiped_cmdline)
+
+
+def wipe_off_dsn_password(db_connection_string):
+    """
+    Removes the password from the database connection string
+    @param db_connection_string: database connection string
+    @return: the database connection string with the password removed
+    """
+    result = re.findall(r'.*://.*:(.+)@.*:.*/.*', db_connection_string)
+    if len(result) == 0:
+        result = re.findall(r'password=(.*)\s', db_connection_string)
+        if len(result) == 0:
+            return '*********'
+
+    password = result[0]
+    if len(password) == 0:
+        return '*********'
+
+    return db_connection_string.replace(password, '******')

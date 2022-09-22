@@ -27,11 +27,11 @@ os_cpu_iowait:
   timeout: 0.1
 
 
-io_read_total:
-  name: io_read_total
+os_io_read_total:
+  name: os_io_read_total
   desc: total number of io read
   query:
-    - name: io_read_total
+    - name: os_io_read_total
       promql: "
         label_replace(
           sum by (instance) (irate(node_disk_reads_completed_total[5m]))
@@ -51,11 +51,11 @@ io_read_total:
   timeout: 0.1
 
 
-io_write_total:
-  name: io_write_total
+os_io_write_total:
+  name: os_io_write_total
   desc: total write number
   query:
-    - name: io_write_total
+    - name: os_io_write_total
       promql: "
         label_replace(
           sum by (instance) (irate(node_disk_writes_completed_total[3m]))
@@ -134,11 +134,11 @@ os_disk_ioutils:
   timeout: 0.1
 
 
-io_read_bytes:
-  name: io_read_bytes
+os_io_read_bytes:
+  name: os_io_read_bytes
   desc: io read bytes
   query:
-    - name: io_read_bytes
+    - name: os_io_read_bytes
       promql: "
       label_replace(
         sum by (instance) (irate(node_disk_read_bytes_total[1m])) / 1024 / 1024,
@@ -159,11 +159,11 @@ io_read_bytes:
   timeout: 0.1
 
 
-io_write_bytes:
-  name: io_write_bytes
+os_io_write_bytes:
+  name: os_io_write_bytes
   desc: io write bytes
   query:
-    - name: io_write_bytes
+    - name: os_io_write_bytes
       promql: "
       label_replace(
         sum by (instance) (irate(node_disk_written_bytes_total[1m])) / 1024 / 1024,
@@ -250,11 +250,11 @@ os_disk_usage:
   timeout: 0.1
 
 
-io_queue_number:
-  name: io_queue_number
+os_io_queue_number:
+  name: os_io_queue_number
   desc: io queue number
   query:
-    - name: io_queue_number
+    - name: os_io_queue_number
       promql: "
       label_replace(
         rate(node_disk_io_time_weighted_seconds_total[3m]),
@@ -284,11 +284,11 @@ io_queue_number:
   timeout: 0.1
 
 
-io_read_delay_time:
-  name: io_read_delay_time
+os_io_read_delay_time:
+  name: os_io_read_delay_time
   desc: io read delay time
   query:
-    - name: io_read_delay_time
+    - name: os_io_read_delay_time
       promql: "
       label_replace(
         rate(node_disk_read_time_seconds_total[3m]) / (rate(node_disk_reads_completed_total[3m]) + 0.00001) * 1000,
@@ -318,11 +318,11 @@ io_read_delay_time:
   timeout: 0.1
 
 
-io_write_delay_time:
-  name: io_write_delay_time
+os_io_write_delay_time:
+  name: os_io_write_delay_time
   desc: io write delay time
   query:
-    - name: io_write_delay_time
+    - name: os_io_write_delay_time
       promql: "
       label_replace(
         rate(node_disk_write_time_seconds_total[3m]) / (rate(node_disk_writes_completed_total[3m]) + 0.00001) * 1000,
@@ -1301,11 +1301,67 @@ gaussdb_connections_used_ratio:
   ttl: 60
   timeout: 0.1
 
-load_average:
-  name: load_average
+load_average1:
+  name: load_average1
   desc: load average for database server.
   query:
-    - name: load_average
+    - name: load_average1
+      promql: "
+        label_replace(
+          node_load1,
+          'instance', '$1', 'instance', '(.*):.*')
+      "
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 0.1
+
+load_average5:
+  name: load_average5
+  desc: load average for database server.
+  query:
+    - name: load_average5
+      promql: "
+        label_replace(
+          node_load5,
+          'instance', '$1', 'instance', '(.*):.*')
+      "
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 0.1
+
+load_average15:
+  name: load_average15
+  desc: load average for database server.
+  query:
+    - name: load_average15
       promql: "
         label_replace(
           node_load1,
@@ -1330,11 +1386,11 @@ load_average:
   timeout: 0.1
 
 # network
-node_network_receive_bytes:
-  name: node_network_receive_bytes
-  desc: node_network_receive_bytes
+os_network_receive_bytes:
+  name: os_network_receive_bytes
+  desc: os_network_receive_bytes
   query:
-    - name: node_network_receive_bytes
+    - name: os_network_receive_bytes
       promql: "
         label_replace(
           sum(irate(node_network_receive_bytes_total{device!~'bond.*?|lo'}[1m])/128) by (instance, job),
@@ -1357,11 +1413,11 @@ node_network_receive_bytes:
   status: enable
   ttl: 60
 
-node_network_transmit_bytes:
-  name: node_network_transmit_bytes
-  desc: node_network_transmit_bytes
+os_network_transmit_bytes:
+  name: os_network_transmit_bytes
+  desc: os_network_transmit_bytes
   query:
-    - name: node_network_transmit_bytes
+    - name: os_network_transmit_bytes
       promql: "
         label_replace(
           sum(irate(node_network_transmit_bytes_total{device!~'bond.*?|lo'}[1m])/128) by (instance, job),
@@ -1385,11 +1441,11 @@ node_network_transmit_bytes:
   ttl: 60
 
 
-node_network_receive_drop:
-  name: node_network_receive_drop
-  desc: node_network_receive_drop
+os_network_receive_drop:
+  name: os_network_receive_drop
+  desc: os_network_receive_drop
   query:
-    - name: node_network_receive_drop
+    - name: os_network_receive_drop
       promql: "
         label_replace(
           sum(irate(node_network_receive_drop_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
@@ -1412,11 +1468,11 @@ node_network_receive_drop:
   status: enable
   ttl: 60
 
-node_network_receive_error:
-  name: node_network_receive_error
-  desc: node_network_receive_erros
+os_network_receive_error:
+  name: os_network_receive_error
+  desc: os_network_receive_error
   query:
-    - name: node_network_receive_error
+    - name: os_network_receive_error
       promql: "
         label_replace(
           sum(irate(node_network_receive_errs_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
@@ -1439,11 +1495,11 @@ node_network_receive_error:
   status: enable
   ttl: 60
 
-node_network_transmit_drop:
-  name: node_network_transmit_drop
-  desc: node_network_transmit_drop
+os_network_transmit_drop:
+  name: os_network_transmit_drop
+  desc: os_network_transmit_drop
   query:
-    - name: node_network_transmit_drop
+    - name: os_network_transmit_drop
       promql: "
         label_replace(
           sum(irate(node_network_transmit_drop_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
@@ -1466,11 +1522,11 @@ node_network_transmit_drop:
   status: enable
   ttl: 60
 
-node_network_transmit_error:
-  name: node_network_transmit_error
-  desc: node_network_transmit_erros
+os_network_transmit_error:
+  name: os_network_transmit_error
+  desc: os_network_transmit_error
   query:
-    - name: node_network_transmit_error
+    - name: os_network_transmit_error
       promql: "
         label_replace(
           sum(irate(node_network_transmit_errs_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
@@ -1494,11 +1550,11 @@ node_network_transmit_error:
   ttl: 60
 
 
-node_network_receive_packets:
-  name: node_network_receive_packets
-  desc: node_network_receive_packets
+os_network_receive_packets:
+  name: os_network_receive_packets
+  desc: os_network_receive_packets
   query:
-    - name: node_network_receive_packets
+    - name: os_network_receive_packets
       promql: "
         label_replace(
           sum(irate(node_network_receive_packets_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
@@ -1521,11 +1577,11 @@ node_network_receive_packets:
   status: enable
   ttl: 60
 
-node_network_transmit_packets:
-  name: node_network_transmit_packets
-  desc: node_network_transmit_packets
+os_network_transmit_packets:
+  name: os_network_transmit_packets
+  desc: os_network_transmit_packets
   query:
-    - name: node_network_transmit_packets
+    - name: os_network_transmit_packets
       promql: "
         label_replace(
           sum(irate(node_network_transmit_packets_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
@@ -1549,11 +1605,11 @@ node_network_transmit_packets:
   ttl: 60
 
 
-node_process_fds_rate:
-  name: node_process_fds_rate
+os_process_fds_rate:
+  name: os_process_fds_rate
   desc: fds condition for database server.
   query:
-    - name: node_process_fds_rate
+    - name: os_process_fds_rate
       promql: "
         label_replace(
           process_open_fds / process_max_fds,
@@ -1589,6 +1645,256 @@ pg_database_all_size:
       status: enable
       dbRole: ""
   metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 0.1
+
+
+gaussdb_dead_tup_increase_rate:
+  name: gaussdb_dead_tup_increase_rate
+  desc: increase amplitude of dead tuple.
+  query:
+    - name: gaussdb_dead_tup_increase_rate
+      promql: |
+        sum (irate(pg_tables_structure_n_dead_tup[2m])) by (datname, relname, schemaname, from_instance, job)
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+    - name: datname
+      label: datname
+      description: dataname
+      usage: LABEL
+    - name: relname
+      label: relname
+      description: relname
+      usage: LABEL
+    - name: schemaname
+      label: schemaname
+      description: schemaname
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 0.1
+
+
+gaussdb_table_increase_amplitude:
+  name: gaussdb_table_increase_amplitude
+  desc: increase amplitude of table.
+  query:
+    - name: gaussdb_table_increase_amplitude
+      promql: |
+        sum(increase(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job)
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+    - name: datname
+      label: datname
+      description: dataname
+      usage: LABEL
+    - name: nspname
+      label: nspname
+      description: nspname
+      usage: LABEL
+    - name: relname
+      label: relname
+      description: relname
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 0.1
+
+
+gaussdb_table_increase_rate:
+  name: gaussdb_table_increase_rate
+  desc: increase amplitude of table.
+  query:
+    - name: gaussdb_table_increase_rate
+      promql: |
+        sum(irate(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job)
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+    - name: datname
+      label: datname
+      description: dataname
+      usage: LABEL
+    - name: nspname
+      label: nspname
+      description: nspname
+      usage: LABEL
+    - name: relname
+      label: relname
+      description: relname
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 0.1
+
+
+gaussdb_index_increase_rate:
+  name: gaussdb_index_increase_rate
+  desc: increase of index in database.
+  query:
+    - name: gaussdb_index_increase_rate
+      promql: |
+        sum(irate(pg_indexes_size_mbytes[2m])) by (index_name, schema_name, table_name, from_instance, job)
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+    - name: index_name
+      label: index_name
+      description: indexname
+      usage: LABEL
+    - name: schema_name
+      label: schema_name
+      description: schemaname
+      usage: LABEL
+    - name: table_name
+      label: table_name
+      description: tablename
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 0.1
+
+
+gaussdb_database_increase_rate:
+  name: gaussdb_database_increase_rate
+  desc: increase rate of database.
+  query:
+    - name: gaussdb_database_increase_rate
+      promql: |
+        sum(irate(pg_database_size_bytes[2m])) by (datname, from_instance, job)
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+    - name: datname
+      label: datname
+      description: dataname
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 0.1
+
+
+gaussdb_database_increase_amplitude:
+  name: gaussdb_database_increase_amplitude
+  desc: increase amplitude of database.
+  query:
+    - name: gaussdb_database_increase_amplitude
+      promql: |
+        sum (increase(pg_database_size_bytes[2m])) by (datname, from_instance, job)
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+    - name: datname
+      label: datname
+      description: dataname
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 0.1
+
+
+gaussdb_wait_event_spike:
+  name: gaussdb_wait_event_spike
+  desc: increase amplitude of database.
+  query:
+    - name: gaussdb_wait_event_spike
+      promql: |
+        sum (irate(pg_wait_events_total_wait_time[2m])) by (type, event, nodename, from_instance, job)
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: type
+      label: type
+      description: type of event
+      usage: LABEL
+    - name: event
+      label: event
+      description: event
+      usage: LABEL
+    - name: nodename
+      label: nodename
+      description: nodename
+      usage: LABEL
     - name: from_job
       label: job
       description: from job

@@ -21,7 +21,7 @@ from dbmind.common.utils import write_to_terminal
 from dbmind.common.utils.checking import path_type, CheckPort, CheckIP, positive_int_type
 from dbmind.common.utils.checking import warn_ssl_certificate
 from dbmind.common.utils.exporter import (
-    is_exporter_alive, KVPairAction, set_logger, parse_and_adjust_args
+    is_exporter_alive, KVPairAction, set_logger, exporter_parse_and_adjust_ssl_args
 )
 from dbmind.constants import __version__
 from . import controller
@@ -65,7 +65,7 @@ def parse_argv(argv):
                              ' Valid levels: [debug, info, warn, error, fatal]')
     parser.add_argument('-v', '--version', action='version', version=__version__)
 
-    return parse_and_adjust_args(parser, argv)
+    return exporter_parse_and_adjust_ssl_args(parser, argv)
 
 
 class ExporterMain(Daemon):
