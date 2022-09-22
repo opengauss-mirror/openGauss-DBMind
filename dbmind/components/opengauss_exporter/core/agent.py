@@ -39,7 +39,7 @@ def query_in_database(stmt, database, return_tuples=False):
 def get_driver_address():
     from . import service
 
-    return service.driver.address
+    return service.driver.host, service.driver.port
 
 
 def create_agent_rpc_service():
@@ -48,12 +48,14 @@ def create_agent_rpc_service():
                 and _agent_exclusive_driver.username == username
                 and _agent_exclusive_driver.pwd == pwd):
             return True
+
+        host, port = get_driver_address()
         try:
             with _check_lock:
-                url = 'postgresql://{}:{}@{}/postgres'.format(
-                    username, pwd, get_driver_address()
+                dsn = 'user={} password={} dbname=postgres host={} port={}'.format(
+                    username, pwd, host, port
                 )
-                _agent_exclusive_driver.initialize(url)
+                _agent_exclusive_driver.initialize(dsn)
                 return True
         except ConnectionError:
             return False
