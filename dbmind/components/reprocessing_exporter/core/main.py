@@ -135,11 +135,11 @@ class ExporterMain(Daemon):
         # Wipe off sensitive string.
         try:
             auth_password = self.args.prometheus_auth_password
-            wipe_off_password_from_proc_title(auth_password, '******')
+            if auth_password:
+                wipe_off_password_from_proc_title(auth_password, '******')
         except FileNotFoundError:
             # ignore
             pass
-
         set_logger(self.args.__dict__['log.filepath'],
                    self.args.__dict__['log.level'])
         self.change_file_permissions()
