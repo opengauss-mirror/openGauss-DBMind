@@ -18,6 +18,8 @@ stages:
         displayName: Python36_old
         pythonVersion: '3.6'
         commands:
+          - pwd
+          - env
           - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-x86.txt
           - pytest --html=report/index.html
         report:
