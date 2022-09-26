@@ -386,5 +386,9 @@ def multiple_cmd_exec(cmdline, **communicate_kwargs):
     if last_process.stdin and last_process.stdin.closed:
         last_process.stdin = None
 
-    outs, errs = last_process.communicate(**communicate_kwargs)
+    try:
+        outs, errs = last_process.communicate(**communicate_kwargs)
+    finally:
+        for _p in process_list:
+            _p.terminate()
     return last_process.returncode, outs, errs
