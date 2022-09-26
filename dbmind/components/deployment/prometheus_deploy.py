@@ -10,11 +10,13 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import argparse
 import getpass
 import os
-import sys
+import platform
 import re
+import sys
 import time
 from collections import defaultdict
 from urllib.parse import quote_plus
@@ -23,10 +25,10 @@ import requests
 import yaml
 from paramiko.ssh_exception import AuthenticationException
 from prettytable import PrettyTable
+from requests.adapters import HTTPAdapter
 from socket import getaddrinfo, gethostname
 from urllib3 import disable_warnings
 from urllib3.exceptions import InsecureRequestWarning
-from requests.adapters import HTTPAdapter
 
 from dbmind.common.cmd_executor import SSH
 from dbmind.common.utils import dbmind_assert
@@ -90,6 +92,11 @@ DIR_PERMISSION = '700'
 
 LOCALHOSTS = set([h[4][0] for h in getaddrinfo(gethostname(), None) if ':' not in h[4][0]] + ['127.0.0.1'])
 
+ARCHITECTURES = {
+    'x86_64': 'amd64',
+    'aarch64': 'arm64',
+}
+
 
 def has_conflict(host, port, ports_occupied, option, section):
     hosts = [host] if isinstance(host, str) else host
@@ -120,6 +127,13 @@ def config_ports_has_conflict(configs):
     for section in configs.sections():
         for option, _ in configs.items(section):
             value = configs.get(section, option).strip()
+            if section in [PROMETHEUS, EXPORTERS] and not value:
+                print(
+                    f"It seems the config file is unfinished with the empty {section}-{option}."
+                    "Maybe you should deploy with '--online' or '--offline' first."
+                )
+                return True
+
             if 'ssh_port' in option:
                 continue
 
@@ -901,7 +915,7 @@ def check(checks):
 
 
 def main(argv):
-    """\
+    """
     We provide 4 attributes to direct the deployment.
     --online and --offline are almost the same. The difference is that the option --online
     will download the prometheus.tar.gz and node_exporter.tar.gz files and get the
@@ -945,10 +959,29 @@ def main(argv):
     with open(file=CONFIG_PATH, mode='r') as fp:
         configs.read_file(fp)
 
+    architecture = platform.uname().processor
+    if architecture not in ARCHITECTURES:
+        print(f"The unsupported CPU architecture: {architecture}, exiting.")
+        return
+
     try:
         if args['online'] or args['offline']:
             if args['online'] and args['offline']:
                 raise ValueError("You can't set online and offline at the same time.")
+
+            os_arch = ARCHITECTURES[architecture]
+            prometheus = configs.get(DOWNLOADING, 'prometheus')
+            node_exporter = configs.get(DOWNLOADING, 'node_exporter')
+            prometheus_arch_in_config = prometheus.rsplit('-', 1)[1]
+            if prometheus_arch_in_config != os_arch:
+                print(f"{prometheus} should be adapted to '{os_arch}', modifying.")
+                prometheus = prometheus[:prometheus.rfind(prometheus_arch_in_config)] + os_arch
+                configs.set(DOWNLOADING, 'prometheus', prometheus)
+            node_exporter_arch_in_config = node_exporter.rsplit('-', 1)[1]
+            if node_exporter_arch_in_config != os_arch:
+                print(f"{node_exporter} should be adapted to '{os_arch}', modifying.")
+                node_exporter = node_exporter[:node_exporter.rfind(node_exporter_arch_in_config)] + os_arch
+                configs.set(DOWNLOADING, 'node_exporter', node_exporter)
 
             if args['conf'] is None:
                 set_deploy_config_interactive(configs)
