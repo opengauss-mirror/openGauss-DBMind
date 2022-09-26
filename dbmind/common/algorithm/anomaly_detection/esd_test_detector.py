@@ -19,6 +19,28 @@ from ...types import Sequence
 
 
 class EsdTestDetector(AbstractDetector):
+    """
+    The Extreme Studentized Deviate (ESD) test is based on an assumption that
+    the data (time series or not) follows a normal distribution. (In case of
+    few samples, we use t-distribution instead.)
+
+    While training we calculate the std and critical-value of the dataset and
+    then pick out the very sample with the highest value/std and compares
+    value/std to the critical-value. if value/std is higher than ppf, we remove
+    it from the dataset and repeat the procedure until the value/std is lower
+    than or equal to the ppf.
+
+    While predicting, the detector adds each value in the testing
+    series to the set of normal values from training series independently, and
+    performs generalized ESD test to this set (all normal values from training
+    series, plus one value from testing series) to evaluate if this value of
+    interest is an outlier.
+
+    Parameters
+    alpha: float, optional, Significance level. Default: 0.05.
+
+    """
+
     def __init__(self, alpha=0.05):
         self.alpha = alpha
 
@@ -43,9 +65,8 @@ class EsdTestDetector(AbstractDetector):
             v_copy[idx] = np.nan
             p = 1 - self.alpha / (2 * (n - i + 1))
             c[idx] = (
-                (n - i)
-                * stats.t.ppf(p, n - i - 1)
-                / np.sqrt((n - i - 1 + stats.t.ppf(p, n - i - 1) ** 2) * (n - i + 1))
+                (n - i) * stats.t.ppf(p, n - i - 1) /
+                np.sqrt((n - i - 1 + stats.t.ppf(p, n - i - 1) ** 2) * (n - i + 1))
             )
             if r[idx] <= c[idx]:
                 break
@@ -57,9 +78,8 @@ class EsdTestDetector(AbstractDetector):
         n = self._normal_count + 1
         p = 1 - self.alpha / (2 * (n - i + 1))
         self._lambda = (
-            (n - i)
-            * stats.t.ppf(p, n - i - 1)
-            / np.sqrt((n - i - 1 + stats.t.ppf(p, n - i - 1) ** 2) * (n - i + 1))
+            (n - i) * stats.t.ppf(p, n - i - 1) /
+            np.sqrt((n - i - 1 + stats.t.ppf(p, n - i - 1) ** 2) * (n - i + 1))
         )
 
     def _predict(self, s: Sequence) -> Sequence:
@@ -69,12 +89,8 @@ class EsdTestDetector(AbstractDetector):
         new_mean = new_sum / new_count
         new_squared_sum = np_values ** 2 + self._normal_squared_sum
         new_std = np.sqrt(
-            (
-                new_squared_sum
-                - 2 * new_mean * new_sum
-                + new_count * new_mean ** 2
-            )
-            / (new_count - 1)
+            (new_squared_sum - 2 * new_mean * new_sum + new_count * new_mean ** 2) /
+            (new_count - 1)
         )
 
         predicted = abs(np_values - new_mean) / new_std > self._lambda

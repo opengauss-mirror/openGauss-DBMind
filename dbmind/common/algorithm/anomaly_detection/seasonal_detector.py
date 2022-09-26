@@ -23,7 +23,7 @@ from ...types import Sequence
 
 
 class SeasonalDetector(AbstractDetector):
-    def __init__(self, outliers=(3, 3), side="positive", window=10, period=None,
+    def __init__(self, outliers=(None, 3), side="positive", window=10, period=None,
                  high_ac_threshold=0.1, min_seasonal_freq=2):
         self.outliers = outliers
         self.side = side
@@ -45,7 +45,12 @@ class SeasonalDetector(AbstractDetector):
                                                 low=THRESHOLD.get(self.side)[1])
 
     def _predict(self, s: Sequence) -> Sequence:
-        moving_average = stat_utils.np_rolling(s.values, window=self.window, trim=True, agg='mean')
+        moving_average = stat_utils.np_rolling(
+            s.values,
+            window=self.window,
+            trim=True,
+            agg='mean'
+        )
         deseasonal_residual = seasonal_decompose(moving_average, period=self.period)[2]
         residual_sequence = Sequence(timestamps=s.timestamps, values=deseasonal_residual)
 
