@@ -18,8 +18,7 @@ stages:
         displayName: Python36_old
         pythonVersion: '3.6'
         commands:
-          - pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-          - pip3 install -r requirements-x86.txt
+          - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-x86.txt
           - pytest --html=report/index.html
         report:
           path: report
@@ -38,10 +37,9 @@ stages:
         displayName: Python38_new
         pythonVersion: '3.8'
         commands:
-          - pip3 install --upgrade setuptools
-          - pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
-          - pip3 install -r requirements-x86.txt
+          - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-x86.txt
           - pytest --html=report/index.html
+          - ''
         report:
           path: report
           index: index38.html
