@@ -24,7 +24,7 @@ pg_class:
         SELECT CURRENT_CATALOG AS datname,(select nspname from pg_namespace where oid=relnamespace) as nspname,relname,relkind,relpages,reltuples,
           CASE WHEN relkind = 'i' THEN NULL ELSE pg_catalog.age(relfrozenxid64) END AS relage,pg_catalog.pg_relation_size(oid) AS relsize
         FROM pg_class
-        WHERE relkind = 'r' and relname not like 'pg_%' and relname not like 'gs_%' and nspname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai')
+        WHERE relkind = 'r' and relname not like 'pg_%' and relname not like 'gs_%' and nspname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
         ORDER BY relpages DESC LIMIT 32;
       version: '>=0.0.0'
       timeout: 3
@@ -36,7 +36,7 @@ pg_class:
         SELECT CURRENT_CATALOG AS datname,(select nspname from pg_namespace where oid=relnamespace) as nspname,relname,relkind,relpages,reltuples,
           CASE WHEN relkind = 'i' THEN NULL ELSE pg_catalog.age(relfrozenxid64) END AS relage,pg_catalog.pg_relation_size(oid) AS relsize
         FROM pg_class
-        WHERE relkind = 'r' and relname not like 'pg_%' and relname not like 'gs_%' and nspname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai')
+        WHERE relkind = 'r' and relname not like 'pg_%' and relname not like 'gs_%' and nspname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
         ORDER BY relpages DESC LIMIT 32;
       version: '>=0.0.0'
       timeout: 3
@@ -83,8 +83,8 @@ pg_index:
         SELECT CURRENT_CATALOG AS datname,psui.schemaname AS nspname,psui.relname AS tablename,psui.indexrelname AS relname, pg_get_indexdef(psui.indexrelid) AS indexdef,
         idx_scan, idx_tup_read,idx_tup_fetch,idx_blks_read,idx_blks_hit, pgi.indisvalid as indisvalid
         FROM pg_stat_user_indexes psui,pg_statio_user_indexes psio, pg_index pgi
-        WHERE psio.indexrelid = psui.indexrelid and psio.indexrelid = pgi.indexrelid and psui.schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai')
-        order by idx_scan desc limit 100;
+        WHERE psio.indexrelid = psui.indexrelid and psio.indexrelid = pgi.indexrelid and psui.schemaname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+        order by idx_scan desc limit 10;
       version: '>=0.0.0'
       timeout: 10
       ttl: 3600
@@ -95,8 +95,8 @@ pg_index:
         SELECT CURRENT_CATALOG AS datname,psui.schemaname AS nspname,psui.relname AS tablename,psui.indexrelname AS relname, pg_get_indexdef(psui.indexrelid) AS indexdef,
         idx_scan, idx_tup_read,idx_tup_fetch,idx_blks_read,idx_blks_hit, pgi.indisvalid as indisvalid
         FROM pg_stat_user_indexes psui,pg_statio_user_indexes psio, pg_index pgi
-        WHERE psio.indexrelid = psui.indexrelid and psio.indexrelid = pgi.indexrelid and psui.schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai')
-        order by idx_scan desc limit 100;
+        WHERE psio.indexrelid = psui.indexrelid and psio.indexrelid = pgi.indexrelid and psui.schemaname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+        order by idx_scan desc limit 10;
       version: '>=0.0.0'
       timeout: 9
       ttl: 3600
@@ -153,7 +153,7 @@ pg_tables_size:
              pg_catalog.pg_indexes_size(rel.oid) / 1024 / 1024              AS indexsize,
              (case when reltoastrelid=0 then 0 else pg_catalog.pg_total_relation_size(reltoastrelid) / 1024 / 1024 end) AS toastsize
           FROM pg_namespace nsp JOIN pg_class rel ON nsp.oid = rel.relnamespace
-          WHERE nspname NOT IN ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai') AND rel.relkind = 'r'
+          WHERE nspname NOT IN ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') AND rel.relkind = 'r'
           order by 4 desc limit 10;
       version: '>=0.0.0'
       timeout: 10
@@ -168,7 +168,7 @@ pg_tables_size:
            pg_catalog.pg_indexes_size(rel.oid) / 1024 / 1024              AS indexsize,
            (case when reltoastrelid=0 then 0 else pg_catalog.pg_total_relation_size(reltoastrelid) / 1024 / 1024 end) AS toastsize
         FROM pg_namespace nsp JOIN pg_class rel ON nsp.oid = rel.relnamespace
-        WHERE nspname NOT IN ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai') AND rel.relkind = 'r'
+        WHERE nspname NOT IN ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') AND rel.relkind = 'r'
         order by 4 desc limit 10;
       version: '>=0.0.0'
       timeout: 9
@@ -208,10 +208,10 @@ pg_indexes_size:
   query:
     - name: pg_indexes_size
       sql: |-
-        select schemaname schema_name,relname table_name,indexrelname index_name,pg_catalog.pg_relation_size(indexrelid) / 1024 / 1024 as mbytes
+        select CURRENT_CATALOG AS datname, schemaname schema_name,relname table_name,indexrelname index_name,pg_catalog.pg_relation_size(indexrelid) / 1024 / 1024 as mbytes
         from pg_stat_user_indexes
-        where schemaname not in('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai')
-        order by 4 desc limit 100;
+        where schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+        order by 4 desc limit 10;
       version: '>=0.0.0'
       timeout: 10
       ttl: 360
@@ -219,9 +219,9 @@ pg_indexes_size:
       status: enable
     - name: pg_indexes_size
       sql: |-
-        select schemaname schema_name,relname table_name,indexrelname index_name,pg_catalog.pg_relation_size(indexrelid) / 1024 / 1024 as mbytes
+        select CURRENT_CATALOG AS datname, schemaname schema_name,relname table_name,indexrelname index_name,pg_catalog.pg_relation_size(indexrelid) / 1024 / 1024 as mbytes
         from pg_stat_user_indexes
-        where schemaname not in('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai')
+        where schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
         order by 4 desc limit 10;
       version: '>=0.0.0'
       timeout: 9
@@ -229,18 +229,21 @@ pg_indexes_size:
       dbRole: "standby"
       status: disable
   metrics:
-  - name: schema_name
-    description: Schema name of index
-    usage: LABEL
-  - name: table_name
-    description: Table name of index
-    usage: LABEL
-  - name: index_name
-    description: Name of index
-    usage: LABEL
-  - name: mbytes
-    description: Size of index
-    usage: GAUGE
+    - name: datname
+      description: datbase name of index
+      usage: LABEL
+    - name: schema_name
+      description: Schema name of index
+      usage: LABEL
+    - name: table_name
+      description: Table name of index
+      usage: LABEL
+    - name: index_name
+      description: Name of index
+      usage: LABEL
+    - name: mbytes
+      description: Size of index
+      usage: GAUGE
   status: enable
   ttl: 360
   timeout: 9
@@ -261,8 +264,8 @@ pg_never_used_indexes:
         where pco.contype is distinct from 'p' and pco.contype is distinct from 'u'
         and (idx_scan,idx_tup_read,idx_tup_fetch) = (0,0,0)
         and pis.indexdef !~ ' UNIQUE INDEX '
-        and pis.schemaname not in('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai')
-        order by pg_catalog.pg_table_size(indexrelid) desc;
+        and pis.schemaname not in('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+        order by pg_catalog.pg_table_size(indexrelid) desc limit 10;
       version: '>=0.0.0'
       timeout: 9
       ttl: 3600
@@ -279,8 +282,8 @@ pg_never_used_indexes:
         where pco.contype is distinct from 'p' and pco.contype is distinct from 'u'
         and (idx_scan,idx_tup_read,idx_tup_fetch) = (0,0,0)
         and pis.indexdef !~ ' UNIQUE INDEX '
-        and pis.schemaname not in('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai')
-        order by pg_catalog.pg_table_size(indexrelid) desc;
+        and pis.schemaname not in('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+        order by pg_catalog.pg_table_size(indexrelid) desc limit 10;
       version: '>=0.0.0'
       timeout: 9
       ttl: 3600
@@ -324,7 +327,7 @@ pg_tables_structure:
           heap_blks_read,heap_blks_hit,idx_blks_read,idx_blks_hit,
           nvl(toast_blks_read, 0) toast_blks_read,nvl(toast_blks_hit, 0) toast_blks_hit,nvl(tidx_blks_read, 0) tidx_blks_read,nvl(tidx_blks_hit, 0) tidx_blks_hit
         FROM pg_stat_user_tables psut,pg_statio_user_tables psio
-        WHERE psio.relid = psut.relid and psio.schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_pldeveloper') and (n_live_tup+n_dead_tup)>10000;
+        WHERE psio.relid = psut.relid and psio.schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') and (n_live_tup+n_dead_tup)>10000 limit 20;
       version: '>=0.0.0'
       timeout: 1
       status: enable
@@ -376,6 +379,9 @@ pg_tables_structure:
       usage: GAUGE
     - name: n_dead_tup
       description: estimated dead rows
+      usage: GAUGE
+    - name: dead_rate
+      description: dead rate of table
       usage: GAUGE
     - name: last_vacuum
       description: when table was manually vacuumed last time (FULL not count)

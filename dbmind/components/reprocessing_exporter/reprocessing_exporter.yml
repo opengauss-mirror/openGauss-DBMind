@@ -1207,7 +1207,7 @@ gaussdb_table_expansion_rate:
   query:
     - name: gaussdb_table_expansion_rate
       promql: |
-        sum(pg_tables_expansion_rate_dead_rate) by (from_instance, job)
+        topk(10, sum(pg_tables_expansion_rate_dead_rate) by (from_instance, job))
       version: '>=0.0.0'
       timeout: 0.1
       ttl: 10
@@ -1306,62 +1306,6 @@ load_average1:
   desc: load average for database server.
   query:
     - name: load_average1
-      promql: "
-        label_replace(
-          node_load1,
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-load_average5:
-  name: load_average5
-  desc: load average for database server.
-  query:
-    - name: load_average5
-      promql: "
-        label_replace(
-          node_load5,
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-load_average15:
-  name: load_average15
-  desc: load average for database server.
-  query:
-    - name: load_average15
       promql: "
         label_replace(
           node_load1,
@@ -1664,7 +1608,7 @@ gaussdb_dead_tup_increase_rate:
   query:
     - name: gaussdb_dead_tup_increase_rate
       promql: |
-        sum (irate(pg_tables_structure_n_dead_tup[2m])) by (datname, relname, schemaname, from_instance, job)
+        topk(10, sum (irate(pg_tables_structure_n_dead_tup[2m])) by (datname, relname, schemaname, from_instance, job))
       version: '>=0.0.0'
       timeout: 0.1
       ttl: 10
@@ -1702,7 +1646,7 @@ gaussdb_table_increase_amplitude:
   query:
     - name: gaussdb_table_increase_amplitude
       promql: |
-        sum(increase(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job)
+        topk(10, sum(increase(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job))
       version: '>=0.0.0'
       timeout: 0.1
       ttl: 10
@@ -1740,7 +1684,7 @@ gaussdb_table_increase_rate:
   query:
     - name: gaussdb_table_increase_rate
       promql: |
-        sum(irate(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job)
+        topk(10, sum(irate(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job))
       version: '>=0.0.0'
       timeout: 0.1
       ttl: 10
@@ -1778,7 +1722,7 @@ gaussdb_index_increase_rate:
   query:
     - name: gaussdb_index_increase_rate
       promql: |
-        sum(irate(pg_indexes_size_mbytes[2m])) by (index_name, schema_name, table_name, from_instance, job)
+        topk(10, sum(irate(pg_indexes_size_mbytes[2m])) by (index_name, schema_name, table_name, from_instance, job))
       version: '>=0.0.0'
       timeout: 0.1
       ttl: 10
@@ -1816,7 +1760,7 @@ gaussdb_database_increase_rate:
   query:
     - name: gaussdb_database_increase_rate
       promql: |
-        sum(irate(pg_database_size_bytes[2m])) by (datname, from_instance, job)
+        topk(10, sum(irate(pg_database_size_bytes[2m])) by (datname, from_instance, job))
       version: '>=0.0.0'
       timeout: 0.1
       ttl: 10
@@ -1846,7 +1790,7 @@ gaussdb_database_increase_amplitude:
   query:
     - name: gaussdb_database_increase_amplitude
       promql: |
-        sum (increase(pg_database_size_bytes[2m])) by (datname, from_instance, job)
+        topk(10, sum (increase(pg_database_size_bytes[2m])) by (datname, from_instance, job))
       version: '>=0.0.0'
       timeout: 0.1
       ttl: 10
@@ -1868,6 +1812,43 @@ gaussdb_database_increase_amplitude:
   status: enable
   ttl: 60
   timeout: 0.1
+
+
+gaussdb_corrosion_index:
+  name: gaussdb_corrosion_index
+  desc: gaussdb_corrosion_index.
+  query:
+    - name: gaussdb_corrosion_index
+      promql: |
+      topk(10, sum(rate(pg_index_idx_scan{isdisvalid='False'}[3m])) by (schema_name, table_name, index_name, from_instance, job))
+      version: '>=0.0.0'
+      timeout: 0.1
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+    - name: schema_name
+      label: schema_name
+      description: schema_name
+      usage: LABEL
+    - name: table_name
+      label: table_name
+      description: from table_name
+      usage: LABEL
+    - name: index_name
+      label: index_name
+      description: index_name
+      usage: LABEL
+  status: enable
+  ttl: 60
 
 
 gaussdb_wait_event_spike:
@@ -1906,3 +1887,87 @@ gaussdb_wait_event_spike:
   status: enable
   ttl: 60
   timeout: 0.1
+
+
+gaussdb_sql_statement_db_time:
+  name: gaussdb_sql_statement_db_time
+  desc: gaussdb_sql_statement_db_time
+  query:
+    - name: gaussdb_sql_statement_db_time
+      promql: |
+        topk(10, sum (irate(pg_sql_statement_statistics_avg_db_time[2m])) by (node_name, user_name, query, unique_sql_id, from_instance, job))
+      version: '>=0.0.0'
+      timeout: 9
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: node_name
+      label: node_name
+      description: node name
+      usage: LABEL
+    - name: user_name
+      label: user_name
+      description: user_name
+      usage: LABEL
+    - name: query
+      label: query
+      description: query
+      usage: LABEL
+    - name: unique_sql_id
+      label: unique_sql_id
+      description: unique_sql_id
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 9
+
+
+gaussdb_sql_statement_n_calls:
+  name: gaussdb_sql_statement_n_calls
+  desc: gaussdb_sql_statement_n_calls
+  query:
+    - name: gaussdb_sql_statement_n_calls
+      promql: |
+        topk(10, sum (irate(pg_sql_statement_statistics_n_calls[2m])) by (node_name, user_name, query, unique_sql_id, from_instance, job))
+      version: '>=0.0.0'
+      timeout: 9
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: node_name
+      label: node_name
+      description: node name
+      usage: LABEL
+    - name: user_name
+      label: user_name
+      description: user_name
+      usage: LABEL
+    - name: query
+      label: query
+      description: query
+      usage: LABEL
+    - name: unique_sql_id
+      label: unique_sql_id
+      description: unique_sql_id
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 9

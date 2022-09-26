@@ -212,16 +212,16 @@ pg_sql_statement_full:
     - name: query
       description: SQL statement
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 0
   timeout: 9
 
 
-pg_sql_statement_db_time:
-  name: pg_sql_statement_db_time
+pg_sql_statement_statistics:
+  name: pg_sql_statement_statistics
   desc: Extract full SQL statements from openGauss, which is a sampling process.
   query:
-    - name: pg_sql_statement_db_time
+    - name: pg_sql_statement_statistics
       sql: |-
         WITH avgtime AS ( SELECT node_name, user_name, unique_sql_id,
         substring(regexp_replace(query,'[^\x00-\x7F]+','','g'), 1, 20) AS query_sort, query, n_calls, db_time,
@@ -238,7 +238,7 @@ pg_sql_statement_db_time:
          ORDER BY n_calls DESC limit 50 ) SELECT * FROM avgtime UNION SELECT * FROM num;
       version: '>=0.0.0'
       timeout: 9
-      status: disable
+      status: enable
   metrics:
     - name: node_name
       description: Name of database
@@ -263,7 +263,7 @@ pg_sql_statement_db_time:
       usage: LABEL
     - name: avg_db_time
       description: debug query id
-      usage: LABEL
+      usage: GAUGE
     - name: min_elapse_time
       description: select returned rows
       usage: LABEL
@@ -327,7 +327,6 @@ pg_sql_statement_db_time:
     - name: data_io_time
       description: hash count
       usage: LABEL
-  status: disable
+  status: enable
   ttl: 0
   timeout: 1
-
