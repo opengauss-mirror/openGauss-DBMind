@@ -18,8 +18,9 @@ stages:
         displayName: Python36_old
         pythonVersion: '3.6'
         commands:
-          - pwd
           - env
+          - ls -l
+          - cd openGauss-DBMind
           - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-x86.txt
           - pytest --html=report/index.html
         report:
@@ -39,9 +40,11 @@ stages:
         displayName: Python38_new
         pythonVersion: '3.8'
         commands:
+          - env
+          - ls -l
+          - cd openGauss-DBMind
           - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-x86.txt
           - pytest --html=report/index.html
-          - ''
         report:
           path: report
           index: index38.html
