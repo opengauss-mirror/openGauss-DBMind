@@ -274,6 +274,14 @@ class DriverBundle:
         return self.main_driver.address
 
     @property
+    def host(self):
+        return self.main_driver.host
+
+    @property
+    def port(self):
+        return self.main_driver.port
+
+    @property
     def main_dbname(self):
         return self.main_driver.dbname
 
