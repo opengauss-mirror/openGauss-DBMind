@@ -11,6 +11,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import logging
+import time
 import subprocess
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -163,7 +164,8 @@ class QueryInstance:
         for metric in self.metrics:
             metric.entity.clear()
 
-        exitcode, query_result = perform_shell_command(self.query)
+        endtime = time.time() + self.timeout
+        exitcode, query_result = perform_shell_command(self.query, timeout=self.timeout)
 
         if not query_result:
             logging.warning("Fetched nothing for metric '%s'." % self.query)
@@ -175,14 +177,21 @@ class QueryInstance:
         for label_name in self.label_names:
             if label_name in self.label_obj:
                 obj = self.label_obj[label_name]
-                _, label_value = perform_shell_command(obj.subquery, input=query_result)
+                remaining_time = endtime - time.time()
+                _, label_value = perform_shell_command(
+                    obj.subquery, input=query_result, timeout=remaining_time
+                )
             else:
                 label_value = global_labels.get(label_name, 'None')
             labels[label_name] = label_value
 
         for metric in self.metrics:
             metric_family = metric.entity.labels(**labels)
-            _, value = perform_shell_command(metric.subquery, input=query_result)
+            remaining_time = endtime - time.time()
+            _, value = perform_shell_command(
+                metric.subquery, input=query_result,
+                timeout=remaining_time
+            )
             # None is equivalent to NaN instead of zero.
             if len(value) == 0:
                 logging.warning(
