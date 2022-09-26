@@ -341,7 +341,7 @@ pg_downstream:
 pg_stat_replication:
   name: pg_stat_replication
   query:
-    - name: pg_replication
+    - name: pg_stat_replication
       sql: |-
         select
                 pid,
@@ -815,20 +815,7 @@ pg:
         SELECT extract(EPOCH FROM CURRENT_TIMESTAMP)                        AS timestamp,
            extract(EPOCH FROM now() - pg_postmaster_start_time())       AS uptime,
            extract(EPOCH FROM pg_postmaster_start_time())               AS boot_time,
-           pg_xlog_location_diff(pg_current_xlog_location() , '0/0')      AS lsn,
-           pg_xlog_location_diff(pg_current_xlog_insert_location(),'0/0')   AS insert_lsn,
-           pg_xlog_location_diff(pg_current_xlog_location() , '0/0')        AS write_lsn,
-           pg_xlog_location_diff(pg_current_xlog_location() , '0/0')    AS flush_lsn,
-           NULL::BIGINT                                           AS receive_lsn,
-           NULL::BIGINT                                           AS replay_lsn,
-           extract(EPOCH FROM now() - pg_conf_load_time())        AS conf_reload_time,
-           NULL::FLOAT                                            AS last_replay_time,
-           0::FLOAT                                               AS lag,
-           pg_is_in_recovery()                                    AS is_in_recovery,
-           FALSE                                                  AS is_wal_replay_paused
-           -- ,
-           --pg_is_in_backup()                                      AS is_in_backup,
-           --extract(EPOCH FROM now() - pg_backup_start_time())     AS backup_time
+           pg_is_in_recovery()                                    AS is_in_recovery
            ;
       version: '>=0.0.0'
       timeout: 1
@@ -842,9 +829,6 @@ pg:
            extract(EPOCH FROM now() - pg_postmaster_start_time())       AS uptime,
            extract(EPOCH FROM pg_postmaster_start_time())               AS boot_time,
            pg_is_in_recovery()                                          AS is_in_recovery
-           -- ,
-           --pg_is_in_backup()                                          AS is_in_backup,
-           --extract(EPOCH FROM now() - pg_backup_start_time())         AS backup_time
            ;
       version: '>=0.0.0'
       timeout: 1
@@ -1235,11 +1219,11 @@ pg_lock_sql:
   timeout: 1
 
 
-og_memory_info:
-  name: og_memory_info
+pg_memory_info:
+  name: pg_memory_info
   desc: OpenGauss memory usage informations
   query:
-    - name: og_memory_info
+    - name: pg_memory_info
       sql: select memorytype,memorymbytes from pg_catalog.pv_total_memory_detail();
       version: '>=0.0.0'
       timeout: 1
@@ -1258,11 +1242,11 @@ og_memory_info:
   timeout: 1
   public: true
 
-og_session_memory:
-  name: og_session_memory
+pg_session_memory:
+  name: pg_session_memory
   desc: OpenGauss session use memory information
   query:
-    - name: og_session_memory
+    - name: pg_session_memory
       sql: |-
         select sessionid,
               coalesce(application_name,'')as application_name,
@@ -1303,11 +1287,11 @@ og_session_memory:
   timeout: 30
   public: true
 
-og_context_memory:
-  name: og_context_memory
+pg_context_memory:
+  name: pg_context_memory
   desc: OpenGauss context use memory information
   query:
-    - name: og_context_memory
+    - name: pg_context_memory
       sql: |-
         select contextname,
               pg_catalog.sum(usedsize)::bigint as usedsize,
@@ -1363,11 +1347,11 @@ pg_state_memory:
   timeout: 30
   public: true
 
-og_cpu_load:
-  name: og_cpu_load
+pg_cpu_load:
+  name: pg_cpu_load
   desc: OpenGauss cpu load
   query:
-    - name: og_cpu_load
+    - name: pg_cpu_load
       sql: select 'og_total_cpu' og_total_cpu,pg_catalog.total_cpu() total_cpu;
       version: '>=0.0.0'
       timeout: 1
@@ -1375,7 +1359,7 @@ og_cpu_load:
       status: enable
       dbRole: ""
   metrics:
-    - name: og_total_cpu
+    - name: pg_cpu_load
       description: total cpu name
       usage: LABEL
     - name: total_cpu
@@ -1391,7 +1375,7 @@ pg_thread_pool:
   name: pg_thread_pool
   desc: OpenGauss thread pool
   query:
-    - name: pf_thread_pool
+    - name: pg_thread_pool
       sql: select group_id, listener, worker_info, session_info from dbe_perf.GLOBAL_THREADPOOL_STATUS;
       version: '>=0.0.0'
       timeout: 1
@@ -1568,12 +1552,11 @@ pg_lock_time_info:
   timeout: 1
   public: true
 
-gs_sql_count:
-  name: gs_sql_count
-  desc: gs_sql_count
-
+pg_sql_count:
+  name: pg_sql_count
+  desc: pg_sql_count
   query:
-    - name: gs_sql_count
+    - name: pg_sql_count
       sql: |-
         select sum(select_count) as select, sum(update_count) as update, sum(insert_count) as insert, sum(delete_count) as delete, sum(mergeinto_count) as mergeinto,
         sum(ddl_count) as ddl, sum(dml_count) as dml, sum(dcl_count) as dcl from gs_sql_count;

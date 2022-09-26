@@ -14,26 +14,17 @@
 import ast
 import re
 from datetime import datetime
+from itertools import count
 import logging
 
 import sqlparse
-from sqlparse.sql import Identifier, IdentifierList
-from sqlparse.sql import Where, Comparison, Operation, Function
+from mo_sql_parsing import parse, format
+from sqlparse.sql import Identifier
+from sqlparse.sql import Where, Comparison
 from sqlparse.tokens import Keyword, DML
-from sqlparse.tokens import Token
+from sqlparse.tokens import Name
 
-SQL_SYMBOLS = (
-    '!=', '<=', '>=', '==', '<', '>', '=', ',', '*', ';', '%', '+', ',', ';', '/'
-)
-
-
-def is_subquery(parse_tree):
-    if not parse_tree.is_group:
-        return False
-    for item in parse_tree.tokens:
-        if item.ttype is DML and item.value.upper() == 'SELECT':
-            return True
-    return False
+OPERATOR = ('lt', 'lte', 'gt', 'gte', 'eq', 'neq')
 
 
 def analyze_column(column, where_clause):
@@ -76,66 +67,6 @@ def get_indexes(dbagent, sql, timestamp):
     return indexes
 
 
-def analyze_unequal_clause(tokens):
-    for token in tokens:
-        if token.ttype is Token.Operator.Comparison and token.value.upper() == 'LIKE':
-            return 'FuzzyQuery'
-        elif token.ttype is Token.Operator.Comparison and token.value.upper() == '!=':
-            return 'UnEqual'
-        elif token.ttype is Token.Operator.Comparison and token.value.upper() == 'NOT IN':
-            return 'NotIn'
-
-
-def analyze_where_clause(dbagent, where, timestamp):
-    """
-    Analyze RCA of SQL from the where clause.
-    :param timestamp:
-    :param dbagent: obj, interface for sqlite3.
-    :param where: tokens, where clause of sqlparse.
-    :return: str, key target of RCA.
-    """
-    if "OR" in where.value.upper():
-        columns = get_columns(where.parent.value)
-        indexes = get_indexes(dbagent, where.parent.value, timestamp)
-        for column in columns:
-            if column not in indexes:
-                return 'OR'
-
-    for tokens in where.tokens:
-        if isinstance(tokens, Comparison):
-            if isinstance(tokens.left, Operation):
-                return 'ExprInWhere'
-            elif isinstance(tokens.left, Function):
-                return 'Function'
-            elif isinstance(tokens, Comparison) and "<" in tokens.parent.value or ">" in tokens.parent.value:
-                return 'RangeTooLarge'
-            else:
-                return analyze_unequal_clause(tokens)
-
-    if "is not null".upper() in where.value.upper():
-        return 'IsNotNULL'
-
-
-def sql_parse(dbagent, sql, timestamp):
-    sql = re.sub(r"[\n\t]", r' ', sql)
-    sql = re.sub(r'[ ]{2,}', r' ', sql)
-    parse_tree = sqlparse.parse(sql)[0]
-
-    if "select count( * ) from".upper() in parse_tree.value.upper() or \
-            "select * from".upper() in parse_tree.value.upper() or \
-            "select count(*) from".upper() in parse_tree.value.upper() or \
-            "select count( *) from".upper() in parse_tree.value.upper() or \
-            "select count(* ) from".upper() in parse_tree.value.upper():
-        return "FullScan"
-
-    if "update".upper() in parse_tree.value.upper() and "set".upper() in parse_tree.value.upper():
-        return 'Update'
-
-    for item in parse_tree:
-        if isinstance(item, Where):
-            return analyze_where_clause(dbagent, item, timestamp)
-
-
 def wdr_sql_processing(sql):
     standard_sql = standardize_sql(sql)
     standard_sql = re.sub(r';', r'', standard_sql)
@@ -168,84 +99,11 @@ def get_table_token_list(parsed_sql, token_list):
                 token_list.append(token)
 
 
-def extract_table_from_select(sql):
-    tables = []
-    table_token_list = []
-    sql_parsed = sqlparse.parse(sql)[0]
-    get_table_token_list(sql_parsed, table_token_list)
-    for table_token in table_token_list:
-        if isinstance(table_token, Identifier):
-            tables.append(table_token.get_name())
-        elif isinstance(table_token, IdentifierList):
-            for identifier in table_token.get_identifiers():
-                tables.append(identifier.get_name())
-        else:
-            if table_token.ttype is Keyword:
-                tables.append(table_token.value)
-    return tables
-
-
-def extract_table_from_sql(sql):
-    """
-    Function: get table name in sql
-    has many problems in code, especially in 'delete', 'update', 'insert into' sql
-    """
-    if not sql.strip():
-        return []
-    delete_pattern_1 = re.compile(r'FROM\s+([^\s]*)[;\s ]?', re.IGNORECASE)
-    delete_pattern_2 = re.compile(r'FROM\s+([^\s]*)\s+WHERE', re.IGNORECASE)
-    update_pattern = re.compile(r'UPDATE\s+([^\s]*)\s+SET', re.IGNORECASE)
-    insert_pattern = re.compile(r'INSERT\s+INTO\s+([^\s]*)\s+VALUES', re.IGNORECASE)
-    if sql.upper().strip().startswith('SELECT'):
-        tables = extract_table_from_select(sql)
-    elif sql.upper().strip().startswith('DELETE'):
-        if 'WHERE' not in sql:
-            tables = delete_pattern_1.findall(sql)
-        else:
-            tables = delete_pattern_2.findall(sql)
-    elif sql.upper().strip().startswith('UPDATE'):
-        tables = update_pattern.findall(sql)
-    elif sql.upper().strip().startswith('INSERT INTO'):
-        sql = re.sub(r'\(.*?\)', r' ', sql)
-        tables = insert_pattern.findall(sql)
-    else:
-        tables = []
-    return tables
-
-
 def standardize_sql(sql):
     return sqlparse.format(
         sql, keyword_case='upper', identifier_case='lower', strip_comments=True,
         use_space_around_operators=True, strip_whitespace=True
     )
-
-
-def extract_sql_skeleton(sql):
-    """This function processes an SQL statement to extract its skeleton.
-    After extracting, the skeleton looks like a template.
-    """
-    if not sql:
-        return ''
-    standard_sql = standardize_sql(sql)
-
-    if standard_sql.startswith('INSERT'):
-        standard_sql = re.sub(r'VALUES (\(.*\))', r'VALUES', standard_sql)
-    # remove digital like 12, 12.565
-    standard_sql = re.sub(r'[\s]+\d+(\.\d+)?', r' ?', standard_sql)
-    # remove '$n' in sql
-    standard_sql = re.sub(r'\$\d+', r'?', standard_sql)
-    # remove single quotes content
-    standard_sql = re.sub(r'\'.*?\'', r'?', standard_sql)
-    # remove double quotes content
-    standard_sql = re.sub(r'".*?"', r'?', standard_sql)
-    # remove '(1' format
-    standard_sql = re.sub(r'\(\d+(\.\d+)?', r'(?', standard_sql)
-    # remove '`' in sql
-    standard_sql = re.sub(r'`', r'', standard_sql)
-    # remove ; in sql
-    standard_sql = re.sub(r';', r'', standard_sql)
-
-    return standard_sql.strip()
 
 
 def is_num(input_str):
@@ -277,11 +135,16 @@ def to_ts(obj):
 
 
 def fill_value(query_content):
-    if len(query_content.split(';')) == 2 and 'parameters: ' in query_content:
+    """
+    Fill specific values into the SQL statement for parameters,
+      input: select id from table where info = $1 and id_d < $2; PARAMETERS: $1 = 1, $2 = 4;
+      output: select id from table where info = '1' and id_d < '4';
+    """
+    if len(query_content.split(';')) == 2 and 'PARAMETERS: $1' in query_content:
         template, parameter = query_content.split(';')
     else:
         return query_content
-    param_list = re.search(r'parameters: (.*)', parameter,
+    param_list = re.search(r'PARAMETERS: (.*)', parameter,
                            re.IGNORECASE).group(1).split(', $')
     param_list = list(param.split('=', 1) for param in param_list)
     param_list.sort(key=lambda x: int(x[0].strip(' $')),
@@ -290,3 +153,166 @@ def fill_value(query_content):
         template = template.replace(item[0].strip() if re.match(r'\$', item[0]) else
                                     ('$' + item[0].strip()), item[1].strip())
     return template
+
+
+def exists_regular_match(query):
+    """Check if there is such a regular case in SQL: like '%xxxx', 'xxxx%', '%xxxx%'"""
+    if re.search(r"(like\s+'(%.+)'|like\s+'(.+%)')", query):
+        return True
+    return False
+
+
+def exists_function(query):
+    """
+    Determine if a function is used in a subquery,
+      select * from table where abs(l_quantity) <= 8;
+    """
+    flag = []
+
+    def _parser(parsed_sql):
+        if flag:
+            return
+        if isinstance(parsed_sql, list):
+            if isinstance(parsed_sql[0], dict):
+                flag.append(True)
+                return
+        if isinstance(parsed_sql, dict):
+            if 'where' in parsed_sql:
+                _parser(parsed_sql['where'])
+            elif not any(item in parsed_sql for item in OPERATOR):
+                for _, sub_parsed_sql in parsed_sql.items():
+                    if isinstance(sub_parsed_sql, list):
+                        for item in sub_parsed_sql:
+                            _parser(item)
+                    else:
+                        _parser(sub_parsed_sql)
+            elif any(item in parsed_sql for item in OPERATOR):
+                for _, sub_parsed_sql in parsed_sql.items():
+                    _parser(sub_parsed_sql)
+    parsed_sql = parse(query)
+    _parser(parsed_sql)
+    return flag
+
+
+def _regular_match(string, pattern):
+    """
+    Provides simple regularization functions.
+    """
+    if re.search(pattern, string):
+        return True
+    return False
+
+
+def exists_bool_clause(query):
+    """
+    Get boolean expression in SQL, there are two cases:
+      1. select * from table where col in (xx, xx, xx, ...);
+      2. select * from table where col in (select xxx);
+    Our purpose is to get: '(xx, xx, xx, ...)' and 'select xxx'
+    """
+    flags = []
+
+    def _parser(parsed_sql):
+        if isinstance(parsed_sql, list):
+            for item in parsed_sql:
+                _parser(item)
+        if isinstance(parsed_sql, dict):
+            for key, value in parsed_sql.items():
+                if key in ('in', 'nin') and isinstance(value, list):
+                    if isinstance(value[1], dict):
+                        flags.append(format(value[1]))
+                    else:
+                        flags.append(value[1])
+                    _parser(value[-1])
+                else:
+                    _parser(value)
+    parsed_sql = parse(query)
+    _parser(parsed_sql)
+    return flags
+
+
+def exists_related_select(query):
+    """
+    Determine whether there is a correlated subquery in the where condition of SQL,
+    the current method is inaccurate and can only be roughly judged.
+    """
+    flags = []
+
+    def _parser(parsed_sql):
+        if isinstance(parsed_sql, list):
+            for item in parsed_sql:
+                _parser(item)
+        if isinstance(parsed_sql, dict):
+            for key, value in parsed_sql.items():
+                if key in ('eq', 'lt', 'gt') and all(isinstance(item, str) for item in value) and len(value) == 2:
+                    flags.append(value[1])
+                else:
+                    _parser(value)
+    parsed_sql = parse(query)
+    _parser(parsed_sql)
+    return flags
+
+
+def exists_subquery(query):
+    """
+    Determine if there is a subquery in SQL.
+    """
+    flags = []
+
+    def _parser(parsed_sql):
+        if isinstance(parsed_sql, list):
+            for item in parsed_sql:
+                _parser(item)
+        if isinstance(parsed_sql, dict):
+            for key, value in parsed_sql.items():
+                if key == 'select':
+                    subquery = format(parsed_sql)
+                    if parse(subquery) != parse(query):
+                        flags.append(subquery)
+                _parser(value)
+    parsed_sql = parse(query)
+    _parser(parsed_sql)
+    return flags
+
+
+def get_placeholders(query):
+    placeholders = set()
+    for item in sqlparse.parse(query)[0].flatten():
+        if item.ttype is Name.Placeholder:
+            placeholders.add(item.value)
+    return placeholders
+
+
+def get_generate_prepare_sqls_function():
+    counter = count(start=0, step=1)
+
+    def get_prepare_sqls(statement):
+        prepare_id = 'prepare_' + str(next(counter))
+        placeholder_size = len(get_placeholders(statement))
+        prepare_args = '' if not placeholder_size else '(%s)' % (','.join(['NULL'] * placeholder_size))
+        return ['begin', f'prepare {prepare_id} as {statement}', f'explain execute {prepare_id}{prepare_args}',
+                f'deallocate prepare {prepare_id}', 'commit']
+    return get_prepare_sqls
+
+
+def replace_comma_with_dollar(query):
+    """
+    Replacing '?' with '$+Numbers' in SQL:
+      input: UPDATE bmsql_customer SET c_balance = c_balance + $1, c_delivery_cnt = c_delivery_cnt + ?
+      WHERE c_w_id = $2 AND c_d_id = $3 AND c_id = $4 and c_info = ?;
+      output: UPDATE bmsql_customer SET c_balance = c_balance + $1, c_delivery_cnt = c_delivery_cnt + $5
+      WHERE c_w_id = $2 AND c_d_id = $3 AND c_id = $4 and c_info = $6;
+    note: if track_stmt_parameter is off, all '?' in SQL need to be replaced
+    """
+    if '?' not in query:
+        return query
+    max_dollar_number = 0
+    dollar_parts = re.findall(r'(\$\d+)', query)
+    if dollar_parts:
+        max_dollar_number = max(int(item.strip('$')) for item in dollar_parts)
+    while '?' in query:
+        dollar = "$%s" % (max_dollar_number + 1)
+        query = query.replace('?', dollar, 1)
+        max_dollar_number += 1
+    return query
+
