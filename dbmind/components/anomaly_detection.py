@@ -40,10 +40,10 @@ PLOT_WIDTH = 100
 PLOT_HEIGHT = 20
 
 ANOMALY_DETECTORS = {
-    'spike': AnomalyDetections.do_spike_detect,
     'level_shift': AnomalyDetections.do_level_shift_detect,
-    'increase_rate': AnomalyDetections.do_increase_detect,
-    'threshold': AnomalyDetections.do_threshold_detect
+    'seasonal': AnomalyDetections.do_seasonal_detect,
+    'spike': AnomalyDetections.do_spike_detect,
+    'volatile_shift': AnomalyDetections.do_volatility_shift_detect,
 }
 
 
@@ -246,7 +246,7 @@ def main(argv):
                              'supporting UNIX-timestamp with microsecond or datetime format')
     parser.add_argument('-H', '--host',
                         help='set a host of the metric, ip only or ip and port.')
-    parser.add_argument('-a', '--anomaly', choices=('increase_rate', 'level_shift', 'spike', 'threshold'),
+    parser.add_argument('-a', '--anomaly', choices=tuple(ANOMALY_DETECTORS.keys()),
                         help='set a anomaly detector of the metric'
                              '(increase_rate, level_shift, spike, threshold)')
     args = parser.parse_args(argv)

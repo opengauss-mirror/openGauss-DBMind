@@ -15,8 +15,8 @@ import argparse
 import csv
 import os
 import sys
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
 
 from scipy import signal
 
@@ -27,7 +27,7 @@ from dbmind.common import utils
 from dbmind.common.algorithm.anomaly_detection import WAIT_EVENT_GRAPH
 from dbmind.common.algorithm.correlation import max_cross_correlation
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.common.utils.checking import date_type, path_type, CheckIP
+from dbmind.common.utils.checking import date_type, path_type
 from dbmind.common.utils.cli import write_to_terminal
 from dbmind.service import dai
 

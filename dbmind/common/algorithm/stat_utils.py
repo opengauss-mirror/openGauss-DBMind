@@ -20,6 +20,7 @@ from dbmind.common.types import Sequence
 
 
 def double_padding(values, window):
+    """remove the side effect"""
     left_idx = window - 1 - (window - 1) // 2
     right_idx = len(values) - 1 - (window - 1) // 2
     values[:left_idx] = values[left_idx]  # padding left
@@ -65,13 +66,13 @@ def np_rolling(values, window=1, trim=False, agg='median'):
     return res
 
 
-def np_double_rolling(values, window1=1, window2=1, diff_mode="diff", agg='median'):
+def np_double_rolling(values, window=(1, 1), diff_mode="diff", agg='median', trim=True):
     values_length = len(values)
-    window1 = 1 if values_length < window1 else window1
-    window2 = 1 if values_length < window2 else window2
+    window1 = 1 if values_length < window[0] else window[0]
+    window2 = 1 if values_length < window[1] else window[1]
 
-    left_rolling = np_rolling(np_shift(values, 1), window=window1, trim=False, agg=agg)
-    right_rolling = np_rolling(values[::-1], window=window2, trim=False, agg=agg)[::-1]
+    left_rolling = np_rolling(np_shift(values, 1), window=window1, agg=agg)
+    right_rolling = np_rolling(values[::-1], window=window2, agg=agg)[::-1]
     r_data = right_rolling - left_rolling
 
     functions = {
@@ -81,8 +82,8 @@ def np_double_rolling(values, window1=1, window2=1, diff_mode="diff", agg='media
     methods = diff_mode.split('_')[:-1]
     for method in methods:
         r_data = functions[method](r_data)
-
-    r_data = double_padding(r_data, max(window1, window2))
+    if trim:
+        r_data = double_padding(r_data, max(window1, window2))
     return r_data
 
 

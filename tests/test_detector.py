@@ -10,7 +10,9 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import multiprocessing
+import random
 
 from dbmind.common.algorithm import anomaly_detection
 from dbmind.common.types import Sequence
@@ -433,21 +435,18 @@ def test_spike_detector():
 
 
 def test_volatility_shift_detector():
-    input_data = [-1, 1] * 20 + [-1000, 1000] * 20
+    random.seed(0)
+    input_data = [random.uniform(-1, 1) for _ in range(20)] + \
+                 [random.uniform(-10, 10) + 1000 * (-1) ** i for i in range(20)]
     raw_data = Sequence(timestamps=list(range(len(input_data))), values=input_data)
     model = anomaly_detection.VolatilityShiftDetector(outliers=(None, 6), window=5)
     res = model.fit_predict(raw_data)
     correct_data = (
-        True,  True,  True,  False, False, False, False, False, False, False,
+        False, False, False, False, False, False, False, False, False, False,
+        False, False, False, False, False, False, False, False, True,  False,
         False, False, False, False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, True,  True,
-        True,  True,  True,  False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False, False
     )
-
     assert res.values == correct_data
 
 

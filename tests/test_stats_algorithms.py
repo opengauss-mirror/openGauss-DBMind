@@ -38,14 +38,12 @@ def test_moving_std():
 def test_double_rolling():
     assert stat_utils.np_double_rolling(
         [1, 2, 3],
-        window1=1,
-        window2=2,
+        window=(1, 2),
         agg='mean'
     ).tolist() == [1.5, 1.5, 1.0]
     assert stat_utils.np_double_rolling(
         [1, 91, 3, 5, 5, 6, 1],
-        window1=10,
-        window2=5,
+        window=(10, 5),
         diff_mode='abs_diff',
         agg='mean').tolist() == [70, 70, 70, 19, 1, 1, 1]
 

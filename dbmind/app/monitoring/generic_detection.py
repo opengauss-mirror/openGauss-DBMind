@@ -10,13 +10,19 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from dbmind.common.algorithm.anomaly_detection import GradientDetector
-from dbmind.common.algorithm.anomaly_detection import IncreaseDetector
-from dbmind.common.algorithm.anomaly_detection import LevelShiftDetector
-from dbmind.common.algorithm.anomaly_detection import SeasonalDetector
-from dbmind.common.algorithm.anomaly_detection import SpikeDetector
-from dbmind.common.algorithm.anomaly_detection import ThresholdDetector
-from dbmind.common.algorithm.anomaly_detection import VolatilityShiftDetector
+
+from dbmind.common.algorithm.anomaly_detection import (
+    EsdTestDetector,
+    GradientDetector,
+    IncreaseDetector,
+    InterQuartileRangeDetector,
+    LevelShiftDetector,
+    QuantileDetector,
+    SeasonalDetector,
+    SpikeDetector,
+    ThresholdDetector,
+    VolatilityShiftDetector
+)
 from dbmind.common.algorithm.anomaly_detection import pick_out_anomalies
 from dbmind.common.algorithm.anomaly_detection.agg import merge_with_or_operator
 from dbmind.common.algorithm.seasonal import is_seasonal_series
@@ -26,35 +32,60 @@ import dbmind.app.monitoring
 
 class AnomalyDetections(object):
     __alg_func_name_map__ = {
-        "spike": "do_spike_detect",
         "level_shift": "do_level_shift_detect",
-        "volatility_shift": "do_volatility_shift_detect",
         "seasonal": "do_seasonal_detect",
-        "increase": "do_increase_detect"
+        "spike": "do_spike_detect",
+        "volatility_shift": "do_volatility_shift_detect",
     }
 
+    # pure statistics detectors below
     @staticmethod
-    def do_spike_detect(sequence, outliers=(None, 3)):
-        spike_detector = SpikeDetector(outliers=outliers)
-        anomalies = spike_detector.fit_predict(sequence)
+    def do_esd_test_detect(sequence, alpha=0.05):
+        esd_test_detector = EsdTestDetector(alpha=alpha)
+        anomalies = esd_test_detector.fit_predict(sequence)
         return anomalies
 
     @staticmethod
-    def do_level_shift_detect(sequence, outliers=(3, 3)):
-        level_shift_detector = LevelShiftDetector(outliers=outliers)
+    def do_iqr_detect(sequence, outliers=(3, 3)):
+        iqr_detector = InterQuartileRangeDetector(outliers=outliers)
+        anomalies = iqr_detector.fit_predict(sequence)
+        return anomalies
+
+    @staticmethod
+    def do_level_shift_detect(sequence, outliers=(None, 6), side="both", window=5):
+        level_shift_detector = LevelShiftDetector(outliers=outliers, side=side, window=window)
         anomalies = level_shift_detector.fit_predict(sequence)
         return anomalies
 
     @staticmethod
-    def do_volatility_shift_detect(sequence):
-        volatility_shift_detector = VolatilityShiftDetector()
-        anomalies = volatility_shift_detector.fit_predict(sequence)
+    def do_quantile_detect(sequence, high=0.95, low=0.05):
+        quantile_detector = QuantileDetector(high=high, low=low)
+        anomalies = quantile_detector.fit_predict(sequence)
         return anomalies
 
     @staticmethod
-    def do_seasonal_detect(sequence, period=None):
-        seasonal_detector = SeasonalDetector(period=period)
+    def do_seasonal_detect(sequence, outliers=(None, 3), side="positive", window=10):
+        seasonal_detector = SeasonalDetector(outliers=outliers, side=side, window=window)
         anomalies = seasonal_detector.fit_predict(sequence)
+        return anomalies
+
+    @staticmethod
+    def do_spike_detect(sequence, outliers=(None, 3), side='positive'):
+        spike_detector = SpikeDetector(outliers=outliers, side=side)
+        anomalies = spike_detector.fit_predict(sequence)
+        return anomalies
+
+    @staticmethod
+    def do_volatility_shift_detect(sequence, outliers=(None, 6), side="both", window=10):
+        volatility_shift_detector = VolatilityShiftDetector(outliers=outliers, side=side, window=window)
+        anomalies = volatility_shift_detector.fit_predict(sequence)
+        return anomalies
+
+    # preset detectors below
+    @staticmethod
+    def do_gradient_detect(sequence, side='positive', max_coef=1, timed_window=300000):  # 300000 ms
+        gradient_detector = GradientDetector(side=side, max_coef=max_coef, timed_window=timed_window)
+        anomalies = gradient_detector.fit_predict(sequence)
         return anomalies
 
     @staticmethod
@@ -68,12 +99,6 @@ class AnomalyDetections(object):
     def do_threshold_detect(sequence, high=float("inf"), low=-float("inf")):
         threshold_detector = ThresholdDetector(high=high, low=low)
         anomalies = threshold_detector.fit_predict(sequence)
-        return anomalies
-
-    @staticmethod
-    def do_gradient_detect(sequence, side='positive', max_coef=1, timed_window=300000):  # 300000 ms
-        gradient_detector = GradientDetector(side=side, max_coef=max_coef, timed_window=timed_window)
-        anomalies = gradient_detector.fit_predict(sequence)
         return anomalies
 
     @staticmethod
@@ -116,7 +141,6 @@ def detect(metric_name, sequence):
     """Return anomalies in Sequence format."""
     high_ac_threshold = dbmind.app.monitoring.get_param('high_ac_threshold')
     min_seasonal_freq = dbmind.app.monitoring.get_param('min_seasonal_freq')
-
     sequence = sequence_interpolate(sequence, strip_details=False)
     anomalies = AnomalyDetections.do_alg_process(
         tune_detector_in_targeted_params(
@@ -129,5 +153,4 @@ def detect(metric_name, sequence):
         ),
         sequence
     )
-
     return pick_out_anomalies(sequence, anomalies)

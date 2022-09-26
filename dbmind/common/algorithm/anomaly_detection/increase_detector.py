@@ -63,9 +63,9 @@ def increase_condition(values, side, max_increase_rate):
     length = len(values)
     values = np.array(values)
     if side == "positive":
-        increase_rate = (values[1:] - values[:-1] >= 0).sum() / length
+        increase_rate = (values[1:] - values[:-1] > 0).sum() / length
     elif side == "negative":
-        increase_rate = (values[1:] - values[:-1] <= 0).sum() / length
+        increase_rate = (values[1:] - values[:-1] < 0).sum() / length
     else:
         raise ValueError(side)
 

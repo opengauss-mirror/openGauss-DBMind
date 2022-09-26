@@ -35,15 +35,13 @@ class LevelShiftDetector(AbstractDetector):
     def _predict(self, s: Sequence) -> Sequence:
         abs_diff_values = stat_utils.np_double_rolling(
             s.values,
-            window1=self.window,
-            window2=self.window,
+            window=(self.window, self.window),
             diff_mode="abs_diff",
             agg=self.agg
         )
         diff_values = stat_utils.np_double_rolling(
             s.values,
-            window1=self.window,
-            window2=self.window,
+            window=(self.window, self.window),
             diff_mode="diff",
             agg=self.agg
         )
