@@ -16,6 +16,7 @@ from collections import defaultdict
 from enum import Enum
 from functools import lru_cache
 from typing import List, Tuple, Sequence, Any
+from contextlib import contextmanager
 
 import sqlparse
 from sqlparse.tokens import Name
@@ -116,7 +117,8 @@ class AdvisedIndex:
         self.association_indexes[association_indexes_name].append(association_benefit)
 
     def __str__(self):
-        return f'{self.__table} {self.__columns} {self.__index_type}'
+        return f'table: {self.__table} columns: {self.__columns} index_type: ' \
+               f'{self.__index_type} storage: {self.__storage}'
 
     def __repr__(self):
         return self.__str__()
@@ -341,7 +343,7 @@ def lookfor_subsets_configs(config: List[AdvisedIndex], atomic_config_total: Lis
         if not is_subset_index(atomic_config, tuple(config)):
             continue
         # Atomic_config should contain the latest candidate_index.
-        if not any(is_subset_index((atomic_index, ), (config[-1], )) for atomic_index in atomic_config):
+        if not any(is_subset_index((atomic_index,), (config[-1],)) for atomic_index in atomic_config):
             continue
         # Filter redundant config in contained_atomic_configs.
         for contained_atomic_config in contained_atomic_configs[:]:
@@ -357,7 +359,8 @@ def match_columns(column1, column2):
     return re.match(column1 + ',', column2 + ',')
 
 
-def infer_workload_benefit(workload: WorkLoad, config: List[AdvisedIndex], atomic_config_total: List[Tuple[AdvisedIndex]]):
+def infer_workload_benefit(workload: WorkLoad, config: List[AdvisedIndex],
+                           atomic_config_total: List[Tuple[AdvisedIndex]]):
     """ Infer the total cost of queries for a config according to the cost of atomic configs. """
     total_benefit = 0
     atomic_subsets_configs = lookfor_subsets_configs(config, atomic_config_total)
@@ -394,20 +397,27 @@ def infer_workload_benefit(workload: WorkLoad, config: List[AdvisedIndex], atomi
     return total_benefit
 
 
+@lru_cache(maxsize=None)
+def get_tokens(query):
+    return list(sqlparse.parse(query)[0].flatten())
+
+
+@lru_cache(maxsize=None)
 def has_dollar_placeholder(query):
-    tokens = sqlparse.parse(query)[0].flatten()
-    return any(item.ttype is Name.Placeholder
-               and item.value.startswith('$') for item in tokens)
+    tokens = get_tokens(query)
+    return any(item.ttype is Name.Placeholder for item in tokens)
 
 
+@lru_cache(maxsize=None)
 def get_placeholders(query):
     placeholders = set()
-    for item in sqlparse.parse(query)[0].flatten():
+    for item in get_tokens(query):
         if item.ttype is Name.Placeholder:
             placeholders.add(item.value)
     return placeholders
 
 
+@lru_cache(maxsize=None)
 def generate_placeholder_indexes(table_cxt, column):
     indexes = []
     schema_table = f'{table_cxt.schema}.{table_cxt.table}'
@@ -417,3 +427,61 @@ def generate_placeholder_indexes(table_cxt, column):
     else:
         indexes.append(IndexItemFactory().get_index(schema_table, column, ''))
     return indexes
+
+
+def replace_comma_with_dollar(query):
+    """
+    Replacing '?' with '$+Numbers' in SQL:
+      input: UPDATE bmsql_customer SET c_balance = c_balance + $1, c_delivery_cnt = c_delivery_cnt + ?
+      WHERE c_w_id = $2 AND c_d_id = $3 AND c_id = $4 and c_info = ?;
+      output: UPDATE bmsql_customer SET c_balance = c_balance + $1, c_delivery_cnt = c_delivery_cnt + $5
+      WHERE c_w_id = $2 AND c_d_id = $3 AND c_id = $4 and c_info = $6;
+    note: if track_stmt_parameter is off, all '?' in SQL need to be replaced
+    """
+    if '?' not in query:
+        return query
+    max_dollar_number = 0
+    dollar_parts = re.findall(r'(\$\d+)', query)
+    if dollar_parts:
+        max_dollar_number = max(int(item.strip('$')) for item in dollar_parts)
+    while '?' in query:
+        dollar = "$%s" % (max_dollar_number + 1)
+        query = query.replace('?', dollar, 1)
+        max_dollar_number += 1
+    return query
+
+
+@lru_cache(maxsize=None)
+def is_multi_node(executor):
+    sql = "select pg_catalog.count(*) from pgxc_node where node_type='C';"
+    for cur_tuple in executor.execute_sqls([sql]):
+        if str(cur_tuple[0]).isdigit():
+            return int(cur_tuple[0]) > 0
+
+
+@contextmanager
+def hypo_index_ctx(executor):
+    yield
+    executor.execute_sqls(['SELECT pg_catalog.hypopg_reset_index();'])
+
+
+def split_integer(m, n):
+    quotient = int(m / n)
+    remainder = m % n
+    if m < n:
+        return [1] * m
+    if remainder > 0:
+        return [quotient] * (n - remainder) + [quotient + 1] * remainder
+    if remainder < 0:
+        return [quotient - 1] * -remainder + [quotient] * (n + remainder)
+    return [quotient] * n
+
+
+def split_iter(iterable, n):
+    size_list = split_integer(len(iterable), n)
+    index = 0
+    res = []
+    for size in size_list:
+        res.append(iterable[index:index+size])
+        index += size
+    return res

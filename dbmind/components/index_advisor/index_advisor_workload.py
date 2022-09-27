@@ -24,15 +24,17 @@ import select
 from collections import defaultdict
 from itertools import groupby, chain, combinations
 from typing import Tuple, List
+import heapq
+from multiprocessing import Pool
 
 import sqlparse
 from sql_metadata import Parser
 
 try:
     from .sql_output_parser import parse_single_advisor_results, parse_explain_plan, \
-        get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results, parse_plan_cost
+        get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results, parse_plan_cost, parse_hypo_index
     from .sql_generator import get_single_advisor_sql, get_index_check_sqls, get_existing_index_sql, \
-        get_workload_cost_sqls
+        get_workload_cost_sqls, get_index_setting_sqls, get_prepare_sqls, get_hypo_index_head_sqls
     from .executors.common import BaseExecutor
     from .executors.gsql_executor import GsqlExecutor
     from .mcts import MCTS
@@ -40,12 +42,13 @@ try:
     from .utils import match_table_name, IndexItemFactory, \
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
-        match_columns, infer_workload_benefit, UniqueList
+        match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
+        replace_comma_with_dollar
 except ImportError:
     from sql_output_parser import parse_single_advisor_results, parse_explain_plan, \
-        get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results, parse_plan_cost
+        get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results, parse_plan_cost, parse_hypo_index
     from sql_generator import get_single_advisor_sql, get_index_check_sqls, get_existing_index_sql, \
-        get_workload_cost_sqls
+        get_workload_cost_sqls, get_index_setting_sqls, get_prepare_sqls, get_hypo_index_head_sqls
     from executors.common import BaseExecutor
     from executors.gsql_executor import GsqlExecutor
     from mcts import MCTS
@@ -53,7 +56,8 @@ except ImportError:
     from utils import match_table_name, IndexItemFactory, \
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
-        match_columns, infer_workload_benefit, UniqueList
+        match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
+        replace_comma_with_dollar
 
 SAMPLE_NUM = 5
 MAX_INDEX_COLUMN_NUM = 4
@@ -72,7 +76,8 @@ SQL_PATTERN = [r'([^\\])\'((\')|(.*?([^\\])\'))',  # match all content in single
 SQL_DISPLAY_PATTERN = [r'\'((\')|(.*?\'))',  # match all content in single quotes
                        NUMBER_SET_PATTERN,  # match integer set in the IN collection
                        r'([^\_\d])\d+(\.\d+)?']  # match single integer
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(filename='index_advisor.log', level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s')
 os.umask(0o0077)
 
 
@@ -195,8 +200,10 @@ class IndexAdvisor:
         for key, index in enumerate(opt_indexes):
             sql_optimized = 0
             negative_sql_ratio = 0
-            insert_queries, delete_queries, update_queries, select_queries, \
-            positive_queries, ineffective_queries, negative_queries = self.workload.get_index_related_queries(index)
+            insert_queries, delete_queries, \
+            update_queries, select_queries, \
+            positive_queries, ineffective_queries, \
+            negative_queries = self.workload.get_index_related_queries(index)
             sql_num = self.workload.get_index_sql_num(index)
             # Calculate the average benefit of each positive SQL.
             for query in positive_queries:
@@ -206,12 +213,17 @@ class IndexAdvisor:
             if total_queries_num:
                 negative_sql_ratio = sql_num['negative'] / total_queries_num
             # Filter the candidate indexes that do not meet the conditions of optimization.
+            logging.info(f'filter low benefit index for {index}')
             if not positive_queries:
+                logging.info(f'filtered: positive_queries not found for the index')
                 continue
             if sql_optimized / sql_num['positive'] < improved_rate:
+                logging.info(f"filtered: improved_rate {sql_optimized / sql_num['positive']} less than {improved_rate}")
                 continue
             if sql_optimized / sql_num['positive'] < \
                     NEGATIVE_RATIO_THRESHOLD < negative_sql_ratio:
+                logging.info(f'filtered: improved_rate {sql_optimized / sql_num["positive"]} < '
+                             f'negative_ratio_threshold < negative_sql_ratio {negative_sql_ratio} is not met')
                 continue
             self.determine_indexes.append(index)
 
@@ -277,13 +289,18 @@ class IndexAdvisor:
         index_current_storage = 0
         cnt = 0
         self.display_detail_info['recommendIndexes'] = []
+        logging.info('filter advised indexes by max-index-storage and max-index-num.')
         for key, index in enumerate(self.determine_indexes):
             # constraints for Top-N algorithm
+            logging.info(f'{index} has benefit of {self.workload.get_index_benefit(index)}')
             if MAX_INDEX_STORAGE and (index_current_storage + index.get_storage()) > MAX_INDEX_STORAGE:
+                logging.info('filtered: if add the index {index}, it reaches the max index storage.')
                 continue
             if MAX_INDEX_NUM and cnt == MAX_INDEX_NUM:
+                logging.info('filtered: reach the maximum number for the index.')
                 break
             if not self.multi_iter_mode and index.benefit <= 0:
+                logging.info('filtered: benefit not above 0 for the index.')
                 continue
             index_current_storage += index.get_storage()
             cnt += 1
@@ -434,12 +451,15 @@ def get_workload_template(workload):
             templates[sql_template]['samples'] = []
         templates[sql_template]['cnt'] += item.get_frequency()
         # reservoir sampling
+        statement = item.get_statement()
+        if has_dollar_placeholder(statement):
+            statement = replace_comma_with_dollar(statement)
         if len(templates[sql_template]['samples']) < SAMPLE_NUM:
-            templates[sql_template]['samples'].append(item.get_statement())
+            templates[sql_template]['samples'].append(statement)
         else:
             if random.randint(0, templates[sql_template]['cnt']) < SAMPLE_NUM:
                 templates[sql_template]['samples'][random.randint(0, SAMPLE_NUM - 1)] = \
-                    item.get_statement()
+                    statement
 
     return templates
 
@@ -515,11 +535,46 @@ def query_index_advise(executor, query):
 
 
 def get_index_storage(executor, hypo_index_id):
-    index_size_sqls = ['select * from pg_catalog.hypopg_estimate_size(%s);' % hypo_index_id]
+    sqls = get_hypo_index_head_sqls(is_multi_node(executor))
+    index_size_sqls = sqls + ['select * from pg_catalog.hypopg_estimate_size(%s);' % hypo_index_id]
     results = executor.execute_sqls(index_size_sqls)
     for cur_tuple in results:
         if re.match(r'\d+', str(cur_tuple[0]).strip()):
             return float(str(cur_tuple[0]).strip()) / 1024 / 1024
+
+
+def update_index_storage(indexes, hypo_index_ids, executor):
+    if indexes:
+        for index, hypo_index_id in zip(indexes, hypo_index_ids):
+            storage = index.get_storage()
+            if not storage:
+                storage = get_index_storage(executor, hypo_index_id)
+            index.set_storage(storage)
+
+
+def get_plan_cost(statements, executor):
+    plan_sqls = []
+    plan_sqls.extend(get_hypo_index_head_sqls(is_multi_node(executor)))
+    for statement in statements:
+        plan_sqls.extend(get_prepare_sqls(statement))
+    results = executor.execute_sqls(plan_sqls)
+    cost, indexes_names_set = parse_explain_plan(results, len(statements))
+    return cost, indexes_names_set
+
+
+def get_workload_costs(statements, executor, threads=20):
+    costs = []
+    indexes_names_set = set()
+    statements_blocks = split_iter(statements, threads)
+    try:
+        with Pool(threads) as p:
+            results = p.starmap(get_plan_cost, [[_statements, executor] for _statements in statements_blocks])
+    except TypeError:
+        results = [get_plan_cost(statements, executor)]
+    for _costs, _indexes_names_set in results:
+        costs.extend(_costs)
+        indexes_names_set.update(_indexes_names_set)
+    return costs, indexes_names_set
 
 
 def estimate_workload_cost_file(executor, workload, indexes=None):
@@ -529,28 +584,15 @@ def estimate_workload_cost_file(executor, workload, indexes=None):
     for idx, query in enumerate(workload.get_queries()):
         select_queries.append(query.get_statement())
         select_queries_pos.append(idx)
-    sqls = get_workload_cost_sqls(select_queries, indexes, is_multi_node(executor))
-    results = executor.execute_sqls(sqls)
-    # Parse the result of explain plans.
-    costs, indexes_names, hypo_index_ids = parse_explain_plan(results, len(select_queries))
-    # Update query cost for select queries and positive_pos for indexes.
-    for cost, query_pos in zip(costs, select_queries_pos):
-        query_costs[query_pos] = cost * workload.get_queries()[query_pos].get_frequency()
-    workload.add_indexes(indexes, query_costs, indexes_names)
-    # Reset hypopg indexes.
-    if indexes:
-        for index, hypo_index_id in zip(indexes, hypo_index_ids):
-            storage = get_index_storage(executor, hypo_index_id)
-            index.set_storage(storage)
-
-    executor.execute_sqls(['SELECT pg_catalog.hypopg_reset_index();'])
-
-
-def is_multi_node(executor: BaseExecutor):
-    sql = "select pg_catalog.count(*) from pgxc_node where node_type='C';"
-    for cur_tuple in executor.execute_sqls([sql]):
-        if str(cur_tuple[0]).isdigit():
-            return int(cur_tuple[0]) > 0
+    with hypo_index_ctx(executor):
+        index_setting_sqls = get_index_setting_sqls(indexes, is_multi_node(executor))
+        hypo_index_ids = parse_hypo_index(executor.execute_sqls(index_setting_sqls))
+        update_index_storage(indexes, hypo_index_ids, executor)
+        costs, indexes_names = get_workload_costs([query.get_statement() for query in workload.get_queries()], executor)
+        # Update query cost for select queries and positive_pos for indexes.
+        for cost, query_pos in zip(costs, select_queries_pos):
+            query_costs[query_pos] = cost * workload.get_queries()[query_pos].get_frequency()
+        workload.add_indexes(indexes, query_costs, indexes_names)
 
 
 def query_index_check(executor, query, indexes):
@@ -571,10 +613,30 @@ def query_index_check(executor, query, indexes):
     return valid_indexes, cost
 
 
-def get_valid_indexes(advised_indexes, statement, executor):
+def filter_candidate_columns_by_cost(valid_indexes, statement, executor, max_candidate_columns):
+    indexes = []
+    for table, index_group in groupby(valid_indexes, key=lambda x: x.get_table()):
+        cost_index = []
+        index_group = list(index_group)
+        if len(index_group) <= max_candidate_columns:
+            indexes.extend(index_group)
+            continue
+        for _index in index_group:
+            _indexes, _cost = query_index_check(executor, statement, [_index])
+            if _indexes:
+                heapq.heappush(cost_index, (_cost, _indexes[0]))
+        for _cost, _index in heapq.nsmallest(max_candidate_columns, cost_index):
+            indexes.append(_index)
+    return indexes
+
+
+def get_valid_indexes(advised_indexes, statement, executor, **kwargs):
     need_check = False
     single_column_indexes = generate_single_column_indexes(advised_indexes)
     valid_indexes, cost = query_index_check(executor, statement, single_column_indexes)
+    valid_indexes = filter_candidate_columns_by_cost(valid_indexes, statement, executor,
+                                                     kwargs.get('max_candidate_columns'))
+    valid_indexes, cost = query_index_check(executor, statement, valid_indexes)
     pre_indexes = valid_indexes[:]
 
     for i in range(MAX_INDEX_COLUMN_NUM):
@@ -742,30 +804,41 @@ def generate_query_placeholder_indexes(query, executor: BaseExecutor, n_distinct
         tables = parser.tables
         columns = UniqueList()
         for position, _columns in parser.columns_dict.items():
-            if position.upper() != 'SELECT':
+            if position.upper() not in ['SELECT', 'INSERT', 'UPDATE']:
                 columns.extend(_columns)
+        logging.info(f'parsing query: {query}')
+        logging.info(f'found tables: {" ".join(tables)}, columns: {" ".join(columns)}')
     except (ValueError, AttributeError, KeyError) as e:
+        logging.warning('Found %s while parsing SQL statement.', e)
         return []
     for table in tables:
+        table_indexes = []
         table_context = get_table_context(table, executor)
         if not table_context or table_context.reltuples < reltuples:
+            logging.info(f'filtered: table_context is {table_context} and does not meet the requirements')
             continue
         for column in columns:
             if table_context.has_column(column) and table_context.get_n_distinct(column) <= n_distinct:
-                indexes.extend(generate_placeholder_indexes(table_context, column.split('.')[-1].lower()))
+                table_indexes.extend(generate_placeholder_indexes(table_context, column.split('.')[-1].lower()))
+        # top 20 for candidate indexes
+        indexes.extend(sorted(table_indexes, key=lambda x: table_context.get_n_distinct(x.get_columns()))[:20])
+    logging.info(f'related indexes: {indexes}')
     return indexes
 
 
-def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_distinct, reltuples, use_all_columns):
+def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_distinct, reltuples, use_all_columns,
+                               **kwargs):
     all_indexes = []
     with executor.session():
         for pos, query in enumerate(workload.get_queries()):
             advised_indexes = query_index_advise(executor, query.get_statement())
             for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
-                                                                    reltuples, use_all_columns):
+                                                                    reltuples, use_all_columns,
+                                                                    ):
                 if advised_index not in advised_indexes:
                     advised_indexes.append(advised_index)
-            valid_indexes = get_valid_indexes(advised_indexes, query.get_statement(), executor)
+            valid_indexes = get_valid_indexes(advised_indexes, query.get_statement(), executor, **kwargs)
+            logging.info(f'get valid indexes: {valid_indexes} for the query {query}')
             add_query_indexes(valid_indexes, workload.get_queries(), pos)
             for index in valid_indexes:
                 if index not in all_indexes:
@@ -910,7 +983,7 @@ def index_advisor_workload(history_advise_indexes, executor: BaseExecutor, workl
                            use_all_columns: bool, **kwargs):
     queries = compress_workload(workload_file_path)
     workload = WorkLoad(queries)
-    candidate_indexes = generate_candidate_indexes(workload, executor, n_distinct, reltuples, use_all_columns)
+    candidate_indexes = generate_candidate_indexes(workload, executor, n_distinct, reltuples, use_all_columns, **kwargs)
     print_candidate_indexes(candidate_indexes)
     index_advisor = IndexAdvisor(executor, workload, multi_iter_mode)
     if candidate_indexes:
@@ -943,6 +1016,9 @@ def check_parameter(args):
     if args.max_index_num is not None and args.max_index_num <= 0:
         raise argparse.ArgumentTypeError("%s is an invalid positive int value" %
                                          args.max_index_num)
+    if args.max_candidate_columns <= 0:
+        raise argparse.ArgumentTypeError("%s is an invalid positive int value" %
+                                         args.max_candidate_columns)
     if args.max_index_storage is not None and args.max_index_storage <= 0:
         raise argparse.ArgumentTypeError("%s is an invalid positive int value" %
                                          args.max_index_storage)
@@ -990,6 +1066,9 @@ def main(argv):
     arg_parser.add_argument("--min-improved-rate", type=float,
                             help="Minimum improved rate of the cost for the indexes",
                             default=0.1)
+    arg_parser.add_argument("--max-candidate-columns", type=int,
+                            help='Maximum number of columns for candidate indexes',
+                            default=40)
     arg_parser.add_argument("--min-reltuples", type=int,
                             help="Minimum reltuples value for the index column.", default=10000)
     arg_parser.add_argument('--use-all-columns', action='store_true',
@@ -1026,7 +1105,8 @@ def main(argv):
         executor = GsqlExecutor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
     index_advisor_workload(get_last_indexes_result(args.file), executor, args.file,
                            args.multi_iter_mode, args.show_detail, args.max_n_distinct, args.min_reltuples,
-                           args.use_all_columns, improved_rate=args.min_improved_rate)
+                           args.use_all_columns, improved_rate=args.min_improved_rate,
+                           max_candidate_columns=args.max_candidate_columns)
 
 
 if __name__ == '__main__':
