@@ -19,6 +19,7 @@ import time
 from contextlib import contextmanager
 from typing import List, Tuple
 import re
+import tempfile
 
 from .common import BaseExecutor
 
@@ -121,27 +122,28 @@ class GsqlExecutor(BaseExecutor):
             if is_tuple:
                 tmp_tuple_lines.append(line)
             else:
-                results.append((line, ))
+                results.append((line,))
 
         return results
 
     def execute_sqls(self, sqls):
         sqls = ['set current_schema = %s' % self.get_schema()] + sqls
-        sql_file = str(time.time()) + '.sql'
-        with open(sql_file, 'w') as file_h:
+        try:
+            file1 = tempfile.NamedTemporaryFile(mode='w+', delete=True)
             for sql in sqls:
                 if not sql.strip().endswith(';'):
                     sql += ';'
-                file_h.write(sql + '\n')
-        cmd = self.base_cmd + ' -f ./' + sql_file
-        try:
-            ret = subprocess.check_output(
-                shlex.split(cmd), stderr=subprocess.STDOUT)
-            return self.__to_tuples(ret.decode(errors='ignore'))
-        except subprocess.CalledProcessError as e:
-            print(e.output.decode(errors='ignore'), file=sys.stderr)
+                file1.file.write(sql + '\n')
+            file1.file.flush()
+            cmd = self.base_cmd + ' -f ' + file1.name
+            try:
+                ret = subprocess.check_output(
+                    shlex.split(cmd), stderr=subprocess.STDOUT)
+                return self.__to_tuples(ret.decode(errors='ignore'))
+            except subprocess.CalledProcessError as e:
+                print(e.output.decode(errors='ignore'), file=sys.stderr)
         finally:
-            os.remove(sql_file)
+            file1.close()
 
     @contextmanager
     def session(self):

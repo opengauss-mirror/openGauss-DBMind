@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 
 from itertools import count
+from functools import lru_cache
 
 try:
     from .utils import get_placeholders
@@ -36,6 +37,7 @@ def get_existing_index_sql(schema, tables):
     return sql
 
 
+@lru_cache(maxsize=None)
 def get_prepare_sqls(statement):
     prepare_id = 'prepare_' + str(next(counter))
     placeholder_size = len(get_placeholders(statement))
@@ -61,6 +63,16 @@ def get_workload_cost_sqls(statements, indexes, is_multi_node):
     return sqls
 
 
+def get_index_setting_sqls(indexes, is_multi_node):
+    sqls = get_hypo_index_head_sqls(is_multi_node)[:]
+    if indexes:
+        # Create hypo-indexes.
+        for index in indexes:
+            sqls.append("SELECT pg_catalog.hypopg_create_index('CREATE INDEX ON %s(%s) %s');" %
+                        (index.get_table(), index.get_columns(), index.get_index_type()))
+    return sqls
+
+
 def get_single_advisor_sql(ori_sql):
     advisor_sql = 'select pg_catalog.gs_index_advise(\''
     for elem in ori_sql:
@@ -71,11 +83,18 @@ def get_single_advisor_sql(ori_sql):
     return advisor_sql
 
 
-def get_index_check_sqls(query, indexes, is_multi_node):
+@lru_cache(maxsize=None)
+def get_hypo_index_head_sqls(is_multi_node):
     sqls = ['SET enable_hypo_index = on;']
     if is_multi_node:
         sqls.append('SET enable_fast_query_shipping = off;')
         sqls.append('SET enable_stream_operator = on;')
+    sqls.append("set explain_perf_mode = 'normal'; ")
+    return sqls
+
+
+def get_index_check_sqls(query, indexes, is_multi_node):
+    sqls = get_hypo_index_head_sqls(is_multi_node)[:]
     for index in indexes:
         table = index.get_table()
         columns = index.get_columns()

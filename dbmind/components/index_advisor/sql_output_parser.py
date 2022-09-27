@@ -13,18 +13,18 @@
 
 import re
 from typing import List
+import logging
 
-import sqlparse
 from sqlparse.tokens import Punctuation
 
 try:
-    from utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex
+    from utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens
 except ImportError:
-    from .utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex
+    from .utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens
 
 
 def __get_columns_from_indexdef(indexdef):
-    for content in sqlparse.parse(indexdef)[0].flatten():
+    for content in get_tokens(indexdef):
         if content.ttype is Punctuation:
             return content.parent.value.strip()[1:-1]
 
@@ -73,48 +73,50 @@ def parse_table_sql_results(table_sql_results):
     return tables
 
 
-def parse_explain_plan(results, query_num):
-    i = 0
-    found_plan = False
-    hypo_index = False
-    costs = []
-    indexes_names = set()
+def parse_hypo_index(results):
     hypo_index_ids = []
+    for cur_tuple in results:
+        text = cur_tuple[0]
+        if 'btree' in text:
+            hypo_index_id = text.strip().strip('()').split(',')[0]
+            hypo_index_ids.append(hypo_index_id)
+    return hypo_index_ids
+
+
+def parse_explain_plan(results, query_num):
+    indexes_names_set = set()
+    found_plan = False
+    costs = []
+    i = 0
     for cur_tuple in results:
         text = cur_tuple[0]
         if 'QUERY PLAN' in text or text == 'EXPLAIN':
             found_plan = True
         if 'ERROR' in text and 'prepared statement' not in text:
             if i >= query_num:
+                logging.info(f'Cannot correct parse the explain results: {results}')
                 raise ValueError("The size of queries is not correct!")
             costs.append(0)
             i += 1
-        if 'hypopg_create_index' in text or text.startswith('SELECT'):
-            hypo_index = True
         if found_plan and '(cost=' in text:
             if i >= query_num:
+                logging.info(f'Cannot correct parse the explain results: {results}')
                 raise ValueError("The size of queries is not correct!")
             query_cost = parse_plan_cost(text)
             costs.append(query_cost)
             found_plan = False
             i += 1
-        if hypo_index:
-            if 'btree' in text:
-                hypo_index = False
-                hypo_index_id = text.strip().strip('()').split(',')[0]
-                hypo_index_ids.append(hypo_index_id)
         if 'Index' in text and 'Scan' in text:
             ind1, ind2 = re.search(r'Index.*Scan(.*)on ([^\s]+)',
                                    text.strip(), re.IGNORECASE).groups()
             if ind1.strip():
-                indexes_names.add(ind1.strip().split(' ')[1])
+                indexes_names_set.add(ind1.strip().split(' ')[1])
             else:
-                indexes_names.add(ind2)
-
+                indexes_names_set.add(ind2)
     while i < query_num:
         costs.append(0)
         i += 1
-    return costs, indexes_names, hypo_index_ids
+    return costs, indexes_names_set
 
 
 def parse_plan_cost(line):

@@ -65,6 +65,7 @@ class TableContext:
     n_distincts: List = field(default_factory=lambda: [])
     is_partitioned_table: bool = field(default=False)
 
+    @lru_cache(maxsize=None)
     def has_column(self, column):
         is_same_table = True
         if '.' in column:
@@ -73,6 +74,7 @@ class TableContext:
             column = column.split('.')[1].lower()
         return is_same_table and column in self.columns
 
+    @lru_cache(maxsize=None)
     def get_n_distinct(self, column):
         column = column.split('.')[-1].lower()
         idx = self.columns.index(column)
