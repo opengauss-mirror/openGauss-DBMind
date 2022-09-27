@@ -18,10 +18,10 @@ stages:
         displayName: Python36_old
         pythonVersion: '3.6'
         commands:
-          - env
-          - ls -l
+          - git clone https://gitee.com/opengauss/openGauss-DBMind.git
           - cd openGauss-DBMind
           - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-x86.txt
+          - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -i pytest
           - pytest --html=report/index.html
         report:
           path: report
@@ -40,10 +40,10 @@ stages:
         displayName: Python38_new
         pythonVersion: '3.8'
         commands:
-          - env
-          - ls -l
+          - git clone https://gitee.com/opengauss/openGauss-DBMind.git
           - cd openGauss-DBMind
           - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-x86.txt
+          - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -i pytest
           - pytest --html=report/index.html
         report:
           path: report
