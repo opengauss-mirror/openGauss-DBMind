@@ -1820,7 +1820,7 @@ gaussdb_corrosion_index:
   query:
     - name: gaussdb_corrosion_index
       promql: |
-      topk(10, sum(rate(pg_index_idx_scan{isdisvalid='False'}[3m])) by (schema_name, table_name, index_name, from_instance, job))
+        topk(10, sum(rate(pg_index_idx_scan{isdisvalid='False'}[3m])) by (schema_name, table_name, index_name, from_instance, job))
       version: '>=0.0.0'
       timeout: 0.1
       ttl: 10
@@ -1889,13 +1889,13 @@ gaussdb_wait_event_spike:
   timeout: 0.1
 
 
-gaussdb_sql_statement_db_time:
-  name: gaussdb_sql_statement_db_time
-  desc: gaussdb_sql_statement_db_time
+gaussdb_statement_db_time:
+  name: gaussdb_statement_db_time
+  desc: topk db_time of statement template
   query:
-    - name: gaussdb_sql_statement_db_time
+    - name: gaussdb_statement_db_time
       promql: |
-        topk(10, sum (irate(pg_sql_statement_statistics_avg_db_time[2m])) by (node_name, user_name, query, unique_sql_id, from_instance, job))
+        sum (irate(pg_sql_statement_statistics_avg_db_time[2m])) by (node_name, user_name, query, query_sort, from_instance, job)
       version: '>=0.0.0'
       timeout: 9
       ttl: 10
@@ -1914,9 +1914,9 @@ gaussdb_sql_statement_db_time:
       label: query
       description: query
       usage: LABEL
-    - name: unique_sql_id
-      label: unique_sql_id
-      description: unique_sql_id
+    - name: query_sort
+      label: query_sort
+      description: query_sort
       usage: LABEL
     - name: from_job
       label: job
@@ -1931,13 +1931,13 @@ gaussdb_sql_statement_db_time:
   timeout: 9
 
 
-gaussdb_sql_statement_n_calls:
-  name: gaussdb_sql_statement_n_calls
-  desc: gaussdb_sql_statement_n_calls
+gaussdb_statement_calls:
+  name: gaussdb_statement_calls
+  desc: topk calls of statement template
   query:
-    - name: gaussdb_sql_statement_n_calls
+    - name: gaussdb_statement_calls
       promql: |
-        topk(10, sum (irate(pg_sql_statement_statistics_n_calls[2m])) by (node_name, user_name, query, unique_sql_id, from_instance, job))
+        sum (irate(pg_sql_statement_statistics_n_calls[2m])) by (node_name, user_name, query, query_sort, from_instance, job)
       version: '>=0.0.0'
       timeout: 9
       ttl: 10
@@ -1956,9 +1956,93 @@ gaussdb_sql_statement_n_calls:
       label: query
       description: query
       usage: LABEL
-    - name: unique_sql_id
-      label: unique_sql_id
-      description: unique_sql_id
+    - name: query_sort
+      label: query_sort
+      description: query_sort
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 9
+
+
+gaussdb_statement_sort_spill:
+  name: gaussdb_statement_sort_spill
+  desc: gaussdb_statement_sort_spill
+  query:
+    - name: gaussdb_statement_sort_spill
+      promql: |
+        sum (irate(pg_sql_statement_statistics_sort_spill_count[2m])) by (node_name, user_name, query, query_sort, from_instance, job)
+      version: '>=0.0.0'
+      timeout: 9
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: node_name
+      label: node_name
+      description: node name
+      usage: LABEL
+    - name: user_name
+      label: user_name
+      description: user_name
+      usage: LABEL
+    - name: query
+      label: query
+      description: query
+      usage: LABEL
+    - name: query_sort
+      label: query_sort
+      description: query_sort
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 60
+  timeout: 9
+
+
+gaussdb_statement_hash_spill:
+  name: gaussdb_statement_hash_spill
+  desc: gaussdb_statement_hash_spill
+  query:
+    - name: gaussdb_statement_hash_spill
+      promql: |
+        sum (irate(pg_sql_statement_statistics_hash_spill_count[2m])) by (node_name, user_name, query, query_sort, from_instance, job)
+      version: '>=0.0.0'
+      timeout: 9
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: node_name
+      label: node_name
+      description: node name
+      usage: LABEL
+    - name: user_name
+      label: user_name
+      description: user_name
+      usage: LABEL
+    - name: query
+      label: query
+      description: query
+      usage: LABEL
+    - name: query_sort
+      label: query_sort
+      description: query_sort
       usage: LABEL
     - name: from_job
       label: job

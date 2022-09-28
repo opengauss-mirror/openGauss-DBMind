@@ -225,17 +225,11 @@ pg_sql_statement_statistics:
       sql: |-
         WITH avgtime AS ( SELECT node_name, user_name, unique_sql_id,
         substring(regexp_replace(query,'[^\x00-\x7F]+','','g'), 1, 20) AS query_sort, query, n_calls, db_time,
-        ROUND((db_time / n_calls),0) AS avg_db_time, min_elapse_time, max_elapse_time, total_elapse_time, n_returned_rows,
-        n_tuples_fetched, n_tuples_returned, n_tuples_inserted, n_tuples_updated, n_tuples_deleted, n_blocks_fetched,
-        n_blocks_hit, n_soft_parse, n_hard_parse, cpu_time, execution_time, parse_time, plan_time, rewrite_time,
-        pl_execution_time, pl_compilation_time, data_io_time FROM dbe_perf.SUMMARY_STATEMENT WHERE n_calls > 0 ORDER BY
-        avg_db_time DESC limit 50 ) , num AS ( SELECT node_name, user_name, unique_sql_id,
+        ROUND((db_time / n_calls),0) AS avg_db_time, sort_spill_count, hash_spill_count FROM dbe_perf.SUMMARY_STATEMENT WHERE n_calls > 0 ORDER BY
+        avg_db_time DESC limit 100 ) , num AS ( SELECT node_name, user_name, unique_sql_id,
         substring(regexp_replace(query,'[^\x00-\x7F]+','','g'), 1, 20) AS query_sort, query, n_calls, db_time,
-        ROUND((db_time / n_calls),0) AS avg_db_time, min_elapse_time, max_elapse_time, total_elapse_time, n_returned_rows,
-         n_tuples_fetched, n_tuples_returned, n_tuples_inserted, n_tuples_updated, n_tuples_deleted, n_blocks_fetched,
-         n_blocks_hit, n_soft_parse, n_hard_parse, cpu_time, execution_time, parse_time, plan_time, rewrite_time,
-         pl_execution_time, pl_compilation_time, data_io_time FROM dbe_perf.SUMMARY_STATEMENT WHERE n_calls > 0
-         ORDER BY n_calls DESC limit 50 ) SELECT * FROM avgtime UNION SELECT * FROM num;
+        ROUND((db_time / n_calls),0) AS avg_db_time, sort_spill_count, hash_spill_count FROM dbe_perf.SUMMARY_STATEMENT WHERE n_calls > 0
+         ORDER BY n_calls DESC limit 100 ) SELECT * FROM avgtime UNION SELECT * FROM num;
       version: '>=0.0.0'
       timeout: 9
       status: enable
@@ -260,73 +254,16 @@ pg_sql_statement_statistics:
       usage: GAUGE
     - name: db_time
       description: unique query id
-      usage: LABEL
+      usage: GAUGE
     - name: avg_db_time
       description: debug query id
       usage: GAUGE
-    - name: min_elapse_time
-      description: select returned rows
-      usage: LABEL
-    - name: max_elapse_time
-      description: n tuples return
-      usage: LABEL
-    - name: total_elapse_time
-      description: select fetch rows
-      usage: LABEL
-    - name: n_returned_rows
-      description: insert tuples
-      usage: LABEL
-    - name: n_tuples_fetched
-      description: update tuples
-      usage: LABEL
-    - name: n_tuples_returned
-      description: delete tuples
-      usage: LABEL
-    - name: n_tuples_inserted
-      description: hit ratio
-      usage: LABEL
-    - name: n_tuples_updated
-      description: fetch rate
-      usage: LABEL
-    - name: n_tuples_deleted
-      description: lock wait count
-      usage: LABEL
-    - name: n_blocks_fetched
-      description: lwclock wait count
-      usage: LABEL
-    - name: n_blocks_hit
-      description: cpu time
-      usage: LABEL
-    - name: n_soft_parse
-      description: data_io_time
-      usage: LABEL
-    - name: n_hard_parse
-      description: plan time
-      usage: LABEL
-    - name: cpu_time
-      description: parse time
-      usage: LABEL
-    - name: execution_time
-      description: db time
-      usage: LABEL
-    - name: parse_time
-      description: time taken to execute
+    - name: sort_spill_count
+      description: sort_spill_count
       usage: GAUGE
-    - name: plan_time
-      description: the number of calls
-      usage: LABEL
-    - name: rewrite_time
-      description: sort count
-      usage: LABEL
-    - name: pl_execution_time
-      description: sort mem used
-      usage: LABEL
-    - name: pl_compilation_time
-      description: sort spill count
-      usage: LABEL
-    - name: data_io_time
-      description: hash count
-      usage: LABEL
+    - name: hash_spill_count
+      description: hash_spill_count
+      usage: GAUGE
   status: enable
   ttl: 0
   timeout: 1
