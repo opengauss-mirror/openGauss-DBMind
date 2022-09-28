@@ -198,7 +198,7 @@ class PrometheusClient(TsdbClient):
         chunk_seconds = round((end_time - start_time).total_seconds())
 
         if label_config:
-            label_list = [str(key + "=" + "'" + str(label_config[key]) + "'") for key in label_config]
+            label_list = [str(key + "=" + "\"" + str(label_config[key]) + "\"") for key in label_config]
             query = metric_name + "{" + ",".join(label_list) + "}"
         else:
             query = metric_name
