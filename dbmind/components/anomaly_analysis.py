@@ -13,18 +13,20 @@
 
 import argparse
 import csv
+import multiprocessing as mp
 import os
 import sys
 from collections import defaultdict
 from datetime import datetime
 
-from scipy import signal
+import requests
+from requests.adapters import HTTPAdapter
+from scipy.interpolate import interp1d
 
 from dbmind import constants
 from dbmind import global_vars
 from dbmind.cmd.config_utils import DynamicConfig, load_sys_configs
 from dbmind.common import utils
-from dbmind.common.algorithm.anomaly_detection import WAIT_EVENT_GRAPH
 from dbmind.common.algorithm.correlation import max_cross_correlation
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.utils.checking import date_type, path_type
@@ -32,18 +34,53 @@ from dbmind.common.utils.cli import write_to_terminal
 from dbmind.service import dai
 
 LEAST_WINDOW = int(7.2e3) * 1000
+INTERVAL = 15000
 LOOK_BACK = 0
 LOOK_FORWARD = 0
 
 
-def find_peaks(array, threshold=-float('inf')):
-    peaks = signal.find_peaks(array)[0]
-    return tuple(True if i in peaks and array[i] > threshold else False for i in range(len(array)))
+def get_sequences(arg):
+    metric, host, start_datetime, end_datetime, length = arg
+    result = []
+    seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).fetchall()
+    for seq in seqs:
+        if 'from_instance' not in seq.labels or len(seq) < 0.9 * length:
+            continue
+
+        address = seq.labels.get('from_instance').strip()
+        if address in host or host in address:
+            if seq.labels.get('event'):
+                name = 'wait event-' + seq.labels.get('event')
+            else:
+                name = metric
+                if seq.labels.get('datname'):
+                    name += ' on ' + seq.labels.get('datname')
+                elif seq.labels.get('device'):
+                    name += ' on ' + seq.labels.get('device')
+                name += ' from ' + address
+
+            result.append((name, seq))
+
+    return result
+
+
+def get_correlations(arg):
+    name, sequence, the_sequence = arg
+    f = interp1d(
+        sequence.timestamps,
+        sequence.values,
+        kind='linear',
+        bounds_error=False,
+        fill_value=(sequence.values[0], sequence.values[-1])
+    )
+    y = f(the_sequence.timestamps)
+    corr, delay = max_cross_correlation(the_sequence.values, y, LOOK_BACK, LOOK_FORWARD)
+    return name, corr, delay, sequence.values
 
 
 def main(argv):
-    parser = argparse.ArgumentParser(description="Workload Anomaly detection: "
-                                                 "Anomaly detection of monitored metric.")
+    parser = argparse.ArgumentParser(description="Workload Anomaly analysis: "
+                                                 "Anomaly analysis of monitored metric.")
     parser.add_argument('-c', '--conf', required=True, type=path_type,
                         help='set the directory of configuration files')
     parser.add_argument('-m', '--metric', required=True,
@@ -81,113 +118,62 @@ def main(argv):
         global_vars.configs.get('TSDB', 'ssl_ca_file')
     )
 
+    url = (
+        'http://' + global_vars.configs.get('TSDB', 'host') +
+        ':' + global_vars.configs.get('TSDB', 'port') +
+        '/api/v1/label/__name__/values'
+    )
+    s = requests.Session()  # suitable for both http and https
+    s.mount('http://', HTTPAdapter(max_retries=3))
+    s.mount('https://', HTTPAdapter(max_retries=3))
+    response = s.get(url, headers={"Content-Type": "application/json"}, verify=False, timeout=5)
+    other_metrics = eval(response.content.decode())['data']
+
     actual_start_time = min(start_time, end_time - LEAST_WINDOW)
     start_datetime = datetime.fromtimestamp(actual_start_time / 1000)
     end_datetime = datetime.fromtimestamp(end_time / 1000)
+    length = (end_time - start_time) // INTERVAL
 
-    # Gathering wait events
-    wait_events = dai.get_metric_sequence('pg_wait_event_spike', start_datetime, end_datetime).fetchall()
-    wait_event_storage = defaultdict()
-    for wait_event in wait_events:
-        address = wait_event.labels.get('from_instance').strip()
-        if address in host or host in address:
-            event_name = wait_event.labels.get('event')
-            wait_event_storage[event_name] = wait_event
+    sequence_args = [(other_metric, host, start_datetime, end_datetime, length) for other_metric in other_metrics]
+    pool = mp.Pool()
+    ans = pool.map(get_sequences, iterable=sequence_args)
+    pool.close()
+    pool.join()
 
-    # Gathering other metrics
-    other_metrics = defaultdict()
-    for other_metric in WAIT_EVENT_GRAPH[metric].get('other_metrics'):
-        seqs = dai.get_metric_sequence(other_metric, start_datetime, end_datetime).fetchall()
-        for seq in seqs:
-            address = seq.labels.get('from_instance').strip()
-            if address in host or host in address:
-                other_metric_name = other_metric
-                if seq.labels.get('datname'):
-                    other_metric_name += ' on ' + seq.labels.get('datname')
-                elif seq.labels.get('device'):
-                    other_metric_name += ' on ' + seq.labels.get('device')
-
-                other_metric_name += ' from ' + address
-                other_metrics[other_metric_name] = seq
-
-    # Gathering anomalies of the metric
-    target = dai.get_metric_sequence(metric, start_datetime, end_datetime).fetchall()
-    for seq in target:
-        address = seq.labels.get('from_instance').strip()
-        if address in host or host in address:
-            values = seq.values
-            threshold = WAIT_EVENT_GRAPH[metric].get('threshold')
-            anomaly = find_peaks(values, threshold)
-            sequence = seq
-            duration = list()
-            t, flag = 0, 0
-            for i, v in enumerate(anomaly):
-                if v and not flag:
-                    t = i
-                    flag = 1
-                elif not v and flag:
-                    duration.append(t)
-                    flag = 0
-
+    the_sequence = None
+    for sequences in ans:
+        for name, sequence in sequences:
+            if metric in name:
+                the_sequence = sequence
+                break
+        if the_sequence:
             break
     else:
+        write_to_terminal('The metric not found.')
         return
 
-    # Find wait events
-    n_reasons = 1
-    res = defaultdict(list)
-    res[metric] = [1, [(metric, 1, 0, sequence.values)]]
-    for event_name, wait_event in wait_event_storage.items():
-        if len(sequence) != len(wait_event):
-            write_to_terminal(f"The length of {metric} and wait event {event_name} don't match.")
-            continue
+    correlation_args = list()
+    for sequences in ans:
+        for name, sequence in sequences:
+            correlation_args.append((name, sequence, the_sequence))
 
-        x, y = sequence.values, wait_event.values
-        corr, delay = max_cross_correlation(x, y, LOOK_BACK, LOOK_FORWARD)
-        if abs(corr) > WAIT_EVENT_GRAPH[metric].get('correlation'):
-            n_reasons += 1
-            res[event_name] = [abs(corr), [(event_name, abs(corr), delay, wait_event.values)]]
+    pool = mp.Pool()
+    ans = pool.map(get_correlations, iterable=correlation_args)
+    pool.close()
+    pool.join()
 
-    # Find other metrics
-    for other_metric_name, other_metric_seq in other_metrics.items():
-        if len(sequence) != len(other_metric_seq):
-            write_to_terminal(f"The length of {metric} and {other_metric_name} don't match.")
-            continue
+    res = defaultdict(tuple)
+    for name, corr, delay, values in ans:
+        res[name] = max(res[name], (abs(corr), name, corr, delay, values))
 
-        x, y = sequence.values, other_metric_seq.values
-        corr, delay = max_cross_correlation(x, y, LOOK_BACK, LOOK_FORWARD)
-        if abs(corr) > WAIT_EVENT_GRAPH[metric].get('correlation'):
-            n_reasons += 1
-            if ' on ' in other_metric_name:
-                k = other_metric_name.split(' on ')[0]
-            else:
-                k = other_metric_name.split(' from ')[0]
-
-            if k in res:
-                res[k][0] = max(abs(corr), res[k][0])
-                res[k][1].append((other_metric_name, abs(corr), delay, other_metric_seq.values))
-            else:
-                res[k] = [abs(corr), [(other_metric_name, abs(corr), delay, other_metric_seq.values)]]
-
-    for k, (max_corr, res_list) in res.items():
-        res[k] = [max_corr, sorted(res_list, key=lambda x: -x[1])]
-
-    if 'gaussdb_locks' not in res and 'io_queue_number' not in res:
-        write_to_terminal('The cpu high usage has nothing to do with the gaussdb.')
-    else:
-        if 'gaussdb_locks' in res:
-            write_to_terminal(f"database: {res['gaussdb_locks'][1][0][0].split(' on ')[1]}")
-
-        if 'io_queue_number' in res:
-            write_to_terminal(f"device: {res['io_queue_number'][1][0][0].split(' on ')[1]}")
+    res[metric] = (1, metric, 1, 0, the_sequence.values)
 
     if args.csv_dump_path:
         with open(args.csv_dump_path, 'w+') as f:
             writer = csv.writer(f)
-            for k, v in res.items():
-                for l in v[1]:
-                    writer.writerow(l[0:3])
-                    writer.writerow(l[3])
+            for v in sorted(res.values(), reverse=True):
+                writer.writerow(v[0:3])
+                writer.writerow(v[3])
 
 
 if __name__ == '__main__':

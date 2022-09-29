@@ -108,10 +108,12 @@ def cross_correlation(data1, data2, shift_num):
 
 
 def max_cross_correlation(data1, data2, left=0, right=0):
-    left = min(left, len(data2))
-    right = min(right, len(data2))
-    max_correlation = 0
-    final_shift = 0
+    data1, data2 = np.nan_to_num(data1), np.nan_to_num(data2)
+    if np.max(data1) == np.min(data1) or np.max(data2) == np.min(data2):
+        return 0, 0
+
+    left, right = min(left, len(data2)), min(right, len(data2))
+    max_correlation, final_shift = 0, 0
     for shift in range(-left, right + 1):
         correlation = cross_correlation(data1, data2, shift)
         if abs(correlation) > abs(max_correlation):

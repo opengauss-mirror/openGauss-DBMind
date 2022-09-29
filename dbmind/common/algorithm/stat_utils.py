@@ -176,7 +176,7 @@ def tidy_up_sequence(sequence):
     return Sequence(timestamps, values)
 
 
-def sequence_interpolate(sequence: Sequence, fit_method="cubic", strip_details=True):
+def sequence_interpolate(sequence: Sequence, fit_method="linear", strip_details=True):
     """interpolate with scipy interp1d"""
     filled_sequence = tidy_up_sequence(sequence)
     has_defined = [_valid_value(v) for v in filled_sequence.values]
