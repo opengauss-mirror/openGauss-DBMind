@@ -105,7 +105,7 @@ class AnomalyDetections(object):
     def choose_alg_func_automatically(sequence, func_name_list=None,
                                       high_ac_threshold=0.5, min_seasonal_freq=3):
         # func_name_list is a subset of ["persist", "level_shift", "volatility_shift"].
-        func_name_list = func_name_list if func_name_list else ["spike", "increase"]
+        func_name_list = func_name_list if func_name_list else ["spike", "level_shift"]
         is_seasonal, _ = is_seasonal_series(
             sequence.values,
             high_ac_threshold=high_ac_threshold,

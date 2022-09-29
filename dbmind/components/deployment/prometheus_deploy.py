@@ -615,7 +615,7 @@ def generate_tasks(configs):
     prometheus_conf = '--config.file {}'.format(os.path.join(prometheus_path, 'prometheus.yml'))
     prometheus_web = '--web.enable-admin-api'
     prometheus_retention_time = '--storage.tsdb.retention.time=1w'
-    prometheus_log_dir = '>$HOME/prometheus.log'
+    prometheus_log_dir = f'>{os.path.join(EXTRACT_PATH, "prometheus.log")}'
     prometheus_cmd = ' '.join([
         os.path.join(prometheus_path, 'prometheus'),
         prometheus_listen,
@@ -646,10 +646,7 @@ def generate_tasks(configs):
         f'reprocessing-exporter of {host} has been started or the address already in use.',
         f'reprocessing-exporter of {host}'
     ])
-    tasks[executor].append(
-        f'chmod {LOG_PERMISSION} {configs.get(PROMETHEUS, "path")}'
-        f'/{configs.get(DOWNLOADING, "prometheus")}/prometheus.log'
-    )
+    tasks[executor].append(f'chmod {LOG_PERMISSION} {os.path.join(EXTRACT_PATH, "prometheus.log")}')
     # node_exporters, cmd_exporters and opengauss_exporters
     exporters = db_exporters_parsing(configs)
     username = configs.get(EXPORTERS, 'host_username')
