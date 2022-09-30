@@ -55,7 +55,7 @@ def parse_argv(argv):
     parser = argparse.ArgumentParser(
         description='openGauss Exporter (DBMind): Monitoring or controlling for openGauss.'
     )
-    parser.add_argument('--url', required=True,
+    parser.add_argument('--url', '--dsn', required=True,
                         help='openGauss database target url. '
                              'It is recommended to connect to the postgres '
                              'database through this URL, so that the exporter '

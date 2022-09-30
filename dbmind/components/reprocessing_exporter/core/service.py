@@ -12,22 +12,19 @@
 # See the Mulan PSL v2 for more details.
 import logging
 import os
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import yaml
-from prometheus_client import Gauge
 from prometheus_client.exposition import generate_latest
 from prometheus_client.registry import CollectorRegistry
 
-from .dao import PrometheusMetricConfig
+from .dao import MetricConfig
 from .dao import query
 
-_metric_cnfs = []
 _thread_pool_executor = ThreadPoolExecutor(max_workers=os.cpu_count())
 
 _registry = CollectorRegistry()
-_from_metrics = defaultdict()
+_registered_metrics = dict()
 # data leak protection metrics
 _dlb_metric_definition = None  # the definition of the dlp data leak protection metrics from the YANL file if any
 _look_for_dlp_metrics = False  # if to look for data leak protection metrics
@@ -41,8 +38,8 @@ def register_prometheus_metrics(rule_filepath):
     with open(rule_filepath) as f:
         data = yaml.load(f, Loader=yaml.FullLoader)
 
-    for _, item in data.items():
-        if item['name'] == 'gaussdb_dlp':
+    for metric_name, item in data.items():
+        if metric_name == 'gaussdb_dlp':
             _look_for_dlp_metrics = True
             _dlb_metric_definition = item
             logging.info(f"Gauss Data Leak Protection metrics is on")
@@ -50,20 +47,23 @@ def register_prometheus_metrics(rule_filepath):
                 _dlp_metric_units.append(time_unit)
             continue
 
-        cnf = PrometheusMetricConfig(
-            name=item['name'],
-            promql=item['query'][0]['promql'],
-            desc=item['desc']
+        if item.get('status') == 'disable':
+            logging.info('Skipping to register the metric %s.', metric_name)
+            continue
+        cnf = MetricConfig(
+            name=metric_name,
+            promql=item['promql'],
+            desc=item.get('desc', 'undefined'),
+            ttl=item.get('ttl', 0),
+            timeout=item.get('timeout'),
+            registry=_registry
         )
         for mtr in item['metrics']:
             if mtr["usage"] == "LABEL":
-                cnf.labels.append(mtr["name"])
-                cnf.label_map[mtr["label"]] = mtr["name"]
+                cnf.add_label(mtr["label"], mtr["name"])
 
-        gauge = Gauge(cnf.name, cnf.desc, cnf.labels, registry=_registry)
-
-        _from_metrics[item['name']] = (gauge, cnf)
-        _metric_cnfs.append(cnf)
+        _registered_metrics[metric_name] = cnf
+        logging.info('Registered the metric %s configuration.', metric_name)
 
     if _look_for_dlp_metrics:
         add_dlp_metrics()
@@ -90,20 +90,15 @@ def add_dpl_metric(dlp_metric_name):
             promo_query = promo_query.format(dlp_metric_name=dlp_metric_name, time_unit=time_unit)
             metric_name = f"{metric_name_base}_{time_unit}_rate"
             logging.info(f"Adding data leak protection metric :{metric_name}")
-            cnf = PrometheusMetricConfig(
+            cnf = MetricConfig(
                 name=metric_name,
                 promql=promo_query,
                 desc=f"data leak protection metric {metric_name_base}"
             )
-            cnf.labels.append("from_job")
-            cnf.label_map["job"] = "from_job"
+            cnf.add_label('job', 'from_job')
+            cnf.add_label('from_instance', 'from_instance')
 
-            cnf.labels.append("from_instance")
-            cnf.label_map["from_instance"] = "from_instance"
-
-            gauge = Gauge(cnf.name, cnf.desc, cnf.labels, registry=_registry)
-            _from_metrics[metric_name] = (gauge, cnf)
-            _metric_cnfs.append(cnf)
+            _registered_metrics[metric_name] = cnf
 
         _dlp_metrics_added.append(metric_name_base)  # so we will not add it again
 
@@ -138,29 +133,41 @@ def query_all_metrics():
     # because prevent out of order due to concurrency.
     all_tasks = [
         _thread_pool_executor.submit(
-            lambda cnf: (cnf, query(cnf.promql)),
+            lambda cnf: (cnf.name, cnf.query()),
             cnf
-        ) for cnf in _metric_cnfs
+        ) for cnf in _registered_metrics.values()
     ]
     for future in as_completed(all_tasks):
-        queried_results.append(future.result())
+        try:
+            queried_results.append(future.result())
+        except Exception as e:
+            logging.exception(e)
 
-    for metric_cnf, diff_instance_results in queried_results:
+    for metric_name, diff_instance_results in queried_results:
         for result_sequence in diff_instance_results:
             if len(result_sequence) == 0:
-                logging.warning('Fetched nothing for %s.', metric_cnf.name)
+                logging.warning('Fetched nothing for %s.', metric_name)
                 continue
 
-            gauge, cnf = _from_metrics[metric_cnf.name]
-            labels_map = result_sequence.labels
+            cnf = _registered_metrics[metric_name]
+            actual_labels = result_sequence.labels
             # Unify the outputting label names for all metrics.
             target_labels_map = {}
-            for k, v in labels_map.items():
-                target_labels_map[cnf.label_map[k]] = v
+            for k, v in actual_labels.items():
+                target_label_name = cnf.get_label_name(k)
+                if not target_label_name:
+                    continue
+                target_labels_map[target_label_name] = v
             _standardize_labels(target_labels_map)
             value = result_sequence.values[0]
             try:
-                gauge.labels(**target_labels_map).set(value)
+                cnf.gauge.labels(**target_labels_map).set(value)
+            except ValueError as e:
+                logging.error(
+                    'Error occurred: %s. '
+                    'Metric name: %s, rendered labels: %s, expected labels: %s, actual labels: %s.',
+                    e.args, metric_name, target_labels_map, cnf.labels, actual_labels
+                )
             except Exception as e:
                 logging.exception(e)
 
