@@ -308,6 +308,18 @@ class Plan:
             self.traverse(fuzzy_finder)
         return opts
 
+    def find_properties(self, properties: str = ''):
+        opts = []
+
+        def finder(node):
+            for attr, value in node.properties.items():
+                if properties in value:
+                    opts.append(node)
+                    break
+
+        self.traverse(finder)
+        return opts
+
     def __repr__(self):
         lines = []
 

@@ -40,8 +40,6 @@ class RootCause:
                                 'Reduce IO intensives.')
     WORKING_MEM_CONTENTION = _Define('[SYSTEM][MEMORY]', 'Workloads compete to use memory resources.',
                                      'Reduce memory intensive concurrent clients.')
-    LOCK_CONTENTION = _Define('[SYSTEM][LOCK]', 'Query waits for locks.',
-                              'Reduce insert/update concurrent clients.')
     SMALL_SHARED_BUFFER = _Define('[SYSTEM][BUFFER]', 'shared buffer is small.',
                                   'Tune the shared_buffer parameter larger.')
     TABLE_EXPANSION = _Define('[SYSTEM][EXPANSION]', 'too many dirty tuples exist.',
@@ -76,144 +74,130 @@ class RootCause:
     QPS_VIOLENT_INCREASE = _Define('[DB][QPS]', 'Database QPS rises sharply.', 'NONE')
     POOR_SQL_PERFORMANCE = _Define('[DB][SQL]', 'Database has poor performance of SQL.', 'NONE')
     # slow query
-    LOCK_CONTENTION_SQL = _Define('[SLOW QUERY][LOCK]',
-                                  'There is lock competition during statement execution, and SQL is blocked, '
-                                  'detail: {lock_info}.',
-                                  'Please adjust the business reasonably to avoid lock blocking.')
-    LARGE_DEAD_RATE = _Define('[SLOW QUERY][TABLE EXPANSION]',
-                              'The dead tuples in the related table of the SQL are relatively large, '
-                              'which affects the execution performance, '
-                              'detail: table info({large_table}), dead_rate({dead_rate}).',
-                              'Perform the analysis operation in time after a large number of '
-                              'insert and update operations on the table.')
-    LARGE_FETCHED_TUPLES = _Define('[SLOW QUERY][FETCHED TUPLES]',
-                                   'The SQL scans a large number of tuples, '
-                                   'detail: fetched_tuples({fetched_tuples}), '
-                                   'fetched_tuples_rate({fetched_tuples_rate}), '
-                                   'returned_rows({returned_rows}), ',
-                                   'Check whether the field has an index;'
-                                   'Avoid operations such as select count(*);'
-                                   'Whether syntax problems cause the statement index to fail, the general '
-                                   'index failure cases include: '
-                                   '1). The range is too large; '
-                                   '2). There is an implicit conversion; '
-                                   '3). Use fuzzy query, etc;')
-    SMALL_SHARED_BUFFER_SQL = _Define('[SLOW SQL][SHARED BUFFER]',
-                                      'The database shared_buffers parameter setting may be too small, '
-                                      'resulting in a small cache hit rate,'
-                                      'detail: hit_rate({hit_rate})',
-                                      'It is recommended to adjust the shared_buffers parameter reasonably')
-    UPDATED_REDUNDANT_INDEX = _Define('[SLOW SQL][REDUNDANT INDEX]',
-                                      'There are redundant indexes in UPDATED related tables,'
-                                      'detail: {redundant_index}.',
-                                      'Deleting redundant indexes can effectively improve the efficiency '
-                                      'of update statements.')
-    INSERTED_REDUNDANT_INDEX = _Define('[SLOW SQL][REDUNDANT INDEX]',
-                                       'There are redundant indexes in INSERTED related tables,'
-                                       'detail: {redundant_index}.',
-                                       'Deleting redundant indexes can effectively improve the efficiency '
-                                       'of insert statements.')
-    DELETED_REDUNDANT_INDEX = _Define('[SLOW SQL][REDUNDANT INDEX]',
-                                      'There are redundant indexes in DELETED related tables,'
-                                      'detail: {redundant_index}.',
-                                      'Deleting redundant indexes can effectively improve the efficiency '
-                                      'of delete statements.')
-    LARGE_UPDATED_TUPLES = _Define('[SLOW SQL][UPDATED TUPLES]',
-                                   'The UPDATE operation has a large number of update tuples, '
-                                   'resulting in slow SQL performance,'
-                                   'detail: updated_tuples({updated_tuples}), '
-                                   'updated_tuples_rate({updated_tuples_rate})',
-                                   'It is recommended to plan the business reasonably and '
-                                   'execute it at different peaks.')
-    LARGE_INSERTED_TUPLES = _Define('[SLOW SQL][INSERTED TUPLES]',
-                                    'The INSERT operation has a large number of insert tuples, '
-                                    'resulting in slow SQL performance,'
-                                    'detail: inserted_tuples({inserted_tuples}), '
-                                    'It is recommended to plan the business reasonably and '
-                                    'execute it at different peaks.')
-    LARGE_DELETED_TUPLES = _Define('[SLOW SQL][DELETED TUPLES]',
-                                   'The INSERT operation has a large number of delete tuples, '
-                                   'resulting in slow SQL performance,'
-                                   'detail: deleted_tuples({deleted_tuples}), '
-                                   'deleted_tuples_rate({deleted_tuples_rate})',
-                                   'It is recommended to plan the business reasonably and '
-                                   'execute it at different peaks..')
-    INSERTED_INDEX_NUMBER = _Define('[SLOW SQL][INDEX NUMBER]',
-                                    'INSERT involves too many indexes in the table, '
-                                    'which affects insert performance, '
-                                    'detail: {index}',
-                                    'The more indexes there are, the greater the maintenance cost for insert operations'
-                                    ' and the slower the speed of inserting a piece of data. Therefore, design business'
-                                    ' indexes reasonably.')
+    LOCK_CONTENTION = _Define('[SLOW QUERY][LOCK]',
+                              '{lock_contention}',
+                              'Adjust the business reasonably to avoid lock blocking.')
+    MANY_DEAD_TUPLES = _Define('[SLOW QUERY][TABLE EXPANSION]',
+                               'Table expansion, '
+                               'detail: table info({large_table}), dead_rate({dead_rate}).',
+                               'Perform the analysis operation in time after a large number of '
+                               'insert and update operations on the table.')
+    FETCH_LARGE_DATA = _Define('[SLOW QUERY][FETCHED TUPLES]',
+                               'The SQL scans a large number of tuples, '
+                               'detail: fetched_tuples({fetched_tuples}), '
+                               'fetched_tuples_rate({fetched_tuples_rate}), '
+                               'returned_rows({returned_rows}), ',
+                               'a. Check whether the field has an index;'
+                               'b. Avoid operations such as select count(*);'
+                               'c. Whether syntax problems cause the statement index to fail, the general '
+                               'index failure cases include: '
+                               '1). The range is too large; '
+                               '2). There is an implicit conversion; '
+                               '3). Use fuzzy query, etc;')
+    UNREASONABLE_DATABASE_KNOB = _Define('[SLOW SQL][DATABASE KNOB]',
+                                         'Unreasonable parameters affect database performance, '
+                                         'detail: {unreasonable_database_knob}.',
+                                         'Recommend knob: {unreasonable_database_knob}.')
+    REDUNDANT_INDEX = _Define('[SLOW SQL][REDUNDANT INDEX]',
+                              'There are redundant indexes in related tables,'
+                              'detail: {redundant_index}.',
+                              '{redundant_index}.')
+    UPDATE_LARGE_DATA = _Define('[SLOW SQL][UPDATED TUPLES]',
+                                'Update a large number of tuples, '
+                                'detail: updated_tuples({updated_tuples}), '
+                                'updated_tuples_rate({updated_tuples_rate}).'
+                                )
+    INSERT_LARGE_DATA = _Define('[SLOW SQL][INSERTED TUPLES]',
+                                'Insert a large number of tuples,'
+                                'detail: inserted_tuples({inserted_tuples}),'
+                                'inserted_tuples_rate({inserted_tuples_rate}).'
+                                )
+    DELETE_LARGE_DATA = _Define('[SLOW SQL][DELETED TUPLES]',
+                                'Delete a large number of tuples,'
+                                'detail: deleted_tuples({deleted_tuples}),'
+                                'deleted_tuples_rate({deleted_tuples_rate}).')
+    TOO_MANY_INDEX = _Define('[SLOW SQL][INDEX NUMBER]',
+                             'INSERT involves too many indexes in the table, '
+                             'which affects insert performance, '
+                             'detail: {index}.',
+                             'The more non-clustered indexes you have on a table, '
+                             'the slower your inserts and deletes will go.')
     EXTERNAL_SORT = _Define('[SLOW SQL][EXTERNAL SORT]',
                             'External sort is suspected during SQL execution, '
-                            'resulting in slow SQL performance, '
-                            'detail: {external_sort}',
-                            'Reasonably increase the work_mem parameter according to business needs.')
-    VACUUM_CONFLICT = _Define('[SLOW SQL][VACUUM]',
-                              'During SQL execution, related tables are executing VACUUM tasks, '
-                              'resulting in slow queries,'
-                              'detail: {autovacuum}',
-                              '')
-    ANALYZE_CONFLICT = _Define('[SLOW SQL][ANALYZE]',
-                               'During SQL execution, related tables are executing ANALYZE tasks, '
-                               'resulting in slow queries,'
-                               'detail: {autoanalyze}',
-                               '')
-    LOAD_CONCENTRATION = _Define('[SLOW SQL][LOAD]',
-                                 'During SQL execution, the database load is concentrated, '
-                                 'resulting in poor performance,'
-                                 'detail: tps({tps})',
-                                 'When the database business volume is large, expansion can be considered.')
+                            'detail: {external_sort}.',
+                            'Adjust work_mem according to business situation.')
+    VACUUM_EVENT = _Define('[SLOW SQL][VACUUM]',
+                           'During SQL execution, related tables are executing VACUUM tasks, '
+                           'resulting in slow queries,'
+                           'detail: {autovacuum}',
+                           )
+    ANALYZE_EVENT = _Define('[SLOW SQL][ANALYZE]',
+                            'During SQL execution, related tables are executing ANALYZE tasks, '
+                            'resulting in slow queries,'
+                            'detail: {autoanalyze}',
+                            )
+    WORKLOAD_CONTENTION = _Define('[SLOW SQL][WORKLOAD]',
+                                  '{workload_contention}.',
+                                  '{workload_contention}.'
+                                  )
 
-    SYSTEM_RESOURCE = _Define('[SLOW SQL][SYSTEM]',
-                              'During SQL execution, some system resources are shortage,'
-                              'detail: {system_cause}',
-                              'System resources are tight, check whether preemption occurs and '
-                              'consider expanding if necessary')
-    ABNORMAL_THREAD_POOL = _Define('[SLOW SQL][THREAD]',
-                                   'Abnormal thread pool: {thread_pool}.',
-                                   'Adjust the thread pool size according to the business')
-    LARGE_CONNECTION_OCCUPY_RATE = _Define('[SLOW SQL][CONNECTION]',
-                                           'Database connection pool usage is high: {connection_rate}.',
-                                           'Adjust the connection pool size according to the business')
-    ABNORMAL_WAIT_EVENT = _Define('[SLOW SQL][DATABASE]',
-                                  'Abnormal wait event: {wait_event}',
-                                  '')
+    CPU_RESOURCE_CONTENTION = _Define('[SLOW SQL][SYSTEM CPU]',
+                                      '{system_cpu_contention}.',
+                                      '{system_cpu_contention}.'
+                                     )
+    IO_RESOURCE_CONTENTION = _Define('[SLOW SQL][SYSTEM IO]',
+                                     '{system_io_contention}.',
+                                     '{system_io_contention}.'
+                                     )
+    MEMORY_RESOURCE_CONTENTION = _Define('[SLOW SQL][SYSTEM IO]',
+                                         '{system_mem_contention}.',
+                                         '{system_mem_contention}.'
+                                         )
+    LARGE_NETWORK_DROP_RATE = _Define('[SLOW SQL][NETWORK]',
+                                      '{network_drop}.',
+                                      '{network_drop}.'
+                                      )
+    OS_RESOURCE_CONTENTION = _Define('[SLOW SQL][FILE HANDLER]',
+                                     '{os_resource_contention}.',
+                                     '{os_resource_contention}.'
+                                    )
+    WAIT_EVENT = _Define('[SLOW SQL][DATABASE]',
+                         '{wait_event}',
+                         )
     LACK_STATISTIC_INFO = _Define('[SLOW SQL][DATABASE]',
-                                  'Database statistics are not updated in time, '
-                                  'detail: {update_statistics}',
-                                  'Perform the analysis operation in time after a large number of '
-                                  'insert and update operations on the table.')
-    LOW_CHECKPOINT_EFFICIENT = _Define('[SLOW SQL][CHECKPOINT]',
-                                       'Checkpoint is less efficient, '
-                                       'detail: the backend process writes a large number of buffers, '
-                                       'it is {bgwriter_rate} times the write volume of bgwriter and checkpoint.',
-                                       '')
-    LOW_REPLICATION_EFFICIENT = _Define('[SLOW SQL][REPLICATION]',
-                                        'Primary-standby synchronization performance is poor, '
-                                        'detail: {replication}.',
-                                        '')
-    ABNORMAL_SEQSCAN_OPERATOR = _Define('[SLOW SQL][OPERATOR]',
-                                        'Abnormal seqscan operator, analysis conclusion: {seqscan}.',
-                                        '{seqscan}.')
-    ABNORMAL_NESTLOOP_OPERATOR = _Define('[SLOW SQL][OPERATOR]',
-                                         'Abnormal nestloop operator.',
-                                         '{nestloop}.')
-    ABNORMAL_HASHJOIN_OPERATOR = _Define('[SLOW SQL][OPERATOR]',
-                                         'Abnormal hashjoin operator.',
-                                         '{hashjoin}.')
-    ABNORMAL_GROUPAGG_OPERATOR = _Define('[SLOW SQL][OPERATOR]',
-                                         'Abnormal groupagg operator.'
-                                         '{groupagg}.')
-    ABNORMAL_SQL_STRUCTURE = _Define('[SLOW SQL][STRUCTURE]',
-                                     'SQL structure needs to be optimized. ',
-                                     'rewritten SQL: {rewritten_sql}')
-    TIMED_TASK_CONFLICT = _Define('[SLOW SQL][TASK]',
-                                  'Timing task conflict with SQL execution'
-                                  'detail: {timed_task}')
-    ABNORMAL_PLAN_TIME = _Define('[SLOW SQL][PLAN]',
-                                 'Plan generation takes too long')
+                                  '{lack_of_statistics}.',
+                                  '{lack_of_statistics}.')
+    MISSING_INDEXES = _Define('[SLOW SQL][MISSING INDEX]',
+                              '{missing_index}.',
+                              '{missing_index}.'
+                              )
+    POOR_JOIN_PERFORMANCE = _Define('[SLOW SQL][OPERATOR]',
+                                    '{poor_join_performance}.',
+                                    '{poor_join_performance}.')
+    COMPLEX_BOOLEAN_EXPRESSIONS = _Define('[SLOW SQL][OPERATOR]',
+                                          '{complex_boolean_expression}.',
+                                          '{complex_boolean_expression}.')
+    STRING_MATCHING = _Define('[SLOW SQL][OPERATOR]',
+                              '{string_matching}.',
+                              '{string_matching}.')
+    COMPLEX_EXECUTION_PLAN = _Define('[SLOW SQL][OPERATOR]',
+                                     '{complex_execution_plan}.'
+                                     '{complex_execution_plan}.')
+    CORRELATED_SUBQUERY = _Define('[SLOW SQL][TASK]',
+                                  '{correlated_subquery}.',
+                                  '{correlated_subquery}.')
+    POOR_AGGREGATION_PERFORMANCE = _Define('[SLOW SQL][PLAN]',
+                                           '{poor_aggregation_performance}.',
+                                           '{poor_aggregation_performance}.')
+    ABNORMAL_SQL_STRUCTURE = _Define('[SLOW SQL][PLAN]',
+                                     '{abnormal_sql_structure}.',
+                                     '{abnormal_sql_structure}.')
+    TIMED_TASK_CONFLICT = _Define('[SLOW SQL][PLAN]',
+                                  '{timed_task_conflict}.',
+                                  '{timed_task_conflict}.')
+    ABNORMAL_PROCESS = _Define('[SLOW SQL][PLAN]',
+                               '{abnormal_process}.',
+                               '{abnormal_process}.')
     DATABASE_VIEW = _Define('[SLOW SQL][VIEW]',
                             'Poor performance of database views',
                             'System table query service, no suggestion.')
@@ -223,10 +207,9 @@ class RootCause:
     LACK_INFORMATION = _Define('[SLOW SQL][UNKNOWN]',
                                'Cannot diagnose due to lack of information.',
                                '')
-    UNKNOWN = _Define('[SLOW SQL][UNKNOWN]',
-                      'UNKNOWN',
-                      '')
-
+    C_UNKNOWN = _Define('[SLOW SQL][UNKNOWN]',
+                        'UNKNOWN',
+                        '')
     # security
     TOO_MANY_ERRORS = _Define(
         '[SECURITY][RISK]',
