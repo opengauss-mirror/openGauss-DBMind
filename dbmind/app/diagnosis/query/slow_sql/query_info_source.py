@@ -11,19 +11,26 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import logging
-import math
 import re
+import math
 from datetime import datetime, timedelta
 from functools import wraps
 
 from dbmind.common.parser import plan_parsing
-from dbmind.common.parser.sql_parsing import to_ts
+from dbmind.common.parser.sql_parsing import to_ts, get_generate_prepare_sqls_function
 from dbmind.common.utils import ExceptionCatcher
 from dbmind.global_vars import agent_rpc_client
 from dbmind.service import dai
+from dbmind.common.parser.sql_parsing import fill_value, standardize_sql, replace_comma_with_dollar
+from dbmind.common.parser.sql_parsing import remove_parameter_part
 from dbmind.service.web import toolkit_rewrite_sql
+from dbmind.components.index_advisor.utils import WorkLoad
+from dbmind.components.index_advisor.index_advisor_workload import generate_candidate_indexes
+from dbmind.app.optimization._index_recommend_client_driver import RpcExecutor
+
 
 exception_catcher = ExceptionCatcher(strategy='raise', name='SLOW QUERY')
+DEFAULT_FETCH_INTERVAL = 15
 
 
 def exception_follower(output=None):
@@ -33,7 +40,7 @@ def exception_follower(output=None):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logging.exception("Function %s execution error: %s." % (func.__name__, e))
+                logging.exception("Function execution error: %s" % func.__name__)
                 if callable(output):
                     return output()
                 return output
@@ -43,10 +50,11 @@ def exception_follower(output=None):
     return decorator
 
 
-REQUIRED_PARAMETERS = ('shared_buffers', 'work_mem', 'maintenance_work_mem',
-                       'max_process_memory', 'enable_nestloop', 'enable_hashjoin',
+REQUIRED_PARAMETERS = ('shared_buffers', 'work_mem', 'maintenance_work_mem', 'synchronous_commit',
+                       'max_process_memory', 'enable_nestloop', 'enable_hashjoin', 'random_page_cost',
                        'enable_mergejoin', 'enable_indexscan', 'enable_hashagg', 'enable_sort',
-                       'skew_option', 'block_size', 'recovery_min_apply_delay', 'max_connections')
+                       'skew_option', 'block_size', 'recovery_min_apply_delay', 'max_connections',
+                       'job_queue_processes')
 
 
 class TableStructure:
@@ -86,10 +94,10 @@ class LockInfo:
     def __init__(self):
         self.db_host = None
         self.db_port = None
-        self.locked_query = []
-        self.locked_query_start = []
-        self.locker_query = []
-        self.locker_query_end = []
+        self.locked_query = None
+        self.locked_query_start = None
+        self.locker_query = None
+        self.locker_query_end = None
 
 
 class DatabaseInfo:
@@ -125,32 +133,28 @@ class SystemInfo:
         self.db_host = None
         self.db_port = None
         self.iops = 0
+        self.db_iops = []
         self.ioutils = {}
-        self.disk_usage = {}
-        self.iocapacity = 0.0
-        self.iowait = 0.0
+        self.iocapacity = []
+        self.db_iocapacity = []
+        self.iowait = []
+        self.total_memory = 0.0
+        self.gaussdb_number = 0
         self.cpu_core_number = 1
-        self.cpu_usage = 0.0
-        self.mem_usage = 0.0
-        self.load_average = 0.0
-        self.process_fds_rate = 0.0
+        self.db_cpu_usage = []
+        self.db_mem_usage = []
+        self.db_data_occupy_rate = 0.0
+        self.disk_usage = {}
+        self.cpu_usage = []
+        self.mem_usage = []
+        self.load_average1 = []
+        self.load_average5 = []
+        self.load_average15 = []
+        self.db_process_fds_rate = []
+        self.process_fds_rate = []
         self.io_read_delay = {}
         self.io_write_delay = {}
         self.io_queue_number = {}
-
-
-class PgClass:
-    def __init__(self):
-        self.db_host = None
-        self.db_port = None
-        self.db_name = None
-        self.schema_name = None
-        self.relname = None
-        self.relkind = None
-        self.relpages = None
-        self.reltuples = None
-        self.relhasindex = None
-        self.relsize = None
 
 
 class PgSetting:
@@ -212,8 +216,8 @@ class Index:
         self.index_type = None
 
     def __repr__(self):
-        return "database: %s, schema: %s, table: %s, column: %s" % (
-            self.db_name, self.schema_name, self.table_name, self.column_name
+        return "database: %s, schema: %s, index: %s(%s), index_type: %s" % (
+            self.db_name, self.schema_name, self.table_name, self.column_name, 'b-tree'
         )
 
 
@@ -237,6 +241,14 @@ class WaitEvent:
         self.failed_wait = 0
         self.total_wait_time = 0
         self.last_updated = 0
+
+
+class Process:
+    def __init__(self):
+        self.name = ''
+        self.cpu_usage = ''
+        self.mem_usage = ''
+        self.fds = 0
 
 
 class QueryContext:
@@ -263,16 +275,6 @@ def parse_field_from_indexdef(indexdef):
     return []
 
 
-def convert_float_to_int(value, nan_fallback=0, inf_fallback=100000):
-    if value != value:  # Determine if the value is NaN?
-        return nan_fallback
-    if value == float('inf'):
-        return inf_fallback
-    if value == -float('inf'):
-        return -inf_fallback
-    return int(value)
-
-
 class QueryContextFromTSDB(QueryContext):
     """The object of slow query data processing factory"""
 
@@ -281,35 +283,43 @@ class QueryContextFromTSDB(QueryContext):
         :param slow_sql_instance: The instance of slow query
         :param default_fetch_interval: fetch interval of data source
         :param expansion_factor: Ensure that the time expansion rate of the data can be collected
-        :param retrieval_time: Historical index retrieval time
         """
         super().__init__(slow_sql_instance)
-        self.fetch_interval = kwargs.get('default_fetch_interval', 15)
-        self.expansion_factor = kwargs.get('expansion_factor', 8)
-        self.retrieval_time = kwargs.get('retrieval_time', 5)
+        self.fetch_interval = self.acquire_fetch_interval()
+        self.expansion_factor = kwargs.get('expansion_factor', 3)
         self.query_start_time = datetime.fromtimestamp(self.slow_sql_instance.start_at / 1000)
-        self.query_end_time = datetime.fromtimestamp(
-            self.slow_sql_instance.start_at / 1000 +
-            self.slow_sql_instance.duration_time / 1000 +
-            self.expansion_factor * self.acquire_fetch_interval()
-        )
+        if self.slow_sql_instance.duration_time / 1000 >= self.fetch_interval:
+            self.query_end_time = datetime.fromtimestamp(
+                self.slow_sql_instance.start_at / 1000 + self.slow_sql_instance.duration_time / 1000
+            )
+        else:
+            self.query_end_time = datetime.fromtimestamp(
+                self.slow_sql_instance.start_at / 1000 + int(self.expansion_factor * self.acquire_fetch_interval())
+            )
         logging.debug('[SLOW QUERY] fetch start time: %s, fetch end time: %s', self.query_start_time,
                       self.query_end_time)
         logging.debug('[SLOW QUERY] fetch interval: %s', self.fetch_interval)
-        if self.slow_sql_instance.query_plan is None and self.slow_sql_instance.track_parameter:
-            self.slow_sql_instance.query_plan = self.acquire_plan(self.slow_sql_instance.query)
+        self.standard_query = self.slow_sql_instance.query
+        if self.slow_sql_instance.track_parameter:
+            self.standard_query = fill_value(self.slow_sql_instance.query)
+            self.slow_sql_instance.query = remove_parameter_part(slow_sql_instance.query)
+        self.standard_query = standardize_sql(self.standard_query)
+        if self.slow_sql_instance.query_plan is None:
+            self.slow_sql_instance.query_plan = self.acquire_plan(self.standard_query)
             if self.slow_sql_instance.query_plan is None:
                 self.is_sql_valid = False
 
     @exception_follower(output=None)
     @exception_catcher
     def acquire_plan(self, query):
-        if not agent_rpc_client:
-            return ''
-
         query_plan = ''
-        stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
-                                                        query)
+        if self.slow_sql_instance.track_parameter:
+            stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
+                                                            query)
+        else:
+            # Get execution plan based on PBE
+            no_comma_query = replace_comma_with_dollar(query)
+            stmts = "set current_schema='%s';" + ';'.join(get_generate_prepare_sqls_function()(no_comma_query))
         rows = agent_rpc_client.call('query_in_database',
                                      stmts,
                                      self.slow_sql_instance.db_name,
@@ -319,61 +329,54 @@ class QueryContextFromTSDB(QueryContext):
         if query_plan:
             return query_plan
 
-    @exception_follower(output=list)
-    @exception_catcher
-    def acquire_pg_class(self) -> list:
-        """Get all object information in the database"""
-        pg_classes = []
-        sequences = dai.get_metric_sequence(
-            'pg_class_relsize', self.query_start_time, self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-            datname=self.slow_sql_instance.db_name).fetchall()
-        sequences = [sequence for sequence in sequences if sequence.labels]
-        for sequence in sequences:
-            pg_class = PgClass()
-            pg_class.db_host = self.slow_sql_instance.db_host
-            pg_class.db_port = self.slow_sql_instance.db_port
-            pg_class.db_name = sequence.labels['datname']
-            pg_class.schema_name = sequence.labels['nspname']
-            pg_class.relname = sequence.labels['relname']
-            pg_class.relkind = sequence.labels['relkind']
-            pg_class.relhasindex = sequence.labels['relhasindex']
-            pg_class.relsize = round(float(max(sequence.values)), 4)
-            pg_classes.append(pg_class)
-        return pg_classes
-
     @exception_follower(output=15)
     @exception_catcher
     def acquire_fetch_interval(self) -> int:
         """Get data source collection frequency"""
-        sequence = dai.get_latest_metric_sequence("os_disk_iops", self.retrieval_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
-        logging.debug('[SLOW QUERY] acquire_fetch_interval: %s.', sequence)
-        timestamps = sequence.timestamps
-        if len(timestamps) >= 2:
-            self.fetch_interval = int(timestamps[-1]) // 1000 - int(timestamps[-2]) // 1000
+
+        sequence = dai.get_latest_metric_value("prometheus_target_interval_length_seconds").filter(
+            quantile="0.99").fetchone()
+        if sequence.values:
+            self.fetch_interval = int(sequence.values[0])
+        else:
+            return DEFAULT_FETCH_INTERVAL
         return self.fetch_interval
+
+    @exception_follower(output=dict)
+    @exception_catcher
+    def acquire_sort_condition(self):
+        """
+        Record the SQL for which the total number of template queuing changes during execution
+        """
+        sort_condition = {'sort_spill': False, 'hash_spill': False}
+        sort_spill_sequence = dai.get_metric_sequence("gaussdb_statement_sort_spill", self.query_start_time,
+                                                      self.query_end_time).from_server(
+            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
+            query={self.slow_sql_instance.query}).fetchone()
+        hash_spill_sequence = dai.get_metric_sequence("gaussdb_statement_hash_spill", self.query_start_time,
+                                                      self.query_end_time).from_server(
+            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
+            query={self.slow_sql_instance.query}).fetchone()
+        if sort_spill_sequence.values and max(int(item) for item in sort_spill_sequence.values) > 0:
+            sort_condition['sort_spill'] = True
+        if hash_spill_sequence.values and max(int(item) for item in hash_spill_sequence.values) > 0:
+            sort_condition['hash_spill'] = True
+        return sort_condition
 
     @exception_follower(output=LockInfo)
     @exception_catcher
     def acquire_lock_info(self) -> LockInfo:
-        """Get lock information during slow SQL execution"""
+        """Get lock information during slow SQL execution
+        """
         blocks_info = LockInfo()
-        locks_sequences = dai.get_metric_sequence("pg_lock_sql_locked_times", self.query_start_time,
-                                                  self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
-        locked_query, locked_query_start, locker_query, locker_query_start = [], [], [], []
-        locks_sequences = [sequence for sequence in locks_sequences if sequence.labels]
-        for locks_sequence in locks_sequences:
-            locked_query.append(locks_sequence.labels.get('locked_query', 'Unknown'))
-            locked_query_start.append(locks_sequence.labels.get('locked_query_start', 'Unknown'))
-            locker_query.append(locks_sequence.labels.get('locker_query', 'Unknown'))
-            locker_query_start.append(locks_sequence.labels.get('locker_query_start', 'Unknown'))
-        blocks_info.locked_query = locked_query
-        blocks_info.locked_query_start = locked_query_start
-        blocks_info.locker_query = locker_query
-        blocks_info.locker_query_start = locker_query_start
-
+        locked_query = self.slow_sql_instance.query.replace('\n', ' ')
+        lock_sequence = dai.get_metric_sequence("pg_lock_sql_locked_times", self.query_start_time,
+                                                self.query_end_time).from_server(
+            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
+            locked_query=f"{locked_query}").fetchone()
+        if lock_sequence.values:
+            blocks_info.locker_query = lock_sequence.labels.get('locker_query', 'Unknown')
+            blocks_info.locker_query_start = lock_sequence.labels.get('locker_query_start', 'Unknown')
         return blocks_info
 
     @exception_follower(output=list)
@@ -406,12 +409,6 @@ class QueryContextFromTSDB(QueryContext):
                 dead_tup_info = dai.get_metric_sequence("pg_tables_structure_n_dead_tup",
                                                         self.query_start_time,
                                                         self.query_end_time).from_server(
-                    f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-                    datname=f"{self.slow_sql_instance.db_name}").filter(
-                    schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                columns_info = dai.get_metric_sequence("pg_tables_structure_column_number",
-                                                       self.query_start_time,
-                                                       self.query_end_time).from_server(
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
@@ -455,35 +452,26 @@ class QueryContextFromTSDB(QueryContext):
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchall()
-                table_skewratio_info = dai.get_metric_sequence("pg_table_skewness_skewstddev",
-                                                               self.query_start_time,
-                                                               self.query_end_time).from_server(
-                    f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-                    datname=f"{self.slow_sql_instance.db_name}").filter(
-                    schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
                 if dead_rate_info.values:
                     table_info.dead_rate = round(float(dead_rate_info.values[0]), 4)
                 if live_tup_info.values:
-                    table_info.live_tuples = convert_float_to_int(live_tup_info.values[0])
+                    table_info.live_tuples = int(live_tup_info.values[0])
                 if dead_tup_info.values:
-                    table_info.dead_tuples = convert_float_to_int(dead_tup_info.values[0])
-                if columns_info.values:
-                    table_info.column_number = convert_float_to_int(columns_info.values[0])
+                    table_info.dead_tuples = int(dead_tup_info.values[0])
+                if dead_rate_info.values:
+                    table_info.dead_rate = float(dead_rate_info.values[0])
                 if last_analyze_info.values:
                     filtered_values = [float(item) for item in last_analyze_info.values if not math.isnan(float(item))]
-                    table_info.analyze = convert_float_to_int(max(filtered_values)) if filtered_values else 0
+                    table_info.analyze = int(max(filtered_values)) if filtered_values else 0
                 if last_autoanalyze_info.values:
-                    filtered_values = [float(item) for item in last_autoanalyze_info.values if
-                                       not math.isnan(float(item))]
-                    table_info.last_autoanalyze = convert_float_to_int(max(filtered_values)) if filtered_values else 0
+                    filtered_values = [float(item) for item in last_autoanalyze_info.values if not math.isnan(float(item))]
+                    table_info.last_autoanalyze = int(max(filtered_values)) if filtered_values else 0
                 if last_vacuum_info.values:
                     filtered_values = [float(item) for item in last_vacuum_info.values if not math.isnan(float(item))]
-                    table_info.vacuum = convert_float_to_int(max(filtered_values)) if filtered_values else 0
+                    table_info.vacuum = int(max(filtered_values)) if filtered_values else 0
                 if last_autovacuum_info.values:
-                    filtered_values = [float(item) for item in last_autovacuum_info.values if
-                                       not math.isnan(float(item))]
-                    table_info.last_autovacuum = convert_float_to_int(max(filtered_values)) if filtered_values else 0
-
+                    filtered_values = [float(item) for item in last_autovacuum_info.values if not math.isnan(float(item))]
+                    table_info.last_autovacuum = int(max(filtered_values)) if filtered_values else 0
                 if pg_table_size_info.values:
                     table_info.table_size = round(float(max(pg_table_size_info.values)) / 1024 / 1024, 4)
                 if index_number_info:
@@ -492,9 +480,6 @@ class QueryContextFromTSDB(QueryContext):
                 if redundant_index_info:
                     table_info.redundant_index = [item.labels['indexrelname'] for item in redundant_index_info if
                                                   item.labels]
-                if table_skewratio_info.values:
-                    table_info.skew_ratio = round(float(table_skewratio_info.labels['skewratio']), 4)
-                    table_info.skew_stddev = round(float(max(table_skewratio_info.values)), 4)
                 table_structure.append(table_info)
 
         return table_structure
@@ -513,9 +498,9 @@ class QueryContextFromTSDB(QueryContext):
                 pg_setting.name = parameter
                 pg_setting.vartype = sequence.labels['vartype']
                 if pg_setting.vartype in ('integer', 'int64', 'bool'):
-                    pg_setting.setting = convert_float_to_int(sequence.values[-1])
+                    pg_setting.setting = int(sequence.values[-1])
                 if pg_setting.vartype == 'real':
-                    pg_setting.setting = convert_float_to_int(sequence.values[-1])
+                    pg_setting.setting = float(sequence.values[-1])
             pg_settings[parameter] = pg_setting
         return pg_settings
 
@@ -539,43 +524,14 @@ class QueryContextFromTSDB(QueryContext):
         used_conn_sequence = dai.get_metric_sequence("pg_connections_used_conn", self.query_start_time,
                                                      self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        thread_pool_sequence = dai.get_metric_sequence("pg_thread_pool_listener", self.query_start_time,
-                                                       self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
         if his_tps_sequences.values:
             database_info.history_tps = [float(item) for item in his_tps_sequences.values]
         if cur_tps_sequences.values:
             database_info.current_tps = [float(item) for item in cur_tps_sequences.values]
         if max_conn_sequence.values:
-            database_info.max_conn = convert_float_to_int(max(max_conn_sequence.values))
+            database_info.max_conn = int(max(max_conn_sequence.values))
         if used_conn_sequence.values:
-            database_info.used_conn = convert_float_to_int(max(used_conn_sequence.values))
-        worker_info_default, worker_info_idle = 1, 0
-        session_info_total, session_info_waiting = 1, 0
-        session_info_running, session_info_idle = 0, 0
-        if thread_pool_sequence:
-            work_info_list = [item.labels['worker_info'] for item in thread_pool_sequence if item.labels]
-            session_info_list = [item.labels['session_info'] for item in thread_pool_sequence if item.labels]
-            worker_info_default = sum(
-                convert_float_to_int(re.search(r"default: (\d+)", item).group(1)) for item in work_info_list)
-            worker_info_idle = sum(
-                convert_float_to_int(re.search(r"idle: (\d+)", item).group(1)) for item in work_info_list)
-            session_info_total = sum(
-                convert_float_to_int(re.search(r"total: (\d+)", item).group(1)) for item in session_info_list)
-            session_info_waiting = sum(
-                convert_float_to_int(re.search(r"waiting: (\d+)", item).group(1)) for item in session_info_list)
-            session_info_running = sum(
-                convert_float_to_int(re.search(r"running:(\d+)", item).group(1)) for item in session_info_list)
-            session_info_idle = sum(
-                convert_float_to_int(re.search(r"idle: (\d+)", item).group(1)) for item in session_info_list)
-            logging.debug("[SLOW QUERY] acquire_database_info[thread pool]: %s  %s", str(work_info_list),
-                          str(session_info_list))
-        database_info.thread_pool['worker_info_default'] = worker_info_default
-        database_info.thread_pool['worker_info_idle'] = worker_info_idle
-        database_info.thread_pool['session_info_total'] = session_info_total
-        database_info.thread_pool['session_info_waiting'] = session_info_waiting
-        database_info.thread_pool['session_info_running'] = session_info_running
-        database_info.thread_pool['session_info_idle'] = session_info_idle
+            database_info.used_conn = int(max(used_conn_sequence.values))
         return database_info
 
     @exception_follower(output=list)
@@ -583,18 +539,19 @@ class QueryContextFromTSDB(QueryContext):
     def acquire_wait_event(self) -> list:
         """Acquire database wait events"""
         wait_event = []
-        wait_event_last_updated_info = dai.get_metric_sequence("pg_wait_events_last_updated",
-                                                               self.query_start_time,
-                                                               self.query_end_time).from_server(
+        pg_wait_event_spike_info = dai.get_metric_sequence("pg_wait_event_spike",
+                                                           self.query_start_time,
+                                                           self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
-        for sequence in wait_event_last_updated_info:
+        for sequence in pg_wait_event_spike_info:
             wait_event_info = WaitEvent()
-            if not sequence.values:
+            # Check whether the wait event occurs during this event
+            if not sequence.values or sum(sequence.values) == 0:
                 continue
             wait_event_info.node_name = sequence.labels['nodename']
             wait_event_info.type = sequence.labels['type']
             wait_event_info.event = sequence.labels['event']
-            wait_event_info.last_updated = convert_float_to_int(max(sequence.values))
+            wait_event_info.last_updated = int(max(sequence.values))
             wait_event.append(wait_event_info)
         return wait_event
 
@@ -611,113 +568,102 @@ class QueryContextFromTSDB(QueryContext):
         disk_usage_info = dai.get_metric_sequence("os_disk_usage", self.query_start_time,
                                                   self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchall()
-        iocapacity_info = dai.get_metric_sequence("os_disk_iocapacity", self.query_start_time,
-                                                  self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
-        iowait_info = dai.get_metric_sequence("os_cpu_iowait", self.query_start_time, self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
         cpu_usage_info = dai.get_metric_sequence("os_cpu_usage", self.query_start_time,
                                                  self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
         mem_usage_info = dai.get_metric_sequence("os_mem_usage", self.query_start_time,
                                                  self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        load_average_info = dai.get_metric_sequence("load_average", self.query_start_time,
-                                                    self.query_end_time).from_server(
+        load_average_info1 = dai.get_metric_sequence("load_average1", self.query_start_time,
+                                                     self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        io_write_delay_time_info = dai.get_metric_sequence("io_write_delay_time", self.query_start_time,
-                                                           self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchall()
-        io_read_delay_time_info = dai.get_metric_sequence("io_read_delay_time", self.query_start_time,
-                                                          self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchall()
-        io_queue_number_info = dai.get_metric_sequence("io_queue_number", self.query_start_time,
+        io_queue_number_info = dai.get_metric_sequence("os_io_queue_number", self.query_start_time,
                                                        self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchall()
-        process_fds_rate_info = dai.get_metric_sequence("node_process_fds_rate", self.query_start_time,
+        process_fds_rate_info = dai.get_metric_sequence("os_process_fds_rate", self.query_start_time,
                                                         self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
         cpu_process_number_info = dai.get_metric_sequence("os_cpu_processor_number", self.query_start_time,
                                                           self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
+        db_cpu_usage_info = dai.get_metric_sequence("db_cpu_usage", self.query_start_time,
+                                                    self.query_end_time).from_server(
+            f"{self.slow_sql_instance.db_host}").fetchone()
+        db_mem_usage_info = dai.get_metric_sequence("db_mem_usage", self.query_start_time,
+                                                    self.query_end_time).from_server(
+            f"{self.slow_sql_instance.db_host}").fetchone()
         if iops_info.values:
-            system_info.iops = convert_float_to_int(max(iops_info.values))
+            system_info.iops = [int(item) for item in iops_info.values]
+        else:
+            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_disk_iops' data.")
         if process_fds_rate_info.values:
-            system_info.process_fds_rate = round(float(max(process_fds_rate_info.values)), 4)
+            system_info.process_fds_rate = [round(float(item), 4) for item in process_fds_rate_info.values]
+        else:
+            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_process_fds_rate' data.")
         if cpu_process_number_info:
-            system_info.cpu_core_number = convert_float_to_int(max(cpu_process_number_info.values))
+            system_info.cpu_core_number = int(cpu_process_number_info.values[-1])
+        else:
+            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_cpu_processor_number' data.")
         if ioutils_info:
             ioutils_dict = {item.labels['device']: round(float(max(item.values)), 4) for item in ioutils_info if
                             item.labels}
             system_info.ioutils = ioutils_dict
+        else:
+            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_disk_ioutils' data.")
         if disk_usage_info:
             disk_usage_dict = {item.labels['device']: round(float(max(item.values)), 4) for item in disk_usage_info if
                                item.labels}
             system_info.disk_usage = disk_usage_dict
-        if iocapacity_info.values:
-            system_info.iocapacity = round(float(max(iocapacity_info.values)), 4)
-        if iowait_info.values:
-            system_info.iowait = round(float(max(iowait_info.values)), 4)
+        else:
+            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_disk_usage' data.")
+        if db_cpu_usage_info.values:
+            system_info.db_cpu_usage = [round(float(item), 4) for item in db_cpu_usage_info.values]
+        else:
+            logging.debug("[SLOW SQL][DATA SOURCE]: Not get 'db_cpu_usage' data.")
+        if db_mem_usage_info.values:
+            system_info.db_mem_usage = [round(float(item), 4) for item in db_mem_usage_info.values]
+        else:
+            logging.debug("[SLOW SQL][DATA SOURCE]: Not get 'db_mem_usage' data.")
         if cpu_usage_info.values:
-            system_info.cpu_usage = round(float(max(cpu_usage_info.values)), 4)
+            system_info.cpu_usage = [round(float(item), 4) for item in cpu_usage_info.values]
+        else:
+            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_cpu_usage' data.")
         if mem_usage_info.values:
-            system_info.mem_usage = round(float(max(mem_usage_info.values)), 4)
-        if load_average_info.values:
-            system_info.load_average = round(float(max(load_average_info.values)), 4)
-        if io_read_delay_time_info:
-            system_info.io_read_delay = {item.labels['device']: round(float(max(item.values)), 4) for item in
-                                         io_read_delay_time_info if
-                                         item.labels}
-        if io_write_delay_time_info:
-            system_info.io_write_delay = {item.labels['device']: round(float(max(item.values)), 4) for item in
-                                          io_write_delay_time_info if
-                                          item.labels}
+            system_info.mem_usage = [round(float(item), 4) for item in mem_usage_info.values]
+        else:
+            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_mem_usage' data.")
+        if load_average_info1.values:
+            system_info.load_average1 = [round(float(item), 4) for item in load_average_info1.values]
+        else:
+            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'load_average1' data.")
         if io_queue_number_info:
             system_info.io_queue_number = {item.labels['device']: round(float(max(item.values)), 4) for item in
                                            io_queue_number_info if
                                            item.labels}
+        else:
+            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_io_queue_number' data.")
         return system_info
 
     @exception_follower(output=NetWorkInfo)
     @exception_catcher
     def acquire_network_info(self) -> NetWorkInfo:
         network_info = NetWorkInfo()
-        node_network_receive_bytes_info = dai.get_metric_sequence('node_network_receive_bytes',
-                                                                  self.query_start_time,
-                                                                  self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
-        node_network_transmit_bytes_info = dai.get_metric_sequence('node_network_transmit_bytes',
-                                                                   self.query_start_time,
-                                                                   self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
-        node_network_receive_drop_info = dai.get_metric_sequence('node_network_receive_drop',
+        node_network_receive_drop_info = dai.get_metric_sequence('os_network_receive_drop',
                                                                  self.query_start_time,
                                                                  self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        node_network_transmit_drop_info = dai.get_metric_sequence('node_network_transmit_drop',
+        node_network_transmit_drop_info = dai.get_metric_sequence('os_network_transmit_drop',
                                                                   self.query_start_time,
                                                                   self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        node_network_receive_packets_info = dai.get_metric_sequence('node_network_receive_packets',
+        node_network_receive_packets_info = dai.get_metric_sequence('os_network_receive_packets',
                                                                     self.query_start_time,
                                                                     self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        node_network_transmit_packets_info = dai.get_metric_sequence('node_network_transmit_packets',
+        node_network_transmit_packets_info = dai.get_metric_sequence('os_network_transmit_packets',
                                                                      self.query_start_time,
                                                                      self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        node_network_transmit_error_info = dai.get_metric_sequence('node_network_transmit_error',
-                                                                   self.query_start_time,
-                                                                   self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
-        node_network_receive_error_info = dai.get_metric_sequence('node_network_receive_error',
-                                                                  self.query_start_time,
-                                                                  self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
-        if node_network_receive_bytes_info.values:
-            network_info.receive_bytes = round(float(max(node_network_receive_bytes_info.values)), 4)
-        if node_network_transmit_bytes_info.values:
-            network_info.transmit_bytes = round(float(max(node_network_transmit_bytes_info.values)), 4)
         if node_network_receive_drop_info.values:
             network_info.receive_drop = round(float(max(node_network_receive_drop_info.values)), 4)
         if node_network_transmit_drop_info.values:
@@ -726,172 +672,68 @@ class QueryContextFromTSDB(QueryContext):
             network_info.receive_packets = round(float(max(node_network_receive_packets_info.values)), 4)
         if node_network_transmit_packets_info.values:
             network_info.transmit_packets = round(float(max(node_network_transmit_packets_info.values)), 4)
-        if node_network_transmit_error_info.values:
-            network_info.transmit_error = round(float(max(node_network_transmit_error_info.values)), 4)
-        if node_network_receive_error_info.values:
-            network_info.receive_error = round(float(max(node_network_receive_error_info.values)), 4)
 
         return network_info
-
-    @exception_follower(output=BgWriter)
-    @exception_catcher
-    def acquire_bgwriter_info(self) -> BgWriter:
-        bgwriter_info = BgWriter()
-        buffers_checkpoint_info = dai.get_metric_sequence('pg_stat_bgwriter_buffers_checkpoint',
-                                                          self.query_start_time,
-                                                          self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        buffers_clean_info = dai.get_metric_sequence('pg_stat_bgwriter_buffers_clean',
-                                                     self.query_start_time,
-                                                     self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        buffers_backend_info = dai.get_metric_sequence('pg_stat_bgwriter_buffers_backend',
-                                                       self.query_start_time,
-                                                       self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        buffers_alloc_info = dai.get_metric_sequence('pg_stat_bgwriter_buffers_alloc',
-                                                     self.query_start_time,
-                                                     self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        if buffers_checkpoint_info.values:
-            bgwriter_info.buffers_checkpoint = round(float(max(buffers_checkpoint_info.values)), 4)
-        if buffers_clean_info.values:
-            bgwriter_info.buffers_clean = round(float(max(buffers_clean_info.values)), 4)
-        if buffers_backend_info.values:
-            bgwriter_info.buffers_backend = round(float(max(buffers_backend_info.values)), 4)
-        if buffers_alloc_info.values:
-            bgwriter_info.buffers_alloc = round(float(max(buffers_alloc_info.values)), 4)
-
-        return bgwriter_info
-
-    @exception_follower(output=list)
-    @exception_catcher
-    def acquire_pg_replication_info(self) -> list:
-        pg_replication_info = []
-        pg_replication_lsn_info = dai.get_metric_sequence('pg_replication_lsn',
-                                                          self.query_start_time,
-                                                          self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
-        pg_replication_sent_diff_info = dai.get_metric_sequence('pg_replication_sent_diff',
-                                                                self.query_start_time,
-                                                                self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
-        pg_replication_write_diff_info = dai.get_metric_sequence('pg_replication_write_diff',
-                                                                 self.query_start_time,
-                                                                 self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
-        pg_replication_flush_diff_info = dai.get_metric_sequence('pg_replication_flush_diff',
-                                                                 self.query_start_time,
-                                                                 self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
-        pg_replication_replay_diff_info = dai.get_metric_sequence('pg_replication_replay_diff',
-                                                                  self.query_start_time,
-                                                                  self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
-
-        pg_replication_lsn_info.sort(key=lambda x: x.labels['application_name'])
-        pg_replication_sent_diff_info.sort(key=lambda x: x.labels['application_name'])
-        pg_replication_write_diff_info.sort(key=lambda x: x.labels['application_name'])
-        pg_replication_flush_diff_info.sort(key=lambda x: x.labels['application_name'])
-        pg_replication_replay_diff_info.sort(key=lambda x: x.labels['application_name'])
-        for lsn_info, write_diff_info, sent_diff_info, flush_diff_info, replay_diff_info in zip(
-                pg_replication_lsn_info,
-                pg_replication_write_diff_info,
-                pg_replication_sent_diff_info,
-                pg_replication_flush_diff_info,
-                pg_replication_replay_diff_info):
-            pg_replication = PgReplicationInfo()
-            pg_replication.application_name = lsn_info.labels['application_name']
-            pg_replication.pg_replication_lsn = convert_float_to_int(max(lsn_info.values))
-            pg_replication.pg_replication_write_diff = convert_float_to_int(max(write_diff_info.values))
-            pg_replication.pg_replication_sent_diff = convert_float_to_int(max(sent_diff_info.values))
-            pg_replication.pg_replication_flush_diff = convert_float_to_int(max(flush_diff_info.values))
-            pg_replication.pg_replication_replay_diff = convert_float_to_int(max(replay_diff_info.values))
-            pg_replication_info.append(pg_replication)
-        return pg_replication_info
-
-    @exception_follower(output=GsSQLCountInfo)
-    @exception_catcher
-    def acquire_sql_count_info(self) -> GsSQLCountInfo:
-        gs_sql_count_info = GsSQLCountInfo()
-        gs_sql_count_select = dai.get_metric_sequence('gs_sql_count_select',
-                                                      self.query_start_time,
-                                                      self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        gs_sql_count_insert = dai.get_metric_sequence('gs_sql_count_insert',
-                                                      self.query_start_time,
-                                                      self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        gs_sql_count_delete = dai.get_metric_sequence('gs_sql_count_delete',
-                                                      self.query_start_time,
-                                                      self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        gs_sql_count_update = dai.get_metric_sequence('gs_sql_count_update',
-                                                      self.query_start_time,
-                                                      self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        if gs_sql_count_select.values:
-            gs_sql_count_info.select_count = convert_float_to_int(max(gs_sql_count_select.values))
-        if gs_sql_count_delete.values:
-            gs_sql_count_info.delete_count = convert_float_to_int(max(gs_sql_count_delete.values))
-        if gs_sql_count_update.values:
-            gs_sql_count_info.update_count = convert_float_to_int(max(gs_sql_count_update.values))
-        if gs_sql_count_insert.values:
-            gs_sql_count_info.insert_count = convert_float_to_int(max(gs_sql_count_insert.values))
-
-        return gs_sql_count_info
 
     @exception_follower(output=str)
     @exception_catcher
     def acquire_rewritten_sql(self) -> str:
-        if not self.slow_sql_instance.track_parameter or \
-                not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
-            return ''
-        rewritten_flags = []
-        rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
-                                            self.slow_sql_instance.query,
-                                            rewritten_flags=rewritten_flags,
-                                            if_format=False)
-        flag = rewritten_flags[0]
-        if not flag:
-            return ''
-        rewritten_sql = rewritten_sql.replace('\n', ' ')
-        rewritten_sql_plan = self.acquire_plan(rewritten_sql)
-        old_sql_plan_parse = plan_parsing.Plan()
-        rewritten_sql_plan_parse = plan_parsing.Plan()
-        old_sql_plan_parse.parse(self.slow_sql_instance.query_plan)
-        rewritten_sql_plan_parse.parse(rewritten_sql_plan)
-        if old_sql_plan_parse.root_node.total_cost > rewritten_sql_plan_parse.root_node.total_cost:
-            return rewritten_sql
+        #if not self.slow_sql_instance.track_parameter or \
+        #        not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
+        #    return ''
+        #rewritten_flags = []
+        #rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
+        #                                    self.slow_sql_instance.query,
+        #                                    rewritten_flags=rewritten_flags,
+        #                                    if_format=False)
+        #flag = rewritten_flags[0]
+        #if not flag:
+        #    return ''
+        #rewritten_sql = rewritten_sql.replace('\n', ' ')
+        #rewritten_sql_plan = self.acquire_plan(rewritten_sql)
+        #old_sql_plan_parse = plan_parsing.Plan()
+        #rewritten_sql_plan_parse = plan_parsing.Plan()
+        ## Abandon the rewrite if the rewritten statement does not perform as well as the original statement.
+        #old_sql_plan_parse.parse(self.slow_sql_instance.query_plan)
+        #rewritten_sql_plan_parse.parse(rewritten_sql_plan)
+        #if old_sql_plan_parse.root_node.total_cost > rewritten_sql_plan_parse.root_node.total_cost:
+        #    return rewritten_sql
         return ''
 
     @exception_follower(output=str)
     @exception_catcher
     def acquire_recommend_index(self) -> str:
-        if not agent_rpc_client:
+        if not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
             return ''
-
-        if not self.slow_sql_instance.track_parameter or \
-                not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
-            return ''
-        query = self.slow_sql_instance.query.replace('\'', '\'\'')
-        stmt = "set current_schema=%s;select * from gs_index_advise('%s')" % (
-            self.slow_sql_instance.schema_name,
-            query
-        )
-        rows = agent_rpc_client.call('query_in_database',
-                                     stmt,
-                                     self.slow_sql_instance.db_name,
-                                     return_tuples=True)
         recommend_indexes = []
-        for row in rows:
-            if row[2]:
+        if self.slow_sql_instance.track_parameter:
+            query = self.slow_sql_instance.query.replace('\'', '\'\'')
+            stmt = "set current_schema=%s;select * from gs_index_advise('%s')" % \
+                   (self.slow_sql_instance.schema_name, query)
+            rows = agent_rpc_client.call('query_in_database',
+                                         stmt,
+                                         self.slow_sql_instance.db_name,
+                                         return_tuples=True)
+            for row in rows:
+                if row[2]:
+                    index = Index()
+                    index.db_name = self.slow_sql_instance.db_name
+                    index.schema_name = row[0]
+                    index.table_name = row[1]
+                    index.column_name = row[2]
+                    recommend_indexes.append(str(index))
+        else:
+            workload = WorkLoad([self.slow_sql_instance.query])
+            db_name = self.slow_sql_instance.db_name
+            schema_name = ','.join(self.slow_sql_instance.tables_name.keys())
+            executor = RpcExecutor(db_name, None, None, None, None, schema_name)
+            candidate_indexes = generate_candidate_indexes(workload, executor, 1, 10, True)
+            for candidate_index in candidate_indexes:
                 index = Index()
                 index.db_name = self.slow_sql_instance.db_name
-                index.schema_name = row[0]
-                index.table_name = row[1]
-                index.column_name = row[2]
-                recommend_indexes.append(str(index))
+                index.schema_name = ''
+                index.schema_name = candidate_index.get_table()
+                index.column_name = candidate_index.get_columns()
         return ';'.join(recommend_indexes)
 
     @exception_follower(output=list)
@@ -905,14 +747,22 @@ class QueryContextFromTSDB(QueryContext):
         sequences = [sequence for sequence in sequences if sequence.labels]
         for sequence in sequences:
             timed_task = TimedTask()
-            logging.debug('[SLOW QUERY] acquire_timed_task_info: %s.', sequence)
             timed_task.job_id = sequence.labels['job_id']
             timed_task.priv_user = sequence.labels['priv_user']
             timed_task.dbname = sequence.labels['dbname']
             timed_task.job_status = sequence.labels['job_status']
-            timed_task.last_start_date = to_ts(sequence.labels['last_start_date']) * 1000
-            timed_task.last_end_date = to_ts(sequence.labels['last_end_date']) * 1000
+            timed_task.last_start_date = to_ts(sequence.labels['last_start_date']) * 1000 \
+                if not math.isnan(sequence.labels['last_start_date']) else 0
+            timed_task.last_end_date = to_ts(sequence.labels['last_end_date']) * 1000 \
+                if not math.isnan(sequence.labels['last_end_date']) else 0
             timed_task_list.append(timed_task)
-            logging.info("timed_task_date: %s, %s, %s", timed_task.last_start_date, timed_task.last_end_date,
-                         timed_task.__dict__)
         return timed_task_list
+
+    @exception_follower(output=list)
+    @exception_catcher
+    def acquire_abnormal_process(self):
+        # todo: need add metric
+        process_list = dai.get_metric_sequence('abnormal_process', self.query_start_time,
+                                               self.query_end_time).from_server(
+            f"{self.slow_sql_instance.db_host}").fetchall()
+        return process_list

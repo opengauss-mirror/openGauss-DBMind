@@ -30,6 +30,7 @@ class SlowQuery:
         self.schema_name = schema_name
         self.db_name = db_name
         self.tables_name = None
+        self.sort_condition = None
         self.query = query
         self.track_parameter = track_parameter
         self.query_plan = query_plan

@@ -708,7 +708,7 @@ def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True):
     return '\n'.join(rewritten_sqls)
 
 
-def toolkit_slow_sql_rca(sql, database, schema=None, start_time=None, end_time=None, wdr=None, skip_search=False):
+def toolkit_slow_sql_rca(sql, database, schema=None, start_time=None, end_time=None, skip_search=False):
     from dbmind.metadatabase.dao import slow_queries
     root_causes, suggestions = [], []
     if sql is None or database is None:

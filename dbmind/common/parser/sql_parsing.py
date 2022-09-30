@@ -140,11 +140,11 @@ def fill_value(query_content):
       input: select id from table where info = $1 and id_d < $2; PARAMETERS: $1 = 1, $2 = 4;
       output: select id from table where info = '1' and id_d < '4';
     """
-    if len(query_content.split(';')) == 2 and 'PARAMETERS: $1' in query_content:
+    if len(query_content.split(';')) == 2 and 'parameters: $1' in query_content:
         template, parameter = query_content.split(';')
     else:
         return query_content
-    param_list = re.search(r'PARAMETERS: (.*)', parameter,
+    param_list = re.search(r'parameters: (.*)', parameter,
                            re.IGNORECASE).group(1).split(', $')
     param_list = list(param.split('=', 1) for param in param_list)
     param_list.sort(key=lambda x: int(x[0].strip(' $')),
@@ -160,6 +160,10 @@ def exists_regular_match(query):
     if re.search(r"(like\s+'(%.+)'|like\s+'(.+%)')", query):
         return True
     return False
+
+
+def remove_parameter_part(query):
+    return re.sub(r"; parameter: \$.+", ";", query)
 
 
 def exists_function(query):

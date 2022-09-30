@@ -29,7 +29,6 @@ from dbmind.common.sequence_buffer import SequenceBufferPool
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.types import Sequence, SlowQuery
 from dbmind.common.utils import dbmind_assert
-from dbmind.common.parser.sql_parsing import fill_value, standardize_sql
 from dbmind.metadatabase import dao
 from dbmind.service.utils import SequenceUtils, DISTINGUISHING_INSTANCE_LABEL
 
@@ -38,6 +37,7 @@ if LINUX:
 else:
     mp_shared_buffer = None
 buff = SequenceBufferPool(600, vacuum_timeout=300, buffer=mp_shared_buffer)
+MERGE_INTERVAL = 300 * 1000  # Alarm merge interval, unit is ms
 
 
 def datetime_to_timestamp(t: datetime):
@@ -158,7 +158,6 @@ def get_latest_metric_value(metric_name):
 def save_history_alarms(history_alarms):
     if not history_alarms:
         return
-
     func = dao.alarms.get_batch_insert_history_alarms_functions()
     for alarm in history_alarms:
         if not alarm:
@@ -311,9 +310,8 @@ def get_all_slow_queries(minutes):
         db_name = sequence.labels['datname'].lower()
         schema_name = sequence.labels['schema'].split(',')[-1] \
             if ',' in sequence.labels['schema'] else sequence.labels['schema']
-        track_parameter = True if 'parameters: $' in sequence.labels['query'] else False
-        query = fill_value(sequence.labels['query'])
-        query = standardize_sql(query)
+        track_parameter = True if 'PARAMETERS: $1' in sequence.labels['query'] else False
+        query = sequence.labels['query']
         query_plan = sequence.labels['query_plan'] if sequence.labels['query_plan'] != 'None' else None
         start_timestamp = int(sequence.labels['start_time'])  # unit: microsecond
         duration_time = int(sequence.labels['finish_time']) - int(sequence.labels['start_time'])  # unit: microsecond
@@ -324,12 +322,6 @@ def get_all_slow_queries(minutes):
         parse_time = round(float(sequence.labels['parse_time']), 4)
         db_time = round(float(sequence.labels['db_time']), 4)
         data_io_time = round(float(sequence.labels['data_io_time']), 4)
-        sort_count = round(float(sequence.labels['sort_count']), 4)
-        sort_spill_count = round(float(sequence.labels['sort_spill_count']), 4)
-        sort_mem_used = round(float((sequence.labels['sort_mem_used'])), 4)
-        hash_count = round(float(sequence.labels['hash_count']), 4)
-        hash_spill_count = round(float((sequence.labels['hash_spill_count'])), 4)
-        hash_mem_used = round(float(sequence.labels['hash_mem_used']), 4)
         template_id = sequence.labels['unique_query_id']
         lock_wait_count = int(sequence.labels['lock_wait_count'])
         lwlock_wait_count = int(sequence.labels['lwlock_wait_count'])
@@ -345,9 +337,7 @@ def get_all_slow_queries(minutes):
             start_timestamp=start_timestamp, duration_time=duration_time,
             hit_rate=hit_rate, fetch_rate=fetch_rate, track_parameter=track_parameter,
             cpu_time=cpu_time, data_io_time=data_io_time, plan_time=plan_time, 
-            sort_count=sort_count, sort_spill_count=sort_spill_count, parse_time=parse_time, 
-            sort_mem_used=sort_mem_used, hash_count=hash_count, db_time=db_time, 
-            hash_spill_count=hash_spill_count, hash_mem_used=hash_mem_used,
+            parse_time=parse_time, db_time=db_time,
             template_id=template_id, lock_wait_count=lock_wait_count,
             lwlock_wait_count=lwlock_wait_count, n_returned_rows=n_returned_rows,
             n_tuples_returned=n_tuples_returned, n_tuples_fetched=n_tuples_fetched,
