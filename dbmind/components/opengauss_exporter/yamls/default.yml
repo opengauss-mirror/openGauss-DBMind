@@ -17,7 +17,7 @@ pg_db:
   query:
     - name: pg_db
       sql: |-
-        SELECT d.datid,d.datname,numbackends,
+        SELECT d.datid,d.datname,
           xact_commit,xact_rollback,xact_rollback + xact_commit AS xact_total,
           blks_read,blks_hit,(blks_hit / (blks_read+blks_hit+0.001)) AS blks_access,
           tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,tup_inserted + tup_updated + tup_deleted AS tup_modified,
@@ -29,7 +29,7 @@ pg_db:
         FROM pg_stat_database d,pg_stat_database_conflicts pdc
         WHERE pdc.datname = d.datname and d.datname NOT IN ('postgres', 'template0', 'template1');
       version: '>=0.0.0'
-      timeout: 1
+      timeout: 9
       ttl: -1
       status: enable
       dbRole: ""
@@ -40,9 +40,6 @@ pg_db:
     - name: datname
       description: Name of this database
       usage: LABEL
-    - name: numbackends
-      description: Number of backends currently connected to this database. This is the only column in this view that returns a value reflecting current state; all other columns return the accumulated values since the last reset.
-      usage: GAUGE
     - name: xact_commit
       description: Number of transactions in this database that have been committed
       usage: COUNTER
@@ -117,52 +114,9 @@ pg_db:
       usage: COUNTER
   status: enable
   ttl: -1
-  timeout: 1
+  timeout: 9
   public: true
 
-pg_meta:
-  name: pg_meta
-  desc: OpenGauss database directory
-  query:
-    - name: pg_meta
-      sql: |-
-        SELECT (SELECT system_identifier FROM pg_catalog.pg_control_system()) AS cluster_id,
-          pg_catalog.current_setting('port')                             AS listen_port,
-          pg_catalog.current_setting('wal_level')                        AS wal_level,
-          pg_catalog.current_setting('server_version')                   AS version,
-          pg_catalog.current_setting('server_version_num')               AS ver_num,
-          'N/A'                                               AS primary_conninfo,
-          1                                                   AS info;
-      version: '>=0.0.0'
-      timeout: 1
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: cluster_id
-      description: cluster system identifier
-      usage: LABEL
-    - name: listen_port
-      description: listen port
-      usage: LABEL
-    - name: wal_level
-      description: wal level
-      usage: LABEL
-    - name: version
-      description: server version in human readable format
-      usage: LABEL
-    - name: ver_num
-      description: server version number in machine readable format
-      usage: LABEL
-    - name: primary_conninfo
-      description: connection string to upstream (do not set password here)
-      usage: LABEL
-    - name: info
-      description: constant 1
-      usage: GAUGE
-  status: enable
-  ttl: 60
-  timeout: 1
-  public: true
 
 pg_connections:
   name: pg_connections
@@ -175,7 +129,7 @@ pg_connections:
              (select setting as max_conn from pg_settings where name = 'max_connections') t4;
       version: '>=0.0.0' 
       timeout: 1
-      status: enable
+      status: disable
       dbRole: ""
   metrics:
     - name: used_conn
@@ -191,7 +145,7 @@ pg_connections:
       description: running sql
       usage: GAUGE
 
-  status: enable
+  status: disable
   ttl: 60
   timeout: 1
   public: true
@@ -557,12 +511,7 @@ pg_database:
     - name: pg_database
       sql: |-
         SELECT datname,
-          pg_catalog.pg_database_size(pg_database.datname) as size_bytes,
-          pg_catalog.age(datfrozenxid64)          AS age,
-          datistemplate              AS is_template,
-          datallowconn               AS allow_conn,
-          datconnlimit               AS conn_limit,
-          datfrozenxid::TEXT::BIGINT as frozen_xid
+          pg_catalog.pg_database_size(pg_database.datname) as size_bytes
         FROM pg_database
         where datname NOT IN ('template0','template1');
       version: '>=0.0.0'
@@ -573,12 +522,7 @@ pg_database:
     - name: pg_database
       sql: |-
         SELECT datname,
-          pg_catalog.pg_database_size(pg_database.datname) as size_bytes,
-          pg_catalog.age(datfrozenxid64)          AS age,
-          datistemplate              AS is_template,
-          datallowconn               AS allow_conn,
-          datconnlimit               AS conn_limit,
-          datfrozenxid::TEXT::BIGINT as frozen_xid
+          pg_catalog.pg_database_size(pg_database.datname) as size_bytes
         FROM pg_database
         where datname NOT IN ('template0','template1');
       version: '>=0.0.0'
@@ -593,24 +537,9 @@ pg_database:
     - name: size_bytes
       description: Disk space used by the database
       usage: GAUGE
-    - name: age
-      description: database age calculated by pg_catalog.age(datfrozenxid64)
-      usage: GAUGE
-    - name: is_template
-      description: 1 for template db and 0 for normal db
-      usage: GAUGE
-    - name: allow_conn
-      description: 1 allow connection and 0 does not allow
-      usage: GAUGE
-    - name: conn_limit
-      description: connection limit, -1 for no limit
-      usage: GAUGE
-    - name: frozen_xid
-      description: tuple with xmin below this will always be visable (until wrap around)
-      usage: GAUGE
   status: enable
-  ttl: 60
-  timeout: 1
+  ttl: 30
+  timeout: 9
   public: true
 
 
@@ -684,7 +613,7 @@ pg_checkpoint:
       version: '>=0.0.0'
       timeout: 1
       ttl: 5
-      status: enable
+      status: disable
       dbRole: ""
   metrics:
     - name: checkpoint_lsn
@@ -723,156 +652,12 @@ pg_checkpoint:
     - name: elapse
       description: time elapsed since this checkpoint in seconds
       usage: GAUGE
-  status: enable
+  status: disable
   ttl: 5
   timeout: 1
   public: true
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ┃ pg_run_times
-# ┃ OpenGauss database run times
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ TTL      ┆ 60
-# ┃ Timeout  ┆ 1s
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ LABEL    run_name                       Name of cluster
-# ┃ GAUGE    db_role                        Role of database
-# ┃ GAUGE    run_time                       Run times of cluster
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ pg_run_times_db_role{run_name}   GAUGE    Role of database
-# ┃ pg_run_times_run_time{run_name}  GAUGE    Run times of cluster
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-pg_run_times:
-  name: pg_run_times
-  desc: OpenGauss database run times
-  query:
-    - name: pg_run_times
-      sql: select 'cluster_runtime' as run_name,(case pg_catalog.pg_is_in_recovery() when 'f' then 1 else 0 end) as db_role,extract(epoch from(pg_catalog.now() - pg_catalog.pg_postmaster_start_time())) as run_time;
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 60
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: run_name
-      description: Name of cluster
-      usage: LABEL
-    - name: db_role
-      description: Role of database
-      usage: GAUGE
-    - name: run_time
-      description: Run times of cluster
-      usage: GAUGE
-  status: enable
-  ttl: 60
-  timeout: 1
-  public: true
 
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ┃ pg
-# ┃ openGauss basic information
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ TTL      ┆ 60
-# ┃ Timeout  ┆ 100ms
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ GAUGE    timestamp                      current database timestamp in unix epoch
-# ┃ GAUGE    uptime                         seconds since postmaster start
-# ┃ GAUGE    boot_time                      postmaster boot timestamp in unix epoch
-# ┃ COUNTER  lsn                            log sequence number, current write location
-# ┃ COUNTER  insert_lsn                     primary only, location of current wal inserting
-# ┃ COUNTER  write_lsn                      primary only, location of current wal writing
-# ┃ COUNTER  flush_lsn                      primary only, location of current wal syncing
-# ┃ COUNTER  receive_lsn                    replica only, location of wal synced to disk
-# ┃ COUNTER  replay_lsn                     replica only, location of wal applied
-# ┃ GAUGE    conf_reload_time               seconds since last configuration reload
-# ┃ GAUGE    last_replay_time               time when last transaction been replayed
-# ┃ GAUGE    lag                            replica only, replication lag in seconds
-# ┃ GAUGE    is_in_recovery                 1 if in recovery mode
-# ┃ GAUGE    is_wal_replay_paused           1 if wal play is paused
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ pg_timestamp{}             GAUGE    current database timestamp in unix epoch
-# ┃ pg_uptime{}                GAUGE    seconds since postmaster start
-# ┃ pg_boot_time{}             GAUGE    postmaster boot timestamp in unix epoch
-# ┃ pg_lsn{}                   COUNTER  log sequence number, current write location
-# ┃ pg_insert_lsn{}            COUNTER  primary only, location of current wal inserting
-# ┃ pg_write_lsn{}             COUNTER  primary only, location of current wal writing
-# ┃ pg_flush_lsn{}             COUNTER  primary only, location of current wal syncing
-# ┃ pg_receive_lsn{}           COUNTER  replica only, location of wal synced to disk
-# ┃ pg_replay_lsn{}            COUNTER  replica only, location of wal applied
-# ┃ pg_conf_reload_time{}      GAUGE    seconds since last configuration reload
-# ┃ pg_last_replay_time{}      GAUGE    time when last transaction been replayed
-# ┃ pg_lag{}                   GAUGE    replica only, replication lag in seconds
-# ┃ pg_is_in_recovery{}        GAUGE    1 if in recovery mode
-# ┃ pg_is_wal_replay_paused{}  GAUGE    1 if wal play is paused
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-pg:
-  name: pg
-  desc: openGauss basic information
-  query:
-    - name: pg
-      desc: 'primary database '
-      sql: |
-        SELECT extract(EPOCH FROM CURRENT_TIMESTAMP)                        AS timestamp,
-           extract(EPOCH FROM now() - pg_postmaster_start_time())       AS uptime,
-           extract(EPOCH FROM pg_postmaster_start_time())               AS boot_time,
-           pg_is_in_recovery()                                    AS is_in_recovery
-           ;
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 10
-      status: enable
-      dbRole: primary
-    - name: pg
-      desc: 'standby database '
-      sql: |
-        SELECT extract(EPOCH FROM CURRENT_TIMESTAMP)                    AS timestamp,
-           extract(EPOCH FROM now() - pg_postmaster_start_time())       AS uptime,
-           extract(EPOCH FROM pg_postmaster_start_time())               AS boot_time,
-           pg_is_in_recovery()                                          AS is_in_recovery
-           ;
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 10
-      status: disable
-      dbRole: standby
-  metrics:
-    - name: timestamp
-      description: current database timestamp in unix epoch
-      usage: GAUGE
-    - name: uptime
-      description: seconds since postmaster start
-      usage: GAUGE
-    - name: boot_time
-      description: postmaster boot timestamp in unix epoch
-      usage: GAUGE
-    - name: is_in_recovery
-      description: 1 if in recovery mode
-      usage: GAUGE
-  status: enable
-  ttl: 60
-  timeout: 0.1
-  public: true
-
-
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ┃ pg_stat_activity
-# ┃ OpenGauss backend activity group by state
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ TTL      ┆ 60
-# ┃ Timeout  ┆ 1s
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ LABEL    datname                        Name of this database
-# ┃ LABEL    state                          connection state
-# ┃ GAUGE    count                          number of connections in this state
-# ┃ GAUGE    max_duration                   max duration since state change among (datname, state)
-# ┃ GAUGE    max_tx_duration                max duration in seconds any active transaction has been running
-# ┃ GAUGE    max_conn_duration              max backend session duration since state change among (datname, state)
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ pg_stat_activity_count{datname,state}              GAUGE    number of connections in this state
-# ┃ pg_stat_activity_max_duration{datname,state}       GAUGE    max duration since state change among (datname, state)
-# ┃ pg_stat_activity_max_tx_duration{datname,state}    GAUGE    max duration in seconds any active transaction has been running
-# ┃ pg_stat_activity_max_conn_duration{datname,state}  GAUGE    max backend session duration since state change among (datname, state)
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 pg_stat_activity:
   name: pg_stat_activity
   desc: OpenGauss backend activity group by state
@@ -882,25 +667,23 @@ pg_stat_activity:
         SELECT datname,
                state,
                coalesce(count, 0)             AS count,
-               coalesce(max_duration, 0)      AS max_duration,
-               coalesce(max_tx_duration, 0)   AS max_tx_duration,
-               coalesce(max_conn_duration, 0) AS max_conn_duration
-        FROM (SELECT d.oid AS database, d.datname, a.state
+               coalesce(p95_state_duration, 0)      AS p95_state_duration,
+               coalesce(p95_tx_duration, 0)   AS p95_tx_duration
+               FROM (SELECT d.oid AS database, d.datname, a.state
               FROM pg_database d,
                    pg_catalog.unnest(ARRAY ['active','idle','idle in transaction','idle in transaction (aborted)','fastpath function call','disabled']) a(state)
               WHERE d.datname NOT IN ('template0','template1')) base
                  LEFT JOIN (
             SELECT datname, state,
                    pg_catalog.count(*) AS count,
-                   pg_catalog.max(extract(epoch from pg_catalog.now() - state_change)) AS max_duration,
-                   pg_catalog.max(extract(epoch from pg_catalog.now() - xact_start))   AS max_tx_duration,
-                   pg_catalog.max(extract(epoch from pg_catalog.now() - backend_start)) AS max_conn_duration
-            FROM pg_stat_activity WHERE pid <> pg_catalog.pg_backend_pid()
+                   pg_catalog.percentile_cont(0.95) within group(order by extract(epoch from pg_catalog.now() - state_change)) AS p95_state_duration,
+                   pg_catalog.percentile_cont(0.95) within group(order by extract(epoch from pg_catalog.now() - xact_start))   AS p95_tx_duration
+            FROM pg_stat_activity WHERE pid <> pg_catalog.pg_backend_pid() AND usesysid <> 10
             GROUP BY datname, state
         ) a USING (datname, state);
       version: '>=1.0.0'
       timeout: 1
-      ttl: 60
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
@@ -913,14 +696,11 @@ pg_stat_activity:
     - name: count
       description: number of connections in this state
       usage: GAUGE
-    - name: max_duration
-      description: max duration since state change among (datname, state)
+    - name: p95_state_duration
+      description: percentile 0.95 duration since state change among (datname, state)
       usage: GAUGE
-    - name: max_tx_duration
-      description: max duration in seconds any active transaction has been running
-      usage: GAUGE
-    - name: max_conn_duration
-      description: max backend session duration since state change among (datname, state)
+    - name: p95_tx_duration
+      description: percentile 0.95 duration in seconds any active transaction has been running
       usage: GAUGE
   status: enable
   ttl: 60
@@ -933,10 +713,16 @@ pg_node_info:
   desc: the information of current node
   query:
     - name: pg_node_info
-      sql:  SELECT CURRENT_CATALOG AS datname, CASE WHEN pg_catalog.pg_is_in_recovery() THEN 'Y' ELSE 'N' END AS is_slave, node_name, installpath, datapath, EXTRACT(EPOCH FROM pg_catalog.now() - pg_catalog.pg_postmaster_start_time()) AS uptime, pg_catalog.version() FROM pg_catalog.pg_stat_get_env();
+      sql: |-
+        SELECT current_catalog as datname,
+         CASE WHEN pg_catalog.pg_is_in_recovery() THEN 'Y' ELSE 'N' END AS is_slave,
+         node_name, installpath, datapath,
+         EXTRACT(EPOCH FROM pg_catalog.now() - pg_catalog.pg_postmaster_start_time()) AS uptime,
+         pg_catalog.version()
+         FROM pg_catalog.pg_stat_get_env();
       version: '>=0.0.0'
       timeout: 1
-      ttl: 100
+      ttl: 3600
       status: enable
       dbRole: ""
   metrics:
@@ -962,91 +748,27 @@ pg_node_info:
       description: current connecting database
       usage: LABEL
   status: enable
-  ttl: 100
+  ttl: 3600
   timeout: 1
   public: true
 
 
 pg_stat_bgwriter:
   name: pg_stat_bgwriter
-  desc: the information of current node
+  desc: the bgwriter information of current node
   query:
     - name: pg_stat_bgwriter
       sql: |-
-        select checkpoint_sync_time / (checkpoints_timed + checkpoints_req) AS checkpoint_avg_sync_time,
-        checkpoints_req / (checkpoints_timed + checkpoints_req) AS checkpoint_proactive_triggering_ratio,
-        buffers_checkpoint, buffers_clean, buffers_backend, buffers_alloc from pg_stat_bgwriter;
+        select checkpoint_sync_time / 1000 as total_seconds from pg_stat_bgwriter;
       version: '>=0.0.0'
       timeout: 1
-      ttl: 100
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
-    - name: checkpoint_avg_sync_time
-      description: checkpoint_avg_sync_time
+    - name: total_seconds
+      description: total sync time of checkpoints
       usage: GAUGE
-    - name: checkpoint_proactive_triggering_ratio
-      description: checkpoint_proactive_triggering_ratio
-      usage: GAUGE
-    - name: buffers_checkpoint
-      description: number of checkpoint write buffers
-      usage: GAUGE
-    - name: buffers_clean
-      description: number of write buffers of the backend writer process
-      usage: GAUGE
-    - name: buffers_backend
-      description: number of direct write buffers through the backend
-      usage: GAUGE
-    - name: buffers_alloc
-      description: number of buffers allocated
-      usage: GAUGE
-
-
-# ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ┃ pg_lock
-# ┃ OpenGauss lock distribution by mode
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ TTL      ┆ 60
-# ┃ Timeout  ┆ 1s
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ LABEL    datname                        Name of this database
-# ┃ LABEL    mode                           Type of Lock
-# ┃ GAUGE    count                          Number of locks
-# ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
-# ┃ pg_lock_count{datname,mode}  GAUGE    Number of locks
-# ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-pg_lock:
-  name: pg_lock
-  desc: OpenGauss lock distribution by mode
-  query:
-    - name: pg_lock
-      sql: |-
-        SELECT datname, mode, coalesce(count, 0) AS count
-        FROM (
-          SELECT d.oid AS database, d.datname, l.mode
-          FROM pg_database d,pg_catalog.unnest(ARRAY ['AccessShareLock','RowShareLock','RowExclusiveLock','ShareUpdateExclusiveLock','ShareLock','ShareRowExclusiveLock','ExclusiveLock','AccessExclusiveLock']) l(mode)
-          WHERE d.datname NOT IN ('template0','template1')) base
-        LEFT JOIN (SELECT database, mode, pg_catalog.count(1) AS count FROM pg_locks WHERE database IS NOT NULL GROUP BY database, mode) cnt
-        USING (database, mode);
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 60
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: datname
-      description: Name of this database
-      usage: LABEL
-    - name: mode
-      description: Type of Lock
-      usage: LABEL
-    - name: count
-      description: Number of locks
-      usage: GAUGE
-  status: enable
-  ttl: 60
-  timeout: 1
-  public: true
 
 
 pg_locker:
@@ -1061,8 +783,8 @@ pg_locker:
         select usename,query_start,granted,query,pg_catalog.count(query) count
         from tl where granted='t' group by usename,query_start,granted,query order by 5 desc;
       version: '>=0.0.0'
-      timeout: 1
-      ttl: 60
+      timeout: 9
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
@@ -1082,66 +804,20 @@ pg_locker:
       description: locker query
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 1
+  timeout: 9
+  ttl: 10
   public: true
 
-pg_active_slowsql:
-  name: pg_active_slowsql
-  desc: OpenGauss active slow query
-  query:
-    - name: pg_active_slowsql
-      sql: select datname,usename,client_addr,pid,query_start::text,extract(epoch from (pg_catalog.now() - query_start)) as query_runtime,xact_start::text,extract(epoch from(pg_catalog.now() - xact_start)) as xact_runtime,state,query from pg_stat_activity where state not in('idle') and query_start is not null;
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 60
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: datname
-      description: Name of database
-      usage: LABEL
-    - name: usename
-      description: Name of user
-      usage: LABEL
-    - name: client_addr
-      description: Client address
-      usage: LABEL
-    - name: pid
-      description: Client pid
-      usage: LABEL
-    - name: query_start
-      description: Query start time
-      usage: LABEL
-    - name: query_runtime
-      description: Query running time
-      usage: GAUGE
-    - name: xact_start
-      description: Start time of transaction
-      usage: LABEL
-    - name: xact_runtime
-      description: transaction running time
-      usage: LABEL
-    - name: state
-      description: Query state
-      usage: LABEL
-    - name: query
-      description: Query sql
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 1
-  public: true
 
 pg_wait_events:
   name: pg_wait_events
   desc: OpenGauss wait event statements
   query:
     - name: pg_wait_events
-      sql: select nodename,type,event,wait,failed_wait,total_wait_time, last_updated from dbe_perf.global_wait_events where wait !=0 order by total_wait_time desc;
+      sql: select nodename,type,event, total_wait_time from dbe_perf.global_wait_events where wait > 0;
       version: '>=0.0.0'
-      timeout: 1
-      ttl: 60
+      timeout: 9
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
@@ -1154,21 +830,12 @@ pg_wait_events:
     - name: event
       description: Event name
       usage: LABEL
-    - name: wait
-      description: Numbers of wait
-      usage: COUNTER
-    - name: failed_wait
-      description: failed wait
-      usage: COUNTER
     - name: total_wait_time
       description: Total wait times
-      usage: COUNTER
-    - name: last_updated
-      description: last update time
       usage: GAUGE
   status: enable
-  ttl: 60
-  timeout: 1
+  ttl: 10
+  timeout: 9
   public: true
 
 pg_lock_sql:
@@ -1184,7 +851,7 @@ pg_lock_sql:
         from (select * from tl where granted='t') as ts,(select * from tl where granted='f') tt
         where ts.locktag=tt.locktag order by 1;
       version: '>=0.0.0'
-      timeout: 1
+      timeout: 9
       status: enable
   metrics:
     - name: locker_user
@@ -1215,32 +882,10 @@ pg_lock_sql:
       description: locked query
       usage: LABEL
   status: enable
-  ttl: 60
+  ttl: 10
   timeout: 1
 
 
-pg_memory_info:
-  name: pg_memory_info
-  desc: OpenGauss memory usage informations
-  query:
-    - name: pg_memory_info
-      sql: select memorytype,memorymbytes from pg_catalog.pv_total_memory_detail();
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 60
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: memorytype
-      description: Name of memorytype
-      usage: LABEL
-    - name: memorymbytes
-      description: memorymbytes
-      usage: GAUGE
-  status: enable
-  ttl: 60
-  timeout: 1
-  public: true
 
 pg_session_memory:
   name: pg_session_memory
@@ -1252,16 +897,15 @@ pg_session_memory:
               coalesce(application_name,'')as application_name,
               coalesce(client_addr::text,'') as client_addr,
               sum(usedsize)::bigint as usedsize,
-              sum(totalsize)::bigint as totalsize,
-              query
-        from gs_session_memory_detail s,pg_stat_activity a
+              sum(totalsize)::bigint as totalsize
+        from pg_catalog.gs_session_memory_detail s, pg_catalog.pg_stat_activity a
         where substring_inner(sessid,position('.' in sessid) +1)=a.sessionid
         group by sessionid,query,application_name,client_addr
         order by sum(totalsize) desc limit 10;
       version: '>=0.0.0'
-      timeout: 30
-      ttl: 600
-      status: enable
+      timeout: 15
+      ttl: 60
+      status: disable
       dbRole: ""
   metrics:
     - name: sessionid
@@ -1279,45 +923,66 @@ pg_session_memory:
     - name: totalsize
       description: session total memory
       usage: GAUGE
-    - name: query
-      description: query
-      usage: LABEL
-  status: enable
-  ttl: 600
-  timeout: 30
+  status: disable
+  ttl: 60
+  timeout: 15
   public: true
 
-pg_context_memory:
-  name: pg_context_memory
+pg_sesstype_memory:
+  name: pg_sesstype_memory
   desc: OpenGauss context use memory information
   query:
-    - name: pg_context_memory
+    - name: pg_memory_context
       sql: |-
-        select contextname,
-              pg_catalog.sum(usedsize)::bigint as usedsize,
-              pg_catalog.sum(totalsize)::bigint as totalsize
-        from gs_session_memory_detail
-        group by contextname
-        order by pg_catalog.sum(totalsize) desc limit 10;
+        select sesstype as name, count(1) as count, sum(totalsize) as totalsize from pg_catalog.gs_session_memory_detail group by sesstype;
       version: '>=0.0.0'
-      timeout: 30
-      ttl: 600
+      timeout: 9
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
-    - name: contextname
-      description: contextname
+    - name: name
+      description: name of sesstype
       usage: LABEL
-    - name: usedsize
-      description: session used memory
+    - name: count
+      description: total number of contexts
       usage: GAUGE
     - name: totalsize
       description: session total memory
       usage: GAUGE
   status: enable
-  ttl: 600
-  timeout: 30
+  ttl: 10
+  timeout: 9
   public: true
+
+pg_memory_context:
+  name: pg_memory_context
+  desc: memory context information for postgres
+  query:
+    - name: pg_memory_context
+      sql: |-
+        select split_part(parent, '_', 1) as name, count(1) as count, sum(totalsize) as totalsize
+        from pg_catalog.gs_session_memory_detail where sesstype = 'postgres' group by name;
+      version: '>=0.0.0'
+      timeout: 9
+      ttl: 10
+      status: enable
+      dbRole: ""
+  metrics:
+    - name: name
+      description: name of sesstype
+      usage: LABEL
+    - name: count
+      description: total number of contexts
+      usage: GAUGE
+    - name: totalsize
+      description: session total memory
+      usage: GAUGE
+  status: enable
+  ttl: 10
+  timeout: 9
+  public: true
+
 
 pg_state_memory:
   name: pg_state_memory
@@ -1326,10 +991,10 @@ pg_state_memory:
     - name: pg_state_memory
       sql: |-
         select state,sum(totalsize)::bigint as totalsize
-        from gs_session_memory_detail m,pg_stat_activity a
+        from pg_catalog.gs_session_memory_detail m, pg_catalog.pg_stat_activity a
         where substring_inner(sessid,position('.' in sessid) +1)=a.sessionid
-        and usename<>'mondb' and pid != pg_backend_pid()
-        group by state order by sum(totalsize) desc;
+        and pid != pg_backend_pid()
+        group by state;
       version: '>=0.0.0'
       timeout: 30
       ttl: 600
@@ -1352,49 +1017,16 @@ pg_cpu_load:
   desc: OpenGauss cpu load
   query:
     - name: pg_cpu_load
-      sql: select 'og_total_cpu' og_total_cpu,pg_catalog.total_cpu() total_cpu;
+      sql: select pg_catalog.total_cpu() total_cpu;
       version: '>=0.0.0'
       timeout: 1
       ttl: 10
       status: enable
       dbRole: ""
   metrics:
-    - name: pg_cpu_load
-      description: total cpu name
-      usage: LABEL
     - name: total_cpu
       description: total cpu use
       usage: GAUGE
-  status: enable
-  ttl: 10
-  timeout: 1
-  public: true
-
-
-pg_thread_pool:
-  name: pg_thread_pool
-  desc: OpenGauss thread pool
-  query:
-    - name: pg_thread_pool
-      sql: select group_id, listener, worker_info, session_info from dbe_perf.GLOBAL_THREADPOOL_STATUS;
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: group_id
-      description: group id
-      usage: LABEL
-    - name: listener
-      description: listener
-      usage: GAUGE
-    - name: worker_info
-      description: worker info
-      usage: LABEL
-    - name: session_info
-      description: session info
-      usage: LABEL
   status: enable
   ttl: 10
   timeout: 1
@@ -1437,7 +1069,7 @@ pg_stat_get_wal_senders:
       version: '>=0.0.0'
       timeout: 1
       ttl: 10
-      status: enable
+      status: disable
       dbRole: ""
   metrics:
     - name: pid
@@ -1452,7 +1084,7 @@ pg_stat_get_wal_senders:
     - name: xlog_location_diff
       description: xlog_location_diff
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 1
   public: true
@@ -1486,10 +1118,10 @@ pg_prepared_xacts:
   desc: the information of current node
   query:
     - name: pg_prepared_xacts
-      sql: select pg_catalog.count(1) AS count from pg_prepared_xacts;
+      sql: select pg_catalog.count(1) AS count from pg_catalog.pg_prepared_xacts;
       version: '>=0.0.0'
       timeout: 1
-      ttl: 100
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
@@ -1497,27 +1129,7 @@ pg_prepared_xacts:
       description: current_prepared_xacts_count
       usage: GAUGE
   status: enable
-  ttl: 100
-  timeout: 1
-  public: true
-
-pg_stat_database:
-  name: pg_stat_database
-  desc: the information of current node (xtuner)
-  query:
-    - name: pg_stat_database
-      sql: select pg_catalog.max(temp_bytes / temp_files) / 1024 AS temp_file_size from pg_stat_database where temp_files > 0;
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 100
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: temp_file_size
-      description: temp_file_size
-      usage: GAUGE
-  status: enable
-  ttl: 100
+  ttl: 10
   timeout: 1
   public: true
 
@@ -1528,16 +1140,18 @@ pg_lock_time_info:
   query:
     - name: pg_lock_time_info
       sql: SELECT
-            d.datname,
-            pg_catalog.sum(extract(epoch
-                    FROM pg_catalog.now() - s.xact_start)) AS holding_time
-            FROM pg_locks AS l
-            INNER JOIN pg_database AS d ON l.database = d.oid
-            INNER JOIN pg_stat_activity AS s ON l.pid = s.pid
-            WHERE s.pid != pg_catalog.pg_backend_pid() group by d.datname;
+        d.datname,
+        pg_catalog.percentile_cont(0.95) within group (order by extract(epoch
+        FROM pg_catalog.now() - s.xact_start)) AS p95_holding_time,
+        pg_catalog.sum(extract(epoch
+        FROM pg_catalog.now() - s.xact_start)) AS holding_time
+        FROM pg_catalog.pg_locks AS l
+        INNER JOIN pg_database AS d ON l.database = d.oid
+        INNER JOIN pg_stat_activity AS s ON l.pid = s.pid
+        WHERE s.pid != pg_catalog.pg_backend_pid() group by d.datname;
       version: '>=0.0.0'
-      timeout: 1
-      ttl: 100
+      timeout: 9
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
@@ -1547,9 +1161,12 @@ pg_lock_time_info:
     - name: holding_time
       description: database lock holding time
       usage: GAUGE
+    - name: p95_holding_time
+      description: database lock percentile 95 holding time
+      usage: GAUGE
   status: enable
-  ttl: 100
-  timeout: 1
+  ttl: 10
+  timeout: 9
   public: true
 
 pg_sql_count:
@@ -1559,10 +1176,10 @@ pg_sql_count:
     - name: pg_sql_count
       sql: |-
         select sum(select_count) as select, sum(update_count) as update, sum(insert_count) as insert, sum(delete_count) as delete, sum(mergeinto_count) as mergeinto,
-        sum(ddl_count) as ddl, sum(dml_count) as dml, sum(dcl_count) as dcl from gs_sql_count;
+        sum(ddl_count) as ddl, sum(dml_count) as dml, sum(dcl_count) as dcl from pg_catalog.gs_sql_count;
       version: '>=0.0.0'
-      timeout: 1
-      ttl: 100
+      timeout: 9
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
@@ -1601,10 +1218,10 @@ db_timed_task:
   query:
     - name: db_timed_task
       sql: |-
-        select job_id, priv_user, dbname, job_status, last_start_date, last_end_date, failure_count from pg_job;
+        select job_id, priv_user, dbname, job_status, last_start_date, last_end_date, failure_count from pg_catalog.pg_job;
       version: '>=0.0.0'
       timeout: 1
-      ttl: 100
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
@@ -1639,8 +1256,8 @@ pg_autovacuum_worker:
         select datname, extract(epoch from (current_timestamp - xact_start)) as duration, query
         from dbe_perf.GLOBAL_SESSION_STAT_ACTIVITY where now() - xact_start > interval '5 second' and application_name = 'AutoVacWorker' limit 10;
       version: '>=0.0.0'
-      timeout: 1
-      ttl: 100
+      timeout: 9
+      ttl: 10
       status: enable
       dbRole: ""
   metrics:
@@ -1660,33 +1277,16 @@ pg_redo_stat:
   desc: openGauss statistics thread logs playback situation metrics
   query:
     - name: pg_redo_stat
-      sql: select phywrts, phyblkwrt, writetim, avgiotim, lstiotim, miniotim, maxiowtm,1 as value from gs_redo_stat;
+      sql: select phyblkwrt, writetim from pg_catalog.gs_redo_stat;
       version: '>=0.0.0'
       timeout: 1
       status: enable
   metrics:
-    - name: phywrts
-      description: Logs playback process write data number of times
-      usage: LABEL
     - name: phyblkwrt
       description: Logs playback process write data number of blocks
-      usage: LABEL
+      usage: GAUGE
     - name: writetim
       description: Logs playback process write total time
-      usage: LABEL
-    - name: avgiotim
-      description: Logs playback process write once data average time
-      usage: LABEL
-    - name: lstiotim
-      description: Logs playback process last once write data consume time
-      usage: LABEL
-    - name: miniotim
-      description: Logs playback process  single write data consume least time
-      usage: LABEL
-    - name: maxiowtm
-      description: Logs playback process  single write data consume max time
-      usage: LABEL
-    - name: value
       usage: GAUGE
   status: enable
   ttl: 5
@@ -1703,7 +1303,7 @@ pg_global_ckpt_status:
       version: '>=0.0.0'
       timeout: 1
       ttl: 60
-      status: enable
+      status: disable
   metrics:
     - name: node_name
       description: Database process name
@@ -1728,7 +1328,7 @@ pg_global_ckpt_status:
       usage: LABEL
     - name: value
       usage: GAUGE
-  status: enable
+  status: disable
   ttl: 60
   timeout: 1
   public: true
@@ -1743,7 +1343,7 @@ pg_global_double_write_status:
       version: '>=0.0.0'
       timeout: 1
       ttl: 60
-      status: enable
+      status: disable
   metrics:
     - name: node_name
       description: Database process name
@@ -1780,7 +1380,7 @@ pg_global_double_write_status:
       usage: LABEL
     - name: value
       usage: GAUGE
-  status: enable
+  status: disable
   ttl: 60
   timeout: 1
 
@@ -1791,7 +1391,7 @@ pg_total_memory_detail:
   query:
     - name: pg_total_memory_detail
       sql: |-
-        select *  from gs_total_memory_detail;
+        select nodename, memorytype as type, memorymbytes as mbytes  from gs_total_memory_detail;
       version: '>=0.0.0'
       timeout: 1
       status: enable
@@ -1799,10 +1399,10 @@ pg_total_memory_detail:
     - name: nodename
       description: every node in this cluster
       usage: LABEL
-    - name: memorytype
+    - name: type
       description: Name of memorytype
       usage: LABEL
-    - name: memorymbytes
+    - name: mbytes
       description: memory type allocates memory size
       usage: GAUGE
   status: enable
@@ -1818,7 +1418,7 @@ pg_summary_file_iostat:
       sql: select CURRENT_CATALOG AS datname, sum(phyblkrd) as total_phyblkrd, sum(phyblkwrt) as total_phyblkwrt from dbe_perf.summary_file_iostat;
       version: '>=0.0.0'
       timeout: 1
-      ttl: 60
+      ttl: 10
       status: enable
   metrics:
     - name: datname
@@ -1831,7 +1431,7 @@ pg_summary_file_iostat:
       description: Number of physical file blocks written
       usage: GAUGE
   status: enable
-  ttl: 60
+  ttl: 10
   timeout: 1
   public: true
 
@@ -1843,7 +1443,7 @@ pg_time:
       sql: select stat_name name, value from dbe_perf.instance_time;
       version: '>=0.0.0'
       timeout: 1
-      ttl: 60
+      ttl: 10
       status: enable
   metrics:
     - name: name
@@ -1851,6 +1451,6 @@ pg_time:
     - name: value
       usage: GAUGE
   status: enable
-  ttl: 60
+  ttl: 10
   timeout: 1
   public: true

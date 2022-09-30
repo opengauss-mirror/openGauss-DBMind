@@ -15,11 +15,10 @@ import re
 from collections import namedtuple, defaultdict
 
 from dbmind import global_vars
+from dbmind.app.monitoring import get_param
 from dbmind.common.algorithm.data_statistic import get_statistic_data, box_plot
 from dbmind.metadatabase import dao
 from dbmind.service import dai
-from dbmind.app.monitoring import get_param
-
 
 CHANGE_THRESHOLD = 0.2
 DISK_DEVICE_PATTERN = re.compile(r"device: ([\w/-]+), mountpoint: ([\w/-]+)")
@@ -68,10 +67,11 @@ _param_metric_mapper = {'tps_threshold': METRIC_ATTR(name='qps', category='datab
                                                                        fetch_method='all',
                                                                        related_metric='pg_stat_replication_sent_diff',
                                                                        label=''),
-                        'replication_replay_diff_threshold': METRIC_ATTR(name='replication_replay_diff',
-                                                                         category='database', fetch_method='all',
-                                                                         related_metric='pg_stat_replication_replay_diff',
-                                                                         label=''),
+                        'replication_replay_diff_threshold': METRIC_ATTR(
+                            name='replication_replay_diff',
+                            category='database', fetch_method='all',
+                            related_metric='pg_stat_replication_replay_diff',
+                            label=''),
                         'data_file_wait_threshold': METRIC_ATTR(name='io_write_delay', category='database',
                                                                 fetch_method='one',
                                                                 related_metric='gaussdb_data_file_write_time',
@@ -135,7 +135,6 @@ class Inspection:
                                                           'the 95th percentage': the_95th_val}
 
     def alarm(self):
-
         result = dao.alarms.select_history_alarm(host=self.host,
                                                  start_occurrence_time=dai.datetime_to_timestamp(self.start),
                                                  end_occurrence_time=dai.datetime_to_timestamp(self.end),

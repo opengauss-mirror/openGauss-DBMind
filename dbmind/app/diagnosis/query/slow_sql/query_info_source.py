@@ -439,7 +439,7 @@ class QueryContextFromTSDB(QueryContext):
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                pg_table_size_info = dai.get_metric_sequence("pg_tables_size_bytes", self.query_start_time,
+                pg_table_size_info = dai.get_metric_sequence("pg_tables_size_totalsize", self.query_start_time,
                                                              self.query_end_time).from_server(
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
@@ -449,6 +449,7 @@ class QueryContextFromTSDB(QueryContext):
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     nspname=f"{schema_name}").filter(tablename=f"{table_name}").fetchall()
+                # Polish later: check when using
                 redundant_index_info = dai.get_metric_sequence("pg_never_used_indexes_index_size",
                                                                self.query_start_time,
                                                                self.query_end_time).from_server(

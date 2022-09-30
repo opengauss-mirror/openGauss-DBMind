@@ -10,23 +10,59 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from collections import defaultdict
+import time
+
+from prometheus_client import Gauge
 
 from dbmind.common.tsdb.prometheus_client import PrometheusClient
 
 _prometheus_client: 'PrometheusClient' = None
 
 
-class PrometheusMetricConfig:
-    def __init__(self, name, promql, desc):
+class MetricConfig:
+    def __init__(self, name, promql, desc, ttl=None, timeout=None, registry=None):
         self.name = name
         self.desc = desc
         self.promql = promql
-        self.labels = []
-        self.label_map = defaultdict(str)
+        self.ttl = ttl
+        self.timeout = timeout
+        self._expired_time = 0
+        self._labels = []
+        self._label_map = dict()
+        self._registry = registry
+        self._gauge = None
+        self._cached_result = None
+
+    def add_label(self, sequence_label, metric_label):
+        """Construct a map that can help to make an association between
+        Prometheus result and exporter result."""
+        self._labels.append(metric_label)
+        self._label_map[sequence_label] = metric_label
+
+    def get_label_name(self, sequence_label):
+        return self._label_map.get(sequence_label)
+
+    def query(self):
+        if self.ttl and time.time() < self._expired_time:
+            return self._cached_result
+        self._cached_result = query(self.promql, timeout=self.timeout)
+        self._expired_time = time.time() + self.ttl
+        return self._cached_result
 
     def __repr__(self):
         return repr((self.name, self.promql, self.labels))
+
+    @property
+    def labels(self):
+        return self._labels
+
+    @property
+    def gauge(self):
+        if not self._gauge:
+            self._gauge = Gauge(
+                self.name, self.desc, self._labels, registry=self._registry
+            )
+        return self._gauge
 
 
 def set_prometheus_client(url, username, password):
@@ -41,7 +77,7 @@ def set_prometheus_client(url, username, password):
     _prometheus_client = client
 
 
-def query(promql):
+def query(promql, timeout=None):
     return _prometheus_client.custom_query(
-        promql
+        promql, timeout=timeout
     )

@@ -69,7 +69,7 @@ pg_class:
       description: size of this relation
       usage: GAUGE
   status: disable
-  ttl: 5
+  ttl: 60
   timeout: 3
   public: true
 
@@ -81,19 +81,19 @@ pg_index:
     - name: pg_index
       sql: |-
         SELECT CURRENT_CATALOG AS datname,psui.schemaname AS nspname,psui.relname AS tablename,psui.indexrelname AS relname, pg_get_indexdef(psui.indexrelid) AS indexdef,
-        idx_scan, idx_tup_read,idx_tup_fetch,idx_blks_read,idx_blks_hit, pgi.indisvalid as indisvalid
+        idx_scan, idx_blks_read, idx_blks_hit, pgi.indisvalid as indisvalid, pg_catalog.pg_relation_size(psui.indexrelid) / 1024 / 1024 as mbytes
         FROM pg_stat_user_indexes psui,pg_statio_user_indexes psio, pg_index pgi
         WHERE psio.indexrelid = psui.indexrelid and psio.indexrelid = pgi.indexrelid and psui.schemaname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
         order by idx_scan desc limit 10;
       version: '>=0.0.0'
-      timeout: 10
+      timeout: 9
       ttl: 3600
       dbRole: "primary"
       status: enable
     - name: pg_index
       sql: |-
         SELECT CURRENT_CATALOG AS datname,psui.schemaname AS nspname,psui.relname AS tablename,psui.indexrelname AS relname, pg_get_indexdef(psui.indexrelid) AS indexdef,
-        idx_scan, idx_tup_read,idx_tup_fetch,idx_blks_read,idx_blks_hit, pgi.indisvalid as indisvalid
+        idx_scan, idx_blks_read, idx_blks_hit, pgi.indisvalid as indisvalid, pg_catalog.pg_relation_size(psui.indexrelid) / 1024 / 1024 as mbytes
         FROM pg_stat_user_indexes psui,pg_statio_user_indexes psio, pg_index pgi
         WHERE psio.indexrelid = psui.indexrelid and psio.indexrelid = pgi.indexrelid and psui.schemaname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
         order by idx_scan desc limit 10;
@@ -124,21 +124,18 @@ pg_index:
     - name: idx_scan
       description: index scans initiated on this index
       usage: GAUGE
-    - name: idx_tup_read
-      description: index entries returned by scans on this index
-      usage: COUNTER
-    - name: idx_tup_fetch
-      description: live table rows fetched by simple index scans using this index
-      usage: COUNTER
     - name: idx_blks_read
       description: blocks been read from disk of this index
-      usage: COUNTER
+      usage: GAUGE
     - name: idx_blks_hit
       description: blocks hit from cache of this index
-      usage: COUNTER
+      usage: GAUGE
+    - name: mbytes
+      description: index size
+      usage: GAUGE
   status: enable
-  ttl: 10
-  timeout: 1
+  ttl: 3600
+  timeout: 9
 
 
 pg_tables_size:
@@ -154,9 +151,9 @@ pg_tables_size:
              (case when reltoastrelid=0 then 0 else pg_catalog.pg_total_relation_size(reltoastrelid) / 1024 / 1024 end) AS toastsize
           FROM pg_namespace nsp JOIN pg_class rel ON nsp.oid = rel.relnamespace
           WHERE nspname NOT IN ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') AND rel.relkind = 'r'
-          order by 4 desc limit 10;
+          order by totalsize desc limit 10;
       version: '>=0.0.0'
-      timeout: 10
+      timeout: 9
       ttl: 3600
       dbRole: "primary"
       status: enable
@@ -169,7 +166,7 @@ pg_tables_size:
            (case when reltoastrelid=0 then 0 else pg_catalog.pg_total_relation_size(reltoastrelid) / 1024 / 1024 end) AS toastsize
         FROM pg_namespace nsp JOIN pg_class rel ON nsp.oid = rel.relnamespace
         WHERE nspname NOT IN ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') AND rel.relkind = 'r'
-        order by 4 desc limit 10;
+        order by totalsize desc limit 10;
       version: '>=0.0.0'
       timeout: 9
       ttl: 3600
@@ -202,53 +199,6 @@ pg_tables_size:
   timeout: 9
 
 
-pg_indexes_size:
-  name: pg_indexes_size
-  desc: OpenGauss database indexes size
-  query:
-    - name: pg_indexes_size
-      sql: |-
-        select CURRENT_CATALOG AS datname, schemaname schema_name,relname table_name,indexrelname index_name,pg_catalog.pg_relation_size(indexrelid) / 1024 / 1024 as mbytes
-        from pg_stat_user_indexes
-        where schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
-        order by 4 desc limit 10;
-      version: '>=0.0.0'
-      timeout: 10
-      ttl: 360
-      dbRole: "primary"
-      status: enable
-    - name: pg_indexes_size
-      sql: |-
-        select CURRENT_CATALOG AS datname, schemaname schema_name,relname table_name,indexrelname index_name,pg_catalog.pg_relation_size(indexrelid) / 1024 / 1024 as mbytes
-        from pg_stat_user_indexes
-        where schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
-        order by 4 desc limit 10;
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 3600
-      dbRole: "standby"
-      status: disable
-  metrics:
-    - name: datname
-      description: datbase name of index
-      usage: LABEL
-    - name: schema_name
-      description: Schema name of index
-      usage: LABEL
-    - name: table_name
-      description: Table name of index
-      usage: LABEL
-    - name: index_name
-      description: Name of index
-      usage: LABEL
-    - name: mbytes
-      description: Size of index
-      usage: GAUGE
-  status: enable
-  ttl: 360
-  timeout: 9
-
-
 pg_never_used_indexes:
   name: pg_never_used_indexes
   desc: OpenGauss indexes never used
@@ -270,7 +220,7 @@ pg_never_used_indexes:
       timeout: 9
       ttl: 3600
       dbRole: "primary"
-      status: enable
+      status: disable
     - name: pg_never_used_indexes
       sql: |-
         select CURRENT_CATALOG as datname, pi.schemaname, pi.relname, pi.indexrelname, pg_catalog.pg_table_size(pi.indexrelid) as index_size
@@ -305,7 +255,7 @@ pg_never_used_indexes:
     - name: index_size
       description: Size of index
       usage: GAUGE
-  status: enable
+  status: disable
   ttl: 3600
   timeout: 9
 
@@ -317,19 +267,31 @@ pg_tables_structure:
   query:
     - name: pg_tables_structure
       sql: |-
-        SELECT CURRENT_CATALOG AS datname,psut.schemaname,psut.relname,
-          seq_scan,seq_tup_read,idx_scan,idx_tup_fetch,(seq_scan + idx_scan) AS tbl_scan,(seq_tup_read + idx_tup_fetch) AS tup_read,
-          n_tup_ins,n_tup_upd,n_tup_del,(n_tup_ins + n_tup_upd + n_tup_del) AS n_tup_mod,
-          n_tup_hot_upd,n_live_tup,n_dead_tup,round(n_dead_tup/(n_live_tup+1),2) as dead_rate,
-          nvl(last_vacuum,'1970-01-01 08:00:00') as last_vacuum,nvl(last_autovacuum,'1970-01-01 08:00:00') as last_autovacuum,nvl(last_analyze,'1970-01-01 08:00:00') as last_analyze,nvl(last_autoanalyze,'1970-01-01 08:00:00') as last_autoanalyze,vacuum_count,autovacuum_count,analyze_count,autoanalyze_count,
-          extract(epoch from pg_catalog.now() -(case when nvl(last_vacuum,'1970-01-01 08:00:00')>nvl(last_autovacuum,'1970-01-01 08:00:00') then nvl(last_vacuum,'1970-01-01 08:00:00') else nvl(last_autovacuum,'1970-01-01 08:00:00') end))::int vacuum_delay,
-          extract(epoch from pg_catalog.now() -(case when nvl(last_analyze,'1970-01-01')>nvl(last_autoanalyze,'1970-01-01') then nvl(last_analyze,'1970-01-01') else nvl(last_autoanalyze,'1970-01-01') end))::int analyze_delay,
-          heap_blks_read,heap_blks_hit,idx_blks_read,idx_blks_hit,
-          nvl(toast_blks_read, 0) toast_blks_read,nvl(toast_blks_hit, 0) toast_blks_hit,nvl(tidx_blks_read, 0) tidx_blks_read,nvl(tidx_blks_hit, 0) tidx_blks_hit
-        FROM pg_stat_user_tables psut,pg_statio_user_tables psio
-        WHERE psio.relid = psut.relid and psio.schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') and (n_live_tup+n_dead_tup)>1000 limit 20;
+        SELECT CURRENT_CATALOG                           AS                                                   datname,
+               psut.schemaname,
+               psut.relname,
+               (coalesce(seq_scan, 0) + coalesce(idx_scan, 0))                     AS                                                   tbl_scan,
+               (coalesce(seq_tup_read, 0) + coalesce(idx_tup_fetch, 0))            AS                                                   n_tup_read,
+               (n_tup_ins + n_tup_upd + n_tup_del) AS n_tup_mod,
+               n_tup_ins,
+               n_tup_upd,
+               n_tup_del,
+               n_tup_hot_upd,
+               n_live_tup,
+               n_dead_tup,
+               round(n_dead_tup / (n_live_tup + 1), 2)   as                                                   dead_rate,
+               vacuum_count + autovacuum_count as vacuum_count,
+               analyze_count + autoanalyze_count as analyze_count,
+               case when (last_vacuum is null) then -1 else extract(epoch from pg_catalog.now() - last_vacuum)::bigint end as vacuum_delay,
+               case when (last_analyze is null) then -1 else extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay
+        FROM pg_stat_user_tables psut,
+             pg_statio_user_tables psio
+        WHERE psio.relid = psut.relid
+          and psio.schemaname not in ('pg_catalog', 'information_schema', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+        order by n_dead_tup desc
+        limit 20;
       version: '>=0.0.0'
-      timeout: 1
+      timeout: 9
       status: enable
   metrics:
     - name: datname
@@ -341,23 +303,14 @@ pg_tables_structure:
     - name: relname
       description: relation name of this relation
       usage: LABEL
-    - name: seq_scan
-      description: sequential scans initiated on this table
-      usage: COUNTER
-    - name: seq_tup_read
-      description: live rows fetched by sequential scans
-      usage: COUNTER
-    - name: idx_scan
-      description: index scans initiated on this table
-      usage: COUNTER
-    - name: idx_tup_fetch
-      description: rows fetched by index scans
-      usage: COUNTER
     - name: tbl_scan
       description: total table scan = index scan + seq scan
       usage: COUNTER
-    - name: tup_read
+    - name: n_tup_read
       description: total tuples read = index fetch + seq read
+      usage: COUNTER
+    - name: n_tup_mod
+      description: rows modified (insert + update + delete)
       usage: COUNTER
     - name: n_tup_ins
       description: rows inserted
@@ -367,9 +320,6 @@ pg_tables_structure:
       usage: COUNTER
     - name: n_tup_del
       description: rows deleted
-      usage: COUNTER
-    - name: n_tup_mod
-      description: rows modified (insert + update + delete)
       usage: COUNTER
     - name: n_tup_hot_upd
       description: rows updated in HOT mode
@@ -383,18 +333,6 @@ pg_tables_structure:
     - name: dead_rate
       description: dead rate of table
       usage: GAUGE
-    - name: last_vacuum
-      description: when table was manually vacuumed last time (FULL not count)
-      usage: GAUGE
-    - name: last_autovacuum
-      description: when table was automatically vacuumed last time
-      usage: GAUGE
-    - name: last_analyze
-      description: when table was manually analyzed last time
-      usage: GAUGE
-    - name: last_autoanalyze
-      description: when table was automatically analyzed last time
-      usage: GAUGE
     - name: vacuum_delay
       description: delay from last vacuum time
       usage: GAUGE
@@ -404,39 +342,9 @@ pg_tables_structure:
     - name: vacuum_count
       description: manual vacuum count (FULL not count)
       usage: COUNTER
-    - name: autovacuum_count
-      description: automatic vacuum count
-      usage: COUNTER
     - name: analyze_count
       description: manual analyze count
       usage: COUNTER
-    - name: autoanalyze_count
-      description: automatic analyze count
-      usage: COUNTER
-    - name: heap_blks_read
-      description: relation heap read
-      usage: COUNTER
-    - name: heap_blks_hit
-      description: relation heap hit
-      usage: COUNTER
-    - name: idx_blks_read
-      description: index read
-      usage: COUNTER
-    - name: idx_blks_hit
-      description: index hit
-      usage: COUNTER
-    - name: toast_blks_read
-      description: toast heap read
-      usage: COUNTER
-    - name: toast_blks_hit
-      description: toast heap hit
-      usage: COUNTER
-    - name: tidx_blks_read
-      description: toast index read
-      usage: COUNTER
-    - name: tidx_blks_hit
-      description: toast index hit
-      usage: COUNTER
   status: enable
-  ttl: 60
-  timeout: 1
+  ttl: 10
+  timeout: 9

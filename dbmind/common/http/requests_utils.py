@@ -42,6 +42,7 @@ class HTTPSAdaptor(HTTPAdapter):
 def create_requests_session(
         username=None, password=None,
         ssl_context=None,
+        timeout=None,
         max_retry=MAX_REQUEST_RETRIES,
         retry_backoff_factor=RETRY_BACKOFF_FACTOR
 ):
@@ -61,6 +62,7 @@ def create_requests_session(
         session.mount('https://', https_adaptor)
 
         f = functools.partial(session.request,
+                              timeout=timeout,
                               verify=ssl_context.ssl_ca_file,
                               cert=(ssl_context.ssl_certfile, ssl_context.ssl_keyfile))
         session.request = f  # monkey path

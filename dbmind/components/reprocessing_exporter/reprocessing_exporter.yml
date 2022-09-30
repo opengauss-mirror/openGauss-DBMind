@@ -1,18 +1,23 @@
+# Copyright (c) 2022 Huawei Technologies Co.,Ltd.
+#
+# openGauss is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+
 os_cpu_iowait:
-  name: os_cpu_iowait
   desc: iowait
-  query:
-    - name: os_cpu_iowait
-      promql: "
-        label_replace(
-          (avg(irate(node_cpu_seconds_total{mode='iowait'}[5m])) by (job, instance)),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      (avg(irate(node_cpu_seconds_total{mode='iowait'}[5m])) by (job, instance)),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_job
       label: job
@@ -23,99 +28,35 @@ os_cpu_iowait:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
-
-
-os_io_read_total:
-  name: os_io_read_total
-  desc: total number of io read
-  query:
-    - name: os_io_read_total
-      promql: "
-        label_replace(
-          sum by (instance) (irate(node_disk_reads_completed_total[5m]))
-            , 'instance', '$1', 'instance', '(.*):.*')"
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_instance
-      label: instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-
-os_io_write_total:
-  name: os_io_write_total
-  desc: total write number
-  query:
-    - name: os_io_write_total
-      promql: "
-        label_replace(
-          sum by (instance) (irate(node_disk_writes_completed_total[3m]))
-            , 'instance', '$1', 'instance', '(.*):.*')"
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_instance
-      label: instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 os_disk_iops:
-  name: os_disk_iops
   desc: iops
-  query:
-    - name: os_disk_iops
-      promql: "
-        label_replace(
-          sum by (instance) (irate(node_disk_reads_completed_total[3m])) + sum by (instance)
-            (irate(node_disk_writes_completed_total[3m])),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      sum by (instance) (irate(node_disk_reads_completed_total[3m])) + sum by (instance)
+        (irate(node_disk_writes_completed_total[3m])),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_instance
       label: instance
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 os_disk_ioutils:
-  name: os_disk_ioutils
   desc: ioutils
-  query:
-    - name: os_disk_ioutils
-      promql: "
-        label_replace(
-          irate(node_disk_io_time_seconds_total[3m]),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      irate(node_disk_io_time_seconds_total[3m]),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: device
       label: device
@@ -130,100 +71,69 @@ os_disk_ioutils:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 os_io_read_bytes:
-  name: os_io_read_bytes
   desc: io read bytes
-  query:
-    - name: os_io_read_bytes
-      promql: "
-      label_replace(
-        sum by (instance) (irate(node_disk_read_bytes_total[1m])) / 1024 / 1024,
-        'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+  label_replace(
+    sum by (instance) (irate(node_disk_read_bytes_total[1m])) / 1024 / 1024,
+    'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_instance
       label: instance
       description: from instance
       usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
+  status: disable
+  ttl: 10
+  timeout: 5
 
 
 os_io_write_bytes:
-  name: os_io_write_bytes
   desc: io write bytes
-  query:
-    - name: os_io_write_bytes
-      promql: "
-      label_replace(
-        sum by (instance) (irate(node_disk_written_bytes_total[1m])) / 1024 / 1024,
-        'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+  label_replace(
+    sum by (instance) (irate(node_disk_written_bytes_total[1m])) / 1024 / 1024,
+    'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_instance
       label: instance
       description: from instance
       usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
+  status: disable
+  ttl: 10
+  timeout: 5
 
 
 os_disk_iocapacity:
-  name: os_disk_iocapacity
   desc: os_disk_iocapacity
-  query:
-    - name: os_disk_iocapacity
-      promql: "
-      label_replace(
-        sum by (instance) (irate(node_disk_read_bytes_total[1m])) / 1024 / 1024 + sum by (instance) (irate(node_disk_written_bytes_total[1m])) / 1024 / 1024,
-        'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+  label_replace(
+    sum by (instance) (irate(node_disk_read_bytes_total[1m])) / 1024 / 1024 + sum by (instance) (irate(node_disk_written_bytes_total[1m])) / 1024 / 1024,
+    'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_instance
       label: instance
       description: from instance
       usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
+  status: disable
+  ttl: 10
+  timeout: 5
 
 
 os_disk_usage:
   name: os_disk_usage
   desc: os_disk_usage
-  query:
-    - name: os disk usage
-      promql: "
-      label_replace(
-        1 - ((node_filesystem_avail_bytes{fstype=~'ext.|xfs'}) / node_filesystem_size_bytes{fstype=~'ext.|xfs'}),
-        'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+  label_replace(
+    1 - ((node_filesystem_avail_bytes{fstype=~'ext.|xfs'}) / node_filesystem_size_bytes{fstype=~'ext.|xfs'}),
+    'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_job
       label: job
@@ -246,25 +156,18 @@ os_disk_usage:
       description: device
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 os_io_queue_number:
   name: os_io_queue_number
   desc: io queue number
-  query:
-    - name: os_io_queue_number
-      promql: "
-      label_replace(
-        rate(node_disk_io_time_weighted_seconds_total[3m]),
-        'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+  label_replace(
+    rate(node_disk_io_time_weighted_seconds_total[3m]),
+    'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_job
       label: job
@@ -278,27 +181,19 @@ os_io_queue_number:
       label: device
       description: device
       usage: LABEL
-
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 os_io_read_delay_time:
   name: os_io_read_delay_time
   desc: io read delay time
-  query:
-    - name: os_io_read_delay_time
-      promql: "
-      label_replace(
-        rate(node_disk_read_time_seconds_total[3m]) / (rate(node_disk_reads_completed_total[3m]) + 0.00001) * 1000,
-        'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+  label_replace(
+    rate(node_disk_read_time_seconds_total[3m]) / (rate(node_disk_reads_completed_total[3m]) + 0.00001) * 1000,
+    'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_job
       label: job
@@ -312,27 +207,19 @@ os_io_read_delay_time:
       label: device
       description: device
       usage: LABEL
-
-  status: enable
-  ttl: 60
-  timeout: 0.1
+  status: disable
+  ttl: 10
+  timeout: 5
 
 
 os_io_write_delay_time:
   name: os_io_write_delay_time
   desc: io write delay time
-  query:
-    - name: os_io_write_delay_time
-      promql: "
-      label_replace(
-        rate(node_disk_write_time_seconds_total[3m]) / (rate(node_disk_writes_completed_total[3m]) + 0.00001) * 1000,
-        'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+  label_replace(
+    rate(node_disk_write_time_seconds_total[3m]) / (rate(node_disk_writes_completed_total[3m]) + 0.00001) * 1000,
+    'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_job
       label: job
@@ -348,25 +235,18 @@ os_io_write_delay_time:
       usage: LABEL
 
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 os_cpu_processor_number:
   name: os_cpu_processor_number
   desc: os_cpu_processor_number
-  query:
-    - name: os_cpu_processor_number
-      promql: "
-        label_replace(
-          count by (instance, job) (node_cpu_seconds_total{mode='user'}),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      count by (instance, job) (node_cpu_seconds_total{mode='user'}),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_job
       label: job
@@ -377,25 +257,18 @@ os_cpu_processor_number:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 os_cpu_usage:
   name: os_cpu_usage
   desc: used for CPU usage collection
-  query:
-    - name: os_cpu_usage
-      promql: "
-        label_replace(
-          1 - (avg by(job, instance) (irate(node_cpu_seconds_total{mode='idle'}[3m]))),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      1 - (avg by(job, instance) (irate(node_cpu_seconds_total{mode='idle'}[3m]))),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_job
       label: job
@@ -406,24 +279,37 @@ os_cpu_usage:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 1
+  timeout: 5
+
+gaussdb_cpu_usage:
+  name: gaussdb_cpu_usage
+  desc: used CPU usage only for GaussDB
+  promql: "
+    irate(pg_cpu_load_total_cpu[3m])
+  "
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 1
+  timeout: 1
+
 
 os_mem_usage:
   name: os_mem_usage
   desc: used for memory usage collection
-  query:
-    - name: os_mem_usage
-      promql: "
-        label_replace(
-          1 - avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) by (job, instance),
-          'instance', '$1', 'instance', '(.*):.*')
-        "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      1 - avg(node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) by (job, instance),
+      'instance', '$1', 'instance', '(.*):.*')
+    "
   metrics:
     - name: from_job
       label: job
@@ -435,21 +321,14 @@ os_mem_usage:
       usage: LABEL
   status: enable
   ttl: 60
-  timeout: 0.1
+  timeout: 5
 
 gaussdb_qps_by_instance:
   name: gaussdb_qps_by_instance
   desc: qps collection
-  query:
-    - name: gaussdb_qps_by_instance
-      promql: |
-        ceil(sum(irate(pg_db_xact_commit[3m])) by (job, from_instance) +
-             sum(irate(pg_db_xact_rollback[3m])) by (job, from_instance))
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    ceil(sum(irate(pg_db_xact_commit[3m])) by (job, from_instance) +
+         sum(irate(pg_db_xact_rollback[3m])) by (job, from_instance))
   metrics:
     - name: from_job
       label: job
@@ -460,21 +339,14 @@ gaussdb_qps_by_instance:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_errors_rate:
   name: gaussdb_errors_rate
   desc: errors collection
-  query:
-    - name: gaussdb_errors_rate
-      promql: |
-        sum (increase(gaussdb_errors_total[3m])) by(from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum (increase(gaussdb_errors_total[3m])) by(from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -485,21 +357,14 @@ gaussdb_errors_rate:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_invalid_logins_rate:
   name: gaussdb_invalid_logins_rate
   desc: invaid logins collection
-  query:
-    - name: gaussdb_errors_rate
-      promql: |
-        sum (increase(gaussdb_invalid_logins_total[3m])) by(from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum (increase(gaussdb_invalid_logins_total[3m])) by(from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -510,8 +375,8 @@ gaussdb_invalid_logins_rate:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_dlp:
   name: gaussdb_dlp
@@ -536,15 +401,8 @@ gaussdb_dlp:
 gaussdb_tup_fetched_rate:
   name: gaussdb_tup_fetched_rate
   desc: tuple fetched rate
-  query:
-    - name: gaussdb_tup_fetched_rate
-      promql: |
-        sum(irate(pg_db_tup_fetched[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_tup_fetched[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -559,21 +417,14 @@ gaussdb_tup_fetched_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_tup_deleted_rate:
   name: gaussdb_tup_deleted_rate
   desc: tuple deleted rate
-  query:
-    - name: gaussdb_tup_deleted_rate
-      promql: |
-        sum(irate(pg_db_tup_deleted[3m])) by (datname, from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_tup_deleted[3m])) by (datname, from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -588,21 +439,14 @@ gaussdb_tup_deleted_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_tup_inserted_rate:
   name: gaussdb_tup_inserted_rate
   desc: tuple inserted rate
-  query:
-    - name: gaussdb_tup_inserted_rate
-      promql: |
-        sum(irate(pg_db_tup_inserted[3m])) by (datname, from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_tup_inserted[3m])) by (datname, from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -617,21 +461,14 @@ gaussdb_tup_inserted_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_tup_updated_rate:
   name: gaussdb_tup_updated_rate
   desc: tuple updated rate
-  query:
-    - name: gaussdb_tup_updated_rate
-      promql: |
-        sum(irate(pg_db_tup_updated[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_tup_updated[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -646,21 +483,14 @@ gaussdb_tup_updated_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_blks_read_rate:
   name: gaussdb_blks_read_rate
   desc: blocks read rate
-  query:
-    - name: gaussdb_blks_read_rate
-      promql: |
-        sum(irate(pg_db_blks_read[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_blks_read[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -675,21 +505,14 @@ gaussdb_blks_read_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_blks_hit_ratio:
   name: gaussdb_blks_hit_ratio
   desc: blocks hit ratio
-  query:
-    - name: gaussdb_blks_hit_ratio
-      promql: |
-        sum(irate(pg_db_blks_access[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_blks_access[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -704,21 +527,14 @@ gaussdb_blks_hit_ratio:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_conflicts_rate:
   name: gaussdb_conflicts_rate
   desc: Number of queries canceled due to conflicts with recovery in this database.
-  query:
-    - name: gaussdb_conflicts_rate
-      promql: |
-        sum(irate(pg_db_conflicts[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_conflicts[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -733,21 +549,13 @@ gaussdb_conflicts_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_confl_lock_rate:
-  name: gaussdb_confl_lock_rate
   desc: Number of queries canceled due to lock timeouts.
-  query:
-    - name: gaussdb_confl_lock_rate
-      promql: |
-        sum(irate(pg_db_confl_lock[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_confl_lock[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -762,21 +570,13 @@ gaussdb_confl_lock_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_confl_snapshot_rate:
-  name: gaussdb_confl_snapshot_rate
   desc: Number of queries canceled due to old snapshots.
-  query:
-    - name: gaussdb_confl_snapshot_rate
-      promql: |
-        sum(irate(pg_db_confl_snapshot[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_confl_snapshot[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -791,21 +591,13 @@ gaussdb_confl_snapshot_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_confl_bufferpin_rate:
-  name: gaussdb_confl_bufferpin_rate
   desc: Number of queries canceled due to pinned buffers.
-  query:
-    - name: gaussdb_confl_bufferpin_rate
-      promql: |
-        sum(irate(pg_db_confl_bufferpin[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_confl_bufferpin[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -820,21 +612,13 @@ gaussdb_confl_bufferpin_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_confl_deadlock_rate:
-  name: gaussdb_confl_deadlock_rate
   desc: Number of queries canceled due to deadlocks.
-  query:
-    - name: gaussdb_confl_deadlock_rate
-      promql: |
-        sum(irate(pg_db_confl_deadlock[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_confl_deadlock[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -849,21 +633,13 @@ gaussdb_confl_deadlock_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_deadlocks_rate:
-  name: gaussdb_deadlocks_rate
   desc: Number of deadlocks detected in this database.
-  query:
-    - name: gaussdb_deadlocks_rate
-      promql: |
-        sum(irate(pg_db_deadlocks[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_deadlocks[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -878,21 +654,13 @@ gaussdb_deadlocks_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_confl_temp_files_rate:
-  name: gaussdb_confl_temp_files_rate
   desc: Number of temporary files created by queries in this database.
-  query:
-    - name: gaussdb_confl_temp_files_rate
-      promql: |
-        sum(irate(pg_db_temp_files[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_temp_files[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -907,21 +675,13 @@ gaussdb_confl_temp_files_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_confl_temp_bytes_rate:
-  name: gaussdb_confl_temp_bytes_rate
   desc: Total amount of data written to temporary files by queries in this database.
-  query:
-    - name: gaussdb_confl_temp_bytes_rate
-      promql: |
-        sum(irate(pg_db_temp_bytes[3m])) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(pg_db_temp_bytes[3m])) by (datname, job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -936,283 +696,14 @@ gaussdb_confl_temp_bytes_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
-gaussdb_locks:
-  name: gaussdb_locks
-  desc: Number of locks in this database.
-  query:
-    - name: gaussdb_locks
-      promql: |
-        sum (pg_lock_count) by (datname, from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-    - name: datname
-      label: datname
-      description: dataname
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-gaussdb_slowquery_elapse:
-  name: gaussdb_slowquery_elapse
-  desc: Active slow query running time in this database.
-  query:
-    - name: gaussdb_slowquery_elapse
-      promql: |
-        max(pg_active_slowsql_query_runtime) by (datname, job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-    - name: datname
-      label: datname
-      description: dataname
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-gaussdb_lock_wait_time:
-  name: gaussdb_lock_wait_time
-  desc: Lock and LWLock wait time in all databases.
-  query:
-    - name: gaussdb_lock_wait_time
-      promql: |
-        sum(irate(pg_wait_events_total_wait_time{type = 'LWLOCK_EVENT' }[3m])) by (from_instance, job) +
-        sum(irate(pg_wait_events_total_wait_time{type = 'LOCK_EVENT' }[3m])) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-gaussdb_analyze_wait_time:
-  name: gaussdb_analyze_wait_time
-  desc: Analyze wait time in all databases.
-  query:
-    - name: gaussdb_analyze_wait_time
-      promql: |
-        sum(irate(pg_wait_events_total_wait_time{event='analyze'}[3m])) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-gaussdb_vacuum_wait_time:
-  name: gaussdb_vacuum_wait_time
-  desc: Vacuum wait time in all databases.
-  query:
-    - name: gaussdb_vacuum_wait_time
-      promql: |
-        sum(irate(pg_wait_events_total_wait_time{event='vacuum'}[3m])) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-gaussdb_doublewritefileread_wait_time:
-  name: gaussdb_doublewritefileread_wait_time
-  desc:  double writer read wait time in all databases.
-  query:
-    - name: gaussdb_doublewritefileread_wait_time
-      promql: |
-        sum(irate(pg_wait_events_total_wait_time{event='DoubleWriteFileRead'}[3m])) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-gaussdb_doublewriterfilewrite_wait_time:
-  name: gaussdb_doublewritefilewrite_wait_time
-  desc:  double writer write wait time in all databases.
-  query:
-    - name: gaussdb_doublewritefilewrite_wait_time
-      promql: |
-        sum(irate(pg_wait_events_total_wait_time{event='DoubleWriteFileWrite'}[3m])) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-gaussdb_data_file_read_time:
-  name: gaussdb_data_file_read_time
-  desc:  rate of data file read time
-  query:
-    - name: gaussdb_data_file_read_time
-      promql: |
-        sum(irate(pg_wait_events_total_wait_time{event='DataFileRead'}[3m])) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-gaussdb_data_file_write_time:
-  name: gaussdb_data_file_write_time
-  desc:  rate of data file write time
-  query:
-    - name: gaussdb_data_file_write_time
-      promql: |
-        sum(irate(pg_wait_events_total_wait_time{event='DataFileWrite'}[3m])) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
-
-gaussdb_sql_execution_wait_time:
-  name: gaussdb_sql_execution_wait_time
-  desc: SQL execution wait time in all databases.
-  query:
-    - name: gaussdb_sql_execution_wait_time
-      promql: |
-        sum(irate(pg_wait_events_total_wait_time{event='Sort'}[3m])) by (from_instance, job) +
-        sum(irate(pg_wait_events_total_wait_time{event='Sort - write file'}[3m])) by (from_instance, job) +
-        sum(irate(pg_wait_events_total_wait_time{event='HashAgg - build hash'}[3m])) by (from_instance, job) +
-        sum(irate(pg_wait_events_total_wait_time{event='HashJoin - build hash'}[3m])) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: from_instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 60
-  timeout: 0.1
 
 gaussdb_table_expansion_rate:
-  name: gaussdb_table_expansion_rate
   desc: table expansion rate in all databases.
-  query:
-    - name: gaussdb_table_expansion_rate
-      promql: |
-        topk(10, sum(pg_tables_expansion_rate_dead_rate) by (from_instance, job))
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    topk(10, sum(pg_tables_expansion_rate_dead_rate) by (from_instance, job))
   metrics:
     - name: from_job
       label: job
@@ -1223,21 +714,13 @@ gaussdb_table_expansion_rate:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_cpu_time:
-  name: gaussdb_cpu_time
   desc: cpu time in all databases.
-  query:
-    - name: gaussdb_cpu_time
-      promql: |
-        sum(irate(og_cpu_load_total_cpu[3m])) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(irate(og_cpu_load_total_cpu[3m])) by (from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -1248,21 +731,13 @@ gaussdb_cpu_time:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_state_memory:
-  name: gaussdb_state_memory
   desc: total memory in all databases.
-  query:
-    - name: gaussdb_state_memory
-      promql: |
-        sum(og_state_memory_totalsize{state='active'}) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(og_state_memory_totalsize{state='active'}) by (from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -1273,21 +748,13 @@ gaussdb_state_memory:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 gaussdb_connections_used_ratio:
-  name: gaussdb_connections_used_ratio
   desc: ratio between max connections and used connections.
-  query:
-    - name: gaussdb_connections_used_ratio
-      promql: |
-        sum(pg_connections_used_conn / pg_connections_max_conn) by (from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(pg_connections_used_conn / pg_connections_max_conn) by (from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -1298,24 +765,16 @@ gaussdb_connections_used_ratio:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 load_average1:
-  name: load_average1
   desc: load average for database server.
-  query:
-    - name: load_average1
-      promql: "
-        label_replace(
-          node_load1,
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      node_load1,
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_job
       label: job
@@ -1326,80 +785,17 @@ load_average1:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 # network
-os_network_receive_bytes:
-  name: os_network_receive_bytes
-  desc: os_network_receive_bytes
-  query:
-    - name: os_network_receive_bytes
-      promql: "
-        label_replace(
-          sum(irate(node_network_receive_bytes_total{device!~'bond.*?|lo'}[1m])/128) by (instance, job),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_instance
-      label: instance
-      description: from instance
-      usage: LABEL
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-  status: enable
-  ttl: 60
-
-os_network_transmit_bytes:
-  name: os_network_transmit_bytes
-  desc: os_network_transmit_bytes
-  query:
-    - name: os_network_transmit_bytes
-      promql: "
-        label_replace(
-          sum(irate(node_network_transmit_bytes_total{device!~'bond.*?|lo'}[1m])/128) by (instance, job),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_instance
-      label: instance
-      description: from instance
-      usage: LABEL
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-  status: enable
-  ttl: 60
-
-
 os_network_receive_drop:
-  name: os_network_receive_drop
   desc: os_network_receive_drop
-  query:
-    - name: os_network_receive_drop
-      promql: "
-        label_replace(
-          sum(irate(node_network_receive_drop_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      sum(irate(node_network_receive_drop_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_instance
       label: instance
@@ -1410,50 +806,16 @@ os_network_receive_drop:
       description: from job
       usage: LABEL
   status: enable
-  ttl: 60
+  ttl: 10
 
-os_network_receive_error:
-  name: os_network_receive_error
-  desc: os_network_receive_error
-  query:
-    - name: os_network_receive_error
-      promql: "
-        label_replace(
-          sum(irate(node_network_receive_errs_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_instance
-      label: instance
-      description: from instance
-      usage: LABEL
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-  status: enable
-  ttl: 60
 
 os_network_transmit_drop:
-  name: os_network_transmit_drop
   desc: os_network_transmit_drop
-  query:
-    - name: os_network_transmit_drop
-      promql: "
-        label_replace(
-          sum(irate(node_network_transmit_drop_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      sum(irate(node_network_transmit_drop_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_instance
       label: instance
@@ -1464,51 +826,16 @@ os_network_transmit_drop:
       description: from job
       usage: LABEL
   status: enable
-  ttl: 60
-
-os_network_transmit_error:
-  name: os_network_transmit_error
-  desc: os_network_transmit_error
-  query:
-    - name: os_network_transmit_error
-      promql: "
-        label_replace(
-          sum(irate(node_network_transmit_errs_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
-  metrics:
-    - name: from_instance
-      label: instance
-      description: from instance
-      usage: LABEL
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-  status: enable
-  ttl: 60
+  ttl: 10
 
 
 os_network_receive_packets:
-  name: os_network_receive_packets
   desc: os_network_receive_packets
-  query:
-    - name: os_network_receive_packets
-      promql: "
-        label_replace(
-          sum(irate(node_network_receive_packets_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      sum(irate(node_network_receive_packets_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_instance
       label: instance
@@ -1519,23 +846,15 @@ os_network_receive_packets:
       description: from job
       usage: LABEL
   status: enable
-  ttl: 60
+  ttl: 10
 
 os_network_transmit_packets:
-  name: os_network_transmit_packets
   desc: os_network_transmit_packets
-  query:
-    - name: os_network_transmit_packets
-      promql: "
-        label_replace(
-          sum(irate(node_network_transmit_packets_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      sum(irate(node_network_transmit_packets_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_instance
       label: instance
@@ -1546,24 +865,16 @@ os_network_transmit_packets:
       description: from job
       usage: LABEL
   status: enable
-  ttl: 60
+  ttl: 10
 
 
 os_process_fds_rate:
-  name: os_process_fds_rate
   desc: fds condition for database server.
-  query:
-    - name: os_process_fds_rate
-      promql: "
-        label_replace(
-          process_open_fds / process_max_fds,
-          'instance', '$1', 'instance', '(.*):.*')
-      "
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: "
+    label_replace(
+      process_open_fds / process_max_fds,
+      'instance', '$1', 'instance', '(.*):.*')
+  "
   metrics:
     - name: from_job
       label: job
@@ -1574,20 +885,12 @@ os_process_fds_rate:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
+  ttl: 10
 
 pg_database_all_size:
-  name: pg_database_all_size
   desc: Total database size.
-  query:
-    - name: pg_database_all_size
-      promql: |
-        sum(pg_database_size_bytes) by (job, from_instance)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum(pg_database_size_bytes) by (job, from_instance)
   metrics:
     - name: from_job
       label: job
@@ -1598,22 +901,14 @@ pg_database_all_size:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_dead_tup_increase_rate:
-  name: gaussdb_dead_tup_increase_rate
   desc: increase amplitude of dead tuple.
-  query:
-    - name: gaussdb_dead_tup_increase_rate
-      promql: |
-        topk(10, sum (irate(pg_tables_structure_n_dead_tup[2m])) by (datname, relname, schemaname, from_instance, job))
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    topk(10, sum (irate(pg_tables_structure_n_dead_tup[2m])) by (datname, relname, schemaname, from_instance, job))
   metrics:
     - name: from_job
       label: job
@@ -1636,22 +931,14 @@ gaussdb_dead_tup_increase_rate:
       description: schemaname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_table_increase_amplitude:
-  name: gaussdb_table_increase_amplitude
   desc: increase amplitude of table.
-  query:
-    - name: gaussdb_table_increase_amplitude
-      promql: |
-        topk(10, sum(increase(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job))
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    topk(10, sum(increase(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job))
   metrics:
     - name: from_job
       label: job
@@ -1674,22 +961,14 @@ gaussdb_table_increase_amplitude:
       description: relname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_table_increase_rate:
-  name: gaussdb_table_increase_rate
   desc: increase amplitude of table.
-  query:
-    - name: gaussdb_table_increase_rate
-      promql: |
-        topk(10, sum(irate(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job))
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    topk(10, sum(irate(pg_tables_size_totalsize[2m])) by (datname, nspname, relname, from_instance, job))
   metrics:
     - name: from_job
       label: job
@@ -1712,22 +991,14 @@ gaussdb_table_increase_rate:
       description: relname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_index_increase_rate:
-  name: gaussdb_index_increase_rate
   desc: increase of index in database.
-  query:
-    - name: gaussdb_index_increase_rate
-      promql: |
-        topk(10, sum(irate(pg_indexes_size_mbytes[2m])) by (index_name, schema_name, table_name, from_instance, job))
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    topk(10, sum(irate(pg_index_mbytes[2m])) by (relname, nspname, tablename, from_instance, job))
   metrics:
     - name: from_job
       label: job
@@ -1738,34 +1009,26 @@ gaussdb_index_increase_rate:
       description: from instance
       usage: LABEL
     - name: index_name
-      label: index_name
+      label: relname
       description: indexname
       usage: LABEL
     - name: schema_name
-      label: schema_name
+      label: nspname
       description: schemaname
       usage: LABEL
     - name: table_name
-      label: table_name
+      label: tablename
       description: tablename
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_database_increase_rate:
-  name: gaussdb_database_increase_rate
   desc: increase rate of database.
-  query:
-    - name: gaussdb_database_increase_rate
-      promql: |
-        topk(10, sum(irate(pg_database_size_bytes[2m])) by (datname, from_instance, job))
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    topk(10, sum(irate(pg_database_size_bytes[2m])) by (datname, from_instance, job))
   metrics:
     - name: from_job
       label: job
@@ -1780,22 +1043,14 @@ gaussdb_database_increase_rate:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_database_increase_amplitude:
-  name: gaussdb_database_increase_amplitude
   desc: increase amplitude of database.
-  query:
-    - name: gaussdb_database_increase_amplitude
-      promql: |
-        topk(10, sum (increase(pg_database_size_bytes[2m])) by (datname, from_instance, job))
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    topk(10, sum (increase(pg_database_size_bytes[2m])) by (datname, from_instance, job))
   metrics:
     - name: from_job
       label: job
@@ -1810,22 +1065,14 @@ gaussdb_database_increase_amplitude:
       description: dataname
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_corrosion_index:
-  name: gaussdb_corrosion_index
   desc: gaussdb_corrosion_index.
-  query:
-    - name: gaussdb_corrosion_index
-      promql: |
-        topk(10, sum(rate(pg_index_idx_scan{isdisvalid='False'}[3m])) by (schema_name, table_name, index_name, from_instance, job))
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    topk(10, sum(rate(pg_index_idx_scan{isdisvalid='False'}[3m])) by (schema_name, table_name, index_name, from_instance, job))
   metrics:
     - name: from_job
       label: job
@@ -1848,21 +1095,14 @@ gaussdb_corrosion_index:
       description: index_name
       usage: LABEL
   status: enable
-  ttl: 60
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_wait_event_spike:
-  name: gaussdb_wait_event_spike
   desc: increase amplitude of database.
-  query:
-    - name: gaussdb_wait_event_spike
-      promql: |
-        sum (irate(pg_wait_events_total_wait_time[2m])) by (type, event, nodename, from_instance, job)
-      version: '>=0.0.0'
-      timeout: 0.1
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum (irate(pg_wait_events_total_wait_time[2m])) by (type, event, nodename, from_instance, job)
   metrics:
     - name: type
       label: type
@@ -1885,38 +1125,22 @@ gaussdb_wait_event_spike:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 0.1
+  ttl: 10
+  timeout: 1
 
 
 gaussdb_statement_db_time:
-  name: gaussdb_statement_db_time
   desc: topk db_time of statement template
-  query:
-    - name: gaussdb_statement_db_time
-      promql: |
-        sum (irate(pg_sql_statement_statistics_avg_db_time[2m])) by (node_name, user_name, query, query_sort, from_instance, job)
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum (irate(pg_sql_statement_statistics_avg_db_time[2m])) by (node_name, query, from_instance, job)
   metrics:
     - name: node_name
       label: node_name
       description: node name
       usage: LABEL
-    - name: user_name
-      label: user_name
-      description: user_name
-      usage: LABEL
     - name: query
       label: query
       description: query
-      usage: LABEL
-    - name: query_sort
-      label: query_sort
-      description: query_sort
       usage: LABEL
     - name: from_job
       label: job
@@ -1927,38 +1151,22 @@ gaussdb_statement_db_time:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 9
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_statement_calls:
-  name: gaussdb_statement_calls
   desc: topk calls of statement template
-  query:
-    - name: gaussdb_statement_calls
-      promql: |
-        sum (irate(pg_sql_statement_statistics_n_calls[2m])) by (node_name, user_name, query, query_sort, from_instance, job)
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum (irate(pg_sql_statement_statistics_n_calls[2m])) by (node_name, query, from_instance, job)
   metrics:
     - name: node_name
       label: node_name
       description: node name
       usage: LABEL
-    - name: user_name
-      label: user_name
-      description: user_name
-      usage: LABEL
     - name: query
       label: query
       description: query
-      usage: LABEL
-    - name: query_sort
-      label: query_sort
-      description: query_sort
       usage: LABEL
     - name: from_job
       label: job
@@ -1969,38 +1177,22 @@ gaussdb_statement_calls:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 9
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_statement_sort_spill:
-  name: gaussdb_statement_sort_spill
   desc: gaussdb_statement_sort_spill
-  query:
-    - name: gaussdb_statement_sort_spill
-      promql: |
-        sum (irate(pg_sql_statement_statistics_sort_spill_count[2m])) by (node_name, user_name, query, query_sort, from_instance, job)
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum (irate(pg_sql_statement_statistics_sort_spill_count[2m])) by (node_name, query, from_instance, job)
   metrics:
     - name: node_name
       label: node_name
       description: node name
       usage: LABEL
-    - name: user_name
-      label: user_name
-      description: user_name
-      usage: LABEL
     - name: query
       label: query
       description: query
-      usage: LABEL
-    - name: query_sort
-      label: query_sort
-      description: query_sort
       usage: LABEL
     - name: from_job
       label: job
@@ -2011,38 +1203,22 @@ gaussdb_statement_sort_spill:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
-  timeout: 9
+  ttl: 10
+  timeout: 5
 
 
 gaussdb_statement_hash_spill:
-  name: gaussdb_statement_hash_spill
   desc: gaussdb_statement_hash_spill
-  query:
-    - name: gaussdb_statement_hash_spill
-      promql: |
-        sum (irate(pg_sql_statement_statistics_hash_spill_count[2m])) by (node_name, user_name, query, query_sort, from_instance, job)
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 10
-      status: enable
-      dbRole: ""
+  promql: |
+    sum (irate(pg_sql_statement_statistics_hash_spill_count[2m])) by (node_name, query, from_instance, job)
   metrics:
     - name: node_name
       label: node_name
       description: node name
       usage: LABEL
-    - name: user_name
-      label: user_name
-      description: user_name
-      usage: LABEL
     - name: query
       label: query
       description: query
-      usage: LABEL
-    - name: query_sort
-      label: query_sort
-      description: query_sort
       usage: LABEL
     - name: from_job
       label: job
@@ -2053,5 +1229,28 @@ gaussdb_statement_hash_spill:
       description: from instance
       usage: LABEL
   status: enable
-  ttl: 60
+  ttl: 10
+  timeout: 5
+
+
+gaussdb_state_time:
+  desc: cost time of different states
+  promql: |
+    irate(pg_time_value[3m])
+  metrics:
+    - name: name
+      label: name
+      description: state name
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 10
   timeout: 9
+

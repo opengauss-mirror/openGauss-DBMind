@@ -45,7 +45,6 @@ WAIT_EVENT_GRAPH = {
             'io_read_delay_time',
             'io_write_delay_time',
             'pg_database_all_size',
-            'gaussdb_locks',
             'gaussdb_cpu_time',
             'gaussdb_state_memory',
             'gaussdb_data_file_read_time',

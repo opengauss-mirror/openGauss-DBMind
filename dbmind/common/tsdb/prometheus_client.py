@@ -244,7 +244,7 @@ class PrometheusClient(TsdbClient):
                       metric_name, start_time, end_time, len(data))
         return _standardize(data, step=step or self.scrape_interval)
 
-    def custom_query(self, query: str, params: dict = None):
+    def custom_query(self, query: str, timeout=None, params: dict = None):
         """
         Send a custom query to a Prometheus Host.
         This method takes as input a string which will be sent as a query to
@@ -253,6 +253,7 @@ class PrometheusClient(TsdbClient):
             at https://prometheus.io/docs/prometheus/latest/querying/examples/
         :param params: (dict) Optional dictionary containing GET parameters to be
             sent along with the API request, such as "time"
+        :param timeout: how long to wait for query
         :returns: (list) A list of metric data received in response of the query sent
         :raises:
             (RequestException) Raises an exception in case of a connection error
@@ -265,6 +266,7 @@ class PrometheusClient(TsdbClient):
             "{0}/api/v1/query".format(self.url),
             params={**params, **{"query": query}},
             headers=self.headers,
+            timeout=timeout
         )
         if response.status_code == 200:
             data = response.json()["data"]["result"]
