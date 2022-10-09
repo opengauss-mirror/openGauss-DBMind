@@ -58,24 +58,19 @@ _param_metric_mapper = {'tps_threshold': METRIC_ATTR(name='qps', category='datab
                                                              label=''),
                         'io_delay_threshold': METRIC_ATTR(name='io_delay', category='system',
                                                           fetch_method='all',
-                                                          related_metric='io_write_delay_time',
+                                                          related_metric='os_io_write_delay_time',
                                                           label='device'),
                         'iops_threshold': METRIC_ATTR(name='iops', category='system', fetch_method='one',
                                                       related_metric='os_disk_iops',
                                                       label=''),
-                        'replication_write_diff_threshold': METRIC_ATTR(name='replication_write_diff',
-                                                                        category='database',
-                                                                        fetch_method='all',
-                                                                        related_metric='pg_replication_write_diff',
-                                                                        label=''),
                         'replication_sent_diff_threshold': METRIC_ATTR(name='replication_sent_diff',
                                                                        category='database',
                                                                        fetch_method='all',
-                                                                       related_metric='pg_replication_sent_diff',
+                                                                       related_metric='pg_stat_replication_sent_diff',
                                                                        label=''),
                         'replication_replay_diff_threshold': METRIC_ATTR(name='replication_replay_diff',
                                                                          category='database', fetch_method='all',
-                                                                         related_metric='pg_replication_replay_diff',
+                                                                         related_metric='pg_stat_replication_replay_diff',
                                                                          label=''),
                         'data_file_wait_threshold': METRIC_ATTR(name='io_write_delay', category='database',
                                                                 fetch_method='one',
@@ -92,15 +87,15 @@ class Inspection:
         METRIC_ATTR(name='mem_usage', category='system', fetch_method='one',
                     related_metric='os_mem_usage', label=''),
         METRIC_ATTR(name='io_read_delay', category='system', fetch_method='all',
-                    related_metric='io_read_delay_time', label='device'),
+                    related_metric='os_io_read_delay_time', label='device'),
         METRIC_ATTR(name='io_write_delay', category='system', fetch_method='all',
-                    related_metric='io_write_delay_time', label='device'),
+                    related_metric='os_io_write_delay_time', label='device'),
         METRIC_ATTR(name='network_receive_drop', category='system', fetch_method='one',
                     related_metric='node_network_receive_drop', label=''),
         METRIC_ATTR(name='network_transmit_drop', category='system', fetch_method='one',
-                    related_metric='node_network_transmit_drop', label=''),
+                    related_metric='os_network_transmit_drop', label=''),
         METRIC_ATTR(name='fds', category='system', fetch_method='one',
-                    related_metric='node_process_fds_rate', label=''),
+                    related_metric='os_process_fds_rate', label=''),
         METRIC_ATTR(name='select', category='database', fetch_method='one',
                     related_metric='gs_sql_count_select', label=''),
         METRIC_ATTR(name='delete', category='database', fetch_method='one',
@@ -329,13 +324,14 @@ def update_detection_param(host, port, start, end):
         if metric.fetch_method == 'one':
             sequence = dai.get_metric_sequence(metric.related_metric, start, end).from_server(
                 server).fetchone()
-            upper, _ = box_plot(sequence.values, n=3)
+            if sequence.values:
+                upper, _ = box_plot(sequence.values, n=3)
         if metric.fetch_method == 'all':
             sequences = dai.get_metric_sequence(metric.related_metric, start, end).from_server(
                 server).fetchall()
             for sequence in sequences:
-                upper = max(upper, box_plot(sequence.values, n=3)[0])
+                if sequence.values:
+                    upper = max(upper, box_plot(sequence.values, n=3)[0])
         if original_value != 0 and upper != 0 and abs(original_value - upper) / original_value > CHANGE_THRESHOLD:
             global_vars.dynamic_configs.set('detection_params', param, upper)
             logging.info("Update detection parameter '%s' from %s to %s.", param, original_value, upper)
-

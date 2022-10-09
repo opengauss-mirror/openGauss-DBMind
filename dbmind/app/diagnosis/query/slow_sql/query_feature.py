@@ -95,6 +95,7 @@ class QueryFeature:
         self.rewritten_sql_info = None
         self.timed_task_info = None
         self.wait_events = None
+        self.sort_condition_info = None
         self.detail = {}
         self.suggestion = {}
 
@@ -111,6 +112,7 @@ class QueryFeature:
         self.timed_task_info = self.query_context.acquire_timed_task()
         self.wait_events = self.query_context.acquire_wait_event()
         self.pg_setting_info = self.query_context.acquire_pg_settings()
+        self.sort_condition_info = self.query_context.acquire_sort_condition()
 
     @property
     def select_type(self) -> bool:
@@ -305,24 +307,14 @@ class QueryFeature:
     @property
     def external_sort(self) -> bool:
         """Determine whether the query related table has external sort"""
-        if self.slow_sql_instance.sort_count and not self.slow_sql_instance.sort_mem_used:
-            self.detail['external_sort'] = f"The probability of falling disk behavior during execution is " \
-                                           f"{self.slow_sql_instance.sort_count}% "
+        if self.sort_condition_info.get('sort_spill'):
+            self.detail['external_sort'] = "Disk-Spill may occur during SQL sorting"
+        if self.sort_condition_info.get('hash_spill'):
+            self.detail['external_sort'] = "Disk-Spill may occur during HASH"
+        if self.detail.get('external_sort'):
+            self.suggestion['external_sort'] = "Adjust the size of WORK_MEM according to the business"
             return True
-        elif self.slow_sql_instance.hash_count and not self.slow_sql_instance.hash_mem_used:
-            self.detail['external_sort'] = f"The probability of falling disk behavior during execution is " \
-                                           f"{self.slow_sql_instance.hash_count}%"
-            return True
-        elif self.slow_sql_instance.sort_spill_count:
-            self.detail['external_sort'] = f"The probability of falling disk behavior during execution is " \
-                                           f"{self.slow_sql_instance.sort_spill_count}%"
-            return True
-        elif self.slow_sql_instance.hash_spill_count:
-            self.detail['external_sort'] = f"The probability of falling disk behavior during execution is " \
-                                           f"{self.slow_sql_instance.hash_spill_count}%"
-            return True
-        else:
-            return False
+        return False
 
     @property
     def vacuum_event(self) -> bool:
@@ -494,7 +486,7 @@ class QueryFeature:
             if io_utils > monitoring.get_param('disk_ioutils_threshold'):
                 io_utils_dict[device] = io_utils
         if io_utils_dict:
-            index = indexes.pop()
+            index = indexes.pop(0)
             self.detail['system_io_contention'] += '%s. The IO-Utils exceeds the threshold %s;' \
                                                     % (index, monitoring.get_param('disk_ioutils_threshold'))
         if self.detail['system_io_contention']:
@@ -612,7 +604,7 @@ class QueryFeature:
         """
         if self.plan_parse_info is None:
             return False
-        indexes = ['a', 'b']
+        indexes = ['a', 'b', 'c']
         self.detail['poor_join_performance'], self.suggestion['poor_join_performance'] = '', ''
         nestloop_info = self.plan_parse_info.find_operators('Nested Loop', accurate=False)
         hash_inner_join_info = self.plan_parse_info.find_operators('Hash Join', accurate=False)
@@ -648,23 +640,24 @@ class QueryFeature:
                 # The amount of data in the join child node is too large
                 large_join = True
         if large_join:
-            index = indexes.pop()
-            self.detail['poor_join_performance'] += '%s. Large Joins.' % index
+            index = indexes.pop(0)
+            self.detail['poor_join_performance'] += '%s. Large Joins ' % index
             self.suggestion['poor_join_performance'] += 'a. Temporary tables can filter data, ' \
-                                                        'reducing data orders of magnitude;'
+                                                        'reducing data orders of magnitude '
         if inappropriate_operator:
-            index = indexes.pop()
+            index = indexes.pop(0)
             if enable_hashjoin == 0:
-                self.detail['poor_join_performance'] += '%s. Inappropriate join operator.' % index
+                self.detail['poor_join_performance'] += '%s. Inappropriate join operator ' % index
                 self.suggestion['poor_join_performance'] += "%s. Detect 'enable_hashjoin=off', you can set the " \
                                                             "enable_hashjoin=on and let the optimizer " \
-                                                            "choose by itself."
+                                                            "choose by itself "
             else:
-                self.detail['poor_join_performance'] += "%s. The NSETLOOP operator is not good." % index
-                self.suggestion['poor_join_performance'] += "%s. No Suggestion." % index
-        if abnormal_join:
-            self.detail['poor_join_performance'] += 'The Join operator is expensive.'
-            self.suggestion['poor_join_performance'] += "No Suggestion."
+                self.detail['poor_join_performance'] += "%s. The NSETLOOP operator is not good " % index
+                self.suggestion['poor_join_performance'] += "%s. No Suggestion " % index
+        if not large_join and not inappropriate_operator and abnormal_join:
+            index = indexes.pop(0)
+            self.detail['poor_join_performance'] += '%s. The Join operator is expensive ' % index
+            self.suggestion['poor_join_performance'] += "%s. No Suggestion " % index
         if self.detail['poor_join_performance']:
             return True
         return False
@@ -677,7 +670,7 @@ class QueryFeature:
         """
         boolean_expressions = sql_parsing.exists_bool_clause(self.slow_sql_instance.query)
         for expression in boolean_expressions:
-            expression_number = len(expression.strip("()").split(','))
+            expression_number = len(expression) if isinstance(expression, list) else 0
             if expression_number > monitoring.get_threshold('large_in_list_threshold'):
                 self.detail['complex_boolean_expression'] = "%s. Large IN-Clause"
                 self.suggestion['complex_boolean_expression'] = "%s. Rewrite large in-clause as a constant " \
@@ -724,18 +717,18 @@ class QueryFeature:
         nestloop_operator = self.plan_parse_info.find_operators('Nested Loop', accurate=False)
         existing_subquery = sql_parsing.exists_subquery(self.slow_sql_instance.query)
         if 'SubPlan' in self.slow_sql_instance.query_plan and existing_subquery:
-            index = indexes.pop()
+            index = indexes.pop(0)
             self.detail['complex_execution_plan'] += "%s. There may be sub-links that cannot be promoted." % index
             self.suggestion['complex_execution_plan'] += "%s. Try to rewrite the statement " \
                                                          "to support sublink-release; " % index
         if len(agg_operator) + len(join_operator) + len(nestloop_operator) > \
                 monitoring.get_threshold('complex_operator_threshold') or self.plan_parse_info.height >= \
                 monitoring.get_threshold('plan_height_threshold'):
-            index = indexes.pop()
+            index = indexes.pop(0)
             self.detail['complex_execution_plan'] += "%s. The SQL statement is complex, and there are a " \
                                                      "large number of heavy operators" % index
         if self.plan_parse_info.height >= monitoring.get_threshold('plan_height_threshold'):
-            index = indexes.pop()
+            index = indexes.pop(0)
             self.detail['complex_execution_plan'] += "%s. Execution plan is too complex" % index
         if self.detail.get('complex_execution_plan'):
             return True
@@ -755,17 +748,19 @@ class QueryFeature:
         self.detail['correlated_subquery'], self.suggestion['correlated_subquery'] = '', ''
         boolean_expression = sql_parsing.exists_bool_clause(self.slow_sql_instance.query)
         for expression in boolean_expression:
-            if expression.startswith('SELECT') and sql_parsing.exists_related_select(expression):
-                index = indexes.pop()
+            if isinstance(expression, str) and \
+                    expression.startswith('SELECT') and \
+                    sql_parsing.exists_related_select(expression):
+                index = indexes.pop(0)
                 self.detail['correlated_subquery'] += "%s. Suspected correlated subquery in IN-Clause" % index
                 self.suggestion['correlated_subquery'] += "%s. Rewrite subquery for IN-Clause, " \
                                                           "such as using 'exist'" % index
                 break
         if ('SubPlan' in self.slow_sql_instance.query_plan and
             sql_parsing.exists_related_select(self.slow_sql_instance.query)) or \
-                len(self.plan_parse_info.find_operators('Subquery Scan', accurate=True)) > \
+                len(self.plan_parse_info.find_operators('Subquery Scan', accurate=True)) >= \
                 monitoring.get_threshold('subquery_threshold'):
-            index = indexes.pop()
+            index = indexes.pop(0)
             self.detail['correlated_subquery'] += "%s. There may be subquery that " \
                                                   "do not support sublink-release" % index
             self.suggestion['correlated_subquery'] += "%s. Rewrite SQL to support sublink-release" % index
@@ -791,7 +786,7 @@ class QueryFeature:
         typical_scene = False
         abnormal_hashagg_scene = False
         abnormal_groupagg_scene = False
-        indexes = ['a', 'b', 'c']
+        indexes = ['a', 'b', 'c', 'd']
         self.detail['poor_aggregation_performance'], self.suggestion['poor_aggregation_performance'] = '', ''
         for node in abnormal_groupagg_info + abnormal_hashagg_info:
             if 'GroupAggregate' in node.name and enable_hashagg == 0:
@@ -804,30 +799,30 @@ class QueryFeature:
             elif 'HashAggregate' in node.name:
                 abnormal_hashagg_scene = True
         if typical_scene:
-            index = indexes.pop()
+            index = indexes.pop(0)
             self.detail['poor_aggregation_performance'] += "%s. Find that enable_hashagg=off and current " \
-                                                           "uses the GroupAggregate operator." % index
+                                                           "uses the GroupAggregate operator" % index
             self.suggestion['poor_aggregation_performance'] += "%s. In general, HASHAGG performs " \
                                                                "better than GROUPAGG, but sometimes groupagg " \
                                                                "has better performance, you can set the " \
                                                                "enable_hashjoin=on and let the optimizer " \
-                                                               "choose by itself." % index
+                                                               "choose by itself" % index
         if special_scene:
-            index = indexes.pop()
-            self.detail['poor_aggregation_performance'] += "%s. HASHAGG does not support: 'count(distinct xx)'." \
+            index = indexes.pop(0)
+            self.detail['poor_aggregation_performance'] += "%s. HASHAGG does not support: 'count(distinct xx)'" \
                                                            % index
-            self.suggestion['poor_aggregation_performance'] += "%s. Rewrite SQL to support HASHAGG." % index
+            self.suggestion['poor_aggregation_performance'] += "%s. Rewrite SQL to support HASHAGG" % index
         if abnormal_groupagg_scene:
-            index = indexes.pop()
-            self.detail['poor_aggregation_performance'] += "%s. The GROUPAGG operator cost is too high"
+            index = indexes.pop(0)
+            self.detail['poor_aggregation_performance'] += "%s. The GROUPAGG operator cost is too high" % index
             self.suggestion['poor_aggregation_performance'] += "%s. Determine whether the statement " \
-                                                               "can be optimized." % index
+                                                               "can be optimized" % index
         if abnormal_hashagg_scene:
-            index = indexes.pop()
-            self.detail['poor_aggregation_performance'] += "%s. The HASHAGG operator cost is too high"
+            index = indexes.pop(0)
+            self.detail['poor_aggregation_performance'] += "%s. The HASHAGG operator cost is too high" % index
             self.suggestion['poor_aggregation_performance'] += "%s. If the number of group keys or NDV is large, " \
                                                                "the hash table may be larger and lead to spill " \
-                                                               "to disk;" % index
+                                                               "to disk" % index
         if self.detail.get('poor_aggregation_performance'):
             return True
         return False

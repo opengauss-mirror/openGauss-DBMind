@@ -352,11 +352,11 @@ class QueryContextFromTSDB(QueryContext):
         sort_spill_sequence = dai.get_metric_sequence("gaussdb_statement_sort_spill", self.query_start_time,
                                                       self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-            query={self.slow_sql_instance.query}).fetchone()
+            query=f"{self.slow_sql_instance.query}").fetchone()
         hash_spill_sequence = dai.get_metric_sequence("gaussdb_statement_hash_spill", self.query_start_time,
                                                       self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-            query={self.slow_sql_instance.query}).fetchone()
+            query=f"{self.slow_sql_instance.query}").fetchone()
         if sort_spill_sequence.values and max(int(item) for item in sort_spill_sequence.values) > 0:
             sort_condition['sort_spill'] = True
         if hash_spill_sequence.values and max(int(item) for item in hash_spill_sequence.values) > 0:
@@ -539,7 +539,7 @@ class QueryContextFromTSDB(QueryContext):
     def acquire_wait_event(self) -> list:
         """Acquire database wait events"""
         wait_event = []
-        pg_wait_event_spike_info = dai.get_metric_sequence("pg_wait_event_spike",
+        pg_wait_event_spike_info = dai.get_metric_sequence("gaussdb_wait_event_spike",
                                                            self.query_start_time,
                                                            self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
@@ -551,7 +551,6 @@ class QueryContextFromTSDB(QueryContext):
             wait_event_info.node_name = sequence.labels['nodename']
             wait_event_info.type = sequence.labels['type']
             wait_event_info.event = sequence.labels['event']
-            wait_event_info.last_updated = int(max(sequence.values))
             wait_event.append(wait_event_info)
         return wait_event
 
@@ -678,26 +677,26 @@ class QueryContextFromTSDB(QueryContext):
     @exception_follower(output=str)
     @exception_catcher
     def acquire_rewritten_sql(self) -> str:
-        #if not self.slow_sql_instance.track_parameter or \
-        #        not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
-        #    return ''
-        #rewritten_flags = []
-        #rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
-        #                                    self.slow_sql_instance.query,
-        #                                    rewritten_flags=rewritten_flags,
-        #                                    if_format=False)
-        #flag = rewritten_flags[0]
-        #if not flag:
-        #    return ''
-        #rewritten_sql = rewritten_sql.replace('\n', ' ')
-        #rewritten_sql_plan = self.acquire_plan(rewritten_sql)
-        #old_sql_plan_parse = plan_parsing.Plan()
-        #rewritten_sql_plan_parse = plan_parsing.Plan()
-        ## Abandon the rewrite if the rewritten statement does not perform as well as the original statement.
-        #old_sql_plan_parse.parse(self.slow_sql_instance.query_plan)
-        #rewritten_sql_plan_parse.parse(rewritten_sql_plan)
-        #if old_sql_plan_parse.root_node.total_cost > rewritten_sql_plan_parse.root_node.total_cost:
-        #    return rewritten_sql
+        if not self.slow_sql_instance.track_parameter or \
+                not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
+            return ''
+        rewritten_flags = []
+        rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
+                                            self.slow_sql_instance.query,
+                                            rewritten_flags=rewritten_flags,
+                                            if_format=False)
+        flag = rewritten_flags[0]
+        if not flag:
+            return ''
+        rewritten_sql = rewritten_sql.replace('\n', ' ')
+        rewritten_sql_plan = self.acquire_plan(rewritten_sql)
+        old_sql_plan_parse = plan_parsing.Plan()
+        rewritten_sql_plan_parse = plan_parsing.Plan()
+        # Abandon the rewrite if the rewritten statement does not perform as well as the original statement.
+        old_sql_plan_parse.parse(self.slow_sql_instance.query_plan)
+        rewritten_sql_plan_parse.parse(rewritten_sql_plan)
+        if old_sql_plan_parse.root_node.total_cost > rewritten_sql_plan_parse.root_node.total_cost:
+            return rewritten_sql
         return ''
 
     @exception_follower(output=str)
@@ -761,8 +760,4 @@ class QueryContextFromTSDB(QueryContext):
     @exception_follower(output=list)
     @exception_catcher
     def acquire_abnormal_process(self):
-        # todo: need add metric
-        process_list = dai.get_metric_sequence('abnormal_process', self.query_start_time,
-                                               self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchall()
-        return process_list
+        return []
