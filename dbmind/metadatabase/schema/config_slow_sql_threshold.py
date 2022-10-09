@@ -39,7 +39,7 @@ class SlowSQLThreshold(DynamicConfig):
         'used_index_tuples_rate_threshold': 0.2,
         'plan_height_threshold': 40,
         'complex_operator_threshold': 20,
-        'subquery_threshold': 2,
+        'subquery_threshold': 1,
         'os_disk_usage_threshold': 0.9,
         'large_in_list_threshold': 1000
     }

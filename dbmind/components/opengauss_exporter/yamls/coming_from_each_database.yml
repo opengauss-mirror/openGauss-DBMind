@@ -321,13 +321,13 @@ pg_tables_structure:
           seq_scan,seq_tup_read,idx_scan,idx_tup_fetch,(seq_scan + idx_scan) AS tbl_scan,(seq_tup_read + idx_tup_fetch) AS tup_read,
           n_tup_ins,n_tup_upd,n_tup_del,(n_tup_ins + n_tup_upd + n_tup_del) AS n_tup_mod,
           n_tup_hot_upd,n_live_tup,n_dead_tup,round(n_dead_tup/(n_live_tup+1),2) as dead_rate,
-          nvl(last_vacuum::text,'1970-01-01') as last_vacuum,nvl(last_autovacuum::text,'1970-01-01') as last_autovacuum,nvl(last_analyze::text,'1970-01-01') as last_analyze,nvl(last_autoanalyze::text,'1970-01-01') as last_autoanalyze,vacuum_count,autovacuum_count,analyze_count,autoanalyze_count,
-          extract(epoch from pg_catalog.now() -(case when nvl(last_vacuum,'1970-01-01')>nvl(last_autovacuum,'1970-01-01') then nvl(last_vacuum,'1970-01-01') else nvl(last_autovacuum,'1970-01-01') end))::int vacuum_delay,
+          nvl(last_vacuum,'1970-01-01 08:00:00') as last_vacuum,nvl(last_autovacuum,'1970-01-01 08:00:00') as last_autovacuum,nvl(last_analyze,'1970-01-01 08:00:00') as last_analyze,nvl(last_autoanalyze,'1970-01-01 08:00:00') as last_autoanalyze,vacuum_count,autovacuum_count,analyze_count,autoanalyze_count,
+          extract(epoch from pg_catalog.now() -(case when nvl(last_vacuum,'1970-01-01 08:00:00')>nvl(last_autovacuum,'1970-01-01 08:00:00') then nvl(last_vacuum,'1970-01-01 08:00:00') else nvl(last_autovacuum,'1970-01-01 08:00:00') end))::int vacuum_delay,
           extract(epoch from pg_catalog.now() -(case when nvl(last_analyze,'1970-01-01')>nvl(last_autoanalyze,'1970-01-01') then nvl(last_analyze,'1970-01-01') else nvl(last_autoanalyze,'1970-01-01') end))::int analyze_delay,
           heap_blks_read,heap_blks_hit,idx_blks_read,idx_blks_hit,
           nvl(toast_blks_read, 0) toast_blks_read,nvl(toast_blks_hit, 0) toast_blks_hit,nvl(tidx_blks_read, 0) tidx_blks_read,nvl(tidx_blks_hit, 0) tidx_blks_hit
         FROM pg_stat_user_tables psut,pg_statio_user_tables psio
-        WHERE psio.relid = psut.relid and psio.schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') and (n_live_tup+n_dead_tup)>10000 limit 20;
+        WHERE psio.relid = psut.relid and psio.schemaname not in ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') and (n_live_tup+n_dead_tup)>1000 limit 20;
       version: '>=0.0.0'
       timeout: 1
       status: enable
@@ -385,16 +385,16 @@ pg_tables_structure:
       usage: GAUGE
     - name: last_vacuum
       description: when table was manually vacuumed last time (FULL not count)
-      usage: LABEL
+      usage: GAUGE
     - name: last_autovacuum
       description: when table was automatically vacuumed last time
-      usage: LABEL
+      usage: GAUGE
     - name: last_analyze
       description: when table was manually analyzed last time
-      usage: LABEL
+      usage: GAUGE
     - name: last_autoanalyze
       description: when table was automatically analyzed last time
-      usage: LABEL
+      usage: GAUGE
     - name: vacuum_delay
       description: delay from last vacuum time
       usage: GAUGE
