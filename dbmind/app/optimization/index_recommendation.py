@@ -11,6 +11,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
+import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
 
@@ -57,6 +58,7 @@ def do_index_recomm(templatization_args, db_name, schemas, database_templates, o
     index_advisor_workload.MAX_INDEX_NUM = global_vars.configs.getint('SELF-OPTIMIZATION', 'max_index_num')
     index_advisor_workload.MAX_INDEX_STORAGE = global_vars.configs.getint('SELF-OPTIMIZATION', 'max_index_storage')
     index_advisor_workload.print = lambda *args, **kwargs: None
+    index_advisor_workload.logger = logging.getLogger()
 
     detail_info = index_advisor_workload.index_advisor_workload({'historyIndexes': {}}, executor, database_templates,
                                                                 multi_iter_mode=False, show_detail=True, n_distinct=1,

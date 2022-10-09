@@ -485,3 +485,12 @@ def split_iter(iterable, n):
         res.append(iterable[index:index+size])
         index += size
     return res
+
+
+def flatten(iterable):
+    for _iter in iterable:
+        if hasattr(_iter, '__iter__') and not isinstance(_iter, str):
+            for item in flatten(_iter):
+                yield item
+        else:
+            yield _iter

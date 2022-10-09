@@ -21,6 +21,7 @@ import random
 import re
 import sys
 import select
+from logging.handlers import RotatingFileHandler
 from collections import defaultdict
 from itertools import groupby, chain, combinations
 from typing import Tuple, List
@@ -43,7 +44,7 @@ try:
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
-        replace_comma_with_dollar
+        replace_comma_with_dollar, flatten
 except ImportError:
     from sql_output_parser import parse_single_advisor_results, parse_explain_plan, \
         get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results, parse_plan_cost, parse_hypo_index
@@ -57,10 +58,10 @@ except ImportError:
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
-        replace_comma_with_dollar
+        replace_comma_with_dollar, flatten
 
 SAMPLE_NUM = 5
-MAX_INDEX_COLUMN_NUM = 4
+MAX_INDEX_COLUMN_NUM = 5
 MAX_INDEX_NUM = None
 MAX_INDEX_STORAGE = None
 FULL_ARRANGEMENT_THRESHOLD = 20
@@ -76,8 +77,17 @@ SQL_PATTERN = [r'([^\\])\'((\')|(.*?([^\\])\'))',  # match all content in single
 SQL_DISPLAY_PATTERN = [r'\'((\')|(.*?\'))',  # match all content in single quotes
                        NUMBER_SET_PATTERN,  # match integer set in the IN collection
                        r'([^\_\d])\d+(\.\d+)?']  # match single integer
-logging.basicConfig(filename='index_advisor.log', level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s')
+
+handler = RotatingFileHandler(
+        filename='index_advisor.log',
+        maxBytes=100 * 1024 * 1024,
+        backupCount=5,
+    )
+handler.setLevel(logging.INFO)
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s'))
+logger = logging.getLogger('index advisor')
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 os.umask(0o0077)
 
 
@@ -117,7 +127,7 @@ def read_input_from_pipe():
 def get_password():
     password = read_input_from_pipe()
     if password:
-        logging.warning("Read password from pipe.")
+        logger.warning("Read password from pipe.")
     else:
         password = getpass.getpass("Password for database user:")
     if not password:
@@ -213,16 +223,16 @@ class IndexAdvisor:
             if total_queries_num:
                 negative_sql_ratio = sql_num['negative'] / total_queries_num
             # Filter the candidate indexes that do not meet the conditions of optimization.
-            logging.info(f'filter low benefit index for {index}')
+            logger.info(f'filter low benefit index for {index}')
             if not positive_queries:
-                logging.info(f'filtered: positive_queries not found for the index')
+                logger.info(f'filtered: positive_queries not found for the index')
                 continue
             if sql_optimized / sql_num['positive'] < improved_rate:
-                logging.info(f"filtered: improved_rate {sql_optimized / sql_num['positive']} less than {improved_rate}")
+                logger.info(f"filtered: improved_rate {sql_optimized / sql_num['positive']} less than {improved_rate}")
                 continue
             if sql_optimized / sql_num['positive'] < \
                     NEGATIVE_RATIO_THRESHOLD < negative_sql_ratio:
-                logging.info(f'filtered: improved_rate {sql_optimized / sql_num["positive"]} < '
+                logger.info(f'filtered: improved_rate {sql_optimized / sql_num["positive"]} < '
                              f'negative_ratio_threshold < negative_sql_ratio {negative_sql_ratio} is not met')
                 continue
             self.determine_indexes.append(index)
@@ -289,18 +299,18 @@ class IndexAdvisor:
         index_current_storage = 0
         cnt = 0
         self.display_detail_info['recommendIndexes'] = []
-        logging.info('filter advised indexes by max-index-storage and max-index-num.')
+        logger.info('filter advised indexes by max-index-storage and max-index-num.')
         for key, index in enumerate(self.determine_indexes):
             # constraints for Top-N algorithm
-            logging.info(f'{index} has benefit of {self.workload.get_index_benefit(index)}')
+            logger.info(f'{index} has benefit of {self.workload.get_index_benefit(index)}')
             if MAX_INDEX_STORAGE and (index_current_storage + index.get_storage()) > MAX_INDEX_STORAGE:
-                logging.info('filtered: if add the index {index}, it reaches the max index storage.')
+                logger.info('filtered: if add the index {index}, it reaches the max index storage.')
                 continue
             if MAX_INDEX_NUM and cnt == MAX_INDEX_NUM:
-                logging.info('filtered: reach the maximum number for the index.')
+                logger.info('filtered: reach the maximum number for the index.')
                 break
             if not self.multi_iter_mode and index.benefit <= 0:
-                logging.info('filtered: benefit not above 0 for the index.')
+                logger.info('filtered: benefit not above 0 for the index.')
                 continue
             index_current_storage += index.get_storage()
             cnt += 1
@@ -639,12 +649,14 @@ def get_valid_indexes(advised_indexes, statement, executor, **kwargs):
     valid_indexes, cost = query_index_check(executor, statement, valid_indexes)
     pre_indexes = valid_indexes[:]
 
-    for i in range(MAX_INDEX_COLUMN_NUM):
+    # Increase the number of index columns in turn and check their validity.
+    for column_num in range(2, MAX_INDEX_COLUMN_NUM + 1):
         for table, index_group in groupby(valid_indexes, key=lambda x: x.get_table()):
             for index in index_group:
                 columns = index.get_columns()
                 index_type = index.get_index_type()
-                if columns.count(',') != i:
+                # only validate indexes with column number of column_num
+                if len(columns.split(',')) != column_num - 1:
                     continue
                 need_check = True
                 for single_column_index in single_column_indexes:
@@ -801,28 +813,31 @@ def generate_query_placeholder_indexes(query, executor: BaseExecutor, n_distinct
         return []
     parser = Parser(query)
     try:
-        tables = parser.tables
-        columns = UniqueList()
+        tables = [table.lower() for table in parser.tables]
+        columns = []
         for position, _columns in parser.columns_dict.items():
             if position.upper() not in ['SELECT', 'INSERT', 'UPDATE']:
                 columns.extend(_columns)
-        logging.info(f'parsing query: {query}')
-        logging.info(f'found tables: {" ".join(tables)}, columns: {" ".join(columns)}')
+        flatten_columns = UniqueList()
+        for column in flatten(columns):
+            flatten_columns.append(column)
+        logger.info(f'parsing query: {query}')
+        logger.info(f'found tables: {" ".join(tables)}, columns: {" ".join(flatten_columns)}')
     except (ValueError, AttributeError, KeyError) as e:
-        logging.warning('Found %s while parsing SQL statement.', e)
+        logger.warning('Found %s while parsing SQL statement.', e)
         return []
     for table in tables:
         table_indexes = []
         table_context = get_table_context(table, executor)
         if not table_context or table_context.reltuples < reltuples:
-            logging.info(f'filtered: table_context is {table_context} and does not meet the requirements')
+            logger.info(f'filtered: table_context is {table_context} and does not meet the requirements')
             continue
-        for column in columns:
+        for column in flatten_columns:
             if table_context.has_column(column) and table_context.get_n_distinct(column) <= n_distinct:
                 table_indexes.extend(generate_placeholder_indexes(table_context, column.split('.')[-1].lower()))
         # top 20 for candidate indexes
         indexes.extend(sorted(table_indexes, key=lambda x: table_context.get_n_distinct(x.get_columns()))[:20])
-    logging.info(f'related indexes: {indexes}')
+    logger.info(f'related indexes: {indexes}')
     return indexes
 
 
@@ -838,7 +853,7 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_dis
                 if advised_index not in advised_indexes:
                     advised_indexes.append(advised_index)
             valid_indexes = get_valid_indexes(advised_indexes, query.get_statement(), executor, **kwargs)
-            logging.info(f'get valid indexes: {valid_indexes} for the query {query}')
+            logger.info(f'get valid indexes: {valid_indexes} for the query {query}')
             add_query_indexes(valid_indexes, workload.get_queries(), pos)
             for index in valid_indexes:
                 if index not in all_indexes:
@@ -1096,7 +1111,7 @@ def main(argv):
                 from executors.driver_executor import DriverExecutor
             executor = DriverExecutor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
         except ImportError:
-            logging.warning('Python driver import failed, '
+            logger.warning('Python driver import failed, '
                             'the gsql mode will be selected to connect to the database.')
 
             executor = GsqlExecutor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
