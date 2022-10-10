@@ -52,3 +52,11 @@ class TsdbClient(object):
     def timestamp(self):
         """get the current unix-timestamp from the time-series database."""
         return int(time.time() * 1000)
+
+    def scrape_interval(self):
+        """get the scrape interval of tsdb"""
+        pass
+
+    def all_metrics(self):
+        """get all the metric name from tsdb."""
+        pass

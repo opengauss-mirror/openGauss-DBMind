@@ -53,22 +53,50 @@ class LazyFetcher:
         self.start_time = start_time
         self.end_time = end_time
         self.step = step
-
         self.labels = dict.copy(global_vars.must_filter_labels or {})
+        self.labels_like = dict()
         self.rv = None
 
     def filter(self, **kwargs):
+        dbmind_assert(
+            not self.labels_like.keys() & kwargs.keys(),
+            comment="labels and labels_like have duplicated key."
+        )
         self.labels.update(kwargs)
         return self
 
     def from_server(self, host):
+        dbmind_assert(
+            DISTINGUISHING_INSTANCE_LABEL not in self.labels_like,
+            comment="labels and labels_like have duplicated key."
+        )
         self.labels[DISTINGUISHING_INSTANCE_LABEL] = host
         return self
 
+    def filter_like(self, **kwargs):
+        dbmind_assert(
+            not self.labels.keys() & kwargs.keys(),
+            comment="labels and labels_like have duplicated key."
+        )
+        self.labels_like.update(kwargs)
+        return self
+
+    def from_server_like(self, host_like):
+        dbmind_assert(
+            DISTINGUISHING_INSTANCE_LABEL not in self.labels,
+            comment="labels and labels_like have duplicated key."
+        )
+        self.labels_like[DISTINGUISHING_INSTANCE_LABEL] = host_like
+        return self
+
     def _fetch_sequence(self, start_time=None, end_time=None, step=None):
+        params = dict()
+        if self.labels_like:
+            params["labels_like"] = self.labels_like.copy()
         # Labels have been passed.
         if start_time == end_time or (end_time - start_time) / 1000 < 1:
-            params = {'time': start_time} if start_time is not None else {}
+            if start_time is not None:
+                params["time"] = start_time
             return TsdbClientFactory.get_tsdb_client().get_current_metric_value(
                 metric_name=self.metric_name,
                 label_config=self.labels,
@@ -82,7 +110,8 @@ class LazyFetcher:
             label_config=self.labels,
             start_time=datetime.fromtimestamp(start_time / 1000),
             end_time=datetime.fromtimestamp(end_time / 1000),
-            step=step // 1000 if step else step
+            step=step // 1000 if step else step,
+            params=params
         )
 
     def _read_buffer(self):

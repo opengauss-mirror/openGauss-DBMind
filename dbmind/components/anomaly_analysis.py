@@ -13,14 +13,15 @@
 
 import argparse
 import csv
+import http.client
 import multiprocessing as mp
 import os
+import platform
+import re
 import sys
 from collections import defaultdict
 from datetime import datetime
 
-import requests
-from requests.adapters import HTTPAdapter
 from scipy.interpolate import interp1d
 
 from dbmind import constants
@@ -29,43 +30,54 @@ from dbmind.cmd.config_utils import DynamicConfig, load_sys_configs
 from dbmind.common import utils
 from dbmind.common.algorithm.correlation import max_cross_correlation
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.common.utils.checking import date_type, path_type
+from dbmind.common.utils.checking import (
+    check_ip_valid, check_port_valid, date_type, path_type
+)
 from dbmind.common.utils.cli import write_to_terminal
 from dbmind.service import dai
+from dbmind.service.utils import SequenceUtils, DISTINGUISHING_INSTANCE_LABEL
 
 LEAST_WINDOW = int(7.2e3) * 1000
-INTERVAL = 15000
 LOOK_BACK = 0
 LOOK_FORWARD = 0
+
+# The "chunk" is used in package--urllib3 which is only supported in HTTP/1.1 or later.
+# It will cause ChunkedEncodingError if the server only supports the request of HTTP/1.0.
+# To avoid the ChunkedEncodingError, fix the http connection to HTTP/1.0.
+http.client.HTTPConnection._http_vsn = 10
+http.client.HTTPConnection._http_vsn_str = "HTTP/1.0"
 
 
 def get_sequences(arg):
     metric, host, start_datetime, end_datetime, length = arg
     result = []
-    seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).fetchall()
+    if ":" in host:
+        host_like = host.split(":")[0] + "(:[0-9]{4,5}|)"
+    else:
+        host_like = host + "(:[0-9]{4,5}|)"
+    seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).from_server_like(host_like).fetchall()
     for seq in seqs:
-        if 'from_instance' not in seq.labels or len(seq) < 0.9 * length:
+        if DISTINGUISHING_INSTANCE_LABEL not in seq.labels or len(seq) < 0.9 * length:
             continue
 
-        address = seq.labels.get('from_instance').strip()
-        if address in host or host in address:
-            if seq.labels.get('event'):
-                name = 'wait event-' + seq.labels.get('event')
-            else:
-                name = metric
-                if seq.labels.get('datname'):
-                    name += ' on ' + seq.labels.get('datname')
-                elif seq.labels.get('device'):
-                    name += ' on ' + seq.labels.get('device')
-                name += ' from ' + address
+        address = SequenceUtils.from_server(seq).strip()
+        if seq.labels.get('event'):
+            name = 'wait event-' + seq.labels.get('event')
+        else:
+            name = metric
+            if seq.labels.get('datname'):
+                name += ' on ' + seq.labels.get('datname')
+            elif seq.labels.get('device'):
+                name += ' on ' + seq.labels.get('device')
+            name += ' from ' + address
 
-            result.append((name, seq))
+        result.append((name, seq))
 
     return result
 
 
 def get_correlations(arg):
-    name, sequence, the_sequence = arg
+    name, sequence, this_sequence = arg
     f = interp1d(
         sequence.timestamps,
         sequence.values,
@@ -73,9 +85,54 @@ def get_correlations(arg):
         bounds_error=False,
         fill_value=(sequence.values[0], sequence.values[-1])
     )
-    y = f(the_sequence.timestamps)
-    corr, delay = max_cross_correlation(the_sequence.values, y, LOOK_BACK, LOOK_FORWARD)
+    y = f(this_sequence.timestamps)
+    corr, delay = max_cross_correlation(this_sequence.values, y, LOOK_BACK, LOOK_FORWARD)
     return name, corr, delay, sequence.values
+
+
+def multi_process_correlation_calculation(metric, sequence_args):
+    with mp.Pool() as pool:
+        sequence_result = pool.map(get_sequences, iterable=sequence_args)
+
+        _, host, start_datetime, end_datetime, length = sequence_args[0]
+        these_sequences = get_sequences((metric, host, start_datetime, end_datetime, length))
+
+        if not these_sequences:
+            write_to_terminal('The metric was not found.')
+            return
+
+        correlation_result = dict()
+        for this_name, this_sequence in these_sequences:
+            correlation_args = list()
+            for sequences in sequence_result:
+                for name, sequence in sequences:
+                    correlation_args.append((name, sequence, this_sequence))
+            correlation_result[this_name] = pool.map(get_correlations, iterable=correlation_args)
+
+    pool.join()
+
+    return correlation_result
+
+
+def single_process_correlation_calculation(metric, sequence_args):
+    sequence_result = list()
+    these_sequences = list()
+    for sequence_arg in sequence_args:
+        for name, sequence in get_sequences(sequence_arg):
+            if name.startswith(f"{metric} "):
+                these_sequences.append((name, sequence))
+            sequence_result.append((name, sequence))
+
+    if not these_sequences:
+        write_to_terminal('The metric was not found.')
+        return
+
+    correlation_result = defaultdict(list)
+    for this_name, this_sequence in these_sequences:
+        for name, sequence in sequence_result:
+            correlation_result[this_name].append(get_correlations((name, sequence, this_sequence)))
+
+    return correlation_result
 
 
 def main(argv):
@@ -102,6 +159,13 @@ def main(argv):
     end_time = args.end_time
     host = args.host
 
+    if ":" in host:
+        ip, port = host.split(":")[0], host.split(":")[1]
+        if not (check_ip_valid(ip) and check_port_valid(port)):
+            parser.exit(1, f"Invalid host: {host}.")
+    elif not check_ip_valid(host):
+        parser.exit(1, f"Invalid host: {host}.")
+
     os.chdir(args.conf)
     global_vars.metric_map = utils.read_simple_config_file(constants.METRIC_MAP_CONFIG)
     global_vars.configs = load_sys_configs(constants.CONFILE_NAME)
@@ -117,63 +181,41 @@ def main(argv):
         global_vars.configs.get('TSDB', 'ssl_keyfile_password'),
         global_vars.configs.get('TSDB', 'ssl_ca_file')
     )
-
-    url = (
-        'http://' + global_vars.configs.get('TSDB', 'host') +
-        ':' + global_vars.configs.get('TSDB', 'port') +
-        '/api/v1/label/__name__/values'
-    )
-    s = requests.Session()  # suitable for both http and https
-    s.mount('http://', HTTPAdapter(max_retries=3))
-    s.mount('https://', HTTPAdapter(max_retries=3))
-    response = s.get(url, headers={"Content-Type": "application/json"}, verify=False, timeout=5)
-    other_metrics = eval(response.content.decode())['data']
+    client = TsdbClientFactory.get_tsdb_client()
+    interval = client.scrape_interval
+    if not interval:
+        raise ValueError(f"Invalid scrape interval {interval}.")
+    interval *= 1000
+    all_metrics = client.all_metrics
 
     actual_start_time = min(start_time, end_time - LEAST_WINDOW)
     start_datetime = datetime.fromtimestamp(actual_start_time / 1000)
     end_datetime = datetime.fromtimestamp(end_time / 1000)
-    length = (end_time - start_time) // INTERVAL
+    length = (end_time - start_time) // interval
 
-    sequence_args = [(other_metric, host, start_datetime, end_datetime, length) for other_metric in other_metrics]
-    pool = mp.Pool()
-    ans = pool.map(get_sequences, iterable=sequence_args)
-    pool.close()
-    pool.join()
+    sequence_args = [(metric_name, host, start_datetime, end_datetime, length) for metric_name in all_metrics]
 
-    the_sequence = None
-    for sequences in ans:
-        for name, sequence in sequences:
-            if metric in name:
-                the_sequence = sequence
-                break
-        if the_sequence:
-            break
+    if platform.system() != 'Windows':
+        correlation_result = multi_process_correlation_calculation(metric, sequence_args)
     else:
-        write_to_terminal('The metric not found.')
-        return
+        correlation_result = single_process_correlation_calculation(metric, sequence_args)
 
-    correlation_args = list()
-    for sequences in ans:
-        for name, sequence in sequences:
-            correlation_args.append((name, sequence, the_sequence))
-
-    pool = mp.Pool()
-    ans = pool.map(get_correlations, iterable=correlation_args)
-    pool.close()
-    pool.join()
-
-    res = defaultdict(tuple)
-    for name, corr, delay, values in ans:
-        res[name] = max(res[name], (abs(corr), name, corr, delay, values))
-
-    res[metric] = (1, metric, 1, 0, the_sequence.values)
+    result = dict()
+    for this_name in correlation_result:
+        this_result = defaultdict(tuple)
+        for name, corr, delay, values in correlation_result[this_name]:
+            this_result[name] = max(this_result[name], (abs(corr), name, corr, delay, values))
+        result[this_name] = this_result
 
     if args.csv_dump_path:
-        with open(args.csv_dump_path, 'w+') as f:
-            writer = csv.writer(f)
-            for v in sorted(res.values(), reverse=True):
-                writer.writerow(v[0:3])
-                writer.writerow(v[3])
+        for this_name in result:
+            new_name = re.sub(r'[\\/:*?"<>|]', '_', this_name)
+            csv_path = os.path.join(args.csv_dump_path, new_name + ".csv")
+            with open(csv_path, 'w+', newline='') as f:
+                writer = csv.writer(f)
+                for _, name, corr, delay, values in sorted(result[this_name].values(), reverse=True):
+                    writer.writerow((name, corr, delay))  # Discard the first element abs(corr) after sorting.
+                    writer.writerow(values)
 
 
 if __name__ == '__main__':
