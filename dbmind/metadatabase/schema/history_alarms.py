@@ -11,6 +11,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
+
 from sqlalchemy import Column, String, Integer, BigInteger, CHAR, JSON, Index, TEXT
 
 from .. import Base
@@ -22,7 +23,8 @@ class HistoryAlarms(Base):
     history_alarm_id = Column(Integer, primary_key=True, autoincrement=True)
     host = Column(CHAR(24), nullable=False)
     alarm_type = Column(String(16), nullable=False)
-    alarm_level = Column(String(16))
+    alarm_level = Column(Integer, nullable=False)
+    end_at = Column(BigInteger, nullable=False)  # unix timestamp
     occurrence_at = Column(BigInteger, nullable=False)  # unix timestamp
     alarm_content = Column(String(1024))
     root_cause = Column(TEXT)

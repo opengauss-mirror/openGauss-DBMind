@@ -22,7 +22,7 @@ class Alarm:
                  host: Optional[str] = None,
                  alarm_content: str = None,
                  alarm_type: ALARM_TYPES = ALARM_TYPES.SYSTEM,
-                 metric_name: str = None,
+                 metric_name: str = None, start_timestamp=None, end_timestamp=None,
                  alarm_level: ALARM_LEVEL = ALARM_LEVEL.ERROR,
                  alarm_cause: Optional[Union[RootCause, Iterable[RootCause]]] = None,
                  extra=None):
@@ -31,9 +31,8 @@ class Alarm:
         self.alarm_type = alarm_type
         self.metric_name = metric_name
         self.alarm_level = alarm_level
-        self.start_timestamp = int(time() * 1000)
-        self.end_timestamp = None
-
+        self.start_timestamp = start_timestamp
+        self.end_timestamp = end_timestamp
         self.extra = extra
 
         if isinstance(alarm_cause, Iterable):

@@ -33,9 +33,9 @@ def _search_in_existing_indexes(index_info, seqscan_info):
 
 
 def _get_historical_statistics(metric_name, host):
-    result = statistical_metric.select_knob_statistic_avg_records(host=host, metric_name=metric_name, only_avg=True)
+    result = statistical_metric.select_metric_statistic_avg_records(host=host, metric_name=metric_name, only_avg=True)
     for item in result:
-        avg = list(item)[0]
+        avg = list(item)[0] if list(item) else 0
         return avg
 
 

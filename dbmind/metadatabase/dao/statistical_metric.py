@@ -40,7 +40,7 @@ def count_records():
         return result.count()
 
 
-def select_knob_statistic_records(host=None, metric_name=None):
+def select_metric_statistic_records(host=None, metric_name=None):
     with get_session() as session:
         result = session.query(StatisticalMetric)
         if host is not None:
@@ -50,7 +50,7 @@ def select_knob_statistic_records(host=None, metric_name=None):
         return result
 
 
-def select_knob_statistic_avg_records(host=None, metric_name=None, only_avg=None, only_max=None):
+def select_metric_statistic_avg_records(host=None, metric_name=None, only_avg=None, only_max=None):
     with get_session() as session:
         if only_avg is not None:
             result = session.query(StatisticalMetric.avg)

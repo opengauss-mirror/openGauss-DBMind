@@ -22,7 +22,7 @@ def get_batch_insert_history_alarms_functions():
     objs = []
 
     class _Inner:
-        def add(self, host, alarm_type, occurrence_at,
+        def add(self, host, alarm_type, occurrence_at, end_at,
                 alarm_level=None, alarm_content=None, root_cause=None,
                 suggestion=None, extra_info=None
                 ):
@@ -31,6 +31,7 @@ def get_batch_insert_history_alarms_functions():
                 alarm_type=alarm_type,
                 alarm_level=alarm_level,
                 occurrence_at=occurrence_at,
+                end_at=end_at,
                 alarm_content=alarm_content,
                 root_cause=root_cause,
                 suggestion=suggestion,
@@ -47,8 +48,8 @@ def get_batch_insert_history_alarms_functions():
     return _Inner()
 
 
-def select_history_alarm(host=None, alarm_type=None, alarm_level=None, start_occurrence_time=None,
-                         end_occurrence_time=None, group: bool = False):
+def select_history_alarm(host=None, alarm_type=None, alarm_level=None, alarm_content=None, start_occurrence_time=None,
+                         end_occurrence_time=None, limit=None, group: bool = False):
     with get_session() as session:
         if group:
             result = session.query(
@@ -56,7 +57,7 @@ def select_history_alarm(host=None, alarm_type=None, alarm_level=None, start_occ
                 HistoryAlarms.alarm_content,
                 HistoryAlarms.root_cause,
                 HistoryAlarms.suggestion,
-                func.count(HistoryAlarms.root_cause)
+                func.count(HistoryAlarms.root_cause),
             )
         else:
             result = session.query(HistoryAlarms)
@@ -66,15 +67,19 @@ def select_history_alarm(host=None, alarm_type=None, alarm_level=None, start_occ
             result = result.filter(HistoryAlarms.alarm_type == alarm_type)
         if alarm_level:
             result = result.filter(HistoryAlarms.alarm_level == alarm_level)
+        if alarm_content:
+            result = result.filter(HistoryAlarms.alarm_content == alarm_content)
         if start_occurrence_time is not None:
             result = result.filter(HistoryAlarms.occurrence_at >= start_occurrence_time)
         if end_occurrence_time is not None:
-            result = result.filter(HistoryAlarms.occurrence_at <= end_occurrence_time)
+            result = result.filter(HistoryAlarms.end_at <= end_occurrence_time)
         if group:
             return result.group_by(
                 HistoryAlarms.root_cause, HistoryAlarms.host,
                 HistoryAlarms.alarm_content, HistoryAlarms.suggestion
             )
+        if limit:
+            return result.order_by(desc(HistoryAlarms.occurrence_at)).limit(limit)
         return result.order_by(desc(HistoryAlarms.occurrence_at))
 
 
@@ -93,12 +98,14 @@ def truncate_history_alarm():
     truncate_table(HistoryAlarms.__tablename__)
 
 
-def update_history_alarm(alarm_id, alarm_status=None, recovery_time=None):
+def update_history_alarm(alarm_id, alarm_status=None, end_at=None, recovery_time=None):
     kwargs = dict()
     if alarm_status is not None:
         kwargs.update(alarm_status=alarm_status)
     if recovery_time is not None:
         kwargs.update(recovery_at=recovery_time)
+    if end_at is not None:
+        kwargs.update(end_at=end_at)
     if len(kwargs) == 0:
         return
 

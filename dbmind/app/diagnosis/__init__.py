@@ -35,9 +35,7 @@ def diagnose_for_sequences(host, metric, sequences):
         root_causes = diagnose_system(host, metric, seq)
         if len(root_causes) == 0:
             continue
-        for cause, probability in root_causes:
-            root_cause = RootCause.get(cause)
-            root_cause.set_probability(probability)
+        for root_cause in root_causes:
             alarm = Alarm(
                 host=host,
                 metric_name=metric,
