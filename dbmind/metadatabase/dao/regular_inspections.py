@@ -30,17 +30,17 @@ def insert_regular_inspection(inspection_type, start, end, report=None, conclusi
         )
 
 
-def truncate_knob_regular_inspections():
+def truncate_metric_regular_inspections():
     truncate_table(RegularInspection.__tablename__)
 
 
-def count_knob_regular_inspections():
+def count_metric_regular_inspections():
     with get_session() as session:
         result = session.query(RegularInspection)
         return result.count()
 
 
-def select_knob_regular_inspections(inspection_type, limit=None):
+def select_metric_regular_inspections(inspection_type, limit=None):
     with get_session() as session:
         result = session.query(RegularInspection)
         if inspection_type:

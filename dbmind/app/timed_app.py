@@ -418,87 +418,95 @@ statistical_metrics = {}
 @timer(seconds=updating_statistic_interval)
 def update_statistical_metrics():
     logging.info('Starting to save statistic value of key metrics.')
-    end = datetime.now()
-    start = end - timedelta(seconds=updating_statistic_interval)  # Polish later: check more.
-    results = []
-    handled_metrics = []
-    for metric in golden_kpi:
-        if metric in handled_metrics:
-            continue
-        handled_metrics.append(metric)
-        latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
-        logging.debug('The length of latest_sequences is %d and metric name is %s.',
-                      len(latest_sequences), metric)
-        for sequence in latest_sequences:
-            if not sequence.values:
+    try:
+        end = datetime.now()
+        start = end - timedelta(seconds=updating_statistic_interval)  # Polish later: check more.
+        results = []
+        handled_metrics = []
+        for metric in golden_kpi:
+            if metric in handled_metrics:
                 continue
-            host = dbmind.service.utils.SequenceUtils.from_server(sequence)
-            date = int(time.time() * 1000)
-            metric_name = metric
-            unique_metric_name = '%s-%s' % (metric, host)
-            if 'mountpoint' in sequence.labels:
-                unique_metric_name += sequence.labels['mountpoint']
-                metric_name = '%s(%s)' % (metric_name, sequence.labels['mountpoint'])
-            if unique_metric_name not in statistical_metrics:
-                statistical_metrics[unique_metric_name] = {'avg_val': {}}
-            prev_length = statistical_metrics[unique_metric_name]['avg_val'].get('length', 0)
-            prev_sum_value = statistical_metrics[unique_metric_name]['avg_val'].get('value', 0) * prev_length
-            avg_val = \
-                round((prev_sum_value + sum(sequence.values)) / (prev_length + len(sequence.values)), 4)
-            statistical_metrics[unique_metric_name]['avg_val'] = {'value': avg_val,
-                                                                  'length': prev_length + len(
-                                                                      sequence.values)}
-            min_val = round(min(min(sequence.values), statistical_metrics[unique_metric_name].get('min_val', 0)), 4)
-            max_val = round(max(max(sequence.values), statistical_metrics[unique_metric_name].get('max_val', 0)), 4)
-            the_95_quantile = round(np.nanpercentile(sequence.values, 95), 4)
-            results.append({'metric_name': metric_name,
-                            'host': host,
-                            'date': date,
-                            'avg_val': avg_val,
-                            'min_val': min_val,
-                            'max_val': max_val,
-                            'the_95_quantile': the_95_quantile})
-    if results:
-        dai.save_statistical_metric_records(results)
-    global_vars.self_driving_records.put(
-        {
-            'catalog': 'monitoring',
-            'msg': 'Updated statistical metrics.',
-            'time': int(time.time() * 1000)
-        }
-    )
+            handled_metrics.append(metric)
+            latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
+            logging.debug('The length of latest_sequences is %d and metric name is %s.',
+                          len(latest_sequences), metric)
+            for sequence in latest_sequences:
+                if not sequence.values:
+                    continue
+                host = dbmind.service.utils.SequenceUtils.from_server(sequence)
+                date = int(time.time() * 1000)
+                metric_name = metric
+                unique_metric_name = '%s-%s' % (metric, host)
+                if 'mountpoint' in sequence.labels:
+                    unique_metric_name += sequence.labels['mountpoint']
+                    metric_name = '%s(%s)' % (metric_name, sequence.labels['mountpoint'])
+                if unique_metric_name not in statistical_metrics:
+                    statistical_metrics[unique_metric_name] = {'avg_val': {}}
+                prev_length = statistical_metrics[unique_metric_name]['avg_val'].get('length', 0)
+                prev_sum_value = statistical_metrics[unique_metric_name]['avg_val'].get('value', 0) * prev_length
+                avg_val = \
+                    round((prev_sum_value + sum(sequence.values)) / (prev_length + len(sequence.values)), 4)
+                statistical_metrics[unique_metric_name]['avg_val'] = {'value': avg_val,
+                                                                      'length': prev_length + len(
+                                                                          sequence.values)}
+                min_val = round(min(min(sequence.values), statistical_metrics[unique_metric_name].get('min_val', 0)), 4)
+                max_val = round(max(max(sequence.values), statistical_metrics[unique_metric_name].get('max_val', 0)), 4)
+                the_95_quantile = round(np.nanpercentile(sequence.values, 95), 4)
+                results.append({'metric_name': metric_name,
+                                'host': host,
+                                'date': date,
+                                'avg_val': avg_val,
+                                'min_val': min_val,
+                                'max_val': max_val,
+                                'the_95_quantile': the_95_quantile})
+        if results:
+            dai.save_statistical_metric_records(results)
+        global_vars.self_driving_records.put(
+            {
+                'catalog': 'monitoring',
+                'msg': 'Updated statistical metrics.',
+                'time': int(time.time() * 1000)
+            }
+        )
+    except Exception as e:
+        logging.error(e, exc_info=True)
 
 
 @timer(seconds=daily_inspection_interval)
 def daily_inspection():
     logging.info('Starting to inspect.')
-    results = []
-    host, port = dbmind.service.utils.get_master_instance_address()
-    end = datetime.now()
-    start = end - timedelta(seconds=daily_inspection_interval)
-
-    regular_inspector = regular_inspection.Inspection(host=host, port=port, start=start, end=end)
-    report = regular_inspector.inspect()
-    conclusion = regular_inspector.conclusion()
-    results.append({'inspection_type': 'daily check',
-                    'start': int(start.timestamp() * 1000),
-                    'end': int(end.timestamp()) * 1000,
-                    'report': report,
-                    'conclusion': conclusion})
-    dai.save_regular_inspection_results(results)
-    global_vars.self_driving_records.put(
-        {
-            'catalog': 'diagnosis',
-            'msg': 'Updated daily inspection report.',
-            'time': int(time.time() * 1000)
-        }
-    )
+    try:
+        results = []
+        host, port = dbmind.service.utils.get_master_instance_address()
+        end = datetime.now()
+        start = end - timedelta(seconds=daily_inspection_interval)
+        regular_inspector = regular_inspection.Inspection(host=host, port=port, start=start, end=end)
+        report = regular_inspector.inspect()
+        conclusion = regular_inspector.conclusion()
+        results.append({'inspection_type': 'daily check',
+                        'start': int(start.timestamp() * 1000),
+                        'end': int(end.timestamp()) * 1000,
+                        'report': report,
+                        'conclusion': conclusion})
+        dai.save_regular_inspection_results(results)
+        global_vars.self_driving_records.put(
+            {
+                'catalog': 'diagnosis',
+                'msg': 'Updated daily inspection report.',
+                'time': int(time.time() * 1000)
+             }
+         )
+    except Exception as e:
+        logging.error(e, exc_info=True)
 
 
 @timer(seconds=updating_param_interval)
 def update_detection_param():
     logging.info('Start to update detection params.')
-    host, port = dbmind.service.utils.get_master_instance_address()
-    end = datetime.now()
-    start = end - timedelta(seconds=daily_inspection_interval)
-    regular_inspection.update_detection_param(host, port, start, end)
+    try:
+        host, port = dbmind.service.utils.get_master_instance_address()
+        end = datetime.now()
+        start = end - timedelta(seconds=daily_inspection_interval)
+        regular_inspection.update_detection_param(host, port, start, end)
+    except Exception as e:
+        logging.error(e, exc_info=True)

@@ -31,7 +31,7 @@ class MUST_BE_DETECTED_METRICS:
     HISTORY = _rules_for_history
     BUILTIN_GOLDEN_KPI = {'os_cpu_usage', 'os_disk_iops', 'os_mem_usage',
                           'pg_connections_used_conn', 'statement_responsetime_percentile_p80',
-                          'node_network_transmit_error'}
+                          'os_network_transmit_error'}
 
 
 def detect_future(host, metrics, latest_sequences, future_sequences):
@@ -50,12 +50,6 @@ def detect_history(sequences):
             specific_detect(host, metrics, sequences)
         )
 
-    # prevent cross-reference
-    from ..diagnosis import diagnose_for_sequences
-    for sequence in sequences:
-        if sequence.name in MUST_BE_DETECTED_METRICS.BUILTIN_GOLDEN_KPI:
-            anomalies = generic_detect(sequence.name, sequence)
-            alarms.extend(diagnose_for_sequences(host, sequence.name, anomalies))
     return alarms
 
 

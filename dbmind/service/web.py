@@ -768,7 +768,7 @@ def toolkit_slow_sql_rca(sql, database, schema=None, start_time=None, end_time=N
 
 def get_metric_statistic():
     return sqlalchemy_query_jsonify(
-        dao.statistical_metric.select_knob_statistic_records()
+        dao.statistical_metric.select_metric_statistic_records()
     )
 
 
@@ -776,5 +776,5 @@ def get_regular_inspections(inspection_type):
     if inspection_type not in ('daily check', 'weekly check', 'monthly check'):
         return
     return sqlalchemy_query_jsonify(
-        dao.regular_inspections.select_knob_regular_inspections(inspection_type, limit=1)
+        dao.regular_inspections.select_metric_regular_inspections(inspection_type, limit=1)
     )

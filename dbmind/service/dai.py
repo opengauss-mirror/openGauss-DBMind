@@ -37,7 +37,7 @@ if LINUX:
 else:
     mp_shared_buffer = None
 buff = SequenceBufferPool(600, vacuum_timeout=300, buffer=mp_shared_buffer)
-MERGE_INTERVAL = 300 * 1000  # Alarm merge interval, unit is ms
+MERGE_INTERVAL = 600 * 1000  # Alarm merge interval, unit is ms
 
 
 def datetime_to_timestamp(t: datetime):
@@ -162,17 +162,33 @@ def save_history_alarms(history_alarms):
     for alarm in history_alarms:
         if not alarm:
             continue
+        query = dao.alarms.select_history_alarm(host=alarm.host, alarm_type=alarm.alarm_type,
+                                                alarm_content=alarm.alarm_content,
+                                                alarm_level=alarm.alarm_level, limit=1)
+        field_names = ['history_alarm_id', 'end_at']
+        result = []
+        if list(query):
+            result = [getattr(query[0], field) for field in field_names]
+        if result:
+            pre_alarm_id = result[0]
+            pre_alarm_end_at = result[1]
+            cur_alarm_start_at = alarm.start_timestamp
+            cur_alarm_end_at = alarm.end_timestamp
+            if cur_alarm_start_at - pre_alarm_end_at < MERGE_INTERVAL:
+                dao.alarms.update_history_alarm(alarm_id=pre_alarm_id, end_at=cur_alarm_end_at)
+                continue
         func.add(
             host=alarm.host,
             alarm_type=alarm.alarm_type,
             occurrence_at=alarm.start_timestamp,
-            alarm_level=str(alarm.alarm_level),
+            end_at=alarm.end_timestamp,
+            alarm_level=alarm.alarm_level,
             alarm_content=alarm.alarm_content,
             root_cause=alarm.root_causes,
             suggestion=alarm.suggestions,
             extra_info=alarm.extra
         )
-    func.commit()
+        func.commit()
 
 
 def save_future_alarms(future_alarms):

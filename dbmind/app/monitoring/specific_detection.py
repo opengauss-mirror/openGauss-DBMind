@@ -92,6 +92,8 @@ def will_disk_spill(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
                 metric_name='os_disk_usage',
+                start_timestamp=full_sequence.timestamps[0],
+                end_timestamp=full_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.WARNING,
                 alarm_cause=RootCause.get('DISK_WILL_SPILL')
             )
@@ -109,6 +111,8 @@ def will_disk_spill(latest_sequences, future_sequences):
                                                              ),
             alarm_type=ALARM_TYPES.ALARM,
             metric_name='os_disk_usage',
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.WARNING,
             alarm_cause=RootCause.get('DISK_BURST_INCREASE')
         )
@@ -142,6 +146,8 @@ def has_login_brute_force_attack(latest_sequences, future_sequences):
                 alarm_content=alarm_content,
                 alarm_type=ALARM_TYPES.SECURITY,
                 metric_name='gaussdb_invalid_logins_rate',
+                start_timestamp=latest_sequence.timestamps[0],
+                end_timestamp=latest_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.WARNING,
                 alarm_cause=RootCause.get('TOO_MANY_INVALID_LOGINS')
             )
@@ -168,6 +174,8 @@ def has_scanning_attack(latest_sequences, future_sequences):
             alarm_content=alarm_content,
             alarm_type=ALARM_TYPES.SECURITY,
             metric_name='gaussdb_errors_rate',
+            start_timestamp=latest_sequence.timestamps[0],
+            end_timestamp=latest_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.WARNING,
             alarm_cause=RootCause.get('TOO_MANY_ERRORS')
         )
@@ -200,6 +208,8 @@ def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
             alarm_content="The memory usage has exceeded the warning level: %s%%." % (mem_usage_threshold * 100),
             alarm_type=ALARM_TYPES.ALARM,
             metric_name=metric_name,
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.WARNING,
             alarm_cause=RootCause.get('HIGH_MEMORY_USAGE')
         )
@@ -211,6 +221,8 @@ def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
                 mem_usage_max_coef),
             alarm_type=ALARM_TYPES.ALARM,
             metric_name=metric_name,
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.WARNING,
             alarm_cause=RootCause.get('MEMORY_USAGE_BURST_INCREASE')
         )
@@ -250,6 +262,8 @@ def has_cpu_high_usage(latest_sequences, future_sequences):
                               cpu_usage_threshold * 100, cpu_high_usage_percent * 100),
             alarm_type=ALARM_TYPES.ALARM,
             metric_name='os_cpu_usage',
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.ERROR,
             alarm_cause=RootCause.get('HIGH_CPU_USAGE')
         )
@@ -277,6 +291,8 @@ def has_qps_rapid_change(latest_sequences, future_sequences):
             alarm_content="The qps increased too fast, and exceeded the warning level: %s." % (qps_max_coef),
             alarm_type=ALARM_TYPES.ALARM,
             metric_name='gaussdb_qps_by_instance',
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.WARNING,
             alarm_cause=RootCause.get('QPS_VIOLENT_INCREASE')
         )
@@ -304,6 +320,8 @@ def has_connections_high_occupation(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
                 metric_name='used connection',
+                start_timestamp=full_sequence.timestamps[0],
+                end_timestamp=full_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.ERROR,
                 alarm_cause=RootCause.get('FAST_CONNECTIONS_INCREASE')
             )
@@ -331,6 +349,8 @@ def has_high_p80(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
                 metric_name='P80',
+                start_timestamp=full_sequence.timestamps[0],
+                end_timestamp=full_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.WARNING,
                 alarm_cause=RootCause.get('POOR_SQL_PERFORMANCE')
             )
@@ -358,6 +378,8 @@ def has_high_replication_delay(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
                 metric_name='pg_replication_write_diff',
+                start_timestamp=full_sequence.timestamps[0],
+                end_timestamp=full_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.WARNING,
                 alarm_cause=RootCause.get('REPLICATION_SYNC')
             )
@@ -384,6 +406,8 @@ def has_high_io_capacity(latest_sequences, future_sequences):
                     io_capacity_threshold
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
+                start_timestamp=full_sequence.timestamps[0],
+                end_timestamp=full_sequence.timestamps[-1],
                 metric_name='io capacity',
                 alarm_level=ALARM_LEVEL.WARNING,
                 alarm_cause=RootCause.get('LARGE_IO_CAPACITY')
@@ -412,6 +436,8 @@ def has_high_handle_occupation(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
                 metric_name='node_process_fds_rate',
+                start_timestamp=full_sequence.timestamps[0],
+                end_timestamp=full_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.WARNING,
             )
         )
@@ -438,6 +464,8 @@ def has_high_disk_ioutils(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
                 metric_name='os_disk_ioutils',
+                start_timestamp=full_sequence.timestamps[0],
+                end_timestamp=full_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.WARNING,
             )
         )
@@ -469,6 +497,8 @@ def has_too_many_connections(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
                 metric_name='pg_connections_idle_session',
+                start_timestamp=connection_rate.timestamps[0],
+                end_timestamp=connection_rate.timestamps[-1],
                 alarm_level=ALARM_LEVEL.WARNING,
             )
         )

@@ -86,32 +86,16 @@ class Inspection:
                     related_metric='os_disk_usage', label='device'),
         METRIC_ATTR(name='mem_usage', category='system', fetch_method='one',
                     related_metric='os_mem_usage', label=''),
-        METRIC_ATTR(name='io_read_delay', category='system', fetch_method='all',
-                    related_metric='os_io_read_delay_time', label='device'),
-        METRIC_ATTR(name='io_write_delay', category='system', fetch_method='all',
-                    related_metric='os_io_write_delay_time', label='device'),
         METRIC_ATTR(name='network_receive_drop', category='system', fetch_method='one',
-                    related_metric='node_network_receive_drop', label=''),
+                    related_metric='os_network_receive_drop', label=''),
         METRIC_ATTR(name='network_transmit_drop', category='system', fetch_method='one',
                     related_metric='os_network_transmit_drop', label=''),
         METRIC_ATTR(name='fds', category='system', fetch_method='one',
                     related_metric='os_process_fds_rate', label=''),
-        METRIC_ATTR(name='select', category='database', fetch_method='one',
-                    related_metric='gs_sql_count_select', label=''),
-        METRIC_ATTR(name='delete', category='database', fetch_method='one',
-                    related_metric='gs_sql_count_delete', label=''),
-        METRIC_ATTR(name='insert', category='database', fetch_method='one',
-                    related_metric='gs_sql_count_insert', label=''),
-        METRIC_ATTR(name='update', category='database', fetch_method='one',
-                    related_metric='gs_sql_count_update', label=''),
-        METRIC_ATTR(name='thread_pool', category='database', fetch_method='one',
-                    related_metric='thread_occupy', label=''),
         METRIC_ATTR(name='connection_pool', category='database', fetch_method='one',
                     related_metric='gaussdb_connections_used_ratio', label=''),
         METRIC_ATTR(name='qps', category='database', fetch_method='one',
                     related_metric='gaussdb_qps_by_instance', label=''),
-        METRIC_ATTR(name='p80', category='database', fetch_method='one',
-                    related_metric='statement_responsetime_percentile_p80', label=''),
         METRIC_ATTR(name='p95', category='database', fetch_method='one',
                     related_metric='statement_responsetime_percentile_p95', label='')
     ]
@@ -200,7 +184,6 @@ class Inspection:
 
     def conclusion(self):
         RELATED_ALARM_THRESHOLD = 0.2
-
         alarm_content_statistic = sorted(self.alarm_content_statistic.items(), key=lambda x: x[1], reverse=True)
         alarm_count = sum(self.alarm_content_statistic.values())
         system_resource_related, security_related, performance_related = [], [], []
@@ -302,13 +285,6 @@ class Inspection:
         report += "\n  [RCA DISTRIBUTION]\n"
         for root_cause, count in self.slow_sql_rca_statistics.items():
             report += "    ROOT CAUSE: %s, COUNT: %s\n" % (root_cause, count)
-        report += "\n  [QUERY DISTRIBUTION]\n"
-        report += "    SELECT: %s, UPDATE: %s, DELETE: %s, INSERT: %s, OTHER: %s\n" % (
-            self.slow_sql_query_statistics.get('SELECT', 0),
-            self.slow_sql_query_statistics.get('UPDATE', 0),
-            self.slow_sql_query_statistics.get('DELETE', 0),
-            self.slow_sql_query_statistics.get('INSERT', 0),
-            self.slow_sql_query_statistics.get('OTHER', 0))
         return report
 
 
