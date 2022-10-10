@@ -24,6 +24,17 @@ from ..types import Sequence
 from ..types.ssl import SSLContext
 
 
+def label_to_query(labels: dict = None, labels_like: dict = None):
+    query_list = list()
+    if isinstance(labels, dict) and labels:
+        for k, v in labels.items():
+            query_list.append(f"{k}='{v}'")
+    if isinstance(labels_like, dict) and labels_like:
+        for k, v in labels_like.items():
+            query_list.append(f"{k}=~'{v}'")
+    return "{" + ",".join(query_list) + "}"
+
+
 # Standardized the format of return value.
 def _standardize(data, step=None):
     if step is not None:
@@ -133,20 +144,19 @@ class PrometheusClient(TsdbClient):
             (ApiClientException) Raises in case of non 200 response status code
         """
         params = params or {}
-        data = []
-        if label_config:
-            label_list = [str(key + "=" + "'" + label_config[key] + "'") for key in label_config]
-            query = metric_name + "{" + ",".join(label_list) + "}"
+        labels_like = params.pop('labels_like') if 'labels_like' in params else {}
+        if label_config or labels_like:
+            query = metric_name + label_to_query(label_config, labels_like)
         else:
             query = metric_name
 
         # using the query API to get raw data
+        data = []
         response = self._session.get(
             "{0}/api/v1/query".format(self.url),
-            params={**{"query": query}, **params},
+            params={**params, **{"query": query}},
             headers=self.headers,
         )
-
         if response.status_code == 200:
             data += response.json()["data"]["result"]
         else:
@@ -185,8 +195,13 @@ class PrometheusClient(TsdbClient):
             (ApiClientException) Raises in case of non 200 response status code
         """
         params = params or {}
-        data = []
+        labels_like = params.pop('labels_like') if 'labels_like' in params else {}
+        if label_config or labels_like:
+            query = metric_name + label_to_query(label_config, labels_like)
+        else:
+            query = metric_name
 
+        data = []
         if not (isinstance(start_time, datetime) and isinstance(end_time, datetime)):
             raise TypeError("start_time and end_time can only be of type datetime.datetime")
 
@@ -197,22 +212,16 @@ class PrometheusClient(TsdbClient):
 
         chunk_seconds = round((end_time - start_time).total_seconds())
 
-        if label_config:
-            label_list = [str(key + "=" + "\"" + str(label_config[key]) + "\"") for key in label_config]
-            query = metric_name + "{" + ",".join(label_list) + "}"
-        else:
-            query = metric_name
-
         if step is None:
             # using the query API to get raw data
             response = self._session.get(
                 "{0}/api/v1/query".format(self.url),
                 params={
+                    **params,
                     **{
                         "query": query + "[" + str(chunk_seconds) + "s" + "]",
                         "time": end,
-                    },
-                    **params,
+                    }
                 },
                 headers=self.headers,
             )
@@ -220,7 +229,7 @@ class PrometheusClient(TsdbClient):
             # using the query_range API to get raw data
             response = self._session.get(
                 "{0}/api/v1/query_range".format(self.url),
-                params={**{"query": query, "start": start, "end": end, "step": step}, **params},
+                params={**params, **{"query": query, "start": start, "end": end, "step": step}},
                 headers=self.headers,
             )
 
@@ -233,7 +242,7 @@ class PrometheusClient(TsdbClient):
 
         logging.debug('Fetched sequence (%s) from tsdb from %s to %s. The length of sequence is %s.',
                       metric_name, start_time, end_time, len(data))
-        return _standardize(data, step=step or self._scrape_interval)
+        return _standardize(data, step=step or self.scrape_interval)
 
     def custom_query(self, query: str, params: dict = None):
         """
@@ -254,7 +263,7 @@ class PrometheusClient(TsdbClient):
         # using the query API to get raw data
         response = self._session.get(
             "{0}/api/v1/query".format(self.url),
-            params={**{"query": query}, **params},
+            params={**params, **{"query": query}},
             headers=self.headers,
         )
         if response.status_code == 200:
@@ -291,7 +300,7 @@ class PrometheusClient(TsdbClient):
         # using the query_range API to get raw data
         response = self._session.get(
             "{0}/api/v1/query_range".format(self.url),
-            params={**{"query": query, "start": start, "end": end, "step": step}, **params},
+            params={**params, **{"query": query, "start": start, "end": end, "step": step}},
             headers=self.headers,
         )
         if response.status_code == 200:
@@ -300,7 +309,7 @@ class PrometheusClient(TsdbClient):
             raise ApiClientException(
                 "HTTP Status Code {} ({!r})".format(response.status_code, response.content)
             )
-        return _standardize(data, step=step or self._scrape_interval)
+        return _standardize(data, step=step or self.scrape_interval)
 
     def timestamp(self):
         seq = self.get_current_metric_value('prometheus_remote_storage_highest_timestamp_in_seconds')
@@ -309,7 +318,7 @@ class PrometheusClient(TsdbClient):
         return seq[0].timestamps[0]
 
     @cached_property
-    def _scrape_interval(self):
+    def scrape_interval(self):
         response = self._session.get(
             "{0}/api/v1/label/interval/values".format(self.url),
             headers=self.headers
@@ -318,3 +327,12 @@ class PrometheusClient(TsdbClient):
             return cast_duration_to_seconds(response['data'][0])
         return None
 
+    @cached_property
+    def all_metrics(self):
+        response = self._session.get(
+            "{0}/api/v1/label/__name__/values".format(self.url),
+            headers=self.headers
+        ).json()
+        if response['status'] == 'success' and len(response['data']) > 0:
+            return response['data']
+        return list()

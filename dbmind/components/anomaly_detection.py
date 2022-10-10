@@ -27,10 +27,9 @@ from dbmind.cmd.config_utils import DynamicConfig, load_sys_configs
 from dbmind.common import utils
 from dbmind.common.algorithm.stat_utils import sequence_interpolate
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.common.types.sequence import Sequence
 from dbmind.common.utils.checking import date_type, path_type
 from dbmind.common.utils.cli import (
-    write_to_terminal, raise_fatal_and_exit, RED_FMT, GREEN_FMT
+    raise_fatal_and_exit, RED_FMT, GREEN_FMT
 )
 from dbmind.service import dai
 from dbmind.service.utils import SequenceUtils
@@ -202,28 +201,10 @@ def plot(sequences_set, anomalies_set, metric, start_time, end_time):
     print(output_table)
 
 
-def anomaly_detect(sequence, anomaly, metric):
+def anomaly_detect(sequence, anomaly):
     try:
         detector = ANOMALY_DETECTORS[anomaly]
-        if anomaly == 'threshold':
-            low = get_param(metric + '_low')
-            high = get_param(metric + '_high')
-            percent = get_param(metric + '_percent')
-            if not (low and high and percent):
-                write_to_terminal(
-                    f"Warning: Thresholds of {metric} from {SequenceUtils.from_server(sequence)}"
-                    " are unknown, threshold detection was skipped."
-                )
-                return Sequence(timestamps=sequence.timestamps, values=(False,) * len(sequence))
-
-            over_threshold_anomalies = detector(sequence, high=high, low=low)
-            if percent > 0 and over_threshold_anomalies.values.count(True) <= percent * len(sequence):
-                return Sequence(timestamps=sequence.timestamps, values=(False,) * len(sequence))
-            else:
-                return over_threshold_anomalies
-
-        else:
-            return detector(sequence)
+        return detector(sequence)
 
     except Exception as e:
         raise_fatal_and_exit(str(e))
@@ -248,7 +229,7 @@ def main(argv):
                         help='set a host of the metric, ip only or ip and port.')
     parser.add_argument('-a', '--anomaly', choices=tuple(ANOMALY_DETECTORS.keys()),
                         help='set a anomaly detector of the metric'
-                             '(increase_rate, level_shift, spike, threshold)')
+                             f'{tuple(ANOMALY_DETECTORS.keys())}')
     args = parser.parse_args(argv)
 
     # Initialize
@@ -308,10 +289,10 @@ def main(argv):
             if anomaly not in ANOMALY_DETECTORS:
                 parser.exit(1, f"Not found anomaly in {list(ANOMALY_DETECTORS.keys())}.")
 
-            anomalies_set[metric_host][anomaly] = anomaly_detect(sequence, anomaly, metric)
+            anomalies_set[metric_host][anomaly] = anomaly_detect(sequence, anomaly)
         else:
             for anomaly_type, detector in ANOMALY_DETECTORS.items():
-                anomalies_set[metric_host][anomaly_type] = anomaly_detect(sequence, anomaly_type, metric)
+                anomalies_set[metric_host][anomaly_type] = anomaly_detect(sequence, anomaly_type)
 
     if args.action == 'overview':
         overview(anomalies_set, metric, start_time, end_time)
