@@ -113,6 +113,18 @@ class AdvisedIndex:
     def get_index_type(self):
         return self.__index_type
 
+    def get_index_statement(self):
+        table_name = self.get_table().split('.')[-1]
+        index_name = 'idx_%s_%s%s' % (table_name, (self.get_index_type()
+                                                   + '_' if self.get_index_type() else ''),
+                                      '_'.join(self.get_columns().split(COLUMN_DELIMITER))
+                                      )
+        statement = 'CREATE INDEX %s ON %s%s%s;' % (index_name, self.get_table(),
+                                                    '(' + self.get_columns() + ')',
+                                                    (' ' + self.get_index_type() if self.get_index_type() else '')
+                                                    )
+        return statement
+
     def set_association_indexes(self, association_indexes_name, association_benefit):
         self.association_indexes[association_indexes_name].append(association_benefit)
 
