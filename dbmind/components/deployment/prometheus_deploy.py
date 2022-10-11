@@ -877,7 +877,7 @@ def check(checks):
                         'https://' + check_item['url'],
                         headers={"Content-Type": "application/json"},
                         verify=True,
-                        timeout=5
+                        timeout=10
                     )
                     if response.status_code == 200:
                         checks[i]['status'] = GREEN_FMT.format('Up')
