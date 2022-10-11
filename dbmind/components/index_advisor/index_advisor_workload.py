@@ -45,6 +45,7 @@ try:
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
         replace_comma_with_dollar, flatten
+    from .process_bar import bar_print, ProcessBar
 except ImportError:
     from sql_output_parser import parse_single_advisor_results, parse_explain_plan, \
         get_checked_indexes, parse_table_sql_results, parse_existing_indexes_results, parse_plan_cost, parse_hypo_index
@@ -59,6 +60,7 @@ except ImportError:
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
         replace_comma_with_dollar, flatten
+    from process_bar import bar_print, ProcessBar
 
 SAMPLE_NUM = 5
 MAX_INDEX_COLUMN_NUM = 5
@@ -69,6 +71,7 @@ NEGATIVE_RATIO_THRESHOLD = 0.2
 SHARP = '#'
 JSON_TYPE = False
 BLANK = ' '
+GLOBAL_PROCESS_BAR = ProcessBar()
 SQL_TYPE = ['select', 'delete', 'insert', 'update']
 NUMBER_SET_PATTERN = r'\((\s*(\-|\+)?\d+(\.\d+)?\s*)(,\s*(\-|\+)?\d+(\.\d+)?\s*)*[,]?\)'
 SQL_PATTERN = [r'([^\\])\'((\')|(.*?([^\\])\'))',  # match all content in single quotes
@@ -153,7 +156,7 @@ def print_statement(index_list: List[Tuple[str]], schema_table: str):
         statement = 'CREATE INDEX %s ON %s%s%s;' % (index_name, schema_table,
                                                     '(' + columns + ')',
                                                     (' ' + index_type if index_type else ''))
-        print(statement)
+        bar_print(statement)
 
 
 class IndexAdvisor:
@@ -175,7 +178,7 @@ class IndexAdvisor:
                 atomic_config_total.append(atomic_config)
         if atomic_config_total and len(atomic_config_total[0]) != 0:
             raise ValueError("The empty atomic config isn't generated!")
-        for atomic_config in atomic_config_total:
+        for atomic_config in GLOBAL_PROCESS_BAR.process_bar(atomic_config_total, 'Optimal indexes'):
             estimate_workload_cost_file(self.executor, self.workload, atomic_config)
         self.workload.set_index_benefit()
         if MAX_INDEX_STORAGE:
@@ -188,18 +191,18 @@ class IndexAdvisor:
         self.display_detail_info['positive_stmt_count'] = get_positive_sql_count(candidate_indexes,
                                                                                  self.workload)
         if len(opt_config) == 0:
-            print("No optimal indexes generated!")
+            bar_print("No optimal indexes generated!")
             return None
         return opt_config
 
     def simple_index_advisor(self, candidate_indexes: List[AdvisedIndex]):
         estimate_workload_cost_file(self.executor, self.workload)
-        for index in candidate_indexes:
+        for index in ProcessBar(candidate_indexes, 'Optimal indexes'):
             estimate_workload_cost_file(self.executor, self.workload, (index,))
         self.workload.set_index_benefit()
         self.filter_redundant_indexes_with_diff_types(candidate_indexes)
         if not candidate_indexes:
-            print("No optimal indexes generated!")
+            bar_print("No optimal indexes generated!")
             return None
 
         self.display_detail_info['positive_stmt_count'] = get_positive_sql_count(candidate_indexes,
@@ -255,11 +258,11 @@ class IndexAdvisor:
         print_header_boundary('Index benefits')
         for i, index in enumerate(self.determine_indexes):
             statement = index.get_index_statement()
-            print(f'INDEX {i}: {statement}')
-            print('\tCost benefit for workload: %.2f' % index.benefit)
-            print('\tCost improved rate for workload: %.2f%%'
+            bar_print(f'INDEX {i}: {statement}')
+            bar_print('\tCost benefit for workload: %.2f' % index.benefit)
+            bar_print('\tCost improved rate for workload: %.2f%%'
                   % (index.benefit/self.workload.get_total_origin_cost() * 100))
-            print(f'\tImproved query:')
+            bar_print(f'\tImproved query:')
             positive_query_idx = 4
             positive_queries = self.workload.get_index_related_queries(index)[positive_query_idx]
             query_benefit_rate = []
@@ -271,13 +274,11 @@ class IndexAdvisor:
                     continue
                 query_benefit_rate.append((query, benefit_rate))
             for i, (query, benefit_rate) in enumerate(sorted(query_benefit_rate, key=lambda x: -x[1])):
-                print(f'\t\tQuery {i}: {query.get_statement()}')
-                query_origin_cost = self.workload.get_origin_cost_of_query(query)
-                current_cost = self.workload.get_indexes_cost_of_query(query, tuple([index]))
-                benefit = query_origin_cost - current_cost 
-                print(f'\t\t\tCost benefit for the query: %.2f' % benefit)
-                print('\t\t\tCost improved rate for the query: %.2f%%' % benefit_rate)
-                print(f'\t\t\tQuery number: {int(query.get_frequency())}')
+                bar_print(f'\t\tQuery {i}: {query.get_statement()}')
+                benefit = self.workload.get_origin_cost_of_query(query) - self.workload.get_indexes_cost_of_query(query, tuple([index]))
+                bar_print(f'\t\t\tCost benefit for the query: %.2f' % benefit)
+                bar_print('\t\t\tCost improved rate for the query: %.2f%%' % benefit_rate)
+                bar_print(f'\t\t\tQuery number: {int(query.get_frequency())}')
 
     def record_info(self, index: AdvisedIndex, sql_info, table_name: str, statement: str):
         sql_num = self.workload.get_index_sql_num(index)
@@ -344,7 +345,7 @@ class IndexAdvisor:
             # display determine indexes
             table_name = index.get_table().split('.')[-1]
             statement = index.get_index_statement()
-            print(statement)
+            bar_print(statement)
             if show_detail:
                 # Record detailed SQL optimization information for each index.
                 self.compute_index_optimization_info(
@@ -366,11 +367,11 @@ class IndexAdvisor:
         print_header_boundary(" Created indexes ")
         self.display_detail_info['createdIndexes'] = []
         if not created_indexes:
-            print("No created indexes!")
+            bar_print("No created indexes!")
         else:
             self.record_created_indexes(created_indexes)
             for index in created_indexes:
-                print("%s: %s;" % (index.get_schema(), index.get_indexdef()))
+                bar_print("%s: %s;" % (index.get_schema(), index.get_indexdef()))
         display_useless_redundant_indexes(created_indexes, self.workload_used_index, self.display_detail_info)
 
     def record_created_indexes(self, created_indexes):
@@ -442,7 +443,7 @@ def print_header_boundary(header):
     except (AttributeError, OSError):
         side_width = 0
     title = SHARP * side_width + header + SHARP * side_width
-    print(green(title))
+    bar_print(green(title))
 
 
 def load_workload(file_path):
@@ -782,11 +783,11 @@ def print_candidate_indexes(candidate_indexes):
         columns = index.get_columns()
         index_type = index.get_index_type()
         if index.get_index_type():
-            print("table: ", table, "columns: ", columns, "type: ", index_type)
+            bar_print("table: ", table, "columns: ", columns, "type: ", index_type)
         else:
-            print("table: ", table, "columns: ", columns)
+            bar_print("table: ", table, "columns: ", columns)
     if not candidate_indexes:
-        print("No candidate indexes generated!")
+        bar_print("No candidate indexes generated!")
 
 
 def index_sort_func(index):
@@ -865,7 +866,7 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_dis
                                **kwargs):
     all_indexes = []
     with executor.session():
-        for pos, query in enumerate(workload.get_queries()):
+        for pos, query in GLOBAL_PROCESS_BAR.process_bar(list(enumerate(workload.get_queries())), 'Candidate indexes'):
             advised_indexes = query_index_advise(executor, query.get_statement())
             for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
                                                                     reltuples, use_all_columns,
@@ -933,11 +934,11 @@ def generate_atomic_config_for_same_columns(candidate_indexes: List[AdvisedIndex
 
 def display_redundant_indexes(redundant_indexes: List[ExistingIndex]):
     if not redundant_indexes:
-        print("No redundant indexes!")
+        bar_print("No redundant indexes!")
     # Display redundant indexes.
     for index in redundant_indexes:
         statement = "DROP INDEX %s.%s;" % (index.get_schema(), index.get_indexname())
-        print(statement)
+        bar_print(statement)
 
 
 def record_redundant_indexes(redundant_indexes: List[ExistingIndex], detail_info):
@@ -962,14 +963,14 @@ def display_useless_redundant_indexes(created_indexes, workload_indexnames, deta
         if 'UNIQUE INDEX' not in cur_index.get_indexdef():
             has_unused_index = True
             statement = "DROP INDEX %s;" % cur_index.get_indexname()
-            print(statement)
+            bar_print(statement)
             useless_index = {"schemaName": cur_index.get_schema(), "tbName": cur_index.get_table(),
                              "type": IndexType.INVALID.value,
                              "columns": cur_index.get_columns(), "statement": statement}
             detail_info['uselessIndexes'].append(useless_index)
 
     if not has_unused_index:
-        print("No useless indexes!")
+        bar_print("No useless indexes!")
     print_header_boundary(" Redundant indexes ")
     redundant_indexes = get_redundant_created_indexes(created_indexes, unused_indexes)
     display_redundant_indexes(redundant_indexes)
@@ -1044,7 +1045,7 @@ def index_advisor_workload(history_advise_indexes, executor: BaseExecutor, workl
         print_header_boundary(" Display detail information ")
         sql_info = json.dumps(
             index_advisor.display_detail_info, indent=4, separators=(',', ':'))
-        print(sql_info)
+        bar_print(sql_info)
     return index_advisor.display_detail_info
 
 
