@@ -32,7 +32,7 @@ def try_to_get_latest_metric_value(metric_name, **conditions):
         seqs = dai.get_latest_metric_sequence(
             metric_name, minutes=starting_attempt_minutes * (2 ** i)  # double every time
         ).filter(**conditions).fetchall()
-
+        i += 1
     if len(seqs) == 0:
         return []
 
