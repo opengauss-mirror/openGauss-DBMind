@@ -106,8 +106,8 @@ class DatabaseInfo:
     def __init__(self):
         self.db_host = None
         self.db_port = None
-        self.history_tps = []
-        self.current_tps = []
+        self.history_tps = 1
+        self.current_tps = 1
         self.max_conn = 1
         self.used_conn = 0
         self.thread_pool = {}
@@ -316,14 +316,17 @@ class QueryContextFromTSDB(QueryContext):
         if self.slow_sql_instance.track_parameter:
             stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
                                                             query)
+            fetch_all = False
         else:
             # Get execution plan based on PBE
             no_comma_query = replace_comma_with_dollar(query)
-            stmts = "set current_schema='%s';" + ';'.join(get_generate_prepare_sqls_function()(no_comma_query))
+            stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(get_generate_prepare_sqls_function()(no_comma_query))
+            fetch_all = True
         rows = agent_rpc_client.call('query_in_database',
                                      stmts,
                                      self.slow_sql_instance.db_name,
-                                     return_tuples=True)
+                                     return_tuples=True,
+                                     fetch_all=fetch_all)
         for row in rows:
             query_plan += row[0] + '\n'
         if query_plan:
@@ -525,9 +528,9 @@ class QueryContextFromTSDB(QueryContext):
                                                      self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
         if his_tps_sequences.values:
-            database_info.history_tps = [float(item) for item in his_tps_sequences.values]
+            database_info.history_tps = int(max(his_tps_sequences.values))
         if cur_tps_sequences.values:
-            database_info.current_tps = [float(item) for item in cur_tps_sequences.values]
+            database_info.current_tps = int(max(cur_tps_sequences.values))
         if max_conn_sequence.values:
             database_info.max_conn = int(max(max_conn_sequence.values))
         if used_conn_sequence.values:
@@ -721,18 +724,6 @@ class QueryContextFromTSDB(QueryContext):
                     index.table_name = row[1]
                     index.column_name = row[2]
                     recommend_indexes.append(str(index))
-        else:
-            workload = WorkLoad([self.slow_sql_instance.query])
-            db_name = self.slow_sql_instance.db_name
-            schema_name = ','.join(self.slow_sql_instance.tables_name.keys())
-            executor = RpcExecutor(db_name, None, None, None, None, schema_name)
-            candidate_indexes = generate_candidate_indexes(workload, executor, 1, 10, True)
-            for candidate_index in candidate_indexes:
-                index = Index()
-                index.db_name = self.slow_sql_instance.db_name
-                index.schema_name = ''
-                index.schema_name = candidate_index.get_table()
-                index.column_name = candidate_index.get_columns()
         return ';'.join(recommend_indexes)
 
     @exception_follower(output=list)

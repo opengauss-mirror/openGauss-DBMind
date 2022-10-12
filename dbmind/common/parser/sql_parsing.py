@@ -140,7 +140,7 @@ def fill_value(query_content):
       input: select id from table where info = $1 and id_d < $2; PARAMETERS: $1 = 1, $2 = 4;
       output: select id from table where info = '1' and id_d < '4';
     """
-    if len(query_content.split(';')) == 2 and 'parameters: $1' in query_content:
+    if len(query_content.split(';')) == 2 and 'parameters: $1' in query_content.lower():
         template, parameter = query_content.split(';')
     else:
         return query_content
@@ -163,7 +163,7 @@ def exists_regular_match(query):
 
 
 def remove_parameter_part(query):
-    return re.sub(r"; parameter: \$.+", ";", query)
+    return re.sub(r";\s*parameters: \$.+", ";", query, flags=re.IGNORECASE)
 
 
 def exists_function(query):
@@ -193,8 +193,11 @@ def exists_function(query):
             elif any(item in parsed_sql for item in OPERATOR):
                 for _, sub_parsed_sql in parsed_sql.items():
                     _parser(sub_parsed_sql)
-    parsed_sql = parse(query)
-    _parser(parsed_sql)
+    try: 
+        parsed_sql = parse(query)
+        _parser(parsed_sql)
+    except Exception as e:
+        logging.exception(e)
     return flag
 
 
@@ -230,8 +233,11 @@ def exists_bool_clause(query):
                     _parser(value[-1])
                 else:
                     _parser(value)
-    parsed_sql = parse(query)
-    _parser(parsed_sql)
+    try:
+        parsed_sql = parse(query)
+        _parser(parsed_sql)
+    except Exception as e:
+        logging.exception(e)
     return flags
 
 
@@ -252,8 +258,11 @@ def exists_related_select(query):
                     flags.append(value[1])
                 else:
                     _parser(value)
-    parsed_sql = parse(query)
-    _parser(parsed_sql)
+    try:
+        parsed_sql = parse(query)
+        _parser(parsed_sql)
+    except Exception as e:
+        logging.exception(e)
     return flags
 
 
@@ -274,8 +283,11 @@ def exists_subquery(query):
                     if parse(subquery) != parse(query):
                         flags.append(subquery)
                 _parser(value)
-    parsed_sql = parse(query)
-    _parser(parsed_sql)
+    try:
+        parsed_sql = parse(query)
+        _parser(parsed_sql)
+    except Exception as e:
+        logging.exception(e)
     return flags
 
 
@@ -294,8 +306,9 @@ def get_generate_prepare_sqls_function():
         prepare_id = 'prepare_' + str(next(counter))
         placeholder_size = len(get_placeholders(statement))
         prepare_args = '' if not placeholder_size else '(%s)' % (','.join(['NULL'] * placeholder_size))
-        return ['begin', f'prepare {prepare_id} as {statement}', f'explain execute {prepare_id}{prepare_args}',
-                f'deallocate prepare {prepare_id}', 'commit']
+        return [f'prepare {prepare_id} as {statement}', f'explain execute {prepare_id}{prepare_args}',
+                f'deallocate prepare {prepare_id}']
+
     return get_prepare_sqls
 
 
