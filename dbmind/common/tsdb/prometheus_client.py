@@ -28,10 +28,10 @@ def label_to_query(labels: dict = None, labels_like: dict = None):
     query_list = list()
     if isinstance(labels, dict) and labels:
         for k, v in labels.items():
-            query_list.append(f"{k}='{v}'")
+            query_list.append(f"{k}=\"{v}\"")
     if isinstance(labels_like, dict) and labels_like:
         for k, v in labels_like.items():
-            query_list.append(f"{k}=~'{v}'")
+            query_list.append(f"{k}=~\"{v}\"")
     return "{" + ",".join(query_list) + "}"
 
 

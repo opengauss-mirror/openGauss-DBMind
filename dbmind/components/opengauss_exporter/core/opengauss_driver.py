@@ -77,7 +77,7 @@ class Driver:
     def pwd(self):
         return self.parsed_dsn['password']
 
-    def query(self, stmt, timeout=0, force_connection_db=None, return_tuples=False):
+    def query(self, stmt, timeout=0, force_connection_db=None, return_tuples=False, fetch_all=False):
         if not self.initialized:
             raise AssertionError()
         cursor_dict = {}
@@ -92,8 +92,15 @@ class Driver:
                     start = time.monotonic()
                     if timeout > 0:
                         cursor.execute('SET statement_timeout = %d;' % (timeout * 1000))
-                    cursor.execute(stmt)
-                    result = cursor.fetchall()
+                    if not fetch_all:
+                        cursor.execute(stmt)
+                        result = cursor.fetchall()
+                    else:
+                        result = []
+                        for sql in stmt.split(';'):
+                            cursor.execute(sql)
+                            if cursor.pgresult_ptr is not None:
+                                result.extend(cursor.fetchall())
                 except psycopg2.extensions.QueryCanceledError as e:
                     logging.error('%s: %s.' % (e.pgerror, stmt))
                     logging.info(

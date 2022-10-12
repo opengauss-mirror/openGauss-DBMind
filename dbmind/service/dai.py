@@ -355,7 +355,7 @@ def get_all_slow_queries(minutes):
         db_name = sequence.labels['datname'].lower()
         schema_name = sequence.labels['schema'].split(',')[-1] \
             if ',' in sequence.labels['schema'] else sequence.labels['schema']
-        track_parameter = True if 'PARAMETERS: $1' in sequence.labels['query'] else False
+        track_parameter = True if 'parameters: $1' in sequence.labels['query'].lower() else False
         query = sequence.labels['query']
         query_plan = sequence.labels['query_plan'] if sequence.labels['query_plan'] != 'None' else None
         start_timestamp = int(sequence.labels['start_time'])  # unit: microsecond

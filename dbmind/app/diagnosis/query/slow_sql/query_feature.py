@@ -374,7 +374,7 @@ class QueryFeature:
     def workload_contention(self) -> bool:
         """Determine whether it is caused by the load of the database itself
         todo: need add metric in cmd_exporter"""
-        cur_database_tps = round(max(self.database_info.current_tps), 4)
+        cur_database_tps = self.database_info.current_tps
         if not cur_database_tps:
             return False
         indexes = ['a', 'b', 'c', 'd', 'e']
@@ -440,12 +440,15 @@ class QueryFeature:
                                                   (index,
                                                    self.database_info.used_conn,
                                                    self.pg_setting_info['max_connections'].setting)
+            self.suggestion['workload_contention'] += "%s. No Suggestion" % index
         if self.detail['workload_contention']:
             return True
         return False
 
     @property
     def cpu_resource_contention(self) -> bool:
+        if self.plan_parse_info is None:
+            return False
         """Determine whether other processes outside the database occupy too many CPU resources"""
         if self.system_info.cpu_usage and max(self.system_info.cpu_usage) > monitoring.get_param('cpu_usage_threshold'):
             historical_statistics = _get_historical_statistics('os_cpu_usage', self.slow_sql_instance.db_host)
@@ -458,6 +461,7 @@ class QueryFeature:
                 self.detail['system_cpu_contention'] = "The current system cpu usage((exclude database process))" \
                                                        " is significant: %s." \
                                                        % self.system_info.cpu_usage
+            self.suggestion['system_cpu_contention'] = "No Suggestion" 
             return True
         return False
 
@@ -489,6 +493,8 @@ class QueryFeature:
             index = indexes.pop(0)
             self.detail['system_io_contention'] += '%s. The IO-Utils exceeds the threshold %s;' \
                                                     % (index, monitoring.get_param('disk_ioutils_threshold'))
+
+            self.suggestion['system_io_contention'] += "%s. No Suggestion" % index
         if self.detail['system_io_contention']:
             return True
         return False
@@ -507,6 +513,7 @@ class QueryFeature:
                 self.detail['system_mem_contention'] = "The current system mem usage(exclude database process)" \
                                                        " is significant: %s;" \
                                                        % self.system_info.mem_usage
+            self.suggestion['memory_resource_contention'] += "No Suggestion" 
             return True
         return False
 
@@ -541,6 +548,7 @@ class QueryFeature:
             else:
                 self.detail['os_resource_contention'] = "The system fds occupation rate is significant: %s;" \
                                                        % self.system_info.cpu_usage
+            self.suggestion['os_resource_contention'] += "No Suggestion"
             return True
         return False
 
@@ -555,6 +563,7 @@ class QueryFeature:
             wait_events_list.append("%s: %s" % (type, event))
         if wait_events_list:
             self.detail['wait_event'] = ', '.join(wait_events_list)
+            self.suggestion['wait_event'] = "No Suggestion"
             return True
         return False
 
@@ -710,6 +719,8 @@ class QueryFeature:
         """
         if self.complex_boolean_expression:
             return False
+        if self.plan_parse_info is None:
+            return False
         indexes = ['a', 'b']
         self.detail['complex_execution_plan'], self.suggestion['complex_execution_plan'] = '', ''
         join_operator = self.plan_parse_info.find_operators('Join', accurate=False)
@@ -744,6 +755,8 @@ class QueryFeature:
         ...
         If the SQL not support Sublink-Release, the user needs to rewrite the SQL.
         """
+        if self.plan_parse_info is None:
+            return False
         indexes = ['a', 'b']
         self.detail['correlated_subquery'], self.suggestion['correlated_subquery'] = '', ''
         boolean_expression = sql_parsing.exists_bool_clause(self.slow_sql_instance.query)
