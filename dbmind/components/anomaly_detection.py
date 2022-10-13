@@ -283,6 +283,9 @@ def main(argv):
     for sequence in sequences:
         metric_host = SequenceUtils.from_server(sequence)
         sequence = sequence_interpolate(sequence, strip_details=False)
+        if not all(isinstance(i, (int, float)) for i in sequence.values):
+            parser.exit(1, f"Non-numeric data format was found in sequence values.")
+
         sequences_set[metric_host] = sequence
         anomalies_set[metric_host] = {}
         if anomaly:

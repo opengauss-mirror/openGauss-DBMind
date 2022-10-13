@@ -29,8 +29,8 @@ class LevelShiftDetector(AbstractDetector):
 
     def _fit(self, s: Sequence) -> None:
         self._iqr_detector = InterQuartileRangeDetector(outliers=self.outliers)
-        self._sign_detector = ThresholdDetector(low=THRESHOLD.get(self.side)[0],
-                                                high=THRESHOLD.get(self.side)[1])
+        self._sign_detector = ThresholdDetector(high=THRESHOLD.get(self.side)[0],
+                                                low=THRESHOLD.get(self.side)[1])
 
     def _predict(self, s: Sequence) -> Sequence:
         abs_diff_values = stat_utils.np_double_rolling(
