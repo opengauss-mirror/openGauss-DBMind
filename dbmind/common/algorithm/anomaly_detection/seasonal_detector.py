@@ -51,8 +51,11 @@ class SeasonalDetector(AbstractDetector):
             trim=True,
             agg='mean'
         )
-        deseasonal_residual = seasonal_decompose(moving_average, period=self.period)[2]
-        residual_sequence = Sequence(timestamps=s.timestamps, values=deseasonal_residual)
+        if isinstance(self.period, int) and self.period > 0:
+            deseasonal_residual = seasonal_decompose(moving_average, period=self.period)[2]
+            residual_sequence = Sequence(timestamps=s.timestamps, values=deseasonal_residual)
+        else:
+            residual_sequence = s
 
         iqr_result = self._iqr_detector.fit_predict(residual_sequence)  # iqr detection
         sign_check_result = self._sign_detector.fit_predict(residual_sequence)  # threshold detection

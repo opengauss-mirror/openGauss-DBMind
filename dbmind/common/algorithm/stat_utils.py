@@ -121,21 +121,6 @@ def _valid_value(v):
     return not (np.isnan(v) or np.isinf(v))
 
 
-def _init_interpolate_param(sequence):
-    """"init interpolate param for sequence_interpolate function"""
-    length = len(sequence)
-    if length == 0:
-        return sequence
-
-    x = np.array(range(len(sequence)))
-    y = np.array(sequence.values)
-    left, right = measure_head_and_tail_nan(y)
-    na_param = SimpleNamespace(head_na_index=range(left), tail_na_index=range(length - right, length),
-                               head_start_nona_value=y[left],
-                               tail_start_nona_value=y[length - right - 1])
-    return x[left:length - right], y[left:length - right], na_param
-
-
 def tidy_up_sequence(sequence):
     """Fill up missing values for sequence and
     align sequence's timestamps.
@@ -193,40 +178,23 @@ def sequence_interpolate(sequence: Sequence, fit_method="linear", strip_details=
                 labels=sequence.labels
             )
 
-    if True not in has_defined:
+    if not any(has_defined):
         raise ValueError("All of sequence values are undefined.")
 
     y_raw = np.array(filled_sequence.values)
-    y_nona = []
-    x_nona = []
-    na_index = []
+    x_raw = np.arange(len(y_raw))
+    x_nona, y_nona = x_raw[has_defined], y_raw[has_defined]
 
-    x_new, y_new, na_param = _init_interpolate_param(filled_sequence)
+    fit_func = interp1d(x_nona, y_nona, kind=fit_method, bounds_error=False,
+                        fill_value=(y_nona[0], y_nona[-1]))
+    y_new = fit_func(x_raw)
 
-    # prepare x_nona and y_nona for interp1d
-    for i in range(len(y_new)):
-        if _valid_value(y_new[i]):
-            y_nona.append(y_new[i])
-            x_nona.append(x_new[i])
-        else:
-            na_index.append(i)
-
-    fit_func = interp1d(x_nona, y_nona, kind=fit_method)
-    y_new = fit_func(x_new)
-
-    # replace the nan with interp1d value for raw y
-    for i in na_index:
-        raw_index = i + len(na_param.head_na_index)
-        y_raw[raw_index] = y_new[i]
-
-    y_raw[na_param.head_na_index] = na_param.head_start_nona_value
-    y_raw[na_param.tail_na_index] = na_param.tail_start_nona_value
     if strip_details:
-        return Sequence(timestamps=filled_sequence.timestamps, values=y_raw)
+        return Sequence(timestamps=filled_sequence.timestamps, values=y_new)
     else:
         return Sequence(
             timestamps=filled_sequence.timestamps,
-            values=y_raw,
+            values=y_new,
             name=sequence.name,
             step=sequence.step,
             labels=sequence.labels
