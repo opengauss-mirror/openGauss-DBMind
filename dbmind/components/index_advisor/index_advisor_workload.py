@@ -22,7 +22,6 @@ import re
 import sys
 import select
 from logging.handlers import RotatingFileHandler
-from collections import defaultdict
 from itertools import groupby, chain, combinations
 from typing import Tuple, List
 import heapq
@@ -82,10 +81,10 @@ SQL_DISPLAY_PATTERN = [r'\'((\')|(.*?\'))',  # match all content in single quote
                        r'([^\_\d])\d+(\.\d+)?']  # match single integer
 
 handler = RotatingFileHandler(
-        filename='index_advisor.log',
-        maxBytes=100 * 1024 * 1024,
-        backupCount=5,
-    )
+    filename='index_advisor.log',
+    maxBytes=100 * 1024 * 1024,
+    backupCount=5,
+)
 handler.setLevel(logging.INFO)
 handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s'))
 logger = logging.getLogger('index advisor')
@@ -173,7 +172,7 @@ class IndexAdvisor:
 
     def complex_index_advisor(self, candidate_indexes: List[AdvisedIndex]):
         atomic_config_total = generate_sorted_atomic_config(self.workload.get_queries(), candidate_indexes)
-        for atomic_config in generate_atomic_config_for_same_columns(candidate_indexes):
+        for atomic_config in generate_atomic_config_containing_same_columns(candidate_indexes):
             if atomic_config not in atomic_config_total:
                 atomic_config_total.append(atomic_config)
         if atomic_config_total and len(atomic_config_total[0]) != 0:
@@ -238,7 +237,7 @@ class IndexAdvisor:
             if sql_optimized / sql_num['positive'] < \
                     NEGATIVE_RATIO_THRESHOLD < negative_sql_ratio:
                 logger.info(f'filtered: improved_rate {sql_optimized / sql_num["positive"]} < '
-                             f'negative_ratio_threshold < negative_sql_ratio {negative_sql_ratio} is not met')
+                            f'negative_ratio_threshold < negative_sql_ratio {negative_sql_ratio} is not met')
                 continue
             logger.info(f'{index} has benefit of {self.workload.get_index_benefit(index)}')
             if MAX_INDEX_STORAGE and (index_current_storage + index.get_storage()) > MAX_INDEX_STORAGE:
@@ -261,7 +260,7 @@ class IndexAdvisor:
             bar_print(f'INDEX {i}: {statement}')
             bar_print('\tCost benefit for workload: %.2f' % index.benefit)
             bar_print('\tCost improved rate for workload: %.2f%%'
-                  % (index.benefit/self.workload.get_total_origin_cost() * 100))
+                  % (index.benefit / self.workload.get_total_origin_cost() * 100))
             bar_print(f'\tImproved query:')
             positive_query_idx = 4
             positive_queries = self.workload.get_index_related_queries(index)[positive_query_idx]
@@ -867,12 +866,15 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_dis
     all_indexes = []
     with executor.session():
         for pos, query in GLOBAL_PROCESS_BAR.process_bar(list(enumerate(workload.get_queries())), 'Candidate indexes'):
-            advised_indexes = query_index_advise(executor, query.get_statement())
-            for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
+            advised_indexes = []
+            if not has_dollar_placeholder(query.get_statement()):
+                advised_indexes = query_index_advise(executor, query.get_statement())
+            else:
+                for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
                                                                     reltuples, use_all_columns,
                                                                     ):
-                if advised_index not in advised_indexes:
-                    advised_indexes.append(advised_index)
+                    if advised_index not in advised_indexes:
+                        advised_indexes.append(advised_index)
             valid_indexes = get_valid_indexes(advised_indexes, query.get_statement(), executor, **kwargs)
             logger.info(f'get valid indexes: {valid_indexes} for the query {query}')
             add_query_indexes(valid_indexes, workload.get_queries(), pos)
@@ -921,14 +923,19 @@ def generate_sorted_atomic_config(queries: List[QueryItem],
     return atomic_config_total
 
 
-def generate_atomic_config_for_same_columns(candidate_indexes: List[AdvisedIndex]) -> List[Tuple[AdvisedIndex]]:
+def generate_atomic_config_containing_same_columns(candidate_indexes: List[AdvisedIndex]) -> List[Tuple[AdvisedIndex]]:
     atomic_configs = []
-    same_column_indexes = defaultdict(list)
-    for index in candidate_indexes:
-        same_column_id = (index.get_table(), index.get_index_type(), tuple(sorted(index.get_columns())))
-        same_column_indexes[same_column_id].append(index)
-    for _, indexes in same_column_indexes.items():
-        atomic_configs.extend(list(combinations(indexes, 2)))
+    for _, _indexes in groupby(sorted(candidate_indexes, key=lambda index: (index.get_table(), index.get_index_type())),
+                               key=lambda index: (index.get_table(), index.get_index_type())):
+        _indexes = list(_indexes)
+        _indexes.sort(key=lambda index: len(index.get_columns().split(COLUMN_DELIMITER)))
+        for short_index_idx in range(len(_indexes) - 1):
+            short_columns = set(_indexes[short_index_idx].get_columns().split(COLUMN_DELIMITER))
+            for long_index_idx in range(short_index_idx + 1, len(_indexes)):
+                long_columns = set(_indexes[long_index_idx].get_columns().split(COLUMN_DELIMITER))
+                if not (short_columns - long_columns):
+                    atomic_configs.append((_indexes[short_index_idx], _indexes[long_index_idx]))
+
     return atomic_configs
 
 
@@ -1144,7 +1151,7 @@ def main(argv):
             executor = DriverExecutor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
         except ImportError:
             logger.warning('Python driver import failed, '
-                            'the gsql mode will be selected to connect to the database.')
+                           'the gsql mode will be selected to connect to the database.')
 
             executor = GsqlExecutor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
             args.driver = None
