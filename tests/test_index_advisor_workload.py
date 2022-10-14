@@ -28,7 +28,7 @@ from dbmind.components.index_advisor.sql_generator import get_existing_index_sql
     get_single_advisor_sql, get_workload_cost_sqls
 from dbmind.components.index_advisor import index_advisor_workload
 from dbmind.components.index_advisor.index_advisor_workload import generate_sorted_atomic_config, \
-    add_more_column_index, filter_redundant_indexes_with_same_type
+    add_more_column_index, filter_redundant_indexes_with_same_type, generate_atomic_config_containing_same_columns
 from dbmind.components.index_advisor.utils import WorkLoad, QueryItem, flatten, UniqueList
 from dbmind.components.index_advisor import mcts
 
@@ -97,7 +97,6 @@ select * from student_range_part1 where credit=1;
     config4 = (IndexItemFactory().get_index('test1', 'a,b', index_type='local'),
                IndexItemFactory().get_index('test1', 'c', index_type='global'),
                IndexItemFactory().get_index('test1', 'd', index_type='local'),)
-
     index1 = IndexItemFactory().get_index("public.store_sales", "ss_item_sk, ss_sold_date_sk", "")
     index2 = IndexItemFactory().get_index("public.item", "i_manufact_id", "global")
 
@@ -744,6 +743,25 @@ class IndexAdvisorTester(unittest.TestCase):
                        {'public.c col1 global,public.b col1 global': [('select * from gia_01', 0.3)]}
                        ]
                       )
+
+    def test_generate_atomic_config_containing_same_columns(self):
+        atomic_config_containing_same_columns = [IndexItemFactory().get_index('test1', 'a,b', index_type='local'),
+                                                 IndexItemFactory().get_index('test1', 'c', index_type='global'),
+                                                 IndexItemFactory().get_index('test1', 'd', index_type='local'),
+                                                 IndexItemFactory().get_index('test1', 'b,a', index_type='local'),
+                                                 IndexItemFactory().get_index('test1', 'a,c,b', index_type='local'),
+                                                 IndexItemFactory().get_index('test1', 'c', index_type='local'),
+                                                 ]
+        expected = [(IndexItemFactory().get_index('test1', 'c', index_type='local'),
+                     IndexItemFactory().get_index('test1', 'a,c,b', index_type='local')),
+                    (IndexItemFactory().get_index('test1', 'a,b', index_type='local'),
+                     IndexItemFactory().get_index('test1', 'b,a', index_type='local')),
+                    (IndexItemFactory().get_index('test1', 'a,b', index_type='local'),
+                     IndexItemFactory().get_index('test1', 'a,c,b', index_type='local')),
+                    (IndexItemFactory().get_index('test1', 'b,a', index_type='local'),
+                     IndexItemFactory().get_index('test1', 'a,c,b', index_type='local'))
+                    ]
+        self.assertEqual(generate_atomic_config_containing_same_columns(atomic_config_containing_same_columns), expected)
 
     def test_remote(self):
         if not os.path.exists('remote.json'):
