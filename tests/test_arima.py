@@ -5112,7 +5112,7 @@ def test_sequence_interpolate():
             timestamps = [start_timestamp + interval * (i + 1) for i in range(len(t_data))]
             s = Sequence(timestamps=timestamps, values=t_data)
             s_new = sequence_interpolate(s)
-            not_exist_nan = all([True if not np.isnan(i) else False for i in s_new.values])
+            not_exist_nan = all(np.isfinite(s_new.values))
             assert not_exist_nan
         except Exception:
             except_count += 1

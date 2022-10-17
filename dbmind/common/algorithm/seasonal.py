@@ -135,7 +135,7 @@ def seasonal_decompose(x, period=None):
     if not isinstance(period, int):
         raise ValueError("You must specify a period.")
 
-    if not np.all(np.isfinite(x)):
+    if not all(np.isfinite(x)):
         raise ValueError("The input data has infinite value or nan value.")
 
     if x.shape[0] < 2 * period:
