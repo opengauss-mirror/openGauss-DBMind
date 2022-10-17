@@ -278,6 +278,7 @@ def config_collecting_params(
         include_databases,
         exclude_databases,
         parallel,
+        connection_pool_size,
         disable_cache,
         constant_labels,
         **kwargs
@@ -287,7 +288,10 @@ def config_collecting_params(
     # Set global yaml config macros.
     scrape_interval_seconds = kwargs.get('scrape_interval_seconds', 0)
 
-    driver = DriverBundle(url, include_databases, exclude_databases)
+    driver = DriverBundle(
+        url, include_databases, exclude_databases,
+        each_db_max_connections=connection_pool_size
+    )
     _thread_pool_executor = ThreadPoolExecutor(max_workers=parallel)
     _use_cache = not disable_cache
     # Append extra labels, including essential labels (e.g., from_server)
