@@ -162,7 +162,6 @@ class IndexAdvisor:
     def __init__(self, executor: BaseExecutor, workload: WorkLoad, multi_iter_mode: bool):
         self.executor = executor
         self.workload = workload
-        self.workload_used_index = set()
         self.multi_iter_mode = multi_iter_mode
 
         self.determine_indexes = []
@@ -255,17 +254,17 @@ class IndexAdvisor:
 
     def print_benefits(self):
         print_header_boundary('Index benefits')
+        total_origin_cost = self.workload.get_total_origin_cost()
         for i, index in enumerate(self.determine_indexes):
             statement = index.get_index_statement()
             bar_print(f'INDEX {i}: {statement}')
-            bar_print('\tCost benefit for workload: %.2f' % index.benefit)
+            benefit = sum([query.get_benefit() for query in index.get_positive_queries()])
+            bar_print('\tCost benefit for workload: %.2f' % benefit)
             bar_print('\tCost improved rate for workload: %.2f%%'
-                  % (index.benefit / self.workload.get_total_origin_cost() * 100))
+                  % (benefit / total_origin_cost * 100))
             bar_print(f'\tImproved query:')
-            positive_query_idx = 4
-            positive_queries = self.workload.get_index_related_queries(index)[positive_query_idx]
             query_benefit_rate = []
-            for query in positive_queries:
+            for query in sorted(index.get_positive_queries(), key=lambda query: -query.get_benefit()):
                 query_origin_cost = self.workload.get_origin_cost_of_query(query)
                 current_cost = self.workload.get_indexes_cost_of_query(query, tuple([index]))
                 benefit_rate = (query_origin_cost - current_cost) / current_cost * 100
@@ -274,10 +273,18 @@ class IndexAdvisor:
                 query_benefit_rate.append((query, benefit_rate))
             for i, (query, benefit_rate) in enumerate(sorted(query_benefit_rate, key=lambda x: -x[1])):
                 bar_print(f'\t\tQuery {i}: {query.get_statement()}')
-                benefit = self.workload.get_origin_cost_of_query(query) - self.workload.get_indexes_cost_of_query(query, tuple([index]))
+                query_origin_cost = self.workload.get_origin_cost_of_query(query)
+                current_cost = self.workload.get_indexes_cost_of_query(query, tuple([index]))
+                benefit = query_origin_cost - current_cost 
                 bar_print(f'\t\t\tCost benefit for the query: %.2f' % benefit)
                 bar_print('\t\t\tCost improved rate for the query: %.2f%%' % benefit_rate)
                 bar_print(f'\t\t\tQuery number: {int(query.get_frequency())}')
+                if len(query.get_indexes()) > 1:
+                    bar_print(f'\t\t\tOther optimal indexes:')
+                    for temp_index in query.get_indexes():
+                        if temp_index is index:
+                            continue
+                        bar_print(f'\t\t\t\t{temp_index.get_index_statement()}')
 
     def record_info(self, index: AdvisedIndex, sql_info, table_name: str, statement: str):
         sql_num = self.workload.get_index_sql_num(index)
@@ -307,7 +314,8 @@ class IndexAdvisor:
 
     def compute_index_optimization_info(self, index: AdvisedIndex, table_name: str, statement: str):
         sql_info = {'sqlDetails': []}
-        insert_queries, delete_queries, update_queries, select_queries, positive_queries, ineffective_queries, negative_queries = \
+        insert_queries, delete_queries, update_queries, select_queries, \
+            positive_queries, ineffective_queries, negative_queries = \
             self.workload.get_index_related_queries(index)
 
         for category, queries in zip([QueryType.INEFFECTIVE, QueryType.POSITIVE, QueryType.NEGATIVE],
@@ -327,9 +335,9 @@ class IndexAdvisor:
                 sql_detail['sqlCount'] = int(round(sql_count))
 
                 if category == QueryType.POSITIVE:
-                    sql_optimized = (self.workload.get_origin_cost_of_query(query)
-                                     - self.workload.get_indexes_cost_of_query(query, tuple([index]))) \
-                                    / self.workload.get_indexes_cost_of_query(query, tuple([index])) * 100
+                    origin_cost = self.workload.get_origin_cost_of_query(query)
+                    current_cost = self.workload.get_indexes_cost_of_query(query, tuple([index]))
+                    sql_optimized = (origin_cost - current_cost) / current_cost * 100
                     sql_detail['optimized'] = '%.1f' % sql_optimized
                 sql_detail['correlationType'] = category.value
                 sql_info['sqlDetails'].append(sql_detail)
@@ -371,7 +379,8 @@ class IndexAdvisor:
             self.record_created_indexes(created_indexes)
             for index in created_indexes:
                 bar_print("%s: %s;" % (index.get_schema(), index.get_indexdef()))
-        display_useless_redundant_indexes(created_indexes, self.workload_used_index, self.display_detail_info)
+        display_useless_redundant_indexes(created_indexes, self.workload.get_used_index_names(),
+                                          self.display_detail_info)
 
     def record_created_indexes(self, created_indexes):
         for index in created_indexes:
@@ -588,23 +597,23 @@ def get_plan_cost(statements, executor):
     for statement in statements:
         plan_sqls.extend(get_prepare_sqls(statement))
     results = executor.execute_sqls(plan_sqls)
-    cost, indexes_names_set = parse_explain_plan(results, len(statements))
-    return cost, indexes_names_set
+    cost, index_names_list = parse_explain_plan(results, len(statements))
+    return cost, index_names_list
 
 
 def get_workload_costs(statements, executor, threads=20):
     costs = []
-    indexes_names_set = set()
+    index_names_list = []
     statements_blocks = split_iter(statements, threads)
     try:
         with Pool(threads) as p:
             results = p.starmap(get_plan_cost, [[_statements, executor] for _statements in statements_blocks])
     except TypeError:
         results = [get_plan_cost(statements, executor)]
-    for _costs, _indexes_names_set in results:
+    for _costs, _index_names_list in results:
         costs.extend(_costs)
-        indexes_names_set.update(_indexes_names_set)
-    return costs, indexes_names_set
+        index_names_list.extend(_index_names_list)
+    return costs, index_names_list
 
 
 def estimate_workload_cost_file(executor, workload, indexes=None):
@@ -618,11 +627,11 @@ def estimate_workload_cost_file(executor, workload, indexes=None):
         index_setting_sqls = get_index_setting_sqls(indexes, is_multi_node(executor))
         hypo_index_ids = parse_hypo_index(executor.execute_sqls(index_setting_sqls))
         update_index_storage(indexes, hypo_index_ids, executor)
-        costs, indexes_names = get_workload_costs([query.get_statement() for query in workload.get_queries()], executor)
+        costs, index_names = get_workload_costs([query.get_statement() for query in workload.get_queries()], executor)
         # Update query cost for select queries and positive_pos for indexes.
         for cost, query_pos in zip(costs, select_queries_pos):
             query_costs[query_pos] = cost * workload.get_queries()[query_pos].get_frequency()
-        workload.add_indexes(indexes, query_costs, indexes_names)
+        workload.add_indexes(indexes, query_costs, index_names)
 
 
 def query_index_check(executor, query, indexes):
@@ -823,7 +832,7 @@ def add_query_indexes(indexes: List[AdvisedIndex], queries: List[QueryItem], pos
         for _index in _indexes:
             if len(queries[pos].get_indexes()) >= FULL_ARRANGEMENT_THRESHOLD:
                 break
-            queries[pos].add_index(_index)
+            queries[pos].append_index(_index)
 
 
 def generate_query_placeholder_indexes(query, executor: BaseExecutor, n_distinct=0.01, reltuples=10000,
@@ -871,8 +880,8 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_dis
                 advised_indexes = query_index_advise(executor, query.get_statement())
             else:
                 for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
-                                                                    reltuples, use_all_columns,
-                                                                    ):
+                                                                        reltuples, use_all_columns,
+                                                                        ):
                     if advised_index not in advised_indexes:
                         advised_indexes.append(advised_index)
             valid_indexes = get_valid_indexes(advised_indexes, query.get_statement(), executor, **kwargs)
@@ -1021,6 +1030,30 @@ def get_last_indexes_result(input_path):
     return integrate_indexes
 
 
+def recalculate_cost_for_opt_indexes(workload: WorkLoad, indexes: Tuple[AdvisedIndex]):
+    """After the recommended indexes are all built, calculate the gain of each index."""
+    all_used_index_names = workload.get_workload_used_indexes(indexes)
+    for query, used_index_names in zip(workload.get_queries(), all_used_index_names):
+        cost = workload.get_indexes_cost_of_query(query, indexes)
+        origin_cost = workload.get_indexes_cost_of_query(query, None)
+        query_benefit = origin_cost - cost
+        query.set_benefit(query_benefit)
+        query.reset_opt_indexes()
+        if not query_benefit > 0:
+            continue
+        for index in indexes:
+            for index_name in used_index_names:
+                if index.match_index_name(index_name):
+                    index.append_positive_query(query)
+                    query.append_index(index)
+
+
+def filter_no_benefit_indexes(indexes):
+    for index in indexes[:]:
+        if not index.get_positive_queries():
+            indexes.remove(index)
+
+
 def index_advisor_workload(history_advise_indexes, executor: BaseExecutor, workload_file_path,
                            multi_iter_mode: bool, show_detail: bool, n_distinct: float, reltuples: int,
                            use_all_columns: bool, **kwargs):
@@ -1038,6 +1071,15 @@ def index_advisor_workload(history_advise_indexes, executor: BaseExecutor, workl
                 opt_indexes = index_advisor.simple_index_advisor(candidate_indexes)
         if opt_indexes:
             index_advisor.filter_low_benefit_index(opt_indexes, kwargs.get('improved_rate', 0))
+            if index_advisor.determine_indexes:
+                estimate_workload_cost_file(executor, workload, tuple(index_advisor.determine_indexes))
+                recalculate_cost_for_opt_indexes(workload, tuple(index_advisor.determine_indexes))
+            determine_indexes = index_advisor.determine_indexes[:]
+            filter_no_benefit_indexes(index_advisor.determine_indexes)
+            index_advisor.determine_indexes.sort(key=lambda index: -sum(query.get_benefit()
+                                                                        for query in index.get_positive_queries()))
+            workload.replace_indexes(tuple(determine_indexes), tuple(index_advisor.determine_indexes))
+
     index_advisor.display_advise_indexes_info(show_detail, **kwargs)
 
     if kwargs.get('show_benefits'):

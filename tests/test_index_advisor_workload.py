@@ -28,7 +28,8 @@ from dbmind.components.index_advisor.sql_generator import get_existing_index_sql
     get_single_advisor_sql, get_workload_cost_sqls
 from dbmind.components.index_advisor import index_advisor_workload
 from dbmind.components.index_advisor.index_advisor_workload import generate_sorted_atomic_config, \
-    add_more_column_index, filter_redundant_indexes_with_same_type, generate_atomic_config_containing_same_columns
+    add_more_column_index, filter_redundant_indexes_with_same_type, generate_atomic_config_containing_same_columns, \
+    recalculate_cost_for_opt_indexes
 from dbmind.components.index_advisor.utils import WorkLoad, QueryItem, flatten, UniqueList
 from dbmind.components.index_advisor import mcts
 
@@ -116,16 +117,42 @@ select * from student_range_part1 where credit=1;
         queries = [QueryItem('select * from store_sales ;select * from item ', 1) for _ in range(9)]
         workload = WorkLoad(queries)
         workload.add_indexes(None, [19933.29, 266350.65, 92390.78, 1734959.92, 0.0, 105765.53, 114289.41, 131445.85,
-                                    1445666.07], set())
+                                    1445666.07], [[]] * 9)
         workload.add_indexes((Case.index1,),
                              [19933.29, 266350.65, 14841.35, 1734959.92, 0.0, 105765.53, 114289.41, 131445.85,
-                              1445666.07], {'<171278>btree_store_sales_ss_item_sk_ss_sold_date_sk'})
+                              1445666.07], [[]] * 2 + ['<171278>btree_store_sales_ss_item_sk_ss_sold_date_sk'] + [[]] * 6)
         workload.add_indexes((Case.index2,),
                              [19933.29, 266350.65, 90653.52, 1734959.92, 0.0, 105765.53, 114289.41, 131445.85,
-                              1445666.07], {'<171324>btree_global_item_i_manufact_id'})
+                              1445666.07], [[]] * 2 + ['<171324>btree_global_item_i_manufact_id'] + [[]] * 6)
         index_advisor = index_advisor_workload.IndexAdvisor(executor=None, workload=workload, multi_iter_mode=False)
         index_advisor.display_detail_info['recommendIndexes'] = []
         return index_advisor
+
+
+class IndexTester(unittest.TestCase):
+
+    def test_match_index_name(self):
+        index = IndexItemFactory().get_index('public.date_dim', 'd_year', 'global')
+        index_name = '<123>btree_global_date_dim_d_year'
+        self.assertEqual(index.match_index_name(index_name), True)
+        index = IndexItemFactory().get_index('public.date_dim', 'd_year', 'local')
+        index_name = '<123>btree_local_date_dim_d_year'
+        self.assertEqual(index.match_index_name(index_name), True)
+        index = IndexItemFactory().get_index('public.date_dim', 'd_year', '')
+        index_name = '<123>btree_date_dim_d_year'
+        self.assertEqual(index.match_index_name(index_name), True)
+
+
+class QueryItemTester(unittest.TestCase):
+
+    def test_get_indexes(self):
+        query = QueryItem('select 1', freq=1)
+        index1 = IndexItemFactory().get_index('public.date_dim', 'd_year', 'global')
+        self.assertEqual(query.get_indexes(), [])
+        query.append_index(IndexItemFactory().get_index('public.date_dim', 'd_year', 'global'))
+        self.assertEqual(query.get_indexes(), [index1])
+        query.reset_opt_indexes()
+        self.assertEqual(query.get_indexes(), [])
 
 
 class SqlOutPutParserTester(unittest.TestCase):
@@ -379,10 +406,9 @@ class SqlOutPutParserTester(unittest.TestCase):
                                '                                ->  Partitioned Seq Scan on customer_address a  (cost=0.00..1596.00 rows=50000 width=7)',
                                '                                      Selected Partitions:  1..17', ]
         explain_results = [(result,) for result in ori_explain_results]
-        expected_costs = [19933.29, 266350.65, 92392.95, 1735014.24, 0.0, 105767.8]
-        expected_indexes_names = set()
+        expected_costs = [19933.29, 266350.65, 92392.95, 1735014.24, 0, 105767.8]
         expected_index_ids = ['99920']
-        self.assertEqual((expected_costs, expected_indexes_names),
+        self.assertEqual((expected_costs, [[]] * 6),
                          parse_explain_plan(explain_results, query_number))
 
     def test_parse_single_advisor_result(self):
@@ -549,14 +575,14 @@ class IndexAdvisorTester(unittest.TestCase):
         queryitem2 = index_advisor_workload.QueryItem('test', 0)
         queryitem3 = index_advisor_workload.QueryItem('test', 0)
         queryitem4 = index_advisor_workload.QueryItem('test', 0)
-        queryitem1.add_index(IndexItemFactory().get_index('table1', 'col1, col2', index_type='local'))
-        queryitem1.add_index(IndexItemFactory().get_index('table3', 'col1, col3', index_type='global'))
-        queryitem1.add_index(IndexItemFactory().get_index('table2', 'col1, col3', index_type='global'))
-        queryitem2.add_index(IndexItemFactory().get_index('table1', 'col1, col2', index_type='local'))
-        queryitem2.add_index(IndexItemFactory().get_index('table1', 'col2, col3', index_type='global'))
-        queryitem2.add_index(IndexItemFactory().get_index('table2', 'col1, col3', index_type='global'))
-        queryitem3.add_index(IndexItemFactory().get_index('table4', 'col1, col2', index_type=''))
-        queryitem3.add_index(IndexItemFactory().get_index('table4', 'col3', index_type=''))
+        queryitem1.append_index(IndexItemFactory().get_index('table1', 'col1, col2', index_type='local'))
+        queryitem1.append_index(IndexItemFactory().get_index('table3', 'col1, col3', index_type='global'))
+        queryitem1.append_index(IndexItemFactory().get_index('table2', 'col1, col3', index_type='global'))
+        queryitem2.append_index(IndexItemFactory().get_index('table1', 'col1, col2', index_type='local'))
+        queryitem2.append_index(IndexItemFactory().get_index('table1', 'col2, col3', index_type='global'))
+        queryitem2.append_index(IndexItemFactory().get_index('table2', 'col1, col3', index_type='global'))
+        queryitem3.append_index(IndexItemFactory().get_index('table4', 'col1, col2', index_type=''))
+        queryitem3.append_index(IndexItemFactory().get_index('table4', 'col3', index_type=''))
         atomic_config_total = generate_sorted_atomic_config([queryitem1, queryitem2, queryitem3, queryitem4], [])
         expected_config_total = [(), (IndexItemFactory().get_index("table1", "col1, col2", "local"),),
                                  (IndexItemFactory().get_index("table2", "col1, col3", "global"),),
@@ -690,6 +716,42 @@ class IndexAdvisorTester(unittest.TestCase):
         self.assertEqual(dbmind.components.index_advisor.utils.lookfor_subsets_configs(cur_config, atomic_configs),
                          atomic_configs[-2:])
 
+    def test_recalculate_cost_for_opt_indexes(self):
+        index1 = IndexItemFactory().get_index('public.a', 'col1', index_type='global')
+        index1.set_storage(10)
+        index2 = IndexItemFactory().get_index('public.b', 'col1', index_type='global')
+        index2.set_storage(20)
+        index3 = IndexItemFactory().get_index('public.c', 'col1', index_type='global')
+        index3.set_storage(30)
+        index4 = IndexItemFactory().get_index('public.d', 'col1', index_type='global')
+        index4.set_storage(40)
+        query1 = QueryItem('select * from a where col1=1', 1)
+        query2 = QueryItem('select * from b where col1=2', 2)
+        workload = WorkLoad([query1, query2])
+        origin_used_indexes = [['index1'], []]
+        workload.add_indexes(None, [1000, 1000], origin_used_indexes)
+        used_index1_name = '<12345>btree_global_a_col1'
+        used_index2_name = '<12346>btree_global_b_col1'
+        indexes = (index1, index2, index3, index4)
+        workload.add_indexes(indexes, [500, 400], [[used_index1_name], [used_index2_name]])
+        self.assertEqual(workload.get_workload_used_indexes(None), origin_used_indexes)
+        self.assertEqual(workload.get_workload_used_indexes((index1, index2, index3, index4)),
+                         [[used_index1_name], [used_index2_name]])
+        self.assertEqual(workload.get_used_index_names(), set(['index1']))
+        recalculate_cost_for_opt_indexes(workload, indexes)
+        self.assertEqual(index1.get_positive_queries()[0].__str__(), 'statement: select * from a where col1=1 '
+                                                                    'frequency: 1 index_list: '
+                                                                    '[table: public.a columns: col1 '
+                                                                    'index_type: global storage: 10] '
+                                                                    'benefit: 500')
+        self.assertEqual(index2.get_positive_queries()[0].__str__(), 'statement: select * from b where col1=2 '
+                                                                     'frequency: 2 index_list: '
+                                                                     '[table: public.b columns: col1 '
+                                                                     'index_type: global storage: 20] '
+                                                                     'benefit: 600')
+
+
+
     def test_mcts(self):
         index1 = IndexItemFactory().get_index('public.a', 'col1', index_type='global')
         index2 = IndexItemFactory().get_index('public.b', 'col1', index_type='global')
@@ -714,7 +776,7 @@ class IndexAdvisorTester(unittest.TestCase):
         storage_threshold = 12
         costs = [10, 7, 5, 9, 4, 11]
         for cost, indexes in zip(costs, atomic_choices):
-            workload.add_indexes(indexes, [cost], 'None')
+            workload.add_indexes(indexes, [cost], [[]])
         results = mcts.MCTS(workload, atomic_choices, available_choices, storage_threshold, 2)
         self.assertEqual(set(results), {index2, index3})
 
@@ -725,7 +787,7 @@ class IndexAdvisorTester(unittest.TestCase):
         storage_threshold = 20
         costs = [10, 8, 6, 9, 4, 6]
         for cost, indexes in zip(costs, atomic_choices):
-            workload.add_indexes(indexes, [cost], 'None')
+            workload.add_indexes(indexes, [cost], [[]])
         results = mcts.MCTS(workload, atomic_choices, available_choices, storage_threshold, 3)
         self.assertSetEqual(set(results), {index2, index3, index4})
 
