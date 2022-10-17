@@ -71,7 +71,6 @@ pg_class:
   status: disable
   ttl: 60
   timeout: 3
-  public: true
 
 
 pg_index:

@@ -115,7 +115,7 @@ pg_db:
   status: enable
   ttl: -1
   timeout: 9
-  public: true
+  
 
 
 pg_connections:
@@ -148,7 +148,7 @@ pg_connections:
   status: disable
   ttl: 60
   timeout: 1
-  public: true
+  
 
 
 pg_session_connection:
@@ -207,7 +207,7 @@ pg_session_connection:
   status: disable
   ttl: 60
   timeout: 1
-  public: true
+  
 
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -246,7 +246,7 @@ pg_downstream:
   status: disable
   ttl: 60
   timeout: 0.1
-  public: true
+  
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ┃ pg_stat_replication
@@ -394,7 +394,7 @@ pg_stat_replication:
   status: enable
   ttl: 60
   timeout: 1
-  public: true
+  
 
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -479,7 +479,7 @@ pg_replication_slots:
   status: enable
   ttl: 60
   timeout: 1
-  public: true
+  
 
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -540,7 +540,7 @@ pg_database:
   status: enable
   ttl: 30
   timeout: 9
-  public: true
+  
 
 
 # ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -655,7 +655,7 @@ pg_checkpoint:
   status: disable
   ttl: 5
   timeout: 1
-  public: true
+  
 
 
 pg_stat_activity:
@@ -705,7 +705,7 @@ pg_stat_activity:
   status: enable
   ttl: 60
   timeout: 1
-  public: true
+  
 
 
 pg_node_info:
@@ -750,7 +750,7 @@ pg_node_info:
   status: enable
   ttl: 3600
   timeout: 1
-  public: true
+  
 
 
 pg_stat_bgwriter:
@@ -806,7 +806,7 @@ pg_locker:
   status: enable
   timeout: 9
   ttl: 10
-  public: true
+  
 
 
 pg_wait_events:
@@ -836,7 +836,7 @@ pg_wait_events:
   status: enable
   ttl: 10
   timeout: 9
-  public: true
+  
 
 pg_lock_sql:
   name: pg_lock_sql
@@ -926,7 +926,7 @@ pg_session_memory:
   status: disable
   ttl: 60
   timeout: 15
-  public: true
+  
 
 pg_sesstype_memory:
   name: pg_sesstype_memory
@@ -953,7 +953,7 @@ pg_sesstype_memory:
   status: enable
   ttl: 10
   timeout: 9
-  public: true
+  
 
 pg_memory_context:
   name: pg_memory_context
@@ -981,7 +981,7 @@ pg_memory_context:
   status: enable
   ttl: 10
   timeout: 9
-  public: true
+  
 
 
 pg_state_memory:
@@ -1010,7 +1010,7 @@ pg_state_memory:
   status: disable
   ttl: 600
   timeout: 30
-  public: true
+  
 
 pg_cpu_load:
   name: pg_cpu_load
@@ -1030,7 +1030,7 @@ pg_cpu_load:
   status: enable
   ttl: 10
   timeout: 1
-  public: true
+  
 
 
 pg_recovery_status:
@@ -1057,7 +1057,7 @@ pg_recovery_status:
   status: enable
   ttl: 10
   timeout: 1
-  public: true
+  
 
 
 pg_stat_get_wal_senders:
@@ -1087,7 +1087,7 @@ pg_stat_get_wal_senders:
   status: disable
   ttl: 10
   timeout: 1
-  public: true
+  
 
 
 statement_responsetime_percentile:
@@ -1111,7 +1111,7 @@ statement_responsetime_percentile:
   status: enable
   ttl: 10
   timeout: 1
-  public: true
+  
 
 pg_prepared_xacts:
   name: pg_prepared_xacts
@@ -1131,7 +1131,7 @@ pg_prepared_xacts:
   status: enable
   ttl: 10
   timeout: 1
-  public: true
+  
 
 
 pg_lock_time_info:
@@ -1167,7 +1167,7 @@ pg_lock_time_info:
   status: enable
   ttl: 10
   timeout: 9
-  public: true
+  
 
 pg_sql_count:
   name: pg_sql_count
@@ -1291,7 +1291,7 @@ pg_redo_stat:
   status: enable
   ttl: 5
   timeout: 1
-  public: true
+  
 
 
 pg_global_ckpt_status:
@@ -1331,7 +1331,7 @@ pg_global_ckpt_status:
   status: disable
   ttl: 60
   timeout: 1
-  public: true
+  
 
 
 pg_global_double_write_status:
@@ -1408,7 +1408,7 @@ pg_total_memory_detail:
   status: enable
   ttl: 5
   timeout: 1
-  public: true
+  
 
 
 pg_summary_file_iostat:
@@ -1433,7 +1433,7 @@ pg_summary_file_iostat:
   status: enable
   ttl: 10
   timeout: 1
-  public: true
+  
 
 
 pg_time:
@@ -1453,4 +1453,4 @@ pg_time:
   status: enable
   ttl: 10
   timeout: 1
-  public: true
+  

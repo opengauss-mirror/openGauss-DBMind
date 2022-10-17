@@ -138,6 +138,7 @@ class Driver:
                             cursor.execute(sql)
                             if cursor.pgresult_ptr is not None:
                                 result.extend(cursor.fetchall())
+                    conn.commit()
                 except psycopg2.extensions.QueryCanceledError as e:
                     logging.error('%s: %s.' % (e.pgerror, stmt))
                     logging.info(
@@ -145,7 +146,12 @@ class Driver:
                         'but threshold is %fs.' % (time.monotonic() - start, timeout)
                     )
                     result = []
-            conn.commit()
+                except psycopg2.errors.FeatureNotSupported:
+                    logging.warning('FeatureNotSupported while executing %s.', stmt)
+                    result = []
+                except psycopg2.errors.ObjectNotInPrerequisiteState:
+                    logging.warning('ObjectNotInPrerequisiteState while executing %s.', stmt)
+                    result = []
             self.put_conn(conn)
         except psycopg2.InternalError as e:
             logging.error("Cannot execute '%s' due to internal error: %s." % (stmt, e.pgerror))
@@ -351,6 +357,13 @@ class DriverBundle:
     def is_monitor_admin(self):
         r = self.main_driver.query(
             'select rolmonitoradmin from pg_roles where rolname = CURRENT_USER;',
+            return_tuples=True
+        )
+        return r[0][0]
+
+    def is_standby(self):
+        r = self.main_driver.query(
+            'select pg_catalog.pg_is_in_recovery();',
             return_tuples=True
         )
         return r[0][0]
