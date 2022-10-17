@@ -31,11 +31,9 @@ ROOT_DIR_PATH = os.path.realpath(
     os.path.join(os.path.dirname(__file__), '..')
 )
 YAML_DIR_PATH = os.path.join(ROOT_DIR_PATH, 'yamls')
-DEFAULT_YAML = 'default.yml'
 
+DEFAULT_YAML = 'default.yml'
 DEFAULT_LOGFILE = 'dbmind_cmd_exporter.log'
-with tempfile.NamedTemporaryFile(suffix='.pid') as fp_:
-    EXPORTER_PIDFILE_NAME = fp_.name
 
 
 def parse_argv(argv):
@@ -74,7 +72,7 @@ class ExporterMain(Daemon):
 
     def __init__(self, args):
         self.args = args
-        self.pid_file = EXPORTER_PIDFILE_NAME
+        self.pid_file = None
         super().__init__(self.pid_file)
 
     def handle_file_permission(self):
