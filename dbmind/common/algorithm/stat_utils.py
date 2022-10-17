@@ -117,10 +117,6 @@ def trim_head_and_tail_nan(data):
     return data
 
 
-def _valid_value(v):
-    return not (np.isnan(v) or np.isinf(v))
-
-
 def tidy_up_sequence(sequence):
     """Fill up missing values for sequence and
     align sequence's timestamps.
@@ -141,7 +137,7 @@ def tidy_up_sequence(sequence):
         if error < 0:
             # This is because the current timestamp is lesser than the previous one.
             # We should remove one to keep monotonic.
-            if not _valid_value(values[i - 1]):
+            if not np.isfinite(values[i - 1]):
                 values[i - 1] = values[i]
             timestamps.pop(i)
             values.pop(i)
@@ -164,7 +160,7 @@ def tidy_up_sequence(sequence):
 def sequence_interpolate(sequence: Sequence, fit_method="linear", strip_details=True):
     """interpolate with scipy interp1d"""
     filled_sequence = tidy_up_sequence(sequence)
-    has_defined = [_valid_value(v) for v in filled_sequence.values]
+    has_defined = np.isfinite(filled_sequence.values)
 
     if all(has_defined):
         if strip_details:
