@@ -61,7 +61,9 @@ class Daemon:
         RUNNING = 1
 
     def __init__(self, pid_file, stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
-        self.pid_file = os.path.realpath(pid_file)
+        # Setting the path of the PID file
+        # is an empty string allows us to disable the PID check.
+        self.pid_file = os.path.realpath(pid_file) if pid_file else ''
         self.stdin = stdin
         self.stdout = stdout
         self.stderr = stderr
@@ -98,8 +100,9 @@ class Daemon:
             atexit.register(self.clean)
 
         # Write daemon pid file.
-        with open(self.pid_file, 'w+') as fp:
-            fp.write('%d\n' % os.getpid())
+        if self.pid_file:
+            with open(self.pid_file, 'w+') as fp:
+                fp.write('%d\n' % os.getpid())
 
     def start(self):
         """Start the daemon process"""

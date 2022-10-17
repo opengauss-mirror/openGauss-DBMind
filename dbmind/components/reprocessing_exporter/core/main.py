@@ -34,9 +34,8 @@ CURR_DIR = os.path.realpath(
     os.path.join(os.path.dirname(__file__), '..')
 )
 DEFAULT_YAML = 'reprocessing_exporter.yml'
+
 DEFAULT_LOGFILE = 'reprocessing_exporter.log'
-with tempfile.NamedTemporaryFile(suffix='.pid') as fp_:
-    EXPORTER_PIDFILE_NAME = fp_.name
 
 
 def parse_argv(argv):
@@ -94,7 +93,7 @@ class ExporterMain(Daemon):
 
     def __init__(self, args):
         self.args = args
-        self.pid_file = EXPORTER_PIDFILE_NAME
+        self.pid_file = None
         super().__init__(self.pid_file)
 
     def change_file_permissions(self):
@@ -119,7 +118,8 @@ class ExporterMain(Daemon):
         if self.args.__dict__['log.filepath'] \
                 and os.path.exists(self.args.__dict__['log.filepath']) \
                 and os.path.isfile(
-                self.args.__dict__['log.filepath']):
+            self.args.__dict__['log.filepath']
+        ):
             os.chmod(self.args.__dict__['log.filepath'], 0o600)
         if os.path.exists(CURR_DIR):
             os.chmod(CURR_DIR, 0o700)
