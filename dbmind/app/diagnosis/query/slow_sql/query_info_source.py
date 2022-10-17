@@ -73,16 +73,12 @@ class TableStructure:
         self.dead_rate = 0.0
         # How to get field num for table
         self.column_number = 0
-        # This field can be used as a flag for whether the statistics
-        # are updated.
-        self.last_autovacuum = 0
-        self.last_autoanalyze = 0
-        self.vacuum = 0
-        self.analyze = 0
+        # This field can be used as a flag for whether the statistics are updated.
+        self.vacuum_delay = -1
+        self.analyze_delay = -1
         self.table_size = 0
         self.index_size = 0
         self.index = {}
-        self.redundant_index = []
         # Note: for the distributed database version, the following two indicators are meaningful
         self.skew_ratio = 0.0
         self.skew_stddev = 0.0
@@ -108,8 +104,6 @@ class DatabaseInfo:
         self.db_port = None
         self.history_tps = 1
         self.current_tps = 1
-        self.max_conn = 1
-        self.used_conn = 0
         self.thread_pool = {}
 
 
@@ -415,27 +409,15 @@ class QueryContextFromTSDB(QueryContext):
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                last_vacuum_info = dai.get_metric_sequence("pg_tables_structure_last_vacuum",
-                                                           self.query_start_time,
-                                                           self.query_end_time).from_server(
-                    f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-                    datname=f"{self.slow_sql_instance.db_name}").filter(
-                    schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                last_autovacuum_info = dai.get_metric_sequence("pg_tables_structure_last_autovacuum",
-                                                               self.query_start_time,
-                                                               self.query_end_time).from_server(
-                    f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-                    datname=f"{self.slow_sql_instance.db_name}").filter(
-                    schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                last_analyze_info = dai.get_metric_sequence("pg_tables_structure_last_analyze",
+                vacuum_delay_info = dai.get_metric_sequence("pg_tables_structure_vacuum_delay",
                                                             self.query_start_time,
                                                             self.query_end_time).from_server(
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                last_autoanalyze_info = dai.get_metric_sequence("pg_tables_structure_last_autoanalyze",
-                                                                self.query_start_time,
-                                                                self.query_end_time).from_server(
+                analyze_delay_info = dai.get_metric_sequence("pg_tables_structure_analyze_delay",
+                                                             self.query_start_time,
+                                                             self.query_end_time).from_server(
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
@@ -449,13 +431,6 @@ class QueryContextFromTSDB(QueryContext):
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     nspname=f"{schema_name}").filter(tablename=f"{table_name}").fetchall()
-                # Polish later: check when using
-                redundant_index_info = dai.get_metric_sequence("pg_never_used_indexes_index_size",
-                                                               self.query_start_time,
-                                                               self.query_end_time).from_server(
-                    f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-                    datname=f"{self.slow_sql_instance.db_name}").filter(
-                    schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchall()
                 if dead_rate_info.values:
                     table_info.dead_rate = round(float(dead_rate_info.values[0]), 4)
                 if live_tup_info.values:
@@ -464,26 +439,15 @@ class QueryContextFromTSDB(QueryContext):
                     table_info.dead_tuples = int(dead_tup_info.values[0])
                 if dead_rate_info.values:
                     table_info.dead_rate = float(dead_rate_info.values[0])
-                if last_analyze_info.values:
-                    filtered_values = [float(item) for item in last_analyze_info.values if not math.isnan(float(item))]
-                    table_info.analyze = int(max(filtered_values)) if filtered_values else 0
-                if last_autoanalyze_info.values:
-                    filtered_values = [float(item) for item in last_autoanalyze_info.values if not math.isnan(float(item))]
-                    table_info.last_autoanalyze = int(max(filtered_values)) if filtered_values else 0
-                if last_vacuum_info.values:
-                    filtered_values = [float(item) for item in last_vacuum_info.values if not math.isnan(float(item))]
-                    table_info.vacuum = int(max(filtered_values)) if filtered_values else 0
-                if last_autovacuum_info.values:
-                    filtered_values = [float(item) for item in last_autovacuum_info.values if not math.isnan(float(item))]
-                    table_info.last_autovacuum = int(max(filtered_values)) if filtered_values else 0
+                if analyze_delay_info.values:
+                    table_info.analyze_delay = analyze_delay_info.values[-1]
+                if vacuum_delay_info.values:
+                    table_info.vacuum_delay = vacuum_delay_info.values[-1]
                 if pg_table_size_info.values:
                     table_info.table_size = round(float(max(pg_table_size_info.values)) / 1024 / 1024, 4)
                 if index_number_info:
                     table_info.index = {item.labels['relname']: parse_field_from_indexdef(item.labels['indexdef'])
                                         for item in index_number_info if item.labels}
-                if redundant_index_info:
-                    table_info.redundant_index = [item.labels['indexrelname'] for item in redundant_index_info if
-                                                  item.labels]
                 table_structure.append(table_info)
 
         return table_structure
@@ -522,20 +486,10 @@ class QueryContextFromTSDB(QueryContext):
                                                     self.query_end_time - timedelta(
                                                         seconds=days_time_interval)).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        max_conn_sequence = dai.get_metric_sequence("pg_connections_max_conn", self.query_start_time,
-                                                    self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        used_conn_sequence = dai.get_metric_sequence("pg_connections_used_conn", self.query_start_time,
-                                                     self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
         if his_tps_sequences.values:
             database_info.history_tps = int(max(his_tps_sequences.values))
         if cur_tps_sequences.values:
             database_info.current_tps = int(max(cur_tps_sequences.values))
-        if max_conn_sequence.values:
-            database_info.max_conn = int(max(max_conn_sequence.values))
-        if used_conn_sequence.values:
-            database_info.used_conn = int(max(used_conn_sequence.values))
         return database_info
 
     @exception_follower(output=list)
@@ -580,19 +534,16 @@ class QueryContextFromTSDB(QueryContext):
         load_average_info1 = dai.get_metric_sequence("load_average1", self.query_start_time,
                                                      self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        io_queue_number_info = dai.get_metric_sequence("os_io_queue_number", self.query_start_time,
-                                                       self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchall()
         process_fds_rate_info = dai.get_metric_sequence("os_process_fds_rate", self.query_start_time,
                                                         self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
         cpu_process_number_info = dai.get_metric_sequence("os_cpu_processor_number", self.query_start_time,
                                                           self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        db_cpu_usage_info = dai.get_metric_sequence("db_cpu_usage", self.query_start_time,
+        db_cpu_usage_info = dai.get_metric_sequence("gaussdb_progress_cpu_usage", self.query_start_time,
                                                     self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        db_mem_usage_info = dai.get_metric_sequence("db_mem_usage", self.query_start_time,
+        db_mem_usage_info = dai.get_metric_sequence("gaussdb_progress_mem_usage", self.query_start_time,
                                                     self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
         if iops_info.values:
@@ -639,12 +590,6 @@ class QueryContextFromTSDB(QueryContext):
             system_info.load_average1 = [round(float(item), 4) for item in load_average_info1.values]
         else:
             logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'load_average1' data.")
-        if io_queue_number_info:
-            system_info.io_queue_number = {item.labels['device']: round(float(max(item.values)), 4) for item in
-                                           io_queue_number_info if
-                                           item.labels}
-        else:
-            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_io_queue_number' data.")
         return system_info
 
     @exception_follower(output=NetWorkInfo)
@@ -727,6 +672,38 @@ class QueryContextFromTSDB(QueryContext):
                     recommend_indexes.append(str(index))
         return ';'.join(recommend_indexes)
 
+    @exception_follower(output=dict)
+    @exception_catcher
+    def acuire_redundant_index(self):
+        """Real-time access to redundant indexes based on RPC"""
+        redundant_index = {}
+        stmt = """
+            select pi.indexrelname from pg_indexes pis
+            join pg_stat_user_indexes pi
+            on pis.schemaname = pi.schemaname and pis.tablename = pi.relname and pis.indexname = pi.indexrelname
+            left join pg_constraint pco
+            on pco.conname = pi.indexrelname and pco.conrelid = pi.relid
+            where pco.contype is distinct from 'p' and pco.contype is distinct from 'u'
+            and (idx_scan,idx_tup_read,idx_tup_fetch) = (0,0,0)
+            and pis.indexdef !~ ' UNIQUE INDEX '
+            and pis.schemaname = '{schemaname}' and relname = '{relname}'
+        """
+        if not self.slow_sql_instance.tables_name:
+            return redundant_index
+        for schema_name, tables_name in self.slow_sql_instance.tables_name.items():
+            for table_name in tables_name:
+                sql = stmt.format(schemaname=schema_name, relname=table_name)
+                rows = agent_rpc_client.call('query_in_database',
+                                             sql,
+                                             self.slow_sql_instance.db_name,
+                                             return_tuples=True)
+                for row in rows:
+                    key = "%s:%s" % (schema_name, table_name)
+                    if key not in redundant_index:
+                        redundant_index[key] = []
+                    redundant_index[key].append(row[0])
+        return redundant_index
+
     @exception_follower(output=list)
     @exception_catcher
     def acquire_timed_task(self) -> list:
@@ -749,7 +726,3 @@ class QueryContextFromTSDB(QueryContext):
             timed_task_list.append(timed_task)
         return timed_task_list
 
-    @exception_follower(output=list)
-    @exception_catcher
-    def acquire_abnormal_process(self):
-        return []
