@@ -26,9 +26,13 @@ from dbmind.common.utils import dbmind_assert
 from dbmind.common.parser.sql_parsing import standardize_sql
 from .opengauss_driver import DriverBundle
 
-statusEnable = "enable"
-statusDisable = "disable"
-defaultVersion = ">=0.0.0"
+STATUS_ENABLE = "enable"
+STATUS_DISABLE = "disable"
+DEFAULT_VERSION = ">=0.0.0"
+DBROLE_PRIMARY = 'primary'
+DBROLE_STANDBY = 'standby'
+DBROLE_UNSET = 'unset'
+
 
 PROMETHEUS_TYPES = {
     # Indeed, COUNTER should use the type `Counter` rather than `Gauge`,
@@ -54,13 +58,14 @@ _registry = CollectorRegistry()
 _use_cache = True
 global_labels = {FROM_INSTANCE_KEY: ''}
 
-_dbrole = 'primary'  # fake
+_dbrole = DBROLE_UNSET  # default
 _dbversion = '9.2.24'
 
 query_instances = list()
 
 
 def is_valid_version(version):
+    """Not implemented yet."""
     return True
 
 
@@ -79,11 +84,11 @@ class Query:
     def __init__(self, item):
         self.name = item.get('name')
         self.sql = item['sql']
-        self.version = item.get('version', defaultVersion)
+        self.version = item.get('version', DEFAULT_VERSION)
         self.timeout = item.get('timeout')
         self.ttl = item.get('ttl', 0)  # cache_seconds for PG exporter
-        self.status = item.get('status', 'enable') == 'enable'  # enable or disable
-        self.dbrole = item.get('dbRole') or 'primary'  # primary, standby, ...
+        self.status = item.get('status', STATUS_ENABLE) == STATUS_ENABLE  # enable or disable
+        self.dbrole = item.get('dbRole') or DBROLE_UNSET  # primary, standby, ...
 
         self._cache = None
         self._last_scrape_timestamp = int(time.time() * 1000) - 15000  # Default value is 15 seconds ago.
@@ -163,10 +168,9 @@ class QueryInstance:
         self.queries = list()
         self.metrics = list()
         self.labels = list()
-        self.status = d.get('status', 'enable') == 'enable'
+        self.status = d.get('status', STATUS_ENABLE) == STATUS_ENABLE
         self.ttl = d.get('ttl', 0)
         self.timeout = d.get('timeout', 0)
-        self.public = d.get('public', True)
 
         # Compatible with PG-exporter format,
         # convert the query field into a list.
@@ -179,8 +183,11 @@ class QueryInstance:
         for q in d['query']:
             # Compatible with PG-exporter
             query = Query(q)
-            if query.status and query.dbrole == _dbrole and is_valid_version(query.version):
+            dbrole_condition = query.dbrole in (DBROLE_UNSET, _dbrole)
+            if query.status and dbrole_condition and is_valid_version(query.version):
                 self.queries.append(query)
+                logging.info('Record the query %s (status: %s, dbRole: %s, version: %s).' % (
+                    query.name, query.status, query.dbrole, query.version))
             else:
                 logging.info('Skip the query %s (status: %s, dbRole: %s, version: %s).' % (
                     query.name, query.status, query.dbrole, query.version))
@@ -283,7 +290,9 @@ def config_collecting_params(
         constant_labels,
         **kwargs
 ):
-    global _use_cache, _thread_pool_executor, driver, scrape_interval_seconds
+    global _use_cache, _thread_pool_executor
+    global _dbrole
+    global driver, scrape_interval_seconds
 
     # Set global yaml config macros.
     scrape_interval_seconds = kwargs.get('scrape_interval_seconds', 0)
@@ -294,6 +303,7 @@ def config_collecting_params(
     )
     _thread_pool_executor = ThreadPoolExecutor(max_workers=parallel)
     _use_cache = not disable_cache
+    _dbrole = DBROLE_STANDBY if driver.is_standby() else DBROLE_PRIMARY
     # Append extra labels, including essential labels (e.g., from_server)
     # and constant labels from user's configurations.
     global_labels[FROM_INSTANCE_KEY] = driver.address

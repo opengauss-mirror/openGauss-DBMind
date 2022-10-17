@@ -12,7 +12,6 @@
 # See the Mulan PSL v2 for more details.
 import argparse
 import os
-import tempfile
 
 from dbmind.common.daemon import Daemon
 from dbmind.common.utils import exporter
