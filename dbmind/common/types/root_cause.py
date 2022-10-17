@@ -129,12 +129,12 @@ class RootCause:
     VACUUM_EVENT = _Define('[SLOW SQL][VACUUM]',
                            'During SQL execution, related tables are executing VACUUM tasks, '
                            'resulting in slow queries,'
-                           'detail: {autovacuum}',
+                           'detail: {vacuum}',
                            )
     ANALYZE_EVENT = _Define('[SLOW SQL][ANALYZE]',
                             'During SQL execution, related tables are executing ANALYZE tasks, '
                             'resulting in slow queries,'
-                            'detail: {autoanalyze}',
+                            'detail: {analyze}',
                             )
     WORKLOAD_CONTENTION = _Define('[SLOW SQL][WORKLOAD]',
                                   '{workload_contention}.',
@@ -195,9 +195,6 @@ class RootCause:
     TIMED_TASK_CONFLICT = _Define('[SLOW SQL][PLAN]',
                                   '{timed_task_conflict}.',
                                   '{timed_task_conflict}.')
-    ABNORMAL_PROCESS = _Define('[SLOW SQL][PLAN]',
-                               '{abnormal_process}.',
-                               '{abnormal_process}.')
     DATABASE_VIEW = _Define('[SLOW SQL][VIEW]',
                             'Poor performance of database views',
                             'System table query service, no suggestion.')

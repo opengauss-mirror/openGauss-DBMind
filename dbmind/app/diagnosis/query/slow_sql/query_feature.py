@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 from dbmind.common.parser import sql_parsing
 import logging
+import time
 
 from dbmind.app import monitoring
 from dbmind.metadatabase.dao import statistical_metric
@@ -96,6 +97,7 @@ class QueryFeature:
         self.timed_task_info = None
         self.wait_events = None
         self.sort_condition_info = None
+        self.redundant_index_info = None
         self.detail = {}
         self.suggestion = {}
 
@@ -113,6 +115,7 @@ class QueryFeature:
         self.wait_events = self.query_context.acquire_wait_event()
         self.pg_setting_info = self.query_context.acquire_pg_settings()
         self.sort_condition_info = self.query_context.acquire_sort_condition()
+        self.redundant_index_info = self.query_context.acuire_redundant_index()
 
     @property
     def select_type(self) -> bool:
@@ -230,29 +233,12 @@ class QueryFeature:
     @property
     def redundant_index(self) -> bool:
         """Determine whether the query related table has too redundant index"""
-        if not self.table_structure or not self.large_table or self.select_type:
+        if not self.redundant_index_info or not self.large_table or self.select_type:
             return False
-        redundant_index_info = {f"{item.schema_name}:{item.table_name}": item.redundant_index for item in
-                                self.table_structure}
-        self.detail['redundant_index'] = {}
-        if self.plan_parse_info is not None:
-            indexscan_operators = self.plan_parse_info.find_operators('Index Scan')
-            indexonlyscan_operators = self.plan_parse_info.find_operators('Index Only Scan')
-            indexscan_indexlist = [item.index for item in indexscan_operators + indexonlyscan_operators]
-        else:
-            indexscan_indexlist = []
-        for table_name, redundant_index_list in redundant_index_info.items():
-            not_use_redundant_index_list = []
-            for redundant_index in redundant_index_list:
-                if redundant_index not in indexscan_indexlist:
-                    not_use_redundant_index_list.append(redundant_index)
-            if not_use_redundant_index_list:
-                self.detail['redundant_index'][table_name] = not_use_redundant_index_list
-        if self.detail.get('redundant_index'):
-            self.suggestion['redundant_index'] = "Deleting redundant indexes can improve " \
-                                                 "the efficiency of update statements"
-            return True
-        return False
+        self.detail['redundant_index'] = self.redundant_index_info
+        self.suggestion['redundant_index'] = "Deleting redundant indexes can improve " \
+                                             "the efficiency of update statements"
+        return True
 
     @property
     def update_large_data(self) -> bool:
@@ -307,9 +293,10 @@ class QueryFeature:
     @property
     def external_sort(self) -> bool:
         """Determine whether the query related table has external sort"""
-        if self.sort_condition_info.get('sort_spill'):
+        sort_rate_threshold = 0.6
+        if self.sort_condition_info.get('sort_spill') or self.slow_sql_instance.sort_spill_count > sort_rate_threshold:
             self.detail['external_sort'] = "Disk-Spill may occur during SQL sorting"
-        if self.sort_condition_info.get('hash_spill'):
+        if self.sort_condition_info.get('hash_spill') or self.slow_sql_instance.hash_spill_count > sort_rate_threshold:
             self.detail['external_sort'] = "Disk-Spill may occur during HASH"
         if self.detail.get('external_sort'):
             self.suggestion['external_sort'] = "Adjust the size of WORK_MEM according to the business"
@@ -323,24 +310,15 @@ class QueryFeature:
         if not self.table_structure or not self.large_table:
             return False
         probable_time_interval = monitoring.get_threshold('analyze_operation_probable_time_interval')
-        auto_vacuum_info = {f"{item.schema_name}:{item.table_name}": item.last_autovacuum for item in
-                            self.table_structure}
-        user_vacuum_info = {f"{item.schema_name}:{item.table_name}": item.vacuum for item in
-                            self.table_structure}
-        self.detail['autovacuum'] = {}
+        vacuum_info = {f"{item.schema_name}:{item.table_name}":
+                       int(time.time() * 1000) - item.vacuum_delay for item in self.table_structure}
         self.detail['vacuum'] = {}
-        for table_name, autovacuum_time in auto_vacuum_info.items():
-            if self.slow_sql_instance.start_at <= autovacuum_time <= self.slow_sql_instance.start_at + \
-                    self.slow_sql_instance.duration_time or \
-                    autovacuum_time < self.slow_sql_instance.start_at < autovacuum_time + probable_time_interval:
-                self.detail['autovacuum'][table_name] = autovacuum_time
-
-        for table_name, vacuum_time in user_vacuum_info.items():
+        for table_name, vacuum_time in vacuum_info.items():
             if self.slow_sql_instance.start_at <= vacuum_time <= self.slow_sql_instance.start_at + \
                     self.slow_sql_instance.duration_time or \
                     vacuum_time < self.slow_sql_instance.start_at < vacuum_time + probable_time_interval:
                 self.detail['vacuum'][table_name] = vacuum_time
-        if self.detail.get('autovacuum') or self.detail.get('vacuum'):
+        if self.detail.get('vacuum'):
             return True
         return False
 
@@ -350,30 +328,21 @@ class QueryFeature:
         if not self.table_structure or not self.large_table:
             return False
         probable_time_interval = monitoring.get_threshold('analyze_operation_probable_time_interval')
-        auto_analyze_info = {f"{item.schema_name}:{item.table_name}": item.last_autoanalyze for item in
-                             self.table_structure}
-        user_analyze_info = {f"{item.schema_name}:{item.table_name}": item.analyze for item in
-                             self.table_structure}
-        self.detail['autoanalyze'] = {}
+        analyze_info = {f"{item.schema_name}:{item.table_name}":
+                        int(time.time() * 1000) - item.analyze_delay for item in self.table_structure}
         self.detail['analyze'] = {}
-        for table_name, autoanalyze_time in auto_analyze_info.items():
-            if self.slow_sql_instance.start_at <= autoanalyze_time <= self.slow_sql_instance.start_at + \
-                    self.slow_sql_instance.duration_time or \
-                    autoanalyze_time < self.slow_sql_instance.start_at < autoanalyze_time + probable_time_interval:
-                self.detail['autoanalyze'][table_name] = autoanalyze_time
-        for table_name, analyze_time in user_analyze_info.items():
+        for table_name, analyze_time in analyze_info.items():
             if self.slow_sql_instance.start_at <= analyze_time <= self.slow_sql_instance.start_at + \
                     self.slow_sql_instance.duration_time or \
                     analyze_time < self.slow_sql_instance.start_at < analyze_time + probable_time_interval:
                 self.detail['analyze'][table_name] = analyze_time
-        if self.detail.get('autoanalyze') or self.detail.get('analyze'):
+        if self.detail.get('analyze'):
             return True
         return False
 
     @property
     def workload_contention(self) -> bool:
-        """Determine whether it is caused by the load of the database itself
-        todo: need add metric in cmd_exporter"""
+        """Determine whether it is caused by the load of the database itself"""
         cur_database_tps = self.database_info.current_tps
         if not cur_database_tps:
             return False
@@ -398,49 +367,21 @@ class QueryFeature:
         if self.system_info.db_cpu_usage and \
                 max(self.system_info.db_cpu_usage) > monitoring.get_param('cpu_usage_threshold'):
             index = indexes.pop(0)
-            historical_statistics = _get_historical_statistics('db_cpu_usage', self.slow_sql_instance.db_host)
-            if historical_statistics and historical_statistics >= monitoring.get_param('cpu_usage_threshold'):
-                self.detail['workload_contention'] += "%s. The database CPU load has continued to be " \
-                                                      "significant in the recent period, current cpu load: %s, " \
-                                                      "historical cpu load: %s;" \
-                                                      % (index, self.system_info.db_cpu_usage, historical_statistics)
-                self.suggestion['workload_contention'] = '%s. If the CPU load is significant for a long time, ' \
-                                                         'consider expanding the capacity;' % index
-            else:
-                self.detail['workload_contention'] += "%s. The current database CPU load is significant: %s" \
-                                                      % (index, self.system_info.db_cpu_usage)
-                self.suggestion['workload_contention'] += '%s. We need to locate the further cause of high CPU load;' \
-                                                          % index
+            self.detail['workload_contention'] += "%s. The current database CPU load is significant: %s" \
+                                                  % (index, self.system_info.db_cpu_usage)
+            self.suggestion['workload_contention'] += '%s. We need to locate the further cause of high CPU load;' \
+                                                      % index
         if self.system_info.db_mem_usage and \
                 max(self.system_info.db_mem_usage) > monitoring.get_param('mem_usage_threshold'):
             index = indexes.pop(0)
-            historical_statistics = _get_historical_statistics('db_mem_usage', self.slow_sql_instance.db_host)
-            if historical_statistics and historical_statistics >= monitoring.get_param('memory_usage_threshold'):
-                self.detail['workload_contention'] += "%s. The database memory load has continued to be " \
-                                                      "significant in the recent period, current cpu load: %s, " \
-                                                      "historical cpu load: %s;" \
-                                                      % (index, self.system_info.db_mem_usage, historical_statistics)
-                self.suggestion['workload_contention'] += '%s. If the memory load is significant for a long time, ' \
-                                                          'consider expanding the capacity;' % index
-            else:
-                self.detail['workload_contention'] += "%s. The current database memory load is significant: %s;" \
-                                                      % (index, self.system_info.db_mem_usage)
-                self.suggestion['workload_contention'] += '%s. We need to locate the further cause of high memory' \
-                                                          ' load;' % index
+            self.detail['workload_contention'] += "%s. The current database memory load is significant: %s;" \
+                                                  % (index, self.system_info.db_mem_usage)
+            self.suggestion['workload_contention'] += '%s. We need to locate the further cause of high memory' \
+                                                      ' load;' % index
         if self.system_info.db_data_occupy_rate > monitoring.get_param('disk_usage_threshold'):
             index = indexes.pop(0)
             self.detail['workload_contention'] += "%s. Insufficient free space in the database directory\n" % index
             self.suggestion['workload_contention'] += "%s. Please adjust or expand disk capacity in time\n" % index
-        if self.database_info.max_conn and \
-                self.database_info.used_conn / self.database_info.max_conn > \
-                monitoring.get_param('connection_usage_threshold'):
-            index = indexes.pop()
-            self.detail['workload_contention'] += "%s. The connections to the database is large: " \
-                                                  "current connections: %s, max connections is: %s\n" % \
-                                                  (index,
-                                                   self.database_info.used_conn,
-                                                   self.pg_setting_info['max_connections'].setting)
-            self.suggestion['workload_contention'] += "%s. No Suggestion" % index
         if self.detail['workload_contention']:
             return True
         return False
@@ -453,12 +394,12 @@ class QueryFeature:
         if self.system_info.cpu_usage and max(self.system_info.cpu_usage) > monitoring.get_param('cpu_usage_threshold'):
             historical_statistics = _get_historical_statistics('os_cpu_usage', self.slow_sql_instance.db_host)
             if historical_statistics > monitoring.get_param('cpu_usage_threshold'):
-                self.detail['system_cpu_contention'] = "The system cpu usage(exclude database process) " \
+                self.detail['system_cpu_contention'] = "The system cpu usage(include database process) " \
                                                        "has continued to be significant in the recent " \
                                                        "period, current value: %s, historical value: %s" \
                                                        % (self.system_info.cpu_usage, historical_statistics)
             else:
-                self.detail['system_cpu_contention'] = "The current system cpu usage((exclude database process))" \
+                self.detail['system_cpu_contention'] = "The current system cpu usage((include database process))" \
                                                        " is significant: %s." \
                                                        % self.system_info.cpu_usage
             self.suggestion['system_cpu_contention'] = "No Suggestion" 
@@ -505,7 +446,7 @@ class QueryFeature:
         if self.system_info.mem_usage and max(self.system_info.mem_usage) > monitoring.get_param('mem_usage_threshold'):
             historical_statistics = _get_historical_statistics('os_mem_usage', self.slow_sql_instance.db_host)
             if historical_statistics > monitoring.get_param('mem_usage_threshold'):
-                self.detail['system_mem_contention'] = "The system mem usage(exclude database process) " \
+                self.detail['system_mem_contention'] = "The system mem usage(include database process) " \
                                                        "has continued to be significant in the recent " \
                                                        "period, current value: %s, historical value: %s;" \
                                                        % (self.system_info.mem_usage, historical_statistics)
@@ -571,21 +512,14 @@ class QueryFeature:
     def lack_of_statistics(self) -> bool:
         if not self.table_structure:
             return False
-        auto_analyze_info = {f"{item.schema_name}:{item.table_name}": item.last_autoanalyze for item in
-                             self.table_structure}
-        manual_analyze_info = {f"{item.schema_name}:{item.table_name}": item.analyze for item in
-                               self.table_structure}
+        analyze_info = {f"{item.schema_name}:{item.table_name}": item.analyze_delay for item in
+                        self.table_structure}
         tables = []
-        for table_name, auto_analyze_time in auto_analyze_info.items():
-            if auto_analyze_time == 0 and manual_analyze_info.get(table_name, 0) == 0:
+        for table_name, analyze_delay in analyze_info.items():
+            if analyze_delay == -1:
                 tables.append("%s(%s)" % (table_name, 'never'))
-            else:
-                not_auto_analyze_time = (self.slow_sql_instance.start_at - auto_analyze_time)
-                not_manual_analyze_time = (self.slow_sql_instance.start_at - manual_analyze_info.get(table_name, 0))
-                if min(not_auto_analyze_time, not_manual_analyze_time) > monitoring.get_threshold(
-                        'update_statistics_threshold') * 1000:
-                    not_update_statistic_time = min(not_manual_analyze_time, not_auto_analyze_time)
-                    tables.append("%s(%ss)" % (table_name, not_update_statistic_time / 1000))
+            if analyze_delay >= monitoring.get_threshold('update_statistics_threshold') * 1000:
+                tables.append("%s(%ss)" % (table_name, analyze_delay / 1000))
         if tables:
             self.detail['lack_of_statistics'] = "Table statistics are not updated in time: %s" % (','.join(tables))
             self.suggestion['lack_of_statistics'] = "Perform the analyze operation on the table in time"
@@ -609,7 +543,6 @@ class QueryFeature:
         The poor_join_performance include the following three situations:
         1. Inappropriate join operator: enable_hashjoin=off, lead to use nestloop but not hashjoin.
         2. large joins: The amount of join data is very large(>1000000).
-        3.
         """
         if self.plan_parse_info is None:
             return False
@@ -866,11 +799,6 @@ class QueryFeature:
             return True
         return False
 
-    @property
-    def abnormal_process_occupation(self):
-        # Implementation of follow-up supplementary functions
-        return False
-
     def __call__(self):
         self.detail['system_cause'] = {}
         self.detail['plan'] = {}
@@ -903,10 +831,9 @@ class QueryFeature:
                         self.correlated_subquery,
                         self.poor_aggregation_performance,
                         self.abnormal_sql_structure,
-                        self.timed_task_conflict,
-                        self.abnormal_process_occupation]
+                        self.timed_task_conflict]
             features = [int(item) for item in features]
         except Exception as e:
-            logging.error(str(e), exc_info=True)
+            logging.error(e, exc_info=True)
             features = [0] * 30
         return features, self.detail, self.suggestion
