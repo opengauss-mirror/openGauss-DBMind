@@ -97,6 +97,8 @@ def parse_argv(argv):
     parser.add_argument('--ssl-ca-file', type=path_type, help='set the path of ssl ca file')
     parser.add_argument('--parallel', default=5, type=positive_int_type,
                         help='number of parallels for metrics scrape.')
+    parser.add_argument('--connection-pool-size', default=0, type=not_negative_int_type,
+                        help='size of connection pool for each database. Set zero to disable connection pool.')
     parser.add_argument('--log.filepath', type=os.path.realpath,
                         default=os.path.join(os.getcwd(), DEFAULT_LOGFILE),
                         help='the path to log')
@@ -167,6 +169,7 @@ class ExporterMain(Daemon):
                 include_databases=self.args.include_databases,
                 exclude_databases=self.args.exclude_databases,
                 parallel=self.args.parallel,
+                connection_pool_size=self.args.connection_pool_size,
                 disable_cache=self.args.disable_cache,
                 constant_labels=self.args.constant_labels,
                 scrape_interval_seconds=self.args.scrape_interval_seconds,

@@ -12,26 +12,53 @@
 # See the Mulan PSL v2 for more details.
 import logging
 import time
-from threading import local
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import psycopg2
 import psycopg2.errors
 import psycopg2.extensions
 import psycopg2.extras
+from psycopg2.pool import ThreadedConnectionPool
 
 from dbmind.common.utils import dbmind_assert
 from dbmind.common.utils.exporter import warn_logging_and_terminal
+
+_psycopg2_kwargs = dict(
+    options="-c session_timeout=15 -c search_path=public",
+    application_name='DBMind-openGauss-exporter',
+)
 
 
 def psycopg2_connect(dsn):
     # Set the session_timeout to prevent connection leak.
     conn = psycopg2.connect(
-        dsn, options="-c session_timeout=15 -c search_path=public",
-        application_name='DBMind-openGauss-exporter',
-
+        dsn, **_psycopg2_kwargs
     )
     return conn
+
+
+class ConnectionPool(ThreadedConnectionPool):
+    """A connection pool that works with the threading module and waits for getting a
+    new connection rather than raise an exception while the pool is exhausted."""
+
+    MAX_RETRY_TIME = 1  # second
+    WAIT_TICK = 0.1  # second
+
+    def _getconn(self, key=None):
+        max_retry_times = ConnectionPool.MAX_RETRY_TIME / ConnectionPool.WAIT_TICK
+        n_retry = 1
+        while len(self._used) == self.maxconn and n_retry < max_retry_times:
+            time.sleep(0.1)
+            n_retry += 1
+
+        # Response is first.
+        if len(self._used) == self.maxconn:
+            if key is None:
+                key = self._getkey()
+            return self._connect(key)
+
+        return super()._getconn(key)
 
 
 class Driver:
@@ -39,9 +66,14 @@ class Driver:
         self._url = None
         self.parsed_dsn = None
         self.initialized = False
-        self._conn = local()
+        self._pool = None
 
-    def initialize(self, url):
+    def initialize(self, url, pool_size=None):
+        """
+        :param url: connect to database by using this url (or DSN).
+        :param pool_size: connection pool size, if set None, this calls doesn't use pool.
+        :return: Nothing to return
+        """
         try:
             # Specify default schema is public.
             conn = psycopg2_connect(url)
@@ -49,6 +81,11 @@ class Driver:
             conn.close()
             self._url = url
             self.parsed_dsn = psycopg2.extensions.parse_dsn(url)
+            if pool_size:
+                self._pool = ConnectionPool(
+                    minconn=1, maxconn=pool_size,
+                    dsn=url, **_psycopg2_kwargs
+                )
             self.initialized = True
         except Exception as e:
             raise ConnectionError(e)
@@ -78,8 +115,8 @@ class Driver:
         return self.parsed_dsn['password']
 
     def query(self, stmt, timeout=0, force_connection_db=None, return_tuples=False, fetch_all=False):
-        if not self.initialized:
-            raise AssertionError()
+        dbmind_assert(self.initialized)
+
         cursor_dict = {}
         if not return_tuples:
             cursor_dict['cursor_factory'] = psycopg2.extras.RealDictCursor
@@ -109,6 +146,7 @@ class Driver:
                     )
                     result = []
             conn.commit()
+            self.put_conn(conn)
         except psycopg2.InternalError as e:
             logging.error("Cannot execute '%s' due to internal error: %s." % (stmt, e.pgerror))
             result = []
@@ -125,19 +163,23 @@ class Driver:
         # If query wants to connect to other database by force, we can generate and cache
         # the new connection as the following.
         if force_connection_db:
-            db_name = force_connection_db
             parsed_dsn = self.parsed_dsn.copy()
             parsed_dsn['dbname'] = force_connection_db
             dsn = ' '.join(['{}={}'.format(k, v) for k, v in parsed_dsn.items()])
-        else:
-            db_name = self.dbname
-            dsn = self._url
+            # We don't cache the connection that uses force_connection_db because
+            # this scenario is not frequent and we also don't advise users use this
+            # mode usually in the code. If users have to connect to multiple database,
+            # they should use the DriverBundle instead.
+            return psycopg2_connect(dsn)
 
-        if not hasattr(self._conn, db_name) or getattr(self._conn, db_name).closed:
-            setattr(self._conn, db_name, psycopg2_connect(dsn))
+        # If not used connection pool, create and return a new connection directly.
+        if not self._pool:
+            return psycopg2_connect(dsn=self._url)
+
+        conn = self._pool.getconn()
         # Check whether the connection is timeout or invalid.
         try:
-            getattr(self._conn, db_name).cursor().execute('select 1;')
+            conn.cursor().execute('select 1;')
         except (
                 psycopg2.InternalError,
                 psycopg2.InterfaceError,
@@ -145,13 +187,26 @@ class Driver:
                 psycopg2.OperationalError
         ) as e:
             logging.warning(
-                'Cached database connection to openGauss has been timeout due to %s, reconnecting.' % e
+                'Cached database connection to openGauss'
+                ' has been timeout due to %s.' % e
             )
-            setattr(self._conn, db_name, psycopg2_connect(dsn))
+            self._pool.putconn(conn, close=True)
         except Exception as e:
-            logging.error('Failed to connect to openGauss with cached connection (%s), try to reconnect.' % e)
-            setattr(self._conn, db_name, psycopg2_connect(dsn))
-        return getattr(self._conn, db_name)
+            logging.error('Failed to connect to openGauss '
+                          'with cached connection (%s).' % e)
+            self._pool.putconn(conn, close=True)
+
+        return conn
+
+    def put_conn(self, conn, close=False):
+        """Put away a connection."""
+        dbname = psycopg2.extensions.parse_dsn(conn.dsn)['dbname']
+        if not self._pool or dbname != self.dbname:
+            # If not used connection pool or not main dbname,
+            # close the connection directly.
+            conn.close()
+            return
+        self._pool.putconn(conn, close=close)
 
 
 class DriverBundle:
@@ -164,10 +219,11 @@ class DriverBundle:
     def __init__(
             self, url,
             include_db_list=None,
-            exclude_db_list=None
+            exclude_db_list=None,
+            each_db_max_connections=None
     ):
         self.main_driver = Driver()
-        self.main_driver.initialize(url)  # If cannot access, raise a ConnectionError.
+        self.main_driver.initialize(url, each_db_max_connections)  # If cannot access, raise a ConnectionError.
         self._bundle = {self.main_driver.dbname: self.main_driver}
         if self.main_dbname != DriverBundle.__main_db_name__:
             warn_logging_and_terminal(
@@ -188,7 +244,7 @@ class DriverBundle:
 
             try:
                 driver = Driver()
-                driver.initialize(self._splice_url_for_other_db(dbname))
+                driver.initialize(self._splice_url_for_other_db(dbname), each_db_max_connections)
 
                 self._bundle[dbname] = driver  # Ensure that each driver can access corresponding database.
             except ConnectionError:
@@ -298,4 +354,3 @@ class DriverBundle:
             return_tuples=True
         )
         return r[0][0]
-
