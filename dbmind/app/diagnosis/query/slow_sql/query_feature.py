@@ -115,7 +115,7 @@ class QueryFeature:
         self.wait_events = self.query_context.acquire_wait_event()
         self.pg_setting_info = self.query_context.acquire_pg_settings()
         self.sort_condition_info = self.query_context.acquire_sort_condition()
-        self.redundant_index_info = self.query_context.acuire_redundant_index()
+        self.redundant_index_info = self.query_context.acquire_redundant_index()
 
     @property
     def select_type(self) -> bool:
@@ -170,7 +170,8 @@ class QueryFeature:
                        for item in self.table_structure}
         self.detail['large_table'] = {}
         for table_name, table_info in tuples_info.items():
-            if table_info['live_tuples'] + table_info['dead_tuples'] > monitoring.get_threshold('tuple_number_threshold') or \
+            if table_info['live_tuples'] + table_info['dead_tuples'] > monitoring.get_threshold(
+                    'tuple_number_threshold') or \
                     table_info['table_size'] > monitoring.get_threshold('table_total_size_threshold'):
                 table_info['table_size'] = "%sMB" % table_info['table_size']
                 self.detail['large_table'][table_name] = table_info
@@ -311,7 +312,7 @@ class QueryFeature:
             return False
         probable_time_interval = monitoring.get_threshold('analyze_operation_probable_time_interval')
         vacuum_info = {f"{item.schema_name}:{item.table_name}":
-                       int(time.time() * 1000) - item.vacuum_delay for item in self.table_structure}
+                           int(time.time() * 1000) - item.vacuum_delay for item in self.table_structure}
         self.detail['vacuum'] = {}
         for table_name, vacuum_time in vacuum_info.items():
             if self.slow_sql_instance.start_at <= vacuum_time <= self.slow_sql_instance.start_at + \
@@ -329,7 +330,7 @@ class QueryFeature:
             return False
         probable_time_interval = monitoring.get_threshold('analyze_operation_probable_time_interval')
         analyze_info = {f"{item.schema_name}:{item.table_name}":
-                        int(time.time() * 1000) - item.analyze_delay for item in self.table_structure}
+                            int(time.time() * 1000) - item.analyze_delay for item in self.table_structure}
         self.detail['analyze'] = {}
         for table_name, analyze_time in analyze_info.items():
             if self.slow_sql_instance.start_at <= analyze_time <= self.slow_sql_instance.start_at + \
@@ -356,13 +357,13 @@ class QueryFeature:
             if historical_statistics >= tps_threshold:
                 self.detail['workload_contention'] += '%s. The database TPmc has continued to be significant ' \
                                                       'in the recent period, current TPmc: %s, historical TPmc: %s\n' \
-                                                     % (index, cur_database_tps, historical_statistics)
+                                                      % (index, cur_database_tps, historical_statistics)
                 self.suggestion['workload_contention'] += '%s. Consider whether the business ' \
                                                           'is growing too fast\n' % index
             else:
                 self.detail['workload_contention'] += '%s. The current TPS  of the database is large: %s\n' \
-                                                     % (index, cur_database_tps)
-                self.suggestion['workload_contention'] += '%s. It may be caused by instantaneous service jitter\n'\
+                                                      % (index, cur_database_tps)
+                self.suggestion['workload_contention'] += '%s. It may be caused by instantaneous service jitter\n' \
                                                           % index
         if self.system_info.db_cpu_usage and \
                 max(self.system_info.db_cpu_usage) > monitoring.get_param('cpu_usage_threshold'):
@@ -402,7 +403,7 @@ class QueryFeature:
                 self.detail['system_cpu_contention'] = "The current system cpu usage((include database process))" \
                                                        " is significant: %s." \
                                                        % self.system_info.cpu_usage
-            self.suggestion['system_cpu_contention'] = "No Suggestion" 
+            self.suggestion['system_cpu_contention'] = "No Suggestion"
             return True
         return False
 
@@ -417,14 +418,14 @@ class QueryFeature:
             index = indexes.pop(0)
             if iops_historical_statistics and iops_historical_statistics > monitoring.get_param('iops_threshold'):
                 self.detail['system_io_contention'] += "%s. The system IOPS has continued to be " \
-                                                        "significant in the recent period, current " \
-                                                        "current IOPS: %s, historical IOPS: %s;" \
-                                                        % (index,
-                                                           self.system_info.iops,
-                                                           iops_historical_statistics)
+                                                       "significant in the recent period, current " \
+                                                       "current IOPS: %s, historical IOPS: %s;" \
+                                                       % (index,
+                                                          self.system_info.iops,
+                                                          iops_historical_statistics)
             else:
                 self.detail['system_io_contention'] += "%s. The current system IOPS is significant: %s;" \
-                                                        % (index, self.system_info.iops)
+                                                       % (index, self.system_info.iops)
             self.suggestion['system_io_contention'] += "a. Detect whether there are processes outside the " \
                                                        "database occupying IO resources for a long time;"
         for device, io_utils in self.system_info.ioutils.items():
@@ -433,7 +434,7 @@ class QueryFeature:
         if io_utils_dict:
             index = indexes.pop(0)
             self.detail['system_io_contention'] += '%s. The IO-Utils exceeds the threshold %s;' \
-                                                    % (index, monitoring.get_param('disk_ioutils_threshold'))
+                                                   % (index, monitoring.get_param('disk_ioutils_threshold'))
 
             self.suggestion['system_io_contention'] += "%s. No Suggestion" % index
         if self.detail['system_io_contention']:
@@ -454,7 +455,7 @@ class QueryFeature:
                 self.detail['system_mem_contention'] = "The current system mem usage(exclude database process)" \
                                                        " is significant: %s;" \
                                                        % self.system_info.mem_usage
-            self.suggestion['memory_resource_contention'] += "No Suggestion" 
+            self.suggestion['memory_resource_contention'] += "No Suggestion"
             return True
         return False
 
@@ -483,12 +484,12 @@ class QueryFeature:
             historical_statistics = _get_historical_statistics('os_fds_rate', self.slow_sql_instance.db_host)
             if historical_statistics > monitoring.get_param('handler_occupation_threshold'):
                 self.detail['os_resource_contention'] = "The system fds occupation rate has continued to be " \
-                                                       "significant in the recent period, current " \
-                                                       "current value: %s, historical value: %s;" \
-                                                       % (self.system_info.process_fds_rate, historical_statistics)
+                                                        "significant in the recent period, current " \
+                                                        "current value: %s, historical value: %s;" \
+                                                        % (self.system_info.process_fds_rate, historical_statistics)
             else:
                 self.detail['os_resource_contention'] = "The system fds occupation rate is significant: %s;" \
-                                                       % self.system_info.cpu_usage
+                                                        % self.system_info.cpu_usage
             self.suggestion['os_resource_contention'] += "No Suggestion"
             return True
         return False
@@ -802,38 +803,39 @@ class QueryFeature:
     def __call__(self):
         self.detail['system_cause'] = {}
         self.detail['plan'] = {}
+        feature_names = (
+            'lock_contention',
+            'many_dead_tuples',
+            'fetch_large_data',
+            'unreasonable_database_knob',
+            'redundant_index',
+            'update_large_data',
+            'insert_large_data',
+            'delete_large_data',
+            'too_many_index',
+            'external_sort',
+            'vacuum_event',
+            'analyze_event',
+            'workload_contention',
+            'cpu_resource_contention',
+            'io_resource_contention',
+            'memory_resource_contention',
+            'large_network_drop_rate',
+            'os_resource_contention',
+            'database_wait_event',
+            'lack_of_statistics',
+            'missing_index',
+            'poor_join_performance',
+            'complex_boolean_expression',
+            'string_matching',
+            'complex_execution_plan',
+            'correlated_subquery',
+            'poor_aggregation_performance',
+            'abnormal_sql_structure',
+            'timed_task_conflict')
         try:
-            features = [self.lock_contention,
-                        self.many_dead_tuples,
-                        self.fetch_large_data,
-                        self.unreasonable_database_knob,
-                        self.redundant_index,
-                        self.update_large_data,
-                        self.insert_large_data,
-                        self.delete_large_data,
-                        self.too_many_index,
-                        self.external_sort,
-                        self.vacuum_event,
-                        self.analyze_event,
-                        self.workload_contention,
-                        self.cpu_resource_contention,
-                        self.io_resource_contention,
-                        self.memory_resource_contention,
-                        self.large_network_drop_rate,
-                        self.os_resource_contention,
-                        self.database_wait_event,
-                        self.lack_of_statistics,
-                        self.missing_index,
-                        self.poor_join_performance,
-                        self.complex_boolean_expression,
-                        self.string_matching,
-                        self.complex_execution_plan,
-                        self.correlated_subquery,
-                        self.poor_aggregation_performance,
-                        self.abnormal_sql_structure,
-                        self.timed_task_conflict]
-            features = [int(item) for item in features]
+            feature_vector = [int(getattr(self, name)) for name in feature_names]
         except Exception as e:
             logging.error(e, exc_info=True)
-            features = [0] * 30
-        return features, self.detail, self.suggestion
+            feature_vector = [0] * len(feature_names)
+        return feature_vector, self.detail, self.suggestion

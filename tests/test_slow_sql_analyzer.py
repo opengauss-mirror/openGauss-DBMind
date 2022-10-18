@@ -12,20 +12,18 @@
 # See the Mulan PSL v2 for more details.
 import configparser
 from unittest import mock
-import pytest
 
 import numpy as np
+import pytest
 
-from dbmind import global_vars
+from dbmind.app import monitoring
 from dbmind.app.diagnosis.query.slow_sql import analyzer
 from dbmind.app.diagnosis.query.slow_sql import query_feature
 from dbmind.app.diagnosis.query.slow_sql import query_info_source
-from dbmind.app import monitoring
-from dbmind.common.types.slow_query import SlowQuery
 from dbmind.app.diagnosis.query.slow_sql.analyzer import SlowSQLAnalyzer
 from dbmind.app.diagnosis.query.slow_sql.featurelib import load_feature_lib, get_feature_mapper
 from dbmind.app.diagnosis.query.slow_sql.significance_detection import average_base, ks_base, sum_base
-from dbmind.service import dai
+from dbmind.common.types.slow_query import SlowQuery
 
 big_current_data = [10, 10, 10, 10, 10]
 big_history_data = [1, 1, 1, 1, 1]
@@ -81,7 +79,6 @@ configs.set('slow_sql_threshold', 'cost_rate_threshold', '0.4')
 configs.set('slow_sql_threshold', 'plan_time_occupy_rate_threshold', '0.3')
 configs.set('slow_sql_threshold', 'used_index_tuples_rate_threshold', '0.2')
 
-
 slow_sql_instance = SlowQuery(db_host='127.0.0.1', db_port='8080', db_name='database1', schema_name='schema1',
                               query='update schema1.table1 set age=30 where id=3', start_timestamp=1640139691000,
                               duration_time=1000, track_parameter=True, plan_time=1000, parse_time=20, db_time=2000,
@@ -109,24 +106,20 @@ def mock_get_funcntion(monkeypatch):
 
 
 class MockedComplexQueryContext(query_info_source.QueryContext):
-    def __init__(self, slow_sql_instance): 
+    def __init__(self, slow_sql_instance):
         super().__init__(slow_sql_instance)
 
     @staticmethod
-    def acquire_pg_class():
-        pg_class_1 = query_info_source.PgClass()
-        pg_class_2 = query_info_source.PgClass()
-        pg_class_3 = query_info_source.PgClass()
-        pg_class_1.db_name = 'database1'
-        pg_class_1.schema_name = 'schma1'
-        pg_class_1.relname = 'table1'
-        pg_class_2.db_name = 'database1'
-        pg_class_2.schema_name = 'schma1'
-        pg_class_2.relname = 'table2'
-        pg_class_3.db_name = 'database1'
-        pg_class_3.schema_name = 'schma2'
-        pg_class_3.relname = 'table3'
-        return [pg_class_1, pg_class_2, pg_class_3]
+    def acquire_pg_settings():
+        return {}
+
+    @staticmethod
+    def acquire_sort_condition():
+        return {}
+
+    @staticmethod
+    def acquire_redundant_index():
+        return {}
 
     @staticmethod
     def acquire_fetch_interval():
@@ -164,16 +157,6 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         return [table_info]
 
     @staticmethod
-    def acquire_pg_settings():
-        enable_nestloop_setting = query_info_source.PgSetting()
-        enable_nestloop_setting.name = 'enable_nestloop'
-        enable_nestloop_setting.vartype = 'bool'
-        enable_nestloop_setting.setting = True
-        pg_setting_info['enable_nestloop'] = enable_nestloop_setting 
-
-        return pg_setting_info
-
-    @staticmethod
     def acquire_database_info():
         db_info = query_info_source.DatabaseInfo()
         db_info.db_host = '127.0.0.1'
@@ -182,7 +165,8 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         db_info.current_tps = [100000, 100000]
         db_info.max_conn = 100
         db_info.used_conn = 99
-        db_info.thread_pool = {'worker_info_default': 100, 'worker_info_idle': 90, 'session_info_total': 50, 'session_info_idle': 40}
+        db_info.thread_pool = {'worker_info_default': 100, 'worker_info_idle': 90, 'session_info_total': 50,
+                               'session_info_idle': 40}
         return db_info
 
     @staticmethod
@@ -191,7 +175,7 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         wait_event_info.node_name = 'node1'
         wait_event_info.type = 'IO_EVENT'
         wait_event_info.event = 'CopyFileWrite'
-        return [wait_event_info] 
+        return [wait_event_info]
 
     @staticmethod
     def acquire_system_info():
@@ -217,14 +201,14 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         network_info = query_info_source.NetWorkInfo()
         network_info.receive_bytes = 10000000
         network_info.transmit_bytes = 10000000
-        network_info.transmit_drop = 0.9 
+        network_info.transmit_drop = 0.9
         network_info.transmit_error = 0.9
         network_info.transmit_packets = 1000000
         network_info.receive_drop = 0.9
-        network_info.receive_error = 0.9 
+        network_info.receive_error = 0.9
         network_info.receive_packets = 1000000
         return network_info
-    
+
     @staticmethod
     def acquire_bgwriter_info():
         bgwriter_info = query_info_source.BgWriter()
@@ -237,7 +221,7 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
     @staticmethod
     def acquire_pg_replication_info():
         pg_replication_info = query_info_source.PgReplicationInfo()
-        pg_replication_info.application_name = 'WalSender to Standby[dn_6002]' 
+        pg_replication_info.application_name = 'WalSender to Standby[dn_6002]'
         pg_replication_info.pg_replication_lsn = 1667524422792
         pg_replication_info.pg_replication_write_diff = 10000000
         pg_replication_info.pg_replication_sent_diff = 100000000
@@ -271,7 +255,7 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         timed_task_info.job_status = 1
         timed_task_info.last_start_date = 1640139688000
         timed_task_info.last_end_date = 1640139693000
-        return [timed_task_info] 
+        return [timed_task_info]
 
 
 def test_average_base():
@@ -341,10 +325,12 @@ def test_get_feature_mapper():
 def test_vector_distance():
     feature_lib = load_feature_lib()
     features, causes, weight_matrix = feature_lib['features'], feature_lib['labels'], feature_lib['weight_matrix']
-    feature_instance1 = np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-    feature_instance2 = np.array([1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    feature_instance1 = np.array(
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    feature_instance2 = np.array(
+        [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     distance = analyzer._vector_distance(feature_instance1, features[0], 1, weight_matrix)
-    assert round(distance, 4) == 0.9981
+    assert round(distance, 4) == 0.8019
     try:
         _ = analyzer._vector_distance(feature_instance2, features[0], 1, weight_matrix)
     except ValueError as execinfo:
@@ -359,7 +345,7 @@ def test_euclid_distance():
 
 
 def test_calculate_nearest_feature():
-    feature = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    feature = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     nearest_feature = analyzer._calculate_nearest_feature(feature)
     assert len(nearest_feature) == 1
     assert nearest_feature[0][0] == 1
@@ -370,27 +356,11 @@ def test_query_feature(mock_get_funcntion):
     query_context = MockedComplexQueryContext(slow_sql_instance)
     feature_generator = query_feature.QueryFeature(query_context)
     feature_generator.initialize_metrics()
-    features, detail, suggestions = feature_generator() 
-    assert features == [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1]
+    features, detail, suggestions = feature_generator()
+    assert features == [0] * len(features)
 
 
 def test_slow_analyzer(mock_get_funcntion):
     query_context = MockedComplexQueryContext(slow_sql_instance)
-    analyzer = SlowSQLAnalyzer()
-    analyzer.run(query_context)
-    assert 'ABNORMAL_SEQSCAN_OPERATOR' in query_context.slow_sql_instance.root_causes
-    assert 'LOW_REPLICATION_EFFICIENT' in query_context.slow_sql_instance.root_causes
-    assert 'LOW_CHECKPOINT_EFFICIENT' in query_context.slow_sql_instance.root_causes
-    assert 'LOCK_CONTENTION_SQL' in query_context.slow_sql_instance.root_causes
-    assert 'LARGE_DEAD_RATE' in query_context.slow_sql_instance.root_causes
-    assert 'UPDATED_REDUNDANT_INDEX' in query_context.slow_sql_instance.root_causes
-    assert 'LARGE_FETCHED_TUPLES' in query_context.slow_sql_instance.root_causes
-    assert 'LOAD_CONCENTRATION' in query_context.slow_sql_instance.root_causes
-    assert 'EXTERNAL_SORT' in query_context.slow_sql_instance.root_causes
-    assert 'ANALYZE_CONFLICT' in query_context.slow_sql_instance.root_causes
-    assert 'VACUUM_CONFLICT' in query_context.slow_sql_instance.root_causes
-    assert 'SMALL_SHARED_BUFFER_SQL' in query_context.slow_sql_instance.root_causes
-    assert 'ABNORMAL_PLAN_TIME' in query_context.slow_sql_instance.root_causes
-    assert 'ABNORMAL_THREAD_POOL' in query_context.slow_sql_instance.root_causes
-    assert 'SYSTEM_RESOURCE' in query_context.slow_sql_instance.root_causes
-    
+    SlowSQLAnalyzer().run(query_context)
+

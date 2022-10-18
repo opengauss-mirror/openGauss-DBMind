@@ -36,7 +36,7 @@ FEATURES_CAUSE_MAPPER = get_feature_mapper()
 FEATURES, CAUSES, WEIGHT_MATRIX = FEATURE_LIB['features'], FEATURE_LIB['labels'], FEATURE_LIB['weight_matrix']
 
 
-def _vector_distance(vector1: List, vector2: List, label: int, weight_matrix: List[List]) -> float:
+def _vector_distance(vector1, vector2, label: int, weight_matrix: List[List]) -> float:
     """
     Calculate the distance between vectors based on the improved Hamming algorithm
     :param vector1: input vector
@@ -54,7 +54,7 @@ def _vector_distance(vector1: List, vector2: List, label: int, weight_matrix: Li
     return distance
 
 
-def _euclid_distance(vector1: List, vector2: List) -> float:
+def _euclid_distance(vector1, vector2) -> float:
     """
     Calculate the distance between vectors based on the euclid algorithm
     :param vector1: input vector
@@ -65,7 +65,7 @@ def _euclid_distance(vector1: List, vector2: List) -> float:
     return round(dist, 4)
 
 
-def _calculate_nearest_feature(sql_feature: List) -> List:
+def _calculate_nearest_feature(sql_feature) -> List:
     """
     Return the topk feature that is most similar to the input vector
     :param sql_feature: input vector

@@ -306,7 +306,6 @@ class QueryContextFromTSDB(QueryContext):
     @exception_follower(output=None)
     @exception_catcher
     def acquire_plan(self, query):
-        query_plan = ''
         if self.slow_sql_instance.track_parameter:
             stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
                                                             query)
@@ -316,11 +315,15 @@ class QueryContextFromTSDB(QueryContext):
             no_comma_query = replace_comma_with_dollar(query)
             stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(get_generate_prepare_sqls_function()(no_comma_query))
             fetch_all = True
+
+        if not agent_rpc_client:
+            return ''
         rows = agent_rpc_client.call('query_in_database',
                                      stmts,
                                      self.slow_sql_instance.db_name,
                                      return_tuples=True,
                                      fetch_all=fetch_all)
+        query_plan = ''
         for row in rows:
             query_plan += row[0] + '\n'
         if query_plan:
