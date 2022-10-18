@@ -123,6 +123,7 @@ def test_history_alarms():
     get_batch_insert_history_alarms_functions().add(host='127.0.0.1',
                                                     alarm_type='system',
                                                     occurrence_at=int(time.time() * 1000),
+                                                    end_at=int(time.time() * 1000) + 3000,
                                                     alarm_level='info',
                                                     alarm_content='CPU exceeds.',
                                                     root_cause='Large workload.',
@@ -131,7 +132,9 @@ def test_history_alarms():
                                                     ).commit()
     get_batch_insert_history_alarms_functions().add(host='127.0.0.1',
                                                     alarm_type='log',
+                                                    alarm_level='error',
                                                     occurrence_at=int(time.time() * 1000),
+                                                    end_at=int(time.time() * 1000) + 3000,
                                                     extra_info=dict(node_id=1, msg='test')
                                                     ).commit()
     assert count_history_alarms() == 2

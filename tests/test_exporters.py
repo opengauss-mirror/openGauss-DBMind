@@ -13,14 +13,16 @@
 import threading
 import time
 from unittest import mock
+from collections import defaultdict
 
 import psycopg2
 import requests
-from psycopg2.extras import RealDictRow
 
 from dbmind.common.rpc import RPCClient
 from dbmind.common.tsdb.prometheus_client import PrometheusClient
 from dbmind.common.types.sequence import Sequence
+from dbmind.common.utils import exporter as exporter_utils
+from dbmind.components import opengauss_exporter
 from dbmind.components.opengauss_exporter.core import controller as oe_controller
 from dbmind.components.opengauss_exporter.core.controller import app
 from dbmind.components.opengauss_exporter.core.main import ExporterMain as OpenGaussExporterMain
@@ -28,7 +30,7 @@ from dbmind.components.opengauss_exporter.core.main import parse_argv as og_pars
 from dbmind.components.reprocessing_exporter.core import controller as re_controller
 from dbmind.components.reprocessing_exporter.core.main import ExporterMain
 from dbmind.components.reprocessing_exporter.core.main import parse_argv
-from dbmind.common.utils import exporter as exporter_utils
+
 from .test_rpc import rpc_client_testing
 
 assert rpc_client_testing
@@ -61,6 +63,9 @@ def test_http_and_rpc_service(monkeypatch, rpc_client_testing):
     mock_cur_cm = mock_cur.__enter__.return_value
     mock_cur_cm.fetchall.return_value = expected
     monkeypatch.setattr(psycopg2, 'connect', mock_connect)
+    monkeypatch.setattr(psycopg2.extensions, 'parse_dsn', lambda arg: defaultdict(lambda: 'aaa'))
+    monkeypatch.setattr(opengauss_exporter.core.opengauss_driver.DriverBundle, 'is_monitor_admin', lambda s: True)
+    monkeypatch.setattr(opengauss_exporter.core.opengauss_driver.DriverBundle, 'is_standby', lambda s: False)
 
     exporter = OpenGaussExporterMain(
         og_parse_argv(['--url', 'postgresql://a:b@127.0.0.1:1234/testdb', '--disable-https',
