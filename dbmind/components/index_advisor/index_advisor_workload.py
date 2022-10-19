@@ -21,6 +21,7 @@ import random
 import re
 import sys
 import select
+from functools import lru_cache
 from logging.handlers import RotatingFileHandler
 from itertools import groupby, chain, combinations
 from typing import Tuple, List
@@ -206,7 +207,12 @@ class IndexAdvisor:
         origin_cost = workload.get_total_origin_cost()
         filtered_indexes = UniqueList()
         for short_index, long_index in same_columns_config:
-            combined_benefit = workload.get_total_index_cost((short_index, long_index)) - origin_cost
+            if workload.has_indexes((short_index, long_index)):
+                combined_benefit = workload.get_total_index_cost((short_index, long_index)) - origin_cost
+            elif workload.has_indexes((long_index, short_index)):
+                combined_benefit = workload.get_total_index_cost((long_index, short_index)) - origin_cost
+            else:
+                continue
             short_index_benefit = workload.get_total_index_cost((short_index,)) - origin_cost
             long_index_benefit = workload.get_total_index_cost((long_index,)) - origin_cost
             if short_index_benefit / combined_benefit > rate:
@@ -285,7 +291,14 @@ class IndexAdvisor:
             benefit = sum([query.get_benefit() for query in index.get_positive_queries()])
             bar_print('\tCost benefit for workload: %.2f' % benefit)
             bar_print('\tCost improved rate for workload: %.2f%%'
-                  % (benefit / total_origin_cost * 100))
+                      % (benefit / total_origin_cost * 100))
+            source_index = index.get_source_index()
+            if source_index and (not source_index.is_primary_key()) and (not source_index.get_is_unique()):
+                bar_print(f'\tCurrently existing useless indexes:')
+                bar_print(f'\t\tIndex name: {source_index.get_indexname()}')
+                bar_print(f'\t\tSchema: {source_index.get_schema()}')
+                bar_print(f'\t\tTable: {source_index.get_table()}')
+                bar_print(f'\t\tColumns: {source_index.get_columns()}')
             bar_print(f'\tImproved query:')
             query_benefit_rate = []
             for query in sorted(index.get_positive_queries(), key=lambda query: -query.get_benefit()):
@@ -299,7 +312,7 @@ class IndexAdvisor:
                 bar_print(f'\t\tQuery {i}: {query.get_statement()}')
                 query_origin_cost = self.workload.get_origin_cost_of_query(query)
                 current_cost = self.workload.get_indexes_cost_of_query(query, tuple([index]))
-                benefit = query_origin_cost - current_cost 
+                benefit = query_origin_cost - current_cost
                 bar_print(f'\t\t\tCost benefit for the query: %.2f' % benefit)
                 bar_print('\t\t\tCost improved rate for the query: %.2f%%' % benefit_rate)
                 bar_print(f'\t\t\tQuery number: {int(query.get_frequency())}')
@@ -693,7 +706,22 @@ def filter_candidate_columns_by_cost(valid_indexes, statement, executor, max_can
     return indexes
 
 
-def get_valid_indexes(advised_indexes, statement, executor, **kwargs):
+def set_source_indexes(indexes, source_indexes):
+    """Record the original index of the recommended index."""
+    for index in indexes:
+        table = index.get_table()
+        columns = index.get_columns()
+        for source_index in source_indexes:
+            if not source_index.get_source_index():
+                continue
+            if not source_index.get_table() == table:
+                continue
+            if f'{columns}{COLUMN_DELIMITER}'.startswith(f'{source_index.get_columns()}{COLUMN_DELIMITER}'):
+                index.set_source_index(source_index.get_source_index())
+                continue
+
+
+def get_valid_indexes(advised_indexes, original_base_indexes, statement, executor, **kwargs):
     need_check = False
     single_column_indexes = generate_single_column_indexes(advised_indexes)
     valid_indexes, cost = query_index_check(executor, statement, single_column_indexes)
@@ -705,11 +733,12 @@ def get_valid_indexes(advised_indexes, statement, executor, **kwargs):
     # Increase the number of index columns in turn and check their validity.
     for column_num in range(2, MAX_INDEX_COLUMN_NUM + 1):
         for table, index_group in groupby(valid_indexes, key=lambda x: x.get_table()):
-            for index in index_group:
+            _original_base_indexes = [index for index in original_base_indexes if index.get_table() == table]
+            for index in list(index_group) + _original_base_indexes:
                 columns = index.get_columns()
                 index_type = index.get_index_type()
                 # only validate indexes with column number of column_num
-                if len(columns.split(',')) != column_num - 1:
+                if index.get_columns_num() != column_num - 1:
                     continue
                 need_check = True
                 for single_column_index in single_column_indexes:
@@ -725,6 +754,7 @@ def get_valid_indexes(advised_indexes, statement, executor, **kwargs):
             cur_indexes, cur_cost = query_index_check(executor, statement, valid_indexes)
             # If the cost reduction does not exceed 5%, return the previous indexes.
             if cost / cur_cost < 1.05:
+                set_source_indexes(pre_indexes, original_base_indexes)
                 return pre_indexes
             valid_indexes = cur_indexes
             pre_indexes = valid_indexes[:]
@@ -732,6 +762,8 @@ def get_valid_indexes(advised_indexes, statement, executor, **kwargs):
             need_check = False
         else:
             break
+
+    set_source_indexes(valid_indexes, original_base_indexes)
     return valid_indexes
 
 
@@ -786,6 +818,7 @@ def record_history_invalid_indexes(history_indexes, history_invalid_indexes, ind
                     del history_indexes[schema_table]
 
 
+@lru_cache(maxsize=None)
 def fetch_created_indexes(executor):
     schemas = [elem.lower()
                for elem in filter(None, executor.get_schema().split(','))]
@@ -894,10 +927,30 @@ def generate_query_placeholder_indexes(query, executor: BaseExecutor, n_distinct
     return indexes
 
 
+def get_original_base_indexes(original_indexes: List[ExistingIndex]) -> List[AdvisedIndex]:
+    original_base_indexes = []
+    for index in original_indexes:
+        table = f'{index.get_schema()}.{index.get_table()}'
+        columns = index.get_columns().split(COLUMN_DELIMITER)
+        index_type = index.get_index_type()
+        columns_length = len(columns)
+        for _len in range(1, columns_length):
+            _columns = COLUMN_DELIMITER.join(columns[:_len])
+            original_base_indexes.append(IndexItemFactory().get_index(table, _columns, index_type))
+        all_columns_index = IndexItemFactory().get_index(table, index.get_columns(), index_type)
+        original_base_indexes.append(all_columns_index)
+        all_columns_index.set_source_index(index)
+    return original_base_indexes
+
+
 def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_distinct, reltuples, use_all_columns,
                                **kwargs):
     all_indexes = []
     with executor.session():
+        # Resolve the bug that indexes extended on top of the original index will not be recommended
+        # by building the base index related to the original index
+        original_indexes = fetch_created_indexes(executor)
+        original_base_indexes = get_original_base_indexes(original_indexes)
         for pos, query in GLOBAL_PROCESS_BAR.process_bar(list(enumerate(workload.get_queries())), 'Candidate indexes'):
             advised_indexes = []
             if not has_dollar_placeholder(query.get_statement()):
@@ -908,7 +961,8 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_dis
                                                                         ):
                     if advised_index not in advised_indexes:
                         advised_indexes.append(advised_index)
-            valid_indexes = get_valid_indexes(advised_indexes, query.get_statement(), executor, **kwargs)
+            valid_indexes = get_valid_indexes(advised_indexes, original_base_indexes, query.get_statement(), executor,
+                                              **kwargs)
             logger.info(f'get valid indexes: {valid_indexes} for the query {query}')
             add_query_indexes(valid_indexes, workload.get_queries(), pos)
             for index in valid_indexes:

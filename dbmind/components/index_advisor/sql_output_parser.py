@@ -15,7 +15,7 @@ import re
 from typing import List
 import logging
 
-from sqlparse.tokens import Punctuation
+from sqlparse.tokens import Punctuation, Keyword, Name
 
 try:
     from utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList
@@ -32,6 +32,21 @@ def __get_columns_from_indexdef(indexdef):
     for content in get_tokens(indexdef):
         if content.ttype is Punctuation:
             return content.parent.value.strip()[1:-1]
+
+
+def __is_unique_from_indexdef(indexdef):
+    for content in get_tokens(indexdef):
+        if content.ttype is Keyword:
+            return content.value.upper() == 'UNIQUE'
+
+
+def __get_index_type_from_indexdef(indexdef):
+    for content in get_tokens(indexdef):
+        if content.ttype is Name:
+            if content.value.upper() == 'LOCAL':
+                return 'local'
+            elif content.value.upper() == 'GLOBAL':
+                return 'global'
 
 
 def parse_existing_indexes_results(results, schema) -> List[ExistingIndex]:
@@ -59,10 +74,16 @@ def parse_existing_indexes_results(results, schema) -> List[ExistingIndex]:
                 indexdef = '\n'.join(indexdef_list)
                 indexdef_list = []
             cur_columns = __get_columns_from_indexdef(indexdef)
+            is_unique = __is_unique_from_indexdef(indexdef)
+            index_type = __get_index_type_from_indexdef(indexdef)
             cur_index = ExistingIndex(
                 schema, table, index, cur_columns, indexdef)
             if pkey:
                 cur_index.set_is_primary_key(True)
+            if is_unique:
+                cur_index.set_is_unique()
+            if index_type:
+                cur_index.set_index_type(index_type)
             indexes.append(cur_index)
     return indexes
 
