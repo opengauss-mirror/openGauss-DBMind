@@ -171,7 +171,8 @@ class IndexAdvisor:
 
     def complex_index_advisor(self, candidate_indexes: List[AdvisedIndex]):
         atomic_config_total = generate_sorted_atomic_config(self.workload.get_queries(), candidate_indexes)
-        for atomic_config in generate_atomic_config_containing_same_columns(candidate_indexes):
+        same_columns_config = generate_atomic_config_containing_same_columns(candidate_indexes)
+        for atomic_config in same_columns_config:
             if atomic_config not in atomic_config_total:
                 atomic_config_total.append(atomic_config)
         if atomic_config_total and len(atomic_config_total[0]) != 0:
@@ -186,12 +187,35 @@ class IndexAdvisor:
             opt_config = greedy_determine_opt_config(self.workload, atomic_config_total,
                                                      candidate_indexes)
         self.filter_redundant_indexes_with_diff_types(opt_config)
+        self.filter_same_columns_indexes(opt_config, self.workload)
         self.display_detail_info['positive_stmt_count'] = get_positive_sql_count(candidate_indexes,
                                                                                  self.workload)
         if len(opt_config) == 0:
             bar_print("No optimal indexes generated!")
             return None
         return opt_config
+
+    @staticmethod
+    def filter_same_columns_indexes(opt_config, workload, rate=0.8):
+        """If the columns in two indexes have a containment relationship,
+        for example, index1 is table1(col1, col2), index2 is table1(col3, col1, col2),
+        then when the gain of one index is close to the gain of both indexes as a whole,
+        the addition of the other index obviously does not improve the gain much,
+        and we filter it out."""
+        same_columns_config = generate_atomic_config_containing_same_columns(opt_config)
+        origin_cost = workload.get_total_origin_cost()
+        filtered_indexes = UniqueList()
+        for short_index, long_index in same_columns_config:
+            combined_benefit = workload.get_total_index_cost((short_index, long_index)) - origin_cost
+            short_index_benefit = workload.get_total_index_cost((short_index,)) - origin_cost
+            long_index_benefit = workload.get_total_index_cost((long_index,)) - origin_cost
+            if short_index_benefit / combined_benefit > rate:
+                filtered_indexes.append(long_index)
+                continue
+            if long_index_benefit / combined_benefit > rate:
+                filtered_indexes.append(short_index)
+        for filtered_index in filtered_indexes:
+            opt_config.remove(filtered_index)
 
     def simple_index_advisor(self, candidate_indexes: List[AdvisedIndex]):
         estimate_workload_cost_file(self.executor, self.workload)
