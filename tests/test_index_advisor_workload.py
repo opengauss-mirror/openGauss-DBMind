@@ -22,6 +22,7 @@ import io
 import shlex
 
 import dbmind.components.index_advisor.utils
+from dbmind.components.index_advisor.index_advisor_workload import IndexAdvisor
 from dbmind.components.index_advisor.sql_output_parser import parse_table_sql_results, get_checked_indexes, \
     parse_single_advisor_results, parse_existing_indexes_results, parse_explain_plan, ExistingIndex, IndexItemFactory
 from dbmind.components.index_advisor.sql_generator import get_existing_index_sql, get_index_check_sqls, \
@@ -750,7 +751,25 @@ class IndexAdvisorTester(unittest.TestCase):
                                                                      'index_type: global storage: 20] '
                                                                      'benefit: 600')
 
-
+    def test_filter_same_columns_indexes(self):
+        index1 = IndexItemFactory().get_index('public.a', 'col1', index_type='global')
+        index2 = IndexItemFactory().get_index('public.a', 'col2, col1', index_type='global')
+        index3 = IndexItemFactory().get_index('public.c', 'col1', index_type='global')
+        index4 = IndexItemFactory().get_index('public.c', 'col2, col1', index_type='global')
+        query1 = QueryItem('select * from a where col1=1 and col2=3', 1)
+        query2 = QueryItem('select * from c where col1=2', 2)
+        workload = WorkLoad([query1, query2])
+        workload.add_indexes(None, [1000, 1000], [[], []])
+        workload.add_indexes((index1, ), [100, 1000], [[], []])
+        workload.add_indexes((index2, ), [50, 2000], [[], []])
+        workload.add_indexes((index1, index2), [50, 1000], [[], []])
+        workload.add_indexes((index3, ), [1000, 500], [[], []])
+        workload.add_indexes((index4,), [1000, 200], [[], []])
+        workload.add_indexes((index3, index4), [1000, 100], [[], []])
+        opt_config = [index2, index1, index4, index3]
+        IndexAdvisor.filter_same_columns_indexes(opt_config, workload)
+        expected = [index1, index4]
+        self.assertEqual(opt_config, expected)
 
     def test_mcts(self):
         index1 = IndexItemFactory().get_index('public.a', 'col1', index_type='global')
