@@ -56,7 +56,21 @@ class ExistingIndex:
         self.__columns = columns
         self.__indexdef = indexdef
         self.__primary_key = False
+        self.__is_unique = False
+        self.__index_type = ''
         self.redundant_objs = []
+
+    def set_is_unique(self):
+        self.__is_unique = True
+
+    def get_is_unique(self):
+        return self.__is_unique
+
+    def set_index_type(self, index_type):
+        self.__index_type = index_type
+
+    def get_index_type(self):
+        return self.__index_type
 
     def get_table(self):
         return self.__table
@@ -98,6 +112,13 @@ class AdvisedIndex:
         self.__index_type = index_type
         self.association_indexes = defaultdict(list)
         self.__positive_queries = []
+        self.__source_index = None
+
+    def set_source_index(self, source_index: ExistingIndex):
+        self.__source_index = source_index
+
+    def get_source_index(self):
+        return self.__source_index
 
     def append_positive_query(self, query):
         self.__positive_queries.append(query)
@@ -116,6 +137,9 @@ class AdvisedIndex:
 
     def get_columns(self):
         return self.__columns
+
+    def get_columns_num(self):
+        return len(self.get_columns().split(COLUMN_DELIMITER))
 
     def get_index_type(self):
         return self.__index_type
@@ -237,6 +261,9 @@ class WorkLoad:
     def get_queries(self) -> List[QueryItem]:
         return self.__queries
 
+    def has_indexes(self, indexes: Tuple[AdvisedIndex]):
+        return indexes in self.__indexes_list
+
     def get_used_index_names(self):
         used_indexes = set()
         for index_names in self.get_workload_used_indexes(None):
@@ -246,11 +273,12 @@ class WorkLoad:
 
     @lru_cache(maxsize=None)
     def get_workload_used_indexes(self, indexes: (Tuple[AdvisedIndex], None)):
-        return list([index_names[self.__indexes_list.index(indexes)] for index_names in self.__index_names_list])
+        return list([index_names[self.__indexes_list.index(indexes if indexes else None)]
+                     for index_names in self.__index_names_list])
 
     def get_query_advised_indexes(self, indexes, query):
         query_idx = self.__queries.index(query)
-        indexes_idx = self.__indexes_list.index(indexes)
+        indexes_idx = self.__indexes_list.index(indexes if indexes else None)
         used_index_names = self.__index_names_list[indexes_idx][query_idx]
         used_advised_indexes = []
         for index in indexes:
@@ -265,7 +293,9 @@ class WorkLoad:
                 indexes[0].benefit = self.get_index_benefit(indexes[0])
 
     def replace_indexes(self, origin, new):
-        self.__indexes_list[self.__indexes_list.index(origin)] = new
+        if not new:
+            new = None
+        self.__indexes_list[self.__indexes_list.index(origin if origin else None)] = new
 
     @lru_cache(maxsize=None)
     def get_total_index_cost(self, indexes: (Tuple[AdvisedIndex], None)):
