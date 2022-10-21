@@ -16,13 +16,14 @@ import time
 
 from dbmind.common.exceptions import ApiClientException
 from dbmind.common.tsdb.prometheus_client import PrometheusClient
+from dbmind.common.tsdb.influxdb_client import InfluxdbClient
 from dbmind.common.tsdb.tsdb_client import TsdbClient
 from dbmind.common.types import SSLContext
 from dbmind.common.utils import dbmind_assert, raise_fatal_and_exit
 
 
 class TsdbClientFactory(object):
-    tsdb_name = host = port = None
+    tsdb_name = host = port = dbname = None
     username = password = None
     ssl_context = None
 
@@ -41,12 +42,13 @@ class TsdbClientFactory(object):
     @classmethod
     def set_client_info(cls, tsdb_name, host, port, username=None, password=None,
                         ssl_certfile=None, ssl_keyfile=None,
-                        ssl_keyfile_password=None, ssl_ca_file=None):
+                        ssl_keyfile_password=None, ssl_ca_file=None, dbname=None):
         cls.tsdb_name = tsdb_name
         cls.host = host
         cls.port = port
         cls.username = username
         cls.password = password
+        cls.dbname = dbname
 
         cls.ssl_context = SSLContext(
             ssl_certfile,
@@ -71,6 +73,13 @@ class TsdbClientFactory(object):
             if not client.check_connection():
                 raise ApiClientException("Failed to connect TSDB url: %s" % url)
             cls.tsdb_client = client
+        elif cls.tsdb_name == 'influxdb':
+            client = InfluxdbClient(url=url, username=cls.username, password=cls.password,
+                                    ssl_context=cls.ssl_context, dbname=cls.dbname)
+            if not client.check_connection():
+                raise ApiClientException("Failed to connect TSDB url: %s" % url)
+            cls.tsdb_client = client
+
         if cls.tsdb_client is None:
             raise ApiClientException("Failed to init TSDB client, please check config file.")
 

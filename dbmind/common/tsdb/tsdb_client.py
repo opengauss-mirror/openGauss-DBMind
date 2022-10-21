@@ -10,8 +10,36 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import re
 import time
 from datetime import datetime, timedelta
+
+# We don't support year, month, week and ms.
+_DURATION_RE = re.compile(
+    r'([0-9]+d)?([0-9]+h)?([0-9]+m)?([0-9]+s)?|0'
+)
+
+
+def cast_duration_to_seconds(duration_string):
+    r = re.match(_DURATION_RE, duration_string)
+    if r is None:
+        return None
+
+    groups = r.groups()
+    seconds = 0
+    for group in groups:
+        if group is None:
+            continue
+        if group.endswith('d'):
+            seconds += 24 * 60 * 60 * int(group[:-1])
+        elif group.endswith('h'):
+            seconds += 60 * 60 * int(group[:-1])
+        elif group.endswith('m'):
+            seconds += 60 * int(group[:-1])
+        elif group.endswith('s'):
+            seconds += int(group[:-1])
+
+    return seconds
 
 
 class TsdbClient(object):
@@ -47,6 +75,10 @@ class TsdbClient(object):
                               step: str = None,
                               params: dict = None):
         """get metric target from tsdb"""
+        pass
+
+    def custom_query(self, query: str, timeout=None, params: dict = None):
+        """use custom sql to query directly."""
         pass
 
     def timestamp(self):

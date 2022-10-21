@@ -28,6 +28,7 @@ from dbmind.common import utils
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.utils.checking import date_type, path_type
 from dbmind.service import dai
+from dbmind.service.utils import DISTINGUISHING_INSTANCE_LABEL
 from dbmind.common.algorithm.correlation import amplify_feature, max_cross_correlation
 
 
@@ -96,7 +97,7 @@ def main(argv):
     # Gathering metric data
     metric_sequences = dai.get_metric_sequence(primary_metric, start_datetime, end_datetime).fetchall()
     for metric_sequence in metric_sequences:
-        address = metric_sequence.labels.get('from_instance')
+        address = metric_sequence.labels.get(DISTINGUISHING_INSTANCE_LABEL)
         host = address.split(':')[0]
         wait_events[host][primary_metric] = metric_sequence
 
@@ -104,7 +105,7 @@ def main(argv):
     for metric in metrics:
         events = dai.get_metric_sequence(metric, start_datetime, end_datetime).fetchall()
         for event in events:
-            address = event.labels.get('from_instance')
+            address = event.labels.get(DISTINGUISHING_INSTANCE_LABEL)
             if ':' in address:
                 host, port = address.split(':')
             else:
