@@ -363,6 +363,7 @@ def multiple_cmd_exec(cmdline, **communicate_kwargs):
             )
             if communicate_kwargs.get('input'):
                 _p.stdin.write(communicate_kwargs.pop('input'))
+                _p.stdin.close()  # avoid hanging
         else:
             if require_stdin[index] and len(process_list):
                 prev_process = process_list[-1]

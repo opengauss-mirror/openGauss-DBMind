@@ -107,8 +107,9 @@ def perform_shell_command(cmd, **kwargs):
     except subprocess.TimeoutExpired:
         output = b''
         logging.warning(
-            'Timed out after %d seconds while executing %s.', kwargs.get('timeout'),
-            cmd
+            'Timed out after %d seconds while executing %s, input is %s.',
+            kwargs.get('timeout'),
+            cmd, kwargs['input']
         )
         exitcode = -1
     except Exception as e:
@@ -129,7 +130,7 @@ class QueryInstance:
         self.timeout = item.get('timeout')
         self.metrics = []
         self.label_names = []
-        self.label_obj = {}
+        self.label_objs = {}
 
         for m in item['metrics']:
             for name, metric_item in m.items():
@@ -143,7 +144,7 @@ class QueryInstance:
                     self.metrics.append(metric)
                 else:
                     self.label_names.append(metric.name)
-                    self.label_obj[metric.name] = metric
+                    self.label_objs[metric.name] = metric
 
         # `global_labels` is required and must be added anytime.
         self.label_names.extend(global_labels.keys())
@@ -168,51 +169,104 @@ class QueryInstance:
         exitcode, query_result = perform_shell_command(self.query, timeout=self.timeout)
 
         if not query_result:
-            logging.warning("Fetched nothing for metric '%s'." % self.query)
+            logging.warning("Fetched nothing for query '%s'." % self.query)
             return
 
         # Update for all metrics in current query instance.
         # `global_labels` is the essential labels for each metric family.
-        labels = {}
+        label_query_results = []
         for label_name in self.label_names:
-            if label_name in self.label_obj:
-                obj = self.label_obj[label_name]
+            if label_name in self.label_objs:
+                obj = self.label_objs[label_name]
                 remaining_time = endtime - time.time()
-                _, label_value = perform_shell_command(
+                _, result = perform_shell_command(
                     obj.subquery, input=query_result, timeout=remaining_time
                 )
             else:
-                label_value = global_labels.get(label_name, 'None')
-            labels[label_name] = label_value
+                result = global_labels.get(label_name, 'None')
 
+            label_query_results.append(result.split('\n'))
+
+        if len(label_query_results) == 0:
+            logging.warning(
+                "Fetched nothing on label for the metric '%s'." % self.name
+            )
+            return
+
+        metric_query_results = []
         for metric in self.metrics:
-            metric_family = metric.entity.labels(**labels)
             remaining_time = endtime - time.time()
-            _, value = perform_shell_command(
+            _, result = perform_shell_command(
                 metric.subquery, input=query_result,
                 timeout=remaining_time
             )
+            metric_query_results.append(result.split('\n'))
+        if len(metric_query_results) == 0:
+            logging.warning(
+                "Fetched nothing on metric value for the metric '%s'." % self.name
+            )
+            return
+
+        # Check whether we can merge these label
+        # and metric query results into a 2-dim array.
+        if len(label_query_results[0]) != len(metric_query_results[0]):
+            logging.error('Cannot fetch the metric %s because the'
+                          'dimension between label and metric is not consistent.')
+            return
+
+        def _get_or_create(list_object, index):
+            if index < len(list_object):
+                return list_object[index]
+            new_dict = dict()
+            list_object.append(new_dict)
+            return new_dict
+
+        def construct_labels():
+            r = []
+            for label_idx, name in enumerate(self.label_names):
+                for row_idx, v in enumerate(label_query_results[label_idx]):
+                    d = _get_or_create(r, row_idx)
+                    d[name] = v
+            return r
+
+        def construct_metric_values():
+            r = []
+            for metric_idx, metric_ in enumerate(self.metrics):
+                for row_idx, v in enumerate(metric_query_results[metric_idx]):
+                    d = _get_or_create(r, row_idx)
+                    d[metric_.name] = v
+            return r
+
+        def set_metric_value(family_, value_):
             # None is equivalent to NaN instead of zero.
-            if len(value) == 0:
+            if len(value_) == 0:
                 logging.warning(
                     'Not found field %s in the %s.', metric.name, self.name
                 )
             else:
-                value = cast_to_int_or_float(value)
+                value_ = cast_to_int_or_float(value_)
                 # Different usages (Prometheus data type) have different setting methods.
                 # Thus, we have to select to different if-branches according to metric's usage.
                 if metric.usage == 'COUNTER':
-                    metric_family.set(value)
+                    family_.set(value_)
                 elif metric.usage == 'GAUGE':
-                    metric_family.set(value)
+                    family_.set(value_)
                 elif metric.usage == 'SUMMARY':
-                    metric_family.observe(value)
+                    family_.observe(value_)
                 elif metric.usage == 'HISTOGRAM':
-                    metric_family.observe(value)
+                    family_.observe(value_)
                 else:
                     logging.error(
                         'Not supported metric %s due to usage %s.' % (metric.name, metric.usage)
                     )
+
+        labels_ = construct_labels()
+        values_ = construct_metric_values()
+        for l_, v_ in zip(labels_, values_):
+            for m in self.metrics:
+                metric_family = m.entity.labels(**l_)
+                metric_value = v_[m.name]
+                set_metric_value(metric_family, metric_value)
 
 
 def config_collecting_params(parallel, constant_labels):
