@@ -51,16 +51,22 @@ http.client.HTTPConnection._http_vsn_str = "HTTP/1.0"
 def get_sequences(arg):
     metric, host, start_datetime, end_datetime, length = arg
     result = []
-    if ":" in host:
-        host_like = host.split(":")[0] + "(:[0-9]{4,5}|)"
-    else:
-        host_like = host + "(:[0-9]{4,5}|)"
-    seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).from_server_like(host_like).fetchall()
+    if global_vars.configs.get('TSDB', 'name') == "prometheus":
+        if ":" in host and not check_ip_valid(host.split(":")[0]) and check_port_valid(host.split(":")[1]):
+            host_like = {DISTINGUISHING_INSTANCE_LABEL: host.split(":")[0] + "(:[0-9]{4,5}|)"}
+        elif check_ip_valid(host):
+            host_like = {DISTINGUISHING_INSTANCE_LABEL: host + "(:[0-9]{4,5}|)"}
+        else:
+            raise ValueError(f"Invalid host: {host}.")
+    elif global_vars.configs.get('TSDB', 'name') == "influxdb":
+        host_like = {"dbname": host}
+
+    seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).filter_like(**host_like).fetchall()
     for seq in seqs:
         if DISTINGUISHING_INSTANCE_LABEL not in seq.labels or len(seq) < 0.9 * length:
             continue
 
-        address = SequenceUtils.from_server(seq).strip()
+        from_instance = SequenceUtils.from_server(seq).strip()
         if seq.labels.get('event'):
             name = 'wait event-' + seq.labels.get('event')
         else:
@@ -69,7 +75,7 @@ def get_sequences(arg):
                 name += ' on ' + seq.labels.get('datname')
             elif seq.labels.get('device'):
                 name += ' on ' + seq.labels.get('device')
-            name += ' from ' + address
+            name += ' from ' + from_instance
 
         result.append((name, seq))
 
@@ -159,13 +165,6 @@ def main(argv):
     end_time = args.end_time
     host = args.host
 
-    if ":" in host:
-        ip, port = host.split(":")[0], host.split(":")[1]
-        if not (check_ip_valid(ip) and check_port_valid(port)):
-            parser.exit(1, f"Invalid host: {host}.")
-    elif not check_ip_valid(host):
-        parser.exit(1, f"Invalid host: {host}.")
-
     os.chdir(args.conf)
     global_vars.metric_map = utils.read_simple_config_file(constants.METRIC_MAP_CONFIG)
     global_vars.configs = load_sys_configs(constants.CONFILE_NAME)
@@ -213,9 +212,8 @@ def main(argv):
             csv_path = os.path.join(args.csv_dump_path, new_name + ".csv")
             with open(csv_path, 'w+', newline='') as f:
                 writer = csv.writer(f)
-                for _, name, corr, delay, values in sorted(result[this_name].values(), reverse=True):
-                    writer.writerow((name, corr, delay))  # Discard the first element abs(corr) after sorting.
-                    writer.writerow(values)
+                for _, name, corr, delay, values in sorted(result[this_name].values(), key=lambda t: t[3]):
+                    writer.writerow((name, corr, delay) + values)  # Discard the first element abs(corr) after sorting.
 
 
 if __name__ == '__main__':
