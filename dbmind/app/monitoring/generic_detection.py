@@ -89,9 +89,8 @@ class AnomalyDetections(object):
         return anomalies
 
     @staticmethod
-    def do_increase_detect(sequence, window=50, max_coef=1, max_increase_rate=0.5):
-        increase_detector = IncreaseDetector(window=window, max_coef=max_coef,
-                                             max_increase_rate=max_increase_rate)
+    def do_increase_detect(sequence, side="positive", alpha=0.05):
+        increase_detector = IncreaseDetector(side=side, alpha=alpha)
         anomalies = increase_detector.fit_predict(sequence)
         return anomalies
 
