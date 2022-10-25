@@ -86,7 +86,7 @@ class TsdbClient(object):
         return int(time.time() * 1000)
 
     def scrape_interval(self):
-        """get the scrape interval of tsdb"""
+        """get the scrape interval of tsdb. Unit is second."""
         pass
 
     def all_metrics(self):
