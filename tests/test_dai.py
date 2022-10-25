@@ -103,4 +103,4 @@ def test_save_xxx():
 
 
 def test_estimate_appropriate_step():
-    dai.estimate_appropriate_step()
+    dai.estimate_appropriate_step_ms()
