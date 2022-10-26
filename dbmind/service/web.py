@@ -274,7 +274,7 @@ def get_host_status():
 
 @ttl_cache(seconds=60)
 def get_database_list():
-    sequences = dai.get_latest_metric_value('pg_database_is_template').fetchall()
+    sequences = dai.get_latest_metric_value('pg_database_size_bytes').fetchall()
     rv = set()
     for seq in sequences:
         if seq.values[0] != 1:
