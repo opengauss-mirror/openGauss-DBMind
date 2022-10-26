@@ -6,7 +6,6 @@ import sys
 from abc import ABC
 
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler
 
 from . import AbstractModel
 from ..word2vec import Word2Vector
@@ -77,6 +76,7 @@ class DnnModel(AbstractModel, ABC):
             self.w2v.fit(self.data)
 
     def fit(self, data):
+        from sklearn.preprocessing import MinMaxScaler
         self.build_word2vector(data)
         list_vec = []
         list_cost = []

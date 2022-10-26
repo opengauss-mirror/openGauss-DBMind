@@ -1,7 +1,7 @@
 ## For DBMind-core ##
 paramiko>=2.7.2
 numpy
-scikit-learn
+scipy
 requests
 sql-metadata
 sqlparse
