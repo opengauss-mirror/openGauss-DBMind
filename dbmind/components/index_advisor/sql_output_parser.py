@@ -15,18 +15,38 @@ import re
 from typing import List
 import logging
 
-from sqlparse.tokens import Punctuation
+from sqlparse.tokens import Punctuation, Keyword, Name
 
 try:
-    from utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens
+    from utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList
 except ImportError:
-    from .utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens
+    from .utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList
+
+
+QUERY_PLAN_SUFFIX = 'QUERY PLAN'
+EXPLAIN_SUFFIX = 'EXPLAIN'
+ERROR_KEYWORD =  'ERROR'
 
 
 def __get_columns_from_indexdef(indexdef):
     for content in get_tokens(indexdef):
         if content.ttype is Punctuation:
             return content.parent.value.strip()[1:-1]
+
+
+def __is_unique_from_indexdef(indexdef):
+    for content in get_tokens(indexdef):
+        if content.ttype is Keyword:
+            return content.value.upper() == 'UNIQUE'
+
+
+def __get_index_type_from_indexdef(indexdef):
+    for content in get_tokens(indexdef):
+        if content.ttype is Name:
+            if content.value.upper() == 'LOCAL':
+                return 'local'
+            elif content.value.upper() == 'GLOBAL':
+                return 'global'
 
 
 def parse_existing_indexes_results(results, schema) -> List[ExistingIndex]:
@@ -54,10 +74,16 @@ def parse_existing_indexes_results(results, schema) -> List[ExistingIndex]:
                 indexdef = '\n'.join(indexdef_list)
                 indexdef_list = []
             cur_columns = __get_columns_from_indexdef(indexdef)
+            is_unique = __is_unique_from_indexdef(indexdef)
+            index_type = __get_index_type_from_indexdef(indexdef)
             cur_index = ExistingIndex(
                 schema, table, index, cur_columns, indexdef)
             if pkey:
                 cur_index.set_is_primary_key(True)
+            if is_unique:
+                cur_index.set_is_unique()
+            if index_type:
+                cur_index.set_index_type(index_type)
             indexes.append(cur_index)
     return indexes
 
@@ -84,19 +110,24 @@ def parse_hypo_index(results):
 
 
 def parse_explain_plan(results, query_num):
-    indexes_names_set = set()
+    index_names_list = []
     found_plan = False
     costs = []
     i = 0
+    index_names = UniqueList()
     for cur_tuple in results:
         text = cur_tuple[0]
-        if 'QUERY PLAN' in text or text == 'EXPLAIN':
+        if QUERY_PLAN_SUFFIX in text or text == EXPLAIN_SUFFIX:
             found_plan = True
-        if 'ERROR' in text and 'prepared statement' not in text:
+            index_names_list.append(index_names)
+            index_names = []
+        if ERROR_KEYWORD in text and 'prepared statement' not in text:
             if i >= query_num:
                 logging.info(f'Cannot correct parse the explain results: {results}')
                 raise ValueError("The size of queries is not correct!")
             costs.append(0)
+            index_names_list.append([])
+            index_names = []
             i += 1
         if found_plan and '(cost=' in text:
             if i >= query_num:
@@ -110,13 +141,16 @@ def parse_explain_plan(results, query_num):
             ind1, ind2 = re.search(r'Index.*Scan(.*)on ([^\s]+)',
                                    text.strip(), re.IGNORECASE).groups()
             if ind1.strip():
-                indexes_names_set.add(ind1.strip().split(' ')[1])
+                if ind1.strip().split(' ')[1] not in index_names:
+                    index_names.append(ind1.strip().split(' ')[1])
             else:
-                indexes_names_set.add(ind2)
+                index_names.append(ind2)
+    index_names_list.append(index_names)
+    index_names_list = index_names_list[1:]
     while i < query_num:
         costs.append(0)
         i += 1
-    return costs, indexes_names_set
+    return costs, index_names_list
 
 
 def parse_plan_cost(line):
