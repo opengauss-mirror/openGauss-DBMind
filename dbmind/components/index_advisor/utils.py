@@ -56,7 +56,21 @@ class ExistingIndex:
         self.__columns = columns
         self.__indexdef = indexdef
         self.__primary_key = False
+        self.__is_unique = False
+        self.__index_type = ''
         self.redundant_objs = []
+
+    def set_is_unique(self):
+        self.__is_unique = True
+
+    def get_is_unique(self):
+        return self.__is_unique
+
+    def set_index_type(self, index_type):
+        self.__index_type = index_type
+
+    def get_index_type(self):
+        return self.__index_type
 
     def get_table(self):
         return self.__table
@@ -97,6 +111,20 @@ class AdvisedIndex:
         self.__storage = 0
         self.__index_type = index_type
         self.association_indexes = defaultdict(list)
+        self.__positive_queries = []
+        self.__source_index = None
+
+    def set_source_index(self, source_index: ExistingIndex):
+        self.__source_index = source_index
+
+    def get_source_index(self):
+        return self.__source_index
+
+    def append_positive_query(self, query):
+        self.__positive_queries.append(query)
+
+    def get_positive_queries(self):
+        return self.__positive_queries
 
     def set_storage(self, storage):
         self.__storage = storage
@@ -110,11 +138,31 @@ class AdvisedIndex:
     def get_columns(self):
         return self.__columns
 
+    def get_columns_num(self):
+        return len(self.get_columns().split(COLUMN_DELIMITER))
+
     def get_index_type(self):
         return self.__index_type
 
+    def get_index_statement(self):
+        table_name = self.get_table().split('.')[-1]
+        index_name = 'idx_%s_%s%s' % (table_name, (self.get_index_type()
+                                                   + '_' if self.get_index_type() else ''),
+                                      '_'.join(self.get_columns().split(COLUMN_DELIMITER))
+                                      )
+        statement = 'CREATE INDEX %s ON %s%s%s;' % (index_name, self.get_table(),
+                                                    '(' + self.get_columns() + ')',
+                                                    (' ' + self.get_index_type() if self.get_index_type() else '')
+                                                    )
+        return statement
+
     def set_association_indexes(self, association_indexes_name, association_benefit):
         self.association_indexes[association_indexes_name].append(association_benefit)
+
+    def match_index_name(self, index_name):
+        return index_name.endswith(f'btree_{self.get_index_type() + "_" if self.get_index_type() else ""}'
+                                   f'{self.get_table().split(".")[-1]}_'
+                                   f'{"_".join(self.get_columns().split(COLUMN_DELIMITER))}')
 
     def __str__(self):
         return f'table: {self.__table} columns: {self.__columns} index_type: ' \
@@ -169,7 +217,7 @@ class QueryItem:
         self.__statement = sql
         self.__frequency = freq
         self.__valid_index_list = []
-        self.__cost_list = []
+        self.__benefit = 0
 
     def get_statement(self):
         return self.__statement
@@ -177,24 +225,27 @@ class QueryItem:
     def get_frequency(self):
         return self.__frequency
 
-    def add_index(self, index):
+    def append_index(self, index):
         self.__valid_index_list.append(index)
 
     def get_indexes(self):
         return self.__valid_index_list
 
+    def reset_opt_indexes(self):
+        self.__valid_index_list = []
+
     def get_sorted_indexes(self):
         return sorted(self.__valid_index_list, key=lambda x: (x.get_table(), x.get_columns(), x.get_index_type()))
 
-    def add_cost(self, cost):
-        self.__cost_list.append(cost)
+    def set_benefit(self, benefit):
+        self.__benefit = benefit
 
-    def get_costs(self):
-        return self.__cost_list
+    def get_benefit(self):
+        return self.__benefit
 
     def __str__(self):
         return f'statement: {self.get_statement()} frequency: {self.get_frequency()} ' \
-               f'index_list: {self.__valid_index_list} costs: {self.__cost_list}'
+               f'index_list: {self.__valid_index_list} benefit: {self.__benefit}'
 
     def __repr__(self):
         return self.__str__()
@@ -204,16 +255,47 @@ class WorkLoad:
     def __init__(self, queries: List[QueryItem]):
         self.__indexes_list = []
         self.__queries = queries
-        self.__index_names_set = set()
+        self.__index_names_list = [[] for _ in range(len(self.__queries))]
         self.__indexes_costs = [[] for _ in range(len(self.__queries))]
 
-    def get_queries(self):
+    def get_queries(self) -> List[QueryItem]:
         return self.__queries
+
+    def has_indexes(self, indexes: Tuple[AdvisedIndex]):
+        return indexes in self.__indexes_list
+
+    def get_used_index_names(self):
+        used_indexes = set()
+        for index_names in self.get_workload_used_indexes(None):
+            for index_name in index_names:
+                used_indexes.add(index_name)
+        return used_indexes
+
+    @lru_cache(maxsize=None)
+    def get_workload_used_indexes(self, indexes: (Tuple[AdvisedIndex], None)):
+        return list([index_names[self.__indexes_list.index(indexes if indexes else None)]
+                     for index_names in self.__index_names_list])
+
+    def get_query_advised_indexes(self, indexes, query):
+        query_idx = self.__queries.index(query)
+        indexes_idx = self.__indexes_list.index(indexes if indexes else None)
+        used_index_names = self.__index_names_list[indexes_idx][query_idx]
+        used_advised_indexes = []
+        for index in indexes:
+            for index_name in used_index_names:
+                if index.match(index_name):
+                    used_advised_indexes.append(index)
+        return used_advised_indexes
 
     def set_index_benefit(self):
         for indexes in self.__indexes_list:
             if indexes and len(indexes) == 1:
                 indexes[0].benefit = self.get_index_benefit(indexes[0])
+
+    def replace_indexes(self, origin, new):
+        if not new:
+            new = None
+        self.__indexes_list[self.__indexes_list.index(origin if origin else None)] = new
 
     @lru_cache(maxsize=None)
     def get_total_index_cost(self, indexes: (Tuple[AdvisedIndex], None)):
@@ -250,11 +332,11 @@ class WorkLoad:
         if not indexes:
             indexes = None
         self.__indexes_list.append(indexes)
-        self.__index_names_set.update(index_names)
         if len(costs) != len(self.__queries):
             raise
         for i, cost in enumerate(costs):
             self.__indexes_costs[i].append(cost)
+            self.__index_names_list[i].append(index_names[i])
 
     @lru_cache(maxsize=None)
     def get_index_related_queries(self, index: AdvisedIndex):
@@ -485,3 +567,12 @@ def split_iter(iterable, n):
         res.append(iterable[index:index+size])
         index += size
     return res
+
+
+def flatten(iterable):
+    for _iter in iterable:
+        if hasattr(_iter, '__iter__') and not isinstance(_iter, str):
+            for item in flatten(_iter):
+                yield item
+        else:
+            yield _iter
