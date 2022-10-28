@@ -119,21 +119,19 @@ def decompose_sequence(sequence):
 def compose_sequence(seasonal_data, train_sequence, forecast_values):
     forecast_length = len(forecast_values)
     if seasonal_data and seasonal_data.is_seasonal:
-        start_index = len(train_sequence) % seasonal_data.period
         seasonal = seasonal_data.seasonal
         resid = seasonal_data.resid
-        dbmind_assert(len(seasonal) == len(resid))
-
-        seasonal, resid = seasonal[start_index:], resid[start_index:]
-        if len(seasonal) < forecast_length:  # pad it.
-            padding_length = forecast_length - len(seasonal)
-            seasonal = np.pad(seasonal, (0, padding_length), mode='wrap')
-            resid = np.pad(resid, (0, padding_length), mode='wrap')
-        else:
-            seasonal, resid = seasonal[:forecast_length], resid[:forecast_length]
-
         resid[np.abs(resid - np.mean(resid)) > np.std(resid) * 3] = np.mean(resid)
-        forecast_values = seasonal + forecast_values + resid
+        dbmind_assert(len(seasonal) == len(resid))
+        period = seasonal_data.period
+        latest_period = seasonal[-period:] + resid[-period:]
+        if len(latest_period) < forecast_length:  # pad it.
+            padding_length = forecast_length - len(latest_period)
+            addition = np.pad(latest_period, (0, padding_length), mode='wrap')
+        else:
+            addition = latest_period[:forecast_length]
+
+        forecast_values = forecast_values + addition
 
     forecast_timestamps = [train_sequence.timestamps[-1] + train_sequence.step * i
                            for i in range(1, forecast_length + 1)]
