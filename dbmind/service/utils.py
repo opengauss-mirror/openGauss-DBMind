@@ -51,7 +51,7 @@ def get_master_instance_address():
                                      return_tuples=True)
         instance_host, instance_port = rows[0][0], rows[0][1]
     except Exception as e:
-        logging.exception(e)
+        logging.warning("Maybe the RPC service isn't started.")
         instance_host, instance_port = None, None
 
     return instance_host, instance_port
