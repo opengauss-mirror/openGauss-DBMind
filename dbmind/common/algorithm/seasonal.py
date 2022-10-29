@@ -61,8 +61,9 @@ def is_seasonal_series(x, high_ac_threshold: float = 0.5, min_seasonal_freq=3):
     detrended = x - decompose_trend(x, np.ones(window) / window)
 
     ac_coef = acf(detrended, nlags=len(x) - 1)  # auto-correlation coefficient
-
-    high_ac_peak_pos = signal.find_peaks(ac_coef)[0]
+    valleys = signal.find_peaks(-ac_coef, height=(0, None))[0]
+    lower_bound = valleys[0] if valleys.size else 0
+    high_ac_peak_pos = signal.find_peaks(ac_coef, height=(0, None))[0]
 
     beyond_threshold = np.argwhere(ac_coef >= high_ac_threshold).flatten()
     high_ac_peak_pos = np.intersect1d(high_ac_peak_pos, beyond_threshold)
@@ -73,9 +74,9 @@ def is_seasonal_series(x, high_ac_threshold: float = 0.5, min_seasonal_freq=3):
     # after the first minimum value.
     high_ac_peak_pos = high_ac_peak_pos[
         (high_ac_peak_pos < len(ac_coef) // 2) &
-        (high_ac_peak_pos > np.argmin(ac_coef))
+        (high_ac_peak_pos > lower_bound)
     ]
-    if len(high_ac_peak_pos) - 1 >= min_seasonal_freq:
+    if len(high_ac_peak_pos) >= min_seasonal_freq:
         return True, int(high_ac_peak_pos[np.argmax(ac_coef[high_ac_peak_pos])])
 
     return False, None
