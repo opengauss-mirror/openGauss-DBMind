@@ -189,11 +189,11 @@ def estimate_appropriate_step_ms(start_time, end_time):
         return None
 
     ONE_HOUR = 3600  # unit: second
-    fetch_seconds = (end_time - start_time).seconds
-    if fetch_seconds <= ONE_HOUR:
+    total_seconds = (end_time - start_time).total_seconds()
+    if total_seconds <= ONE_HOUR:
         return None
     # return unit: microsecond
-    return fetch_seconds * interval_second // ONE_HOUR * 1000 or None
+    return int(total_seconds * interval_second // ONE_HOUR * 1000) or None
 
 
 def get_metric_sequence(metric_name, start_time, end_time, step=None):
