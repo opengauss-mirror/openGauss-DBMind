@@ -10,9 +10,6 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
-from types import SimpleNamespace
-
 import numpy as np
 from scipy.interpolate import interp1d
 
@@ -72,6 +69,7 @@ def np_double_rolling(values, window=(1, 1), diff_mode="diff", agg='median', tri
     window2 = 1 if values_length < window[1] else window[1]
 
     left_rolling = np_rolling(np_shift(values, 1), window=window1, agg=agg)
+    # Polish later: this `values[::-1]` can be replaced by reverse scan.
     right_rolling = np_rolling(values[::-1], window=window2, agg=agg)[::-1]
     r_data = right_rolling - left_rolling
 

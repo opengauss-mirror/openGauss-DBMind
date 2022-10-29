@@ -11,11 +11,10 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import os
-import time
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, session
 
 from dbmind.constants import DYNAMIC_CONFIG
 from dbmind.metadatabase import business_db, Base
@@ -46,7 +45,7 @@ def initialize_metadb():
     yield
 
     # Clean up
-    session_maker.close_all()
+    session.close_all_sessions()
     os.path.exists(dbname) and os.remove(dbname)
     os.path.exists(DYNAMIC_CONFIG) and os.remove(DYNAMIC_CONFIG)
 
