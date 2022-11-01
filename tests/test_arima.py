@@ -19,6 +19,7 @@ from dbmind.common.algorithm.forecasting.forcasting_algorithm import quickly_for
     sequence_interpolate
 from dbmind.common.algorithm.stat_utils import trim_head_and_tail_nan
 from dbmind.common.types.sequence import Sequence
+from dbmind.common.algorithm.seasonal import is_seasonal_series
 
 DATA = [13313.158424272488, 13325.379505621688, 13334.55192625661, 13340.650475363756, 13343.772205687826,
         13344.39494047619, 13344.166964285712, 13344.142559523809, 13343.943303571428, 13343.560714285712,
@@ -5167,3 +5168,20 @@ def test_trim_head_and_tail_nan():
     trim_head_and_tail_nan(list_data)
     trim_head_and_tail_nan(array_data)
     assert list_data == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10]
+
+
+def test_is_seasonal_series():
+    x = [10, 20, 30, 40] * 20 + [1, 1, 1, 1] * 5 + [10, 20, 30, 40] * 20
+    is_seasonal, period = is_seasonal_series(
+        x,
+        high_ac_threshold=0.1,
+        min_seasonal_freq=2
+    )
+    assert (is_seasonal and period == 4)
+    x = 10 + 10 * np.sin(np.linspace(0, 10 * np.pi, 1000)) + np.random.random(1000) * 2
+    is_seasonal, period = is_seasonal_series(
+        x,
+        high_ac_threshold=0.1,
+        min_seasonal_freq=2
+    )
+    assert (is_seasonal and period == 200)

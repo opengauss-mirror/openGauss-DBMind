@@ -13,9 +13,9 @@
 import logging
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
-import re
 
 from dbmind.common.http.requests_utils import create_requests_session
+from dbmind.common.tsdb.tsdb_client import cast_duration_to_seconds
 from dbmind.common.utils import cached_property
 
 from .tsdb_client import TsdbClient
@@ -57,34 +57,6 @@ def _standardize(data, step=None):
             )
         )
     return rv
-
-
-# We don't support year, month, week and ms.
-_DURATION_RE = re.compile(
-    r'([0-9]+d)?([0-9]+h)?([0-9]+m)?([0-9]+s)?|0'
-)
-
-
-def cast_duration_to_seconds(duration_string):
-    r = re.match(_DURATION_RE, duration_string)
-    if r is None:
-        return None
-
-    groups = r.groups()
-    seconds = 0
-    for group in groups:
-        if group is None:
-            continue
-        if group.endswith('d'):
-            seconds += 24 * 60 * 60 * int(group[:-1])
-        elif group.endswith('h'):
-            seconds += 60 * 60 * int(group[:-1])
-        elif group.endswith('m'):
-            seconds += 60 * int(group[:-1])
-        elif group.endswith('s'):
-            seconds += int(group[:-1])
-
-    return seconds
 
 
 class PrometheusClient(TsdbClient):

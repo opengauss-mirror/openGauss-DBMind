@@ -759,7 +759,9 @@ pg_stat_bgwriter:
   query:
     - name: pg_stat_bgwriter
       sql: |-
-        select checkpoint_sync_time / 1000 as total_seconds from pg_stat_bgwriter;
+        select coalesce((checkpoint_sync_time/(case when (checkpoints_timed + checkpoints_req)  >0 then (checkpoints_timed + checkpoints_req) else 1 end)),0) as checkpoint_avg_sync_time,
+        coalesce((checkpoints_req/(case when (checkpoints_timed + checkpoints_req)  >0 then (checkpoints_timed + checkpoints_req) else 1 end)),0) as checkpoint_proactive_triggering_ratio,
+        checkpoint_sync_time / 1000 as total_seconds from pg_stat_bgwriter;
       version: '>=0.0.0'
       timeout: 1
       ttl: 10
@@ -769,7 +771,12 @@ pg_stat_bgwriter:
     - name: total_seconds
       description: total sync time of checkpoints
       usage: GAUGE
-
+    - name: checkpoint_avg_sync_time
+      description: checkpoint_avg_sync_time
+      usage: GAUGE
+    - name: checkpoint_proactive_triggering_ratio
+      description: checkpoint_proactive_triggering_ratio
+      usage: GAUGE
 
 pg_locker:
   name: pg_locker

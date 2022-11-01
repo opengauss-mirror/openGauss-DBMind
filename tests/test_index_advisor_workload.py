@@ -142,6 +142,9 @@ class IndexTester(unittest.TestCase):
         index = IndexItemFactory().get_index('public.date_dim', 'd_year', '')
         index_name = '<123>btree_date_dim_d_year'
         self.assertEqual(index.match_index_name(index_name), True)
+        index = IndexItemFactory().get_index('other.temptable', 'int2', '')
+        index_name = '<625283>btree_other_temptable_int2'
+        self.assertEqual(index.match_index_name(index_name), True)
 
 
 class QueryItemTester(unittest.TestCase):
@@ -411,6 +414,18 @@ class SqlOutPutParserTester(unittest.TestCase):
         expected_index_ids = ['99920']
         self.assertEqual((expected_costs, [[]] * 6),
                          parse_explain_plan(explain_results, query_number))
+        # test parsing index name for gsql output
+        results = [('SET',), ('SET',), ('SET',), ('PREPARE',),
+                   ('                                     QUERY PLAN                                     ',),
+                   ('Index Scan using temptable_int1_idx on temptable  (cost=0.00..8.27 rows=1 width=8)',),
+                   ('Index Cond: (int1 = 10)',),
+                   ('(2 rows)',), ('',), ('DEALLOCATE',), ('total time: 1  ms',)]
+        self.assertEqual(([8.27], [['temptable_int1_idx']]), parse_explain_plan(results, 1))
+        results = [('SET',), ('SET',), ('SET',), ('PREPARE',),
+                   ('                                             QUERY PLAN                                             ',),
+                   ('Index Scan using <625283>btree_other_temptable_int2 on temptable  (cost=0.00..8.27 rows=1 width=8)',),
+                   ('Index Cond: (int2 = 10)',), ('(2 rows)',), ('',), ('DEALLOCATE',), ('total time: 1  ms',)]
+        self.assertEqual(([8.27], [['<625283>btree_other_temptable_int2']]), parse_explain_plan(results, 1))
 
     def test_parse_single_advisor_result(self):
         ori_inputs = [' (public,date_dim,d_year,global)', ' (public,store_sales,"ss_sold_date_sk,ss_item_sk","")']

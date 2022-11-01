@@ -54,7 +54,7 @@ ENCRYPTED_SIGNAL = 'Encrypted->'
 
 # Used by check_config_validity().
 CONFIG_OPTIONS = {
-    'TSDB-name': ['prometheus'],
+    'TSDB-name': ['prometheus', 'influxdb'],
     'METADATABASE-dbtype': ['sqlite', 'opengauss', 'postgresql'],
     'WORKER-type': ['local', 'dist'],
     'LOG-level': ['DEBUG', 'INFO', 'WARNING', 'ERROR']

@@ -52,7 +52,7 @@ class LazyFetcher:
         self.metric_name = _map_metric(metric_name)
         self.start_time = start_time
         self.end_time = end_time
-        self.step = step
+        self.step = step or estimate_appropriate_step_ms(start_time, end_time)
         self.labels = dict.copy(global_vars.must_filter_labels or {})
         self.labels_like = dict()
         self.rv = None
@@ -122,14 +122,18 @@ class LazyFetcher:
 
         start_time, end_time = datetime_to_timestamp(self.start_time), datetime_to_timestamp(self.end_time)
         step = self.step
-        buffered = buff.get(
-            metric_name=self.metric_name,
-            start_time=start_time,
-            end_time=end_time,
-            step=step,
-            labels=self.labels,
-            fetcher_func=self._fetch_sequence
-        )
+        try:
+            buffered = buff.get(
+                metric_name=self.metric_name,
+                start_time=start_time,
+                end_time=end_time,
+                step=step,
+                labels=self.labels,
+                fetcher_func=self._fetch_sequence
+            )
+        except Exception as e:
+            logging.error('SequenceBufferPool crashed.', exc_info=e)
+            return self._fetch_sequence(start_time, end_time, step)
 
         dbmind_assert(buffered is not None)
         return buffered
@@ -139,6 +143,8 @@ class LazyFetcher:
         return self.rv
 
     def fetchone(self):
+        # Prometheus doesn't provide limit clause, so we
+        # still implement it as below.
         self.rv = self.rv or self._read_buffer()
         # If iterator has un-popped elements then return it,
         # otherwise return empty of the sequence.
@@ -161,8 +167,33 @@ def _map_metric(metric_name, to_internal_name=True):
     return global_vars.metric_map.get(metric_name, metric_name).strip()
 
 
-def estimate_appropriate_step():
-    pass
+def estimate_appropriate_step_ms(start_time, end_time):
+    """If we use a fixed step to fetch a metric sequence,
+    the response time will be very long while we obtain a
+    long-term sequence. So, we should estimate an appropriate
+    sampling step to fetch data. Here, we employ the
+    down-sampling logic of Prometheus. No matter how
+    long it takes to fetch, Prometheus always returns the data in
+    time. The data length is similar because Prometheus
+    uses a mapper mechanism to calculate a step for this
+    fetching. The mapping relationship is data in one
+    hour using the default scrape interval. For more than one hour
+    of data, increase the step according to
+    the above proportional relation.
+    """
+    if None in (start_time, end_time):
+        return None
+    interval_second = TsdbClientFactory.get_tsdb_client().scrape_interval
+    if not interval_second:
+        # If returns None, it will only depend on TSDB's behavior.
+        return None
+
+    ONE_HOUR = 3600  # unit: second
+    total_seconds = (end_time - start_time).total_seconds()
+    if total_seconds <= ONE_HOUR:
+        return None
+    # return unit: microsecond
+    return int(total_seconds * interval_second // ONE_HOUR * 1000) or None
 
 
 def get_metric_sequence(metric_name, start_time, end_time, step=None):

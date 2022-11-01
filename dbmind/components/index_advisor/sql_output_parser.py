@@ -18,14 +18,11 @@ import logging
 from sqlparse.tokens import Punctuation, Keyword, Name
 
 try:
-    from utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList
+    from utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList, \
+        QUERY_PLAN_SUFFIX, EXPLAIN_SUFFIX, ERROR_KEYWORD, PREPARE_KEYWORD
 except ImportError:
-    from .utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList
-
-
-QUERY_PLAN_SUFFIX = 'QUERY PLAN'
-EXPLAIN_SUFFIX = 'EXPLAIN'
-ERROR_KEYWORD =  'ERROR'
+    from .utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList, \
+        QUERY_PLAN_SUFFIX, EXPLAIN_SUFFIX, ERROR_KEYWORD, PREPARE_KEYWORD
 
 
 def __get_columns_from_indexdef(indexdef):
@@ -117,17 +114,20 @@ def parse_explain_plan(results, query_num):
     index_names = UniqueList()
     for cur_tuple in results:
         text = cur_tuple[0]
+        # Save the results of the last index_names according to the EXPLAIN keyword.
         if QUERY_PLAN_SUFFIX in text or text == EXPLAIN_SUFFIX:
-            found_plan = True
             index_names_list.append(index_names)
-            index_names = []
+            index_names = UniqueList()
+            found_plan = True
+            continue
+        # Consider execution errors and ensure that the cost value of an explain is counted only once.
         if ERROR_KEYWORD in text and 'prepared statement' not in text:
             if i >= query_num:
                 logging.info(f'Cannot correct parse the explain results: {results}')
                 raise ValueError("The size of queries is not correct!")
             costs.append(0)
-            index_names_list.append([])
-            index_names = []
+            index_names_list.append(index_names)
+            index_names = UniqueList()
             i += 1
         if found_plan and '(cost=' in text:
             if i >= query_num:
@@ -147,6 +147,10 @@ def parse_explain_plan(results, query_num):
                 index_names.append(ind2)
     index_names_list.append(index_names)
     index_names_list = index_names_list[1:]
+
+    # when a syntax error causes multiple explain queries to be run as one query
+    while len(index_names_list) < query_num:
+        index_names_list.append([])
     while i < query_num:
         costs.append(0)
         i += 1
