@@ -49,7 +49,7 @@ http.client.HTTPConnection._http_vsn_str = "HTTP/1.0"
 
 
 def get_sequences(arg):
-    metric, host, start_datetime, end_datetime, length = arg
+    metric, host, start_datetime, end_datetime = arg
     result = []
     if global_vars.configs.get('TSDB', 'name') == "prometheus":
         if ":" in host and not check_ip_valid(host.split(":")[0]) and check_port_valid(host.split(":")[1]):
@@ -62,6 +62,10 @@ def get_sequences(arg):
         host_like = {"dbname": host}
 
     seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).filter_like(**host_like).fetchall()
+    step = dai.get_metric_sequence(metric, start_datetime, end_datetime).step / 1000
+    start_time = datetime.timestamp(start_datetime)
+    end_time = datetime.timestamp(end_datetime)
+    length = (end_time - start_time) // step
     for seq in seqs:
         if DISTINGUISHING_INSTANCE_LABEL not in seq.labels or len(seq) < 0.9 * length:
             continue
@@ -100,8 +104,8 @@ def multi_process_correlation_calculation(metric, sequence_args):
     with mp.Pool() as pool:
         sequence_result = pool.map(get_sequences, iterable=sequence_args)
 
-        _, host, start_datetime, end_datetime, length = sequence_args[0]
-        these_sequences = get_sequences((metric, host, start_datetime, end_datetime, length))
+        _, host, start_datetime, end_datetime = sequence_args[0]
+        these_sequences = get_sequences((metric, host, start_datetime, end_datetime))
 
         if not these_sequences:
             write_to_terminal('The metric was not found.')
@@ -181,18 +185,13 @@ def main(argv):
         global_vars.configs.get('TSDB', 'ssl_ca_file')
     )
     client = TsdbClientFactory.get_tsdb_client()
-    interval = client.scrape_interval
-    if not interval:
-        raise ValueError(f"Invalid scrape interval {interval}.")
-    interval *= 1000
     all_metrics = client.all_metrics
 
     actual_start_time = min(start_time, end_time - LEAST_WINDOW)
     start_datetime = datetime.fromtimestamp(actual_start_time / 1000)
     end_datetime = datetime.fromtimestamp(end_time / 1000)
-    length = (end_time - start_time) // interval
 
-    sequence_args = [(metric_name, host, start_datetime, end_datetime, length) for metric_name in all_metrics]
+    sequence_args = [(metric_name, host, start_datetime, end_datetime) for metric_name in all_metrics]
 
     if platform.system() != 'Windows':
         correlation_result = multi_process_correlation_calculation(metric, sequence_args)
@@ -212,7 +211,7 @@ def main(argv):
             csv_path = os.path.join(args.csv_dump_path, new_name + ".csv")
             with open(csv_path, 'w+', newline='') as f:
                 writer = csv.writer(f)
-                for _, name, corr, delay, values in sorted(result[this_name].values(), key=lambda t: t[3]):
+                for _, name, corr, delay, values in sorted(result[this_name].values(), key=lambda t: (t[3], -t[0])):
                     writer.writerow((name, corr, delay) + values)  # Discard the first element abs(corr) after sorting.
 
 
