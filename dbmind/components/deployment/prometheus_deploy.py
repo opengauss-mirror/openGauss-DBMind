@@ -13,6 +13,7 @@
 
 import argparse
 import getpass
+import glob
 import os
 import platform
 import re
@@ -473,13 +474,13 @@ def deploy(path, configs, online=False):
             sftp.connect()
             sftp.mkdir(remote_dir)
             dbmind_permission = list()
-            for element, form in upload_list:
-                if form == 'dir':
-                    sftp.upload_dir(element, DBMIND_PATH, remote_dir)
-                    dbmind_permission.extend(dir_permission_control(remote_dir, element))
-                elif form == 'file':
-                    sftp.upload_file(element, DBMIND_PATH, remote_dir)
-                    dbmind_permission.append(f'chmod {DBMIND_PERMISSION} {os.path.join(remote_dir, element)}')
+            for entry in os.scandir(DBMIND_PATH):
+                if entry.is_file():
+                    sftp.upload_file(entry.name, DBMIND_PATH, remote_dir, black_list=block_dict["file"])
+                    dbmind_permission.append(f'chmod {DBMIND_PERMISSION} {os.path.join(remote_dir, entry.name)}')
+                elif entry.is_dir():
+                    sftp.upload_dir(entry.name, DBMIND_PATH, remote_dir, black_list=block_dict["dir"])
+                    dbmind_permission.extend(dir_permission_control(remote_dir, entry.name))
             sftp.upload_dir(software, path, remote_dir)
             dbmind_permission.extend(dir_permission_control(remote_dir, software))
             sftp.remote_executor(dbmind_permission)
@@ -490,11 +491,18 @@ def deploy(path, configs, online=False):
                 r"{}@{}:{}/{}".format(username, host, port, remote_dir)
             )
 
-    upload_list = [
-        ('gs_dbmind', 'file'),
-        ('constant', 'file'),
-        ('dbmind', 'dir'),
-    ]
+    block_dict = {
+        "dir": (
+            glob.glob(os.path.join(DBMIND_PATH, ".git")) +
+            glob.glob(os.path.join(DBMIND_PATH, "docs")) +
+            glob.glob(os.path.join(DBMIND_PATH, "tests"))
+        ),
+        "file": (
+            glob.glob(os.path.join(DBMIND_PATH, "**\*.pyc"), recursive=True) +
+            glob.glob(os.path.join(DBMIND_PATH, "**\.gitignore"), recursive=True) +
+            glob.glob(os.path.join(DBMIND_PATH, "**\*.log"), recursive=True)
+        )
+    }
 
     download_path = os.path.join(path, 'downloads')
     if not os.path.exists(download_path):
