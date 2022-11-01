@@ -25,7 +25,7 @@ from .errors import RPCExecutionError, RPCConnectionError
 from .server import DEFAULT_URI, HEARTBEAT_FLAG, AUTH_FLAG
 
 standard_rpc_url_pattern = re.compile('(https?)://[-A-Za-z0-9+&@#%?=~_|!:,.;]+/[-A-Za-z0-9]+')
-rpc_endpoint_pattern = re.compile('(https?)://[-A-Za-z0-9+&@#%?=~_|!:,.;]+$')
+rpc_endpoint_pattern = re.compile('(https?)://[-A-Za-z0-9+&@#%?=~_|!:,.;]+/?$')
 
 
 class RPCClient:
@@ -37,7 +37,8 @@ class RPCClient:
         if re.match(standard_rpc_url_pattern, url):
             self.url = url
         elif re.match(rpc_endpoint_pattern, url):
-            self.url = url + DEFAULT_URI
+            # The reason why we strip slash is to avoid wrong URL.
+            self.url = url.rstrip('/') + DEFAULT_URI
         else:
             raise ValueError('Invalid url format: %s.' % url)
 

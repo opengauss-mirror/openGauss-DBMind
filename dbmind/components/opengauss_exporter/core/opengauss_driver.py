@@ -15,6 +15,7 @@ import time
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import sqlparse
 import psycopg2
 import psycopg2.errors
 import psycopg2.extensions
@@ -134,10 +135,12 @@ class Driver:
                         result = cursor.fetchall()
                     else:
                         result = []
-                        for sql in stmt.split(';'):
+                        for sql in sqlparse.split(stmt):
                             cursor.execute(sql)
                             if cursor.pgresult_ptr is not None:
-                                result.extend(cursor.fetchall())
+                                result.append(cursor.fetchall())
+                            else:
+                                result.append(None)
                     conn.commit()
                 except psycopg2.extensions.QueryCanceledError as e:
                     logging.error('%s: %s.' % (e.pgerror, stmt))

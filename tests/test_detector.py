@@ -451,33 +451,20 @@ def test_volatility_shift_detector():
 
 
 def test_increase_detector():
-    input_data = [i for i in list(range(50))] + [i for i in list(range(50))][::-1]
+    random.seed(0)
+    # test case: the increasing sequence.
+    input_data = [i * 0.05 + 0.7 * random.randint(1, 5) for i in list(range(50))]
     raw_data = Sequence(timestamps=list(range(len(input_data))), values=input_data)
-    detector = anomaly_detection.IncreaseDetector(side="positive", window=20, max_coef=0.3)
+    detector = anomaly_detection.IncreaseDetector(side="positive", alpha=0.05)
     res = detector.fit_predict(raw_data)
-    correct_data = (
-        True, True, True, True, True, True, True, True, True, True,
-        True, True, True, True, True, True, True, True, True, True,
-        True, True, True, True, True, True, True, True, True, True,
-        True, True, True, True, True, True, True, True, True, True,
-        False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False
-    )
+    correct_data = (True,) * 50
     assert res.values == correct_data
-
-    # test case: the length of sequence cannot be divided evenly by the window.
-    input_data = (1, 2, 3, 4, 5, 6, 20, 30, 40)
+    # test case: the decreasing sequence.
+    input_data = [(50 - i) * 0.05 + 0.7 * random.randint(1, 5) for i in list(range(50))]
     sequence_case = Sequence(timestamps=tuple(range(len(input_data))), values=input_data)
-    detector = anomaly_detection.IncreaseDetector(side="positive", window=4, max_coef=1)
+    detector = anomaly_detection.IncreaseDetector(side="negative", alpha=0.05)
     res = detector.fit_predict(sequence_case)
-    expected = (
-        True, True, True, True, True, True, True, True, True
-    )
+    expected = (True,) * 50
     assert res.values == expected
 
 

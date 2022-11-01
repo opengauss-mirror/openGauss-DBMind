@@ -12,9 +12,7 @@
 # See the Mulan PSL v2 for more details.
 
 from contextlib import contextmanager
-from typing import List
-
-import sqlparse
+from typing import List, Tuple, Any
 
 from dbmind import global_vars
 from dbmind.components.index_advisor.executors.common import BaseExecutor
@@ -22,22 +20,24 @@ from dbmind.components.index_advisor.executors.common import BaseExecutor
 
 class RpcExecutor(BaseExecutor):
 
-    def execute_sqls(self, sqls) -> List[str]:
+    def execute_sqls(self, sqls) -> List[Tuple[Any]]:
         results = []
         sqls = ['set current_schema = %s' % self.get_schema()] + sqls
-        set_sqls = []
-        for sql in sqls:
-            if sql.strip().upper().startswith('SET'):
-                set_sqls.append(sql)
-            else:
-                session_sql = ';'.join(set_sqls + [sql])
-                # such as Select or With or Explain
-                sql_type = sqlparse.parse(sql)[0].tokens[0].value.upper()
-                res = global_vars.agent_rpc_client.call('query_in_database',
-                                                        session_sql,
+        sqls = [sql.strip().strip(';') for sql in sqls]
+        sql_results = global_vars.agent_rpc_client.call('query_in_database',
+                                                        ';'.join(sqls),
                                                         self.dbname,
-                                                        return_tuples=True)
-                results.extend([(sql_type,)] + res if res else [('ERROR',)])
+                                                        return_tuples=True,
+                                                        fetch_all=True)
+        for sql, sql_res in zip(sqls[1:], sql_results[1:]):
+            sql_type = sql.upper().strip().split()[0]
+            if sql_type == 'EXPLAIN':
+                if sql_res:
+                    results.append((sql_type,))
+                else:
+                    results.append(('ERROR',))
+            if sql_res:
+                results.extend(sql_res)
         return results
 
     @contextmanager

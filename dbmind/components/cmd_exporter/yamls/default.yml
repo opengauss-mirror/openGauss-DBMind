@@ -24,7 +24,7 @@
 #   ...
 
 
-cluster:
+gaussdb_cluster:
   query: "cm_ctl query -Cvi"
   timeout: 5
   metrics:
@@ -37,8 +37,27 @@ cluster:
         usage: "LABEL"
         description: "primary node list"
     - standby:
-        subquery: grep -E "Standby" | grep -v "|" | awk '{print $3}'
+        subquery: grep -E "Standby" | grep -v "|" | awk '{print $3}' | sed -z 's/\n/,/g;s/,$/\n/g'
         usage: "LABEL"
         description: "standby node list"
 
-
+gaussdb_progress:
+  query: "ps -aux | grep gaussdb"
+  timeout: 5
+  metrics:
+    - cpu_usage:
+        subquery: awk '{print $3}'
+        usage: "GAUGE"
+        description: "cpu usage of gaussdb process"
+    - mem_usage:
+        subquery: awk '{print $4}'
+        usage: "GAUGE"
+        description: "mem usage of gaussdb process"
+    - user:
+        subquery: awk '{print $1}'
+        usage: "LABEL"
+        description: "all of users who have gaussdb process"
+    - pid:
+        subquery: awk '{print $2}'
+        usage: "LABEL"
+        description: "pid of gaussdb process"

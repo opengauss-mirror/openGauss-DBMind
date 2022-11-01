@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 
 import os
+import re
 import time
 
 
@@ -52,7 +53,6 @@ class ProcessBar:
 
     @staticmethod
     def match(content):
-        import re
         p = re.compile('[*>]+')
         res = p.search(str(content))
         if res:
@@ -63,9 +63,9 @@ class ProcessBar:
 
     def __next__(self):
         self.process_num += 1
-        self.percent = self.process_num / len(self.iterable)
         if self.process_num > len(self.iterable):
             raise StopIteration
+        self.percent = self.process_num / len(self.iterable)
         self.__processbar()
 
         return self.iterable[self.process_num - 1]

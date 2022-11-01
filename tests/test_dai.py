@@ -10,6 +10,8 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import datetime
+
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.types import Alarm, ALARM_TYPES, ALARM_LEVEL, SlowQuery
 from dbmind.common.types import RootCause
@@ -102,5 +104,20 @@ def test_save_xxx():
     dai.save_slow_queries([slow_query, slow_query, slow_query])
 
 
-def test_estimate_appropriate_step():
-    dai.estimate_appropriate_step()
+def test_estimate_appropriate_step(monkeypatch):
+    end = datetime.datetime.now()
+    start = end - datetime.timedelta(days=1)
+    total_seconds = (end - start).total_seconds()
+
+    def validate():
+        max_length = total_seconds // default_scrape_interval
+
+        tsdb_client = TsdbClientFactory.get_tsdb_client()
+        monkeypatch.setattr(tsdb_client, 'scrape_interval', default_scrape_interval)
+
+        step = dai.estimate_appropriate_step_ms(start, end) // 1000
+        actual_length = total_seconds // step
+        assert 0 < actual_length <= max_length
+
+    for default_scrape_interval in range(1, 60, 5):
+        validate()

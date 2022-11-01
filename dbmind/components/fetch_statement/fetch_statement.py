@@ -33,9 +33,8 @@ def get_fetch_queries(statement_type, database, schema, **kwargs) -> List[str]:
                       "G.sample_time > '{start_time}' and G.sample_time < '{end_time}';"
     fetch_history_query = "select regexp_replace((CASE WHEN t1.query like '%;' THEN t1.query ELSE " \
                           "t1.query || ';' END), " \
-                          "E'[\\n\\r]+', ' ', 'g') as q from dbe_perf.statement " \
-                          "t1 left join dbe_perf.statement_history t2 ON " \
-                          "t1.unique_sql_id = t2.unique_query_id where db_name='{database}' and schema_name='{schema}';"
+                          "E'[\\n\\r]+', ' ', 'g') as q from statement_history t1 " \
+                          " where db_name='{database}' and schema_name='{schema}';"
     fetch_activity_query = "SELECT regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), " \
                            "E'[\\n\\r]+', ' ', 'g') as q FROM pg_stat_activity WHERE state != 'idle' and " \
                            "datname='{database}';"
@@ -75,7 +74,7 @@ def check_parameter(args):
             raise ValueError('Please set the start_time and the end_time if you specify asp')
 
     if args.start_time:
-        # compatible with '2022-1-4 1:2:3'
+        # with the format like '2022-01-04 11:22:33'
         args.start_time = time.strftime('%Y-%m-%d %H:%M:%S',
                                         time.strptime(args.start_time,
                                                       '%Y-%m-%d %H:%M:%S')
@@ -91,10 +90,10 @@ def fetch_statements(conn, statement_type, database, schema, **kwargs):
     fetch_queries = get_fetch_queries(statement_type, database, schema, **kwargs)
     statements = []
     for _tuple in conn.execute_sqls(fetch_queries):
-        # filtering non-statement results
+        # Remove information other than the query results introduced by the executor, e.g., 'total time 10ms'
         statement = _tuple[0]
         if statement.startswith(('SET;', 'q;', ';', 'total time')) or statement.endswith(' rows);') or \
-                re.match('SELECT \d+;', statement):
+                re.match(r'SELECT \d+;', statement):
             continue
         statement = add_semicolon(statement)
         statement = replace_comma_with_dollar(statement)
@@ -117,8 +116,10 @@ def main(argv):
                             default='public', action=CheckWordValid)
     arg_parser.add_argument('--statement-type', help='The type of statements you want to fetch',
                             choices=['asp', 'slow', 'history', 'activity'], default='asp')
-    arg_parser.add_argument('--start-time', help='Start time of statements, format: 2022-10-01 00:00:00')
-    arg_parser.add_argument('--end-time', help='End time of statements, format: 2022-10-01 00:10:00')
+    arg_parser.add_argument('--start-time', help="Start time of fetching statements, "
+                                                 "the format is 'YYYY-MM-DD hh:mm:ss, e.g., 2022-10-01 00:00:00'")
+    arg_parser.add_argument('--end-time', help="End time of fetching statements, "
+                                               "the format is 'YYYY-MM-DD hh:mm:ss, e.g., 2022-10-01 00:00:00'")
     arg_parser.add_argument('--verify', help='Whether to validate statements',
                             action='store_true')
     arg_parser.add_argument('--driver', help='Whether to use python driver, default use gsql',
@@ -134,15 +135,15 @@ def main(argv):
             from dbmind.components.index_advisor.executors import driver_executor
             executor = driver_executor.DriverExecutor
         except ImportError:
-            logging.warning('Python driver import failed, '
+            logging.warning('Failed to import the Python driver, '
                             'the gsql mode will be selected to connect to the database.')
 
-    # Get queries via gsql or driver. 
+    # pg_asp data can only be retrieved from the postgres database.
     conn = executor('postgres', args.db_user, args.W, args.db_host, args.db_port, args.schema)
     statements = fetch_statements(conn, **vars(args))
 
     # Save the fetched query in a file.
-    with open(args.output, 'w') as fp:
+    with open(args.output, 'w+') as fp:
         for statement in statements:
             if not args.verify or (args.verify and is_valid_statement(conn, statement)):
                 fp.write(statement + '\n')
@@ -150,4 +151,3 @@ def main(argv):
 
 if __name__ == '__main__':
     main(sys.argv[1:])
-

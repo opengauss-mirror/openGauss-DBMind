@@ -10,13 +10,15 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import sys
+sys.path.append('..')
 from typing import List
 from contextlib import contextmanager
-import logging
 
 import psycopg2
 
 from .common import BaseExecutor
+from utils import logger
 
 
 class DriverExecutor(BaseExecutor):
@@ -48,7 +50,7 @@ class DriverExecutor(BaseExecutor):
         except psycopg2.ProgrammingError:
             return [('ERROR',)]
         except Exception as e:
-            logging.warning('Found %s while executing SQL statement.', e)
+            logger.warning('Found %s while executing SQL statement.', e)
             return [('ERROR ' + str(e),)]
         finally:
             self.conn.rollback()

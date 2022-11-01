@@ -18,6 +18,8 @@ from scipy import signal
 
 warnings.filterwarnings("ignore")
 
+MIN_WINDOW = 9
+
 
 def acovf(x):  # auto-covariances function
     x = np.array(x)
@@ -52,15 +54,29 @@ def is_seasonal_series(x, high_ac_threshold: float = 0.5, min_seasonal_freq=3):
     At last if the peaks found is fewer than 'min_seasonal_freq', The method thinks
     the input x sequence is not seasonal.
     """
+    # The periodic analysis is independent of the trend. If the trend components
+    # are not separated, the autocorrelation will be significantly affected and
+    # it is difficult to identify the period. So we extract the trend components.
+    window = max(MIN_WINDOW, len(x) // (min_seasonal_freq + 1))
+    detrended = x - decompose_trend(x, np.ones(window) / window)
 
-    ac_coef = acf(x, nlags=len(x) - 1)  # auto-correlation coefficient
-    high_ac_peak_pos = signal.find_peaks(ac_coef)[0]
+    ac_coef = acf(detrended, nlags=len(x) - 1)  # auto-correlation coefficient
+    valleys = signal.find_peaks(-ac_coef, height=(0, None))[0]
+    lower_bound = valleys[0] if valleys.size else 0
+    high_ac_peak_pos = signal.find_peaks(ac_coef, height=(0, None))[0]
 
-    beyond_threshold = np.argwhere(ac_coef >= high_ac_threshold).flatten()[1:-1]  # exclude the first and last
+    beyond_threshold = np.argwhere(ac_coef >= high_ac_threshold).flatten()
     high_ac_peak_pos = np.intersect1d(high_ac_peak_pos, beyond_threshold)
-
-    high_ac_peak_pos = high_ac_peak_pos[high_ac_peak_pos < len(ac_coef) // 2]
-    if len(high_ac_peak_pos) - 1 >= min_seasonal_freq:
+    # Noise in autocorrelation coefficients may be mistaken for peaks.
+    # According to experience, we think that a sequence with obvious periodicity
+    # will have a minimum value of the autocorrelation coefficient when moving
+    # for half a period. Therefore, we think that the period can only appear
+    # after the first minimum value.
+    high_ac_peak_pos = high_ac_peak_pos[
+        (high_ac_peak_pos < len(ac_coef) // 2) &
+        (high_ac_peak_pos > lower_bound)
+    ]
+    if len(high_ac_peak_pos) >= min_seasonal_freq:
         return True, int(high_ac_peak_pos[np.argmax(ac_coef[high_ac_peak_pos])])
 
     return False, None
@@ -73,7 +89,7 @@ def get_seasonal_period(values, high_ac_threshold: float = 0.5, min_seasonal_fre
 def _conv_kernel(period):
     """
     If period is even, convolution kernel is [0.5, 1, 1, ... 1, 0.5] with the size of (period + 1)
-    else if period is od, convolution kernel is [1, 1, ... 1] with the size of period
+    else if period is odd, convolution kernel is [1, 1, ... 1] with the size of period
     Make sure the the size of convolution kernel is odd.
     """
 
@@ -86,10 +102,10 @@ def _conv_kernel(period):
 def extrapolate(x, head, tail, length):
     head_template = x[head:head + length]
     k = np.polyfit(np.arange(1, len(head_template) + 1), head_template, deg=1)
-    head = k[0] * np.arange(head) + x[head] - head * k[0]
+    head = k[0] * np.arange(head) + x[0] - head * k[0]
     tail_template = x[-tail - length:-tail]
     k = np.polyfit(np.arange(1, len(tail_template) + 1), tail_template, deg=1)
-    tail = k[0] * np.arange(tail) + x[-tail]
+    tail = k[0] * np.arange(tail) + x[-1] + k[0]
     x = np.r_[head, x, tail]
     return x
 

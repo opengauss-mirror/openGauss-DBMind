@@ -308,7 +308,7 @@ class ARIMA(ForecastingAlgorithm):
                     continue
 
             _, p0, q0 = sorted(orders)[0]
-            for p, q in [(p0-1, q0), (p0, q0-1), (p0+1, q0), (p0, q0+1)]:
+            for p, q in [(p0 - 1, q0), (p0, q0 - 1), (p0 + 1, q0), (p0, q0 + 1)]:
                 if p < 0 or q < 0:
                     continue
 
@@ -434,10 +434,19 @@ class ARIMA(ForecastingAlgorithm):
         :param params: type->np.array
         :return llf: type->float
         """
-
         resid = self.get_resid(params)
-        sigma2 = np.sum(resid ** 2) / float(self.nobs)
-        llf = -self.nobs * (np.log(2 * np.pi * sigma2) + 1) / 2.0
+        """Traditional calculation approach is always:
+        ```
+            sigma2 = np.sum(resid ** 2) / self.nobs
+            llf = -self.nobs * (np.log(2 * np.pi * sigma2) + 1) / 2.0
+        ```
+        But, we use the formula derivation result below considering the efficiency.
+        """
+        l2 = np.linalg.norm(resid)
+        llf = -self.nobs * (
+                np.log(2 * np.pi) + 2 * np.log(l2) - np.log(self.nobs) + 1
+        ) / 2.0
+
         return llf
 
     @property

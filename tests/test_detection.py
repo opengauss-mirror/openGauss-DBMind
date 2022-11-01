@@ -10,10 +10,8 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from sklearn.svm import SVR
 
 from dbmind.common.algorithm.forecasting import ForecastingFactory
-from dbmind.common.algorithm.forecasting.simple_forecasting import SupervisedModel
 from dbmind.common.types import Sequence
 
 linear_seq = Sequence(tuple(range(1, 10)), tuple(range(1, 10)))
@@ -36,20 +34,3 @@ def test_linear_regression():
     assert roughly_compare(result, range(10, 20))
 
     assert ForecastingFactory.get_instance(linear_seq) is linear
-
-
-def test_supervised_linear_regression():
-    linear = SupervisedModel()
-    linear.fit(linear_seq)
-    result = linear.forecast(10)
-    assert len(result) == 10
-    assert roughly_compare(result, range(9, 19))
-
-
-def test_supervised_svr():
-    # WARNING: the SVR model with nonlinear kernel does not work.
-    svr = SupervisedModel(SVR(kernel='linear', verbose=True, max_iter=100))
-    svr.fit(linear_seq)
-    result = svr.forecast(10)
-    assert len(result) == 10
-    assert roughly_compare(result, range(9, 19))

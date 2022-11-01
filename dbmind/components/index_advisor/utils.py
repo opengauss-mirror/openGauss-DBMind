@@ -12,6 +12,8 @@
 # See the Mulan PSL v2 for more details.
 
 import re
+import logging
+from logging.handlers import RotatingFileHandler
 from collections import defaultdict
 from enum import Enum
 from functools import lru_cache
@@ -22,7 +24,22 @@ import sqlparse
 from sqlparse.tokens import Name
 
 COLUMN_DELIMITER = ', '
+QUERY_PLAN_SUFFIX = 'QUERY PLAN'
+EXPLAIN_SUFFIX = 'EXPLAIN'
+ERROR_KEYWORD = 'ERROR'
+PREPARE_KEYWORD = 'PREPARE'
 
+logfile = 'index_advisor.log'
+handler = RotatingFileHandler(
+    filename='index_advisor.log',
+    maxBytes=100 * 1024 * 1024,
+    backupCount=5,
+)
+handler.setLevel(logging.INFO)
+handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s'))
+logger = logging.getLogger('index advisor')
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 class QueryType(Enum):
     INEFFECTIVE = 0
@@ -135,6 +152,9 @@ class AdvisedIndex:
     def get_table(self):
         return self.__table
 
+    def get_schema(self):
+        return self.__table.split('.')[0]
+
     def get_columns(self):
         return self.__columns
 
@@ -160,9 +180,15 @@ class AdvisedIndex:
         self.association_indexes[association_indexes_name].append(association_benefit)
 
     def match_index_name(self, index_name):
-        return index_name.endswith(f'btree_{self.get_index_type() + "_" if self.get_index_type() else ""}'
-                                   f'{self.get_table().split(".")[-1]}_'
-                                   f'{"_".join(self.get_columns().split(COLUMN_DELIMITER))}')
+        schema = self.get_schema()
+        if schema == 'public':
+            return index_name.endswith(f'btree_{self.get_index_type() + "_" if self.get_index_type() else ""}'
+                                       f'{self.get_table().split(".")[-1]}_'
+                                       f'{"_".join(self.get_columns().split(COLUMN_DELIMITER))}')
+        else:
+            return index_name.endswith(f'btree_{self.get_index_type() + "_" if self.get_index_type() else ""}'
+                                       f'{self.get_table().replace(".", "_")}_'
+                                       f'{"_".join(self.get_columns().split(COLUMN_DELIMITER))}')
 
     def __str__(self):
         return f'table: {self.__table} columns: {self.__columns} index_type: ' \
@@ -377,12 +403,14 @@ class WorkLoad:
                     ineffective_queries.append(query)
             positive_queries = [query for query in insert_queries + delete_queries + update_queries + select_queries
                                 if query not in negative_queries + ineffective_queries]
-        return insert_queries, delete_queries, update_queries, select_queries, positive_queries, ineffective_queries, negative_queries
+        return insert_queries, delete_queries, update_queries, select_queries, \
+            positive_queries, ineffective_queries, negative_queries
 
     @lru_cache(maxsize=None)
     def get_index_sql_num(self, index: AdvisedIndex):
-        insert_queries, delete_queries, update_queries, select_queries, positive_queries, ineffective_queries, negative_queries = \
-            self.get_index_related_queries(index)
+        insert_queries, delete_queries, update_queries, \
+            select_queries, positive_queries, ineffective_queries, \
+            negative_queries = self.get_index_related_queries(index)
         insert_sql_num = sum(query.get_frequency() for query in insert_queries)
         delete_sql_num = sum(query.get_frequency() for query in delete_queries)
         update_sql_num = sum(query.get_frequency() for query in update_queries)
@@ -564,7 +592,7 @@ def split_iter(iterable, n):
     index = 0
     res = []
     for size in size_list:
-        res.append(iterable[index:index+size])
+        res.append(iterable[index:index + size])
         index += size
     return res
 
@@ -576,3 +604,5 @@ def flatten(iterable):
                 yield item
         else:
             yield _iter
+
+
