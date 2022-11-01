@@ -76,8 +76,11 @@ class SFTP(object):
         except FileNotFoundError:
             return False
 
-    def upload_file(self, file, local_dir, remote_dir):
+    def upload_file(self, file, local_dir, remote_dir, black_list=None):
         local_file = os.path.join(local_dir, file)
+        if black_list and local_file in black_list:
+            return
+
         remote_file = os.path.join(remote_dir, file).replace('\\', '/')
         if not os.path.isfile(local_file):
             raise FileNotFoundError(f'File {local_file} is not found.')
@@ -89,24 +92,24 @@ class SFTP(object):
             print(f"WARNING: Transportation of {local_file} to {self.host}{remote_file} failed, "
                   f"check if '{file}' is running in processes.")
 
-    def upload_dir(self, item, local_dir, remote_dir):
+    def upload_dir(self, item, local_dir, remote_dir, black_list=None):
         local_item = os.path.join(local_dir, item)
+        if black_list and local_item in black_list:
+            return
+
         remote_item = os.path.join(remote_dir, item).replace('\\', '/')
         self.mkdir(remote_item)
 
-        files = os.listdir(local_item)
-        for file in files:
-            local_file = os.path.join(local_item, file)
-            if os.path.isdir(local_file):
-                self.upload_dir(file, local_item, remote_item)
-            elif file.endswith('.pyc'):
-                continue
-            elif not (self.local and local_item == remote_item):
-                self.upload_file(file, local_item, remote_item)
-            elif self.local and local_item == remote_item:
-                print(f'WARNING: Source: {local_item} and destination: {remote_item}'
-                      ' are the same path from the same node.'
-                      ' Transportation was skipped to avoid overwriting.')
+        for entry in os.scandir(local_item):
+            if entry.is_dir():
+                self.upload_dir(entry.name, local_item, remote_item)
+            elif entry.is_file():
+                if self.local and local_item == remote_item:
+                    print(f'WARNING: Source: {local_item} and destination: {remote_item}'
+                          ' are the same path from the same node.'
+                          ' Transportation was skipped to avoid overwriting.')
+                    continue
+                self.upload_file(entry.name, local_item, remote_item)
 
     def mkdir(self, path):
         if self.exists(path):
