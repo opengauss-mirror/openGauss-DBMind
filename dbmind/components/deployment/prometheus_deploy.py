@@ -452,7 +452,7 @@ def yaml_edit(yaml_path, configs):
         yaml.dump(yaml_obj, f)
 
 
-def deploy(path, configs, online=False):
+def deploy(configs, online=False):
     """
     To deploy prometheus and exporters to the locations which are given in the config file.
     For once the prometheus and reprocessing exporter will be deployed at the same location.
@@ -461,50 +461,56 @@ def deploy(path, configs, online=False):
     database targets.
     """
 
-    def dir_permission_control(father_path, folder):
-        directory = os.path.join(father_path, folder)
-        return [
-            f'find {directory} -type d | xargs -i chmod {DIR_PERMISSION} {{}}',
-            f'find {directory} -type f | xargs -i chmod {FILE_PERMISSION} {{}}'
-        ]
-
-    def sftp_upload(ip, username, passwd, port, remote_dir, software):
-        try:
-            sftp = SFTP(ip, username, passwd, port=int(port), local=ip in LOCALHOSTS)
-            sftp.connect()
-            sftp.mkdir(remote_dir)
-            dbmind_permission = list()
-            for entry in os.scandir(DBMIND_PATH):
-                if entry.is_file():
-                    sftp.upload_file(entry.name, DBMIND_PATH, remote_dir, black_list=block_dict["file"])
-                    dbmind_permission.append(f'chmod {DBMIND_PERMISSION} {os.path.join(remote_dir, entry.name)}')
-                elif entry.is_dir():
-                    sftp.upload_dir(entry.name, DBMIND_PATH, remote_dir, black_list=block_dict["dir"])
-                    dbmind_permission.extend(dir_permission_control(remote_dir, entry.name))
-            sftp.upload_dir(software, path, remote_dir)
-            dbmind_permission.extend(dir_permission_control(remote_dir, software))
-            sftp.remote_executor(dbmind_permission)
-            sftp.quit()
-        except AuthenticationException:
-            raise AuthenticationException(
-                "Invalid username, password, address or unauthorized path for "
-                r"{}@{}:{}/{}".format(username, host, port, remote_dir)
-            )
-
     block_dict = {
         "dir": (
-            glob.glob(os.path.join(DBMIND_PATH, ".git")) +
-            glob.glob(os.path.join(DBMIND_PATH, "docs")) +
-            glob.glob(os.path.join(DBMIND_PATH, "tests"))
+                glob.glob(os.path.join(EXTRACT_PATH, configs.get(DOWNLOADING, "prometheus"), "data")) +
+                glob.glob(os.path.join(DBMIND_PATH, "**", ".*"), recursive=True) +
+                glob.glob(os.path.join(DBMIND_PATH, "docs")) +
+                glob.glob(os.path.join(DBMIND_PATH, "tests")) +
+                glob.glob(os.path.join(DBMIND_PATH, "**", "__pycache__"), recursive=True)
         ),
         "file": (
-            glob.glob(os.path.join(DBMIND_PATH, "**\*.pyc"), recursive=True) +
-            glob.glob(os.path.join(DBMIND_PATH, "**\.gitignore"), recursive=True) +
-            glob.glob(os.path.join(DBMIND_PATH, "**\*.log"), recursive=True)
+                glob.glob(os.path.join(DBMIND_PATH, "**", ".gitignore"), recursive=True) +
+                glob.glob(os.path.join(DBMIND_PATH, "**", "*.log"), recursive=True)
         )
     }
 
-    download_path = os.path.join(path, 'downloads')
+    dbmind_list = glob.glob(os.path.join(DBMIND_PATH, "dbmind", "**"), recursive=True)
+
+    def sftp_upload(ip, username, passwd, port, remote_dir, software):
+        def upload_preparation(local_dir, remote_dir):
+            sftp.mkdir(remote_dir)
+            for entry in os.scandir(local_dir):
+                remote_path = os.path.join(remote_dir, entry.name)
+                if entry.is_file() and entry.path not in block_dict["file"]:
+                    upload_list.append((entry.name, local_dir, remote_dir))
+                    if entry.path in dbmind_list:
+                        dbmind_permission.append(f'chmod {DBMIND_PERMISSION} {remote_path}')
+                    else:
+                        dbmind_permission.append(f'chmod {FILE_PERMISSION} {remote_path}')
+
+                elif entry.is_dir() and entry.path not in block_dict["dir"]:
+                    dbmind_permission.append(f'chmod {DIR_PERMISSION} {remote_path}')
+                    upload_preparation(entry.path, remote_path)
+
+        with SFTP(ip, username, passwd, port=int(port)) as sftp:
+            upload_list = list()
+            dbmind_permission = list()
+            sftp.remote_executor([f"chmod +w -R {remote_dir}"])
+            upload_preparation(DBMIND_PATH, remote_dir)
+            upload_preparation(os.path.join(EXTRACT_PATH, software),
+                               os.path.join(remote_dir, software))
+            for name, local_path, remote_path in upload_list:
+                if ip in LOCALHOSTS and local_path == remote_path:
+                    print(f'WARNING: Source: {local_path} and destination: {remote_path}'
+                          ' are the same path from the same node.'
+                          ' Transportation was skipped to avoid overwriting.')
+                    continue
+                sftp.upload_file(name, local_path, remote_path)
+
+            sftp.remote_executor(dbmind_permission)
+
+    download_path = os.path.join(EXTRACT_PATH, 'downloads')
     if not os.path.exists(download_path):
         os.mkdir(download_path)
 
@@ -538,12 +544,12 @@ def deploy(path, configs, online=False):
         print("Prometheus or node_exporter 'tar.gz' file doesn't exist.")
         prometheus_ready, node_exporter_ready = False, False
     else:
-        prometheus_ready = unzip(download_path, prometheus_file, path)
-        node_exporter_ready = unzip(download_path, node_exporter_file, path)
+        prometheus_ready = unzip(download_path, prometheus_file, EXTRACT_PATH)
+        node_exporter_ready = unzip(download_path, node_exporter_file, EXTRACT_PATH)
 
     if prometheus_ready and node_exporter_ready:
         exporters = db_exporters_parsing(configs)
-        yaml_path = os.path.join(path, configs.get(DOWNLOADING, 'prometheus'), 'prometheus.yml')
+        yaml_path = os.path.join(EXTRACT_PATH, configs.get(DOWNLOADING, 'prometheus'), 'prometheus.yml')
         print('Deployment finished, you can find the "prometheus.yml" file at {}'.format(yaml_path))
         yaml_edit(yaml_path, configs)  # edit the prometheus config file
         sftp_upload(
@@ -994,7 +1000,7 @@ def main(argv):
                 passwd_input(PROMETHEUS, configs)
                 passwd_input(EXPORTERS, configs)
 
-            deploy(EXTRACT_PATH, configs, online=args['online'])
+            deploy(configs, online=args['online'])
 
         if args['run'] or args['check']:
             if config_ports_has_conflict(configs):
