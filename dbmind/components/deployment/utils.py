@@ -42,7 +42,7 @@ class ConfigParser(configparser.ConfigParser):
 
 
 class SFTP(object):
-    def __init__(self, host, user, password, port=22, local=False):
+    def __init__(self, host, user, password, port=22):
         check_ssh_version()
         self.host = host
         self.port = port
@@ -52,7 +52,6 @@ class SFTP(object):
         self.client = None
         ssh = SSH(host, user, password, port=int(port))
         self.remote_executor = ssh.exec_command_sync
-        self.local = local
 
     def connect(self):
         transporter = paramiko.Transport((self.host, self.port))
@@ -76,46 +75,46 @@ class SFTP(object):
         except FileNotFoundError:
             return False
 
-    def upload_file(self, file, local_dir, remote_dir, black_list=None):
+    def upload_file(self, file, local_dir, remote_dir):
         local_file = os.path.join(local_dir, file)
-        if black_list and local_file in black_list:
-            return
-
         remote_file = os.path.join(remote_dir, file).replace('\\', '/')
         if not os.path.isfile(local_file):
             raise FileNotFoundError(f'File {local_file} is not found.')
-
         try:
             self.client.put(local_file, remote_file)
             print(f"Successfully uploaded local {local_file} to {self.host}{remote_file}.")
-        except IOError:
+        except IOError as e:
             print(f"WARNING: Transportation of {local_file} to {self.host}{remote_file} failed, "
                   f"check if '{file}' is running in processes.")
 
-    def upload_dir(self, item, local_dir, remote_dir, black_list=None):
+    def upload_dir(self, item, local_dir, remote_dir):
         local_item = os.path.join(local_dir, item)
-        if black_list and local_item in black_list:
-            return
-
         remote_item = os.path.join(remote_dir, item).replace('\\', '/')
         self.mkdir(remote_item)
-
         for entry in os.scandir(local_item):
             if entry.is_dir():
                 self.upload_dir(entry.name, local_item, remote_item)
             elif entry.is_file():
-                if self.local and local_item == remote_item:
-                    print(f'WARNING: Source: {local_item} and destination: {remote_item}'
-                          ' are the same path from the same node.'
-                          ' Transportation was skipped to avoid overwriting.')
-                    continue
                 self.upload_file(entry.name, local_item, remote_item)
 
     def mkdir(self, path):
         if self.exists(path):
             return
-        self.mkdir(os.path.dirname(path))
-        self.client.mkdir(path)
+        try:
+            self.mkdir(os.path.dirname(path))
+            self.client.mkdir(path)
+        except paramiko.ssh_exception.AuthenticationException:
+            raise paramiko.ssh_exception.AuthenticationException(
+                "Invalid username, password, address or unauthorized path for "
+                r"{}@{}:{}/{}".format(self.username, self.host, self.port, path)
+            )
+
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.quit()
 
 
 def validate_ssh_connection(pwd, username, host, port):
