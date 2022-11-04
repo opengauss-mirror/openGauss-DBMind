@@ -42,35 +42,39 @@ from dbmind.common.utils import cast_to_int_or_float
 from dbmind.service import dai
 
 index_template_args = TemplateArgs(
-    global_vars.configs.getint('SELF-OPTIMIZATION', 'max_reserved_period'),
-    global_vars.configs.getint('SELF-OPTIMIZATION', 'max_template_num')
+    global_vars.configs.getint(
+        'SELF-OPTIMIZATION', 'max_reserved_period', fallback=100
+    ),
+    global_vars.configs.getint(
+        'SELF-OPTIMIZATION', 'max_template_num', fallback=5000
+    )
 )
 alarms_need_to_repair = []
 alarms_repair_flag = False
 alarms_repair_condition = threading.Condition()
 
 detection_interval = global_vars.configs.getint(
-    'SELF-MONITORING', 'detection_interval'
+    'SELF-MONITORING', 'detection_interval', fallback=600
 )
 
 last_detection_minutes = global_vars.configs.getint(
-    'SELF-MONITORING', 'last_detection_time'
+    'SELF-MONITORING', 'last_detection_time', fallback=600
 ) / 60
 
 how_long_to_forecast_minutes = global_vars.configs.getint(
-    'SELF-MONITORING', 'forecasting_future_time'
+    'SELF-MONITORING', 'forecasting_future_time', fallback=3600
 ) / 60
 
 result_storage_retention = global_vars.configs.getint(
-    'SELF-MONITORING', 'result_storage_retention'
+    'SELF-MONITORING', 'result_storage_retention', fallback=604800
 )
 
 optimization_interval = global_vars.configs.getint(
-    'SELF-OPTIMIZATION', 'optimization_interval'
+    'SELF-OPTIMIZATION', 'optimization_interval', fallback=86400
 )
 
 kill_slow_query = global_vars.configs.getboolean(
-    'SELF-OPTIMIZATION', 'kill_slow_query'
+    'SELF-OPTIMIZATION', 'kill_slow_query', fallback=False
 )
 
 enable_self_healing = False

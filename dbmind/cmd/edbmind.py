@@ -139,10 +139,12 @@ class DBMindMain(Daemon):
         )
 
         # Set logger.
-        os.makedirs('logs', exist_ok=True)
+        log_directory = global_vars.configs.get('LOG', 'log_directory', fallback='logs')
+        log_directory = os.path.realpath(log_directory)
+        os.makedirs(log_directory, exist_ok=True)
         max_bytes = global_vars.configs.getint('LOG', 'maxbytes')
         backup_count = global_vars.configs.getint('LOG', 'backupcount')
-        logging_handler = utils.MultiProcessingRFHandler(filename=os.path.join('logs', constants.LOGFILE_NAME),
+        logging_handler = utils.MultiProcessingRFHandler(filename=os.path.join(log_directory, constants.LOGFILE_NAME),
                                                          maxBytes=max_bytes,
                                                          backupCount=backup_count)
         logging_handler.setFormatter(

@@ -32,7 +32,7 @@ from dbmind.metadatabase import (
 from dbmind.metadatabase.dao.dynamic_config import dynamic_config_set, dynamic_config_get
 
 
-def initialize_and_check_config(confpath, interactive=False):
+def initialize_and_check_config(confpath, interactive=False, quiet=False):
     if not os.path.exists(confpath):
         raise SetupError('Not found the directory %s.' % confpath)
     confpath = os.path.realpath(confpath)  # in case of dir changed.
@@ -114,20 +114,27 @@ def initialize_and_check_config(confpath, interactive=False):
                                         color='red')
             return
 
-        utils.cli.write_to_terminal('The given database has duplicate tables. '
-                                    'If you want to reinitialize the database, press [R]. '
-                                    'If you want to keep the existent tables, press [K].', color='red')
-        input_char = ''
-        while input_char not in ('R', 'K'):
-            input_char = input('Press [R] to reinitialize; Press [K] to keep and ignore:').upper()
-        if input_char == 'R':
+        def override():
             utils.cli.write_to_terminal('Starting to drop existent tables in meta-database...',
                                         color='green')
             destroy_metadatabase()
             utils.cli.write_to_terminal('Starting to create tables for meta-database...', color='green')
             create_metadatabase_schema(check_first=True)
-        if input_char == 'K':
-            utils.cli.write_to_terminal('Ignoring...', color='green')
+
+        if not quiet:
+            utils.cli.write_to_terminal('The given database has duplicate tables. '
+                                        'If you want to reinitialize the database, press [R]. '
+                                        'If you want to keep the existent tables, press [K].', color='red')
+            input_char = ''
+            while input_char not in ('R', 'K'):
+                input_char = input('Press [R] to reinitialize; Press [K] to keep and ignore:').upper()
+            if input_char == 'R':
+                override()
+            if input_char == 'K':
+                utils.cli.write_to_terminal('Ignoring...', color='green')
+        else:
+            override()
+
         # If successful, refresh the version number.
         shutil.copy(
             src=os.path.join(constants.MISC_PATH, constants.VERFILE_NAME),
