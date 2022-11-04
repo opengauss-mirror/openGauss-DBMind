@@ -175,7 +175,7 @@ def validate_ssh_connection(pwd, username, host, port):
 
 def validate_database_connection(pwd, username, host, port, dbname):
     try:
-        psycopg2.connect(
+        conn = psycopg2.connect(
             dbname=dbname,
             user=username,
             password=pwd,
@@ -183,6 +183,7 @@ def validate_database_connection(pwd, username, host, port, dbname):
             port=int(port),
             application_name='DBMind-deployment'
         )
+        conn.close()
         return True
     except psycopg2.Error as e:
         print(e)

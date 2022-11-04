@@ -178,7 +178,6 @@ def load_sys_configs(confile):
                 s1 = dynamic_config_get('dbmind_config', 'cipher_s1')
                 s2 = dynamic_config_get('dbmind_config', 'cipher_s2')
                 iv = dynamic_config_get('iv_table', '%s-%s' % (section, option))
-                real_value = None
                 if value.startswith(ENCRYPTED_SIGNAL):
                     real_value = value[len(ENCRYPTED_SIGNAL):]
                 else:
@@ -231,7 +230,7 @@ class ConfigUpdater:
             default_value = NULL_TYPE
         return default_value, inline_comment
 
-    def set(self, section, option, value, inline_comment):
+    def set(self, section, option, value, inline_comment=''):
         self.readonly = False
         self.config.set(section, option, '%s  # %s' % (value, inline_comment))
 

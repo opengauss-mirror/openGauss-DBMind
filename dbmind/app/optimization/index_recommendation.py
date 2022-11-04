@@ -24,8 +24,12 @@ from dbmind.components.index_advisor import index_advisor_workload, process_bar,
 from dbmind.components.fetch_statement import fetch_statement
 from dbmind.service import dai
 
-index_advisor_workload.MAX_INDEX_NUM = global_vars.configs.getint('SELF-OPTIMIZATION', 'max_index_num')
-index_advisor_workload.MAX_INDEX_STORAGE = global_vars.configs.getint('SELF-OPTIMIZATION', 'max_index_storage')
+index_advisor_workload.MAX_INDEX_NUM = global_vars.configs.getint(
+    'SELF-OPTIMIZATION', 'max_index_num', fallback=10
+)
+index_advisor_workload.MAX_INDEX_STORAGE = global_vars.configs.getint(
+    'SELF-OPTIMIZATION', 'max_index_storage', fallback=100
+)
 process_bar.print = lambda *args, **kwargs: None
 
 

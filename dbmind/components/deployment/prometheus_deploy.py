@@ -21,6 +21,7 @@ import sys
 import time
 from collections import defaultdict
 from urllib.parse import quote_plus
+from typing import Callable
 
 import requests
 import yaml
@@ -335,7 +336,14 @@ def set_deploy_config_interactive(configs):
         configs.write(f)
 
 
-def yaml_edit(yaml_path, configs):
+def edit_prometheus_yaml(
+        yaml_path,
+        configs,
+        node_exporter_targets,
+        cmd_exporter_targets,
+        opengauss_exporter_targets,
+        additionally_edit: Callable = None
+):
     with open(yaml_path, 'r', encoding='utf-8') as f:
         yaml_obj = yaml.safe_load(f.read())
 
@@ -404,25 +412,16 @@ def yaml_edit(yaml_path, configs):
                 'cert_file': configs.get(SSL, 'prometheus_ssl_certfile'),
             }
 
-    exporters = db_exporters_parsing(configs)
-
     for job in yaml_obj['scrape_configs']:
         if job['job_name'] == 'node_exporter':
             for i, config in enumerate(job['static_configs']):
                 if 'targets' in config:
-                    for host in exporters:
-                        job['static_configs'][i]['targets'].append(
-                            host + ':' + configs.get(EXPORTERS, 'node_exporter_port')
-                        )
+                    job['static_configs'][i]['targets'].extend(node_exporter_targets)
 
-    for job in yaml_obj['scrape_configs']:
         if job['job_name'] == 'cmd_exporter':
             for i, config in enumerate(job['static_configs']):
                 if 'targets' in config:
-                    for host in exporters:
-                        job['static_configs'][i]['targets'].append(
-                            host + ':' + configs.get(EXPORTERS, 'cmd_exporter_port')
-                        )
+                    job['static_configs'][i]['targets'].extend(cmd_exporter_targets)
 
             if job['scheme'] == 'https':
                 job['tls_config'] = {
@@ -431,15 +430,10 @@ def yaml_edit(yaml_path, configs):
                     'cert_file': configs.get(SSL, 'prometheus_ssl_certfile'),
                 }
 
-    for job in yaml_obj['scrape_configs']:
         if job['job_name'] == 'opengauss_exporter':
             for i, config in enumerate(job['static_configs']):
                 if 'targets' in config:
-                    for host in exporters:
-                        for opengauss_exporter in exporters[host]['opengauss_exporters']:
-                            job['static_configs'][i]['targets'].append(
-                                opengauss_exporter
-                            )
+                    job['static_configs'][i]['targets'].extend(opengauss_exporter_targets)
 
             if job['scheme'] == 'https':
                 job['tls_config'] = {
@@ -447,10 +441,20 @@ def yaml_edit(yaml_path, configs):
                     'key_file': configs.get(SSL, 'prometheus_ssl_keyfile'),
                     'cert_file': configs.get(SSL, 'prometheus_ssl_certfile'),
                 }
+
+    if additionally_edit:
+        yaml_obj = additionally_edit(yaml_obj)
 
     with open(yaml_path, 'w') as f:
         print('Initiating Prometheus config file.')
         yaml.dump(yaml_obj, f)
+
+
+def get_target_generator(exporters):
+    def generate(port):
+        return [f'{host}:{port}' for host in exporters]
+
+    return generate
 
 
 def deploy(configs, online=False):
@@ -550,10 +554,20 @@ def deploy(configs, online=False):
         node_exporter_ready = unzip(download_path, node_exporter_file, EXTRACT_PATH)
 
     if prometheus_ready and node_exporter_ready:
-        exporters = db_exporters_parsing(configs)
         yaml_path = os.path.join(EXTRACT_PATH, configs.get(DOWNLOADING, 'prometheus'), 'prometheus.yml')
         print('Deployment finished, you can find the "prometheus.yml" file at {}'.format(yaml_path))
-        yaml_edit(yaml_path, configs)  # edit the prometheus config file
+        exporters = db_exporters_parsing(configs)
+        generate_targets = get_target_generator(exporters)
+        node_exporter_targets = generate_targets(configs.get(EXPORTERS, 'node_exporter_port'))
+        cmd_exporter_targets = generate_targets(configs.get(EXPORTERS, 'cmd_exporter_port'))
+        opengauss_exporter_targets = exporters[host]['opengauss_exporters']
+        edit_prometheus_yaml(
+            yaml_path,
+            configs,
+            node_exporter_targets=node_exporter_targets,
+            cmd_exporter_targets=cmd_exporter_targets,
+            opengauss_exporter_targets=opengauss_exporter_targets
+        )  # edit the prometheus config file
         sftp_upload(
             configs.get(PROMETHEUS, 'host'),
             configs.get(PROMETHEUS, 'host_username'),

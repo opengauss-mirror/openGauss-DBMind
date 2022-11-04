@@ -12,7 +12,7 @@
 # See the Mulan PSL v2 for more details.
 import re
 
-BLANK = " "
+BLANK = ' '
 
 
 def to_tuples(text):
@@ -66,3 +66,21 @@ def to_tuples(text):
             row = []
             wrap_flag = False
     return tuples
+
+
+def parse_dsn(dsn):
+    try:
+        # Use psycopg2 first.
+        from psycopg2.extensions import parse_dsn as parser
+        from psycopg2 import ProgrammingError
+
+        try:
+            return parser(dsn)
+        except ProgrammingError:
+            # According to strict strategy, we have to ignore specific error
+            # message.
+            raise ValueError('Invalid dsn.') from None
+
+    except ImportError:
+        raise NotImplementedError()
+

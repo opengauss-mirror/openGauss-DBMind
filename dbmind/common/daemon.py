@@ -70,7 +70,13 @@ class Daemon:
         self.status = Daemon.STATUS.PENDING
 
     def daemonize(self):
-        if not WIN32:
+        # This environment variable DBMIND_USE_DAEMON is often used when the startup 
+        # process cannot exit, such as in the docker. 
+        # If the startup process exits, the service will switch 
+        # into the backend and other high-level applications 
+        # maybe cannot know whether the service exits. 
+        use_daemon = os.getenv('DBMIND_USE_DAEMON', '1') == '1'
+        if not WIN32 and use_daemon:
             """UNIX-like OS has the double-fork magic."""
             try:
                 if os.fork() > 0:
