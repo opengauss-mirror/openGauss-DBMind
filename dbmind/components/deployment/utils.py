@@ -19,6 +19,8 @@ import re
 import shutil
 import sys
 import tarfile
+import threading
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, wait
 
 import paramiko
 import psycopg2
@@ -83,7 +85,7 @@ class SFTP(object):
         try:
             self.client.put(local_file, remote_file)
             print(f"Successfully uploaded local {local_file} to {self.host}{remote_file}.")
-        except IOError as e:
+        except IOError:
             print(f"WARNING: Transportation of {local_file} to {self.host}{remote_file} failed, "
                   f"check if '{file}' is running in processes.")
 
@@ -115,6 +117,52 @@ class SFTP(object):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.quit()
+
+
+thr_local_variables = threading.local()
+
+
+def sftp_put(ip, local_file, remote_file):
+    client = thr_local_variables.client
+    if not os.path.isfile(local_file):
+        raise FileNotFoundError(f'File {local_file} is not found.')
+    try:
+        client.put(local_file, remote_file)
+        print(f"Successfully uploaded local {local_file} to {ip}{remote_file}.")
+    except IOError:
+        print(f"WARNING: Transportation of {local_file} to {ip}{remote_file} failed, "
+              f"check if '{remote_file}' is running in processes.")
+
+
+def initializer(ip, port, username, passwd):
+    transporter = paramiko.Transport((ip, port))
+    transporter.connect(username=username, password=passwd)
+    client = paramiko.SFTPClient.from_transport(transporter)
+    thr_local_variables.client = client
+
+
+def transfer_pool(ip, port, username, passwd, upload_list, workers=4, method='process'):
+    if method == "process":
+        pool = ProcessPoolExecutor
+    elif method == "thread":
+        pool = ThreadPoolExecutor
+    else:
+        raise AttributeError("Attribute method must be 'process' or 'thread'.")
+
+    with pool(
+            max_workers=workers,
+            initializer=initializer,
+            initargs=(ip, port, username, passwd)
+    ) as executor:
+        futures = [executor.submit(sftp_put, *(ip, local_file, remote_file))
+                   for local_file, remote_file in upload_list]
+
+        wait(futures)
+        for future in futures:
+            try:
+                future.result()
+            except Exception as e:
+                print(e)
 
 
 def validate_ssh_connection(pwd, username, host, port):

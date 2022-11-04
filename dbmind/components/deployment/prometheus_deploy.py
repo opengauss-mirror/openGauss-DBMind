@@ -47,6 +47,7 @@ from .utils import (
     check_config_validity,
     convert_full_width_character_to_half_width,
     parse_ip_info_from_string,
+    transfer_pool,
     validate_ssh_connection,
     validate_database_connection
 )
@@ -481,9 +482,15 @@ def deploy(configs, online=False):
         def upload_preparation(local_dir, remote_dir):
             sftp.mkdir(remote_dir)
             for entry in os.scandir(local_dir):
+                local_path = os.path.join(local_dir, entry.name)
                 remote_path = os.path.join(remote_dir, entry.name)
                 if entry.is_file() and entry.path not in block_dict["file"]:
-                    upload_list.append((entry.name, local_dir, remote_dir))
+                    if ip in LOCALHOSTS and local_path == remote_path:
+                        print(f'WARNING: Source: {local_path} and destination: {remote_path}'
+                              ' are the same path from the same node.'
+                              ' Transportation was skipped to avoid overwriting.')
+                        continue
+                    upload_list.append((local_path, remote_path))
                     if entry.path in dbmind_list:
                         dbmind_permission.append(f'chmod {DBMIND_PERMISSION} {remote_path}')
                     else:
@@ -500,13 +507,8 @@ def deploy(configs, online=False):
             upload_preparation(DBMIND_PATH, remote_dir)
             upload_preparation(os.path.join(EXTRACT_PATH, software),
                                os.path.join(remote_dir, software))
-            for name, local_path, remote_path in upload_list:
-                if ip in LOCALHOSTS and local_path == remote_path:
-                    print(f'WARNING: Source: {local_path} and destination: {remote_path}'
-                          ' are the same path from the same node.'
-                          ' Transportation was skipped to avoid overwriting.')
-                    continue
-                sftp.upload_file(name, local_path, remote_path)
+
+            transfer_pool(ip, int(port), username, passwd, upload_list, workers=4)
 
             sftp.remote_executor(dbmind_permission)
 
