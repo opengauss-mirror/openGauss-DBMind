@@ -43,7 +43,7 @@ try:
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
-        replace_comma_with_dollar, flatten, ERROR_KEYWORD, logger
+        replace_comma_with_dollar, replace_function_comma, flatten, ERROR_KEYWORD, logger
     from .process_bar import bar_print, ProcessBar
 except ImportError:
     from sql_output_parser import parse_single_advisor_results, parse_explain_plan, \
@@ -58,7 +58,7 @@ except ImportError:
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
-        replace_comma_with_dollar, flatten, ERROR_KEYWORD, logger
+        replace_comma_with_dollar, replace_function_comma, flatten, ERROR_KEYWORD, logger
     from process_bar import bar_print, ProcessBar
 
 SAMPLE_NUM = 5
@@ -136,7 +136,7 @@ def is_valid_statement(conn, statement):
     if not res:
         return False
     for _tuple in res:
-        if ERROR_KEYWORD in _tuple[0].upper():
+        if _tuple[0].upper().startswith(ERROR_KEYWORD):
             return False
     return True
 
@@ -544,6 +544,7 @@ def get_workload_template(workload):
         # reservoir sampling
         statement = item.get_statement()
         if has_dollar_placeholder(statement):
+            statement = replace_function_comma(statement)
             statement = replace_comma_with_dollar(statement)
         if len(templates[sql_template]['samples']) < SAMPLE_NUM:
             templates[sql_template]['samples'].append(statement)

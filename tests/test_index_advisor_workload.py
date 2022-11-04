@@ -31,7 +31,8 @@ from dbmind.components.index_advisor import index_advisor_workload
 from dbmind.components.index_advisor.index_advisor_workload import generate_sorted_atomic_config, \
     add_more_column_index, filter_redundant_indexes_with_same_type, generate_atomic_config_containing_same_columns, \
     recalculate_cost_for_opt_indexes
-from dbmind.components.index_advisor.utils import WorkLoad, QueryItem, flatten, UniqueList
+from dbmind.components.index_advisor.utils import WorkLoad, QueryItem, flatten, UniqueList, \
+    replace_comma_with_dollar, replace_function_comma
 from dbmind.components.index_advisor import mcts
 
 
@@ -121,7 +122,8 @@ select * from student_range_part1 where credit=1;
                                     1445666.07], [[]] * 9)
         workload.add_indexes((Case.index1,),
                              [19933.29, 266350.65, 14841.35, 1734959.92, 0.0, 105765.53, 114289.41, 131445.85,
-                              1445666.07], [[]] * 2 + ['<171278>btree_store_sales_ss_item_sk_ss_sold_date_sk'] + [[]] * 6)
+                              1445666.07],
+                             [[]] * 2 + ['<171278>btree_store_sales_ss_item_sk_ss_sold_date_sk'] + [[]] * 6)
         workload.add_indexes((Case.index2,),
                              [19933.29, 266350.65, 90653.52, 1734959.92, 0.0, 105765.53, 114289.41, 131445.85,
                               1445666.07], [[]] * 2 + ['<171324>btree_global_item_i_manufact_id'] + [[]] * 6)
@@ -422,8 +424,10 @@ class SqlOutPutParserTester(unittest.TestCase):
                    ('(2 rows)',), ('',), ('DEALLOCATE',), ('total time: 1  ms',)]
         self.assertEqual(([8.27], [['temptable_int1_idx']]), parse_explain_plan(results, 1))
         results = [('SET',), ('SET',), ('SET',), ('PREPARE',),
-                   ('                                             QUERY PLAN                                             ',),
-                   ('Index Scan using <625283>btree_other_temptable_int2 on temptable  (cost=0.00..8.27 rows=1 width=8)',),
+                   (
+                   '                                             QUERY PLAN                                             ',),
+                   (
+                   'Index Scan using <625283>btree_other_temptable_int2 on temptable  (cost=0.00..8.27 rows=1 width=8)',),
                    ('Index Cond: (int2 = 10)',), ('(2 rows)',), ('',), ('DEALLOCATE',), ('total time: 1  ms',)]
         self.assertEqual(([8.27], [['<625283>btree_other_temptable_int2']]), parse_explain_plan(results, 1))
 
@@ -756,10 +760,10 @@ class IndexAdvisorTester(unittest.TestCase):
         self.assertEqual(workload.get_used_index_names(), set(['index1']))
         recalculate_cost_for_opt_indexes(workload, indexes)
         self.assertEqual(index1.get_positive_queries()[0].__str__(), 'statement: select * from a where col1=1 '
-                                                                    'frequency: 1 index_list: '
-                                                                    '[table: public.a columns: col1 '
-                                                                    'index_type: global storage: 10] '
-                                                                    'benefit: 500')
+                                                                     'frequency: 1 index_list: '
+                                                                     '[table: public.a columns: col1 '
+                                                                     'index_type: global storage: 10] '
+                                                                     'benefit: 500')
         self.assertEqual(index2.get_positive_queries()[0].__str__(), 'statement: select * from b where col1=2 '
                                                                      'frequency: 2 index_list: '
                                                                      '[table: public.b columns: col1 '
@@ -775,10 +779,10 @@ class IndexAdvisorTester(unittest.TestCase):
         query2 = QueryItem('select * from c where col1=2', 2)
         workload = WorkLoad([query1, query2])
         workload.add_indexes(None, [1000, 1000], [[], []])
-        workload.add_indexes((index1, ), [100, 1000], [[], []])
-        workload.add_indexes((index2, ), [50, 2000], [[], []])
+        workload.add_indexes((index1,), [100, 1000], [[], []])
+        workload.add_indexes((index2,), [50, 2000], [[], []])
         workload.add_indexes((index1, index2), [50, 1000], [[], []])
-        workload.add_indexes((index3, ), [1000, 500], [[], []])
+        workload.add_indexes((index3,), [1000, 500], [[], []])
         workload.add_indexes((index4,), [1000, 200], [[], []])
         workload.add_indexes((index3, index4), [1000, 100], [[], []])
         opt_config = [index2, index1, index4, index3]
@@ -857,7 +861,8 @@ class IndexAdvisorTester(unittest.TestCase):
                     (IndexItemFactory().get_index('test1', 'b,a', index_type='local'),
                      IndexItemFactory().get_index('test1', 'a,c,b', index_type='local'))
                     ]
-        self.assertEqual(generate_atomic_config_containing_same_columns(atomic_config_containing_same_columns), expected)
+        self.assertEqual(generate_atomic_config_containing_same_columns(atomic_config_containing_same_columns),
+                         expected)
 
     def test_remote(self):
         if not os.path.exists('remote.json'):
@@ -893,6 +898,21 @@ class IndexAdvisorTester(unittest.TestCase):
         nested_list = [1, 2, '34', [5, 6, [7], 8], 9, [10, '11']]
         expected = [1, 2, '34', 5, 6, 7, 8, 9, 10, '11']
         self.assertEqual(list(flatten(nested_list)), expected)
+
+    def test_replace_comma_with_dollar(self):
+        sql = 'select count(?) from table1;'
+        self.assertEqual(replace_function_comma(sql), 'select count(1) from table1;')
+        sql = 'select decode(col1, ?) from table1;'
+        self.assertEqual(replace_function_comma(sql), "select decode(col1, '1') from table1;")
+        sql = 'select ? from table1;'
+        self.assertEqual(replace_function_comma(sql), sql)
+
+    def test_replace_comma_with_dollar(self):
+        sql = "UPDATE bmsql_customer SET c_balance = c_balance + $1, c_delivery_cnt = c_delivery_cnt + ? " \
+              "WHERE c_w_id = $2 AND c_d_id = $3 AND c_id = $4 and c_info = ?;"
+        expected = "UPDATE bmsql_customer SET c_balance = c_balance + $1, c_delivery_cnt = c_delivery_cnt + $5 " \
+                   "WHERE c_w_id = $2 AND c_d_id = $3 AND c_id = $4 and c_info = $6;"
+        self.assertEqual(replace_comma_with_dollar(sql), expected)
 
 
 if __name__ == '__main__':
