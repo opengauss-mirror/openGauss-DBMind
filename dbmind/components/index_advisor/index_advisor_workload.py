@@ -68,6 +68,7 @@ MAX_INDEX_NUM = None
 MAX_INDEX_STORAGE = None
 FULL_ARRANGEMENT_THRESHOLD = 20
 NEGATIVE_RATIO_THRESHOLD = 0.2
+MAX_BENEFIT_THRESHOLD = 1000000
 SHARP = '#'
 JSON_TYPE = False
 BLANK = ' '
@@ -251,10 +252,15 @@ class IndexAdvisor:
                 positive_queries, ineffective_queries, \
                 negative_queries = self.workload.get_index_related_queries(index)
             sql_num = self.workload.get_index_sql_num(index)
+            max_benefit = 0
             # Calculate the average benefit of each positive SQL.
             for query in positive_queries:
-                sql_optimized += (1 - self.workload.get_indexes_cost_of_query(query, (index,)) /
-                                  self.workload.get_origin_cost_of_query(query)) * query.get_frequency()
+                current_cost = self.workload.get_indexes_cost_of_query(query, (index,))
+                origin_cost = self.workload.get_origin_cost_of_query(query)
+                sql_optimized += (1 - current_cost / origin_cost) * query.get_frequency()
+                benefit = origin_cost - current_cost
+                if benefit > max_benefit:
+                    max_benefit = benefit
             total_queries_num = sql_num['negative'] + sql_num['ineffective'] + sql_num['positive']
             if total_queries_num:
                 negative_sql_ratio = sql_num['negative'] / total_queries_num
@@ -263,7 +269,7 @@ class IndexAdvisor:
             if not positive_queries:
                 logger.info(f'filtered: positive_queries not found for the index')
                 continue
-            if sql_optimized / sql_num['positive'] < improved_rate:
+            if sql_optimized / sql_num['positive'] < improved_rate and max_benefit < MAX_BENEFIT_THRESHOLD:
                 logger.info(f"filtered: improved_rate {sql_optimized / sql_num['positive']} less than {improved_rate}")
                 continue
             if sql_optimized / sql_num['positive'] < \
@@ -1047,9 +1053,20 @@ def display_redundant_indexes(redundant_indexes: List[ExistingIndex]):
     if not redundant_indexes:
         bar_print("No redundant indexes!")
     # Display redundant indexes.
+    mark = set()
     for index in redundant_indexes:
-        statement = "DROP INDEX %s.%s;" % (index.get_schema(), index.get_indexname())
-        bar_print(statement)
+        if index not in mark:
+            mark.add(index)
+            statement = "DROP INDEX %s.%s;(%s)" % (index.get_schema(), index.get_indexname(), index.get_indexdef())
+            bar_print(statement)
+            bar_print('Related indexes:')
+            for _index in index.redundant_objs:
+                if _index not in mark:
+                    mark.add(_index)
+                    _statement = "\tDROP INDEX %s.%s;(%s)" % (_index.get_schema(), _index.get_indexname(),
+                                                              _index.get_indexdef())
+                    bar_print(_statement)
+            bar_print('')
 
 
 def record_redundant_indexes(redundant_indexes: List[ExistingIndex], detail_info):
