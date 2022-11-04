@@ -11,6 +11,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
+import re
 import argparse
 import getpass
 import logging
@@ -136,6 +137,8 @@ class SQLRewriter:
         except:
             return False, sql if sql.endswith(';') else sql + ';'
         sql_string = format(parsed_sql) + ';'
+        # correct "$(\d+)" to the correct placeholder format $(\d+)
+        sql_string = re.sub(r'"\$(\d+)"', r'$\1', sql_string)
         if Delete2Truncate().__class__.__name__ in checked_rules:
             return True, 'TRUNCATE TABLE ' + sql_string.split('(')[1].split(')')[0] + ';'
         if if_format:
