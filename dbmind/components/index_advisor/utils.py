@@ -22,6 +22,7 @@ from contextlib import contextmanager
 
 import sqlparse
 from sqlparse.tokens import Name
+from sqlparse.sql import Function, Parenthesis, IdentifierList
 
 COLUMN_DELIMITER = ', '
 QUERY_PLAN_SUFFIX = 'QUERY PLAN'
@@ -41,6 +42,7 @@ logger = logging.getLogger('index advisor')
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
+
 class QueryType(Enum):
     INEFFECTIVE = 0
     POSITIVE = 1
@@ -51,6 +53,27 @@ class IndexType(Enum):
     ADVISED = 1
     REDUNDANT = 2
     INVALID = 3
+
+
+def replace_function_comma(statement):
+    """Replace the ? in function to the corresponding value to ensure that prepare execution can be executed properly"""
+    function_value = {'count': '1', 'decode': "'1'"}
+    new_statement = ''
+    for token in get_tokens(statement):
+        value = token.value
+        if token.ttype is Name.Placeholder and token.value == '?':
+            function_token = None
+            if isinstance(token.parent, Parenthesis) and isinstance(token.parent.parent, Function):
+                function_token = token.parent.parent
+            elif isinstance(token.parent, IdentifierList) \
+                    and isinstance(token.parent.parent, Parenthesis) \
+                    and isinstance(token.parent.parent.parent, Function):
+                function_token = token.parent.parent.parent
+            if function_token:
+                replaced_value = function_value.get(function_token.get_name().lower(), None)
+                value = replaced_value if replaced_value else value
+        new_statement += value
+    return new_statement
 
 
 class UniqueList(list):
@@ -404,13 +427,13 @@ class WorkLoad:
             positive_queries = [query for query in insert_queries + delete_queries + update_queries + select_queries
                                 if query not in negative_queries + ineffective_queries]
         return insert_queries, delete_queries, update_queries, select_queries, \
-            positive_queries, ineffective_queries, negative_queries
+               positive_queries, ineffective_queries, negative_queries
 
     @lru_cache(maxsize=None)
     def get_index_sql_num(self, index: AdvisedIndex):
         insert_queries, delete_queries, update_queries, \
-            select_queries, positive_queries, ineffective_queries, \
-            negative_queries = self.get_index_related_queries(index)
+        select_queries, positive_queries, ineffective_queries, \
+        negative_queries = self.get_index_related_queries(index)
         insert_sql_num = sum(query.get_frequency() for query in insert_queries)
         delete_sql_num = sum(query.get_frequency() for query in delete_queries)
         update_sql_num = sum(query.get_frequency() for query in update_queries)
@@ -604,5 +627,3 @@ def flatten(iterable):
                 yield item
         else:
             yield _iter
-
-

@@ -56,7 +56,7 @@ def is_valid_statement(conn, statement):
     queries = get_prepare_sqls(statement)
     res = conn.execute_sqls(queries)
     for _tuple in res:
-        if 'ERROR' in _tuple[0].upper():
+        if _tuple[0].upper().startswith('ERROR'):
             return False
     return True
 
