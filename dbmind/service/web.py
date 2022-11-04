@@ -20,6 +20,7 @@ import os
 import sys
 import time
 from collections import defaultdict
+from functools import partial
 from itertools import groupby
 
 from dbmind import global_vars
@@ -669,20 +670,22 @@ def toolkit_index_advise(database, sqls):
     return psycopg2_dict_jsonify(res)
 
 
-def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True):
+def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True, driver=None):
     rewritten_sqls = []
     if rewritten_flags is None:
         rewritten_flags = []
-    schemas_results = global_vars.agent_rpc_client.call('query_in_database',
-                                                        'select distinct(table_schema) from information_schema.tables;',
-                                                        database, return_tuples=True)
+    if driver is not None:
+        executor = partial(driver.query, force_connection_db=database)
+    else:
+        executor = partial(global_vars.agent_rpc_client.call, funcname='query_in_database', database=database)
+    schemas_results = executor(stmt='select distinct(table_schema) from information_schema.tables;', return_tuples=True)
     schemas = ','.join([res[0] for res in schemas_results]) if schemas_results else 'public'
     for _sql in sqls.split(';'):
         if not _sql.strip():
             continue
         sql = _sql + ';'
         sql_checking_stmt = 'set current_schema=%s;explain %s' % (schemas, sql)
-        if not global_vars.agent_rpc_client.call('query_in_database', sql_checking_stmt, database, return_tuples=False):
+        if not executor(stmt=sql_checking_stmt, return_tuples=False):
             rewritten_sqls.append(sql)
             rewritten_flags.append(False)
             continue
@@ -692,15 +695,12 @@ def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True):
         for table_name in involved_tables:
             search_table_stmt = "select column_name, ordinal_position " \
                                 "from information_schema.columns where table_name='%s';" % table_name
-            results = sorted(global_vars.agent_rpc_client.call('query_in_database', search_table_stmt,
-                                                               database,
-                                                               return_tuples=True), key=lambda x: x[1])
+            results = sorted(executor(stmt=search_table_stmt, return_tuples=True), key=lambda x: x[1])
             table2columns_mapper[table_name] = [res[0] for res in results]
             exists_primary_stmt = "SELECT count(*)  FROM information_schema.table_constraints WHERE " \
                                   "constraint_type in ('PRIMARY KEY', 'UNIQUE') AND table_name = '%s'" % table_name
             table_exists_primary[table_name] = \
-                global_vars.agent_rpc_client.call('query_in_database', exists_primary_stmt, database,
-                                                  return_tuples=True)[0][0]
+                executor(stmt=exists_primary_stmt, return_tuples=True)[0][0]
             rewritten_flag, output_sql = SQLRewriter().rewrite(sql, table2columns_mapper, table_exists_primary,
                                                                if_format)
             rewritten_flags.append(rewritten_flag)
