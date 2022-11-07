@@ -17,20 +17,51 @@ import unittest
 from dbmind.components.sql_rewriter import SQLRewriter, get_offline_rewriter
 
 mapper = {'DistinctStar': {
-        'select distinct * from bmsql_config join bmsql_district b on True;':
-            'SELECT bmsql_config.cfg_name, bmsql_config.cfg_value, b.d_w_id, b.d_id, b.d_ytd, b.d_tax, '
-            'b.d_next_o_id, b.d_name, b.d_street_1, b.d_street_2, b.d_city, b.d_state, b.d_zip '
-            'FROM bmsql_config JOIN bmsql_district AS b ON TRUE;',
-        },
+    'select distinct * from bmsql_config join bmsql_district b on True;':
+        'SELECT bmsql_config.cfg_name, bmsql_config.cfg_value, b.d_w_id, b.d_id, b.d_ytd, b.d_tax, '
+        'b.d_next_o_id, b.d_name, b.d_street_1, b.d_street_2, b.d_city, b.d_state, b.d_zip '
+        'FROM bmsql_config JOIN bmsql_district AS b ON TRUE;',
+},
     'Star2Columns': {
         'select * from bmsql_config a, bmsql_config b;':
             'SELECT a.cfg_name, a.cfg_value, b.cfg_name, b.cfg_value FROM bmsql_config AS a, bmsql_config AS b;',
         'select * from (select * from bmsql_config a, bmsql_config b);':
             'SELECT * FROM (SELECT a.cfg_name, a.cfg_value, b.cfg_name, b.cfg_value FROM bmsql_config AS a, bmsql_config AS b);'
-        },
+    },
     'Having2Where': {
-        "select cfg_name from bmsql_config group by 1 having cfg_name='1';":
-            "SELECT cfg_name FROM bmsql_config WHERE cfg_name = '1';"},
+        """select
+        ps_partkey,
+        sum(ps_supplycost * ps_availqty) as value
+from
+        partsupp,
+        supplier,
+        nation
+where
+        ps_suppkey = s_suppkey
+        and s_nationkey = n_nationkey
+        and n_name = 'FRANCE'
+group by
+        ps_partkey having
+                sum(ps_supplycost * ps_availqty) > (
+                        select
+                                sum(ps_supplycost * ps_availqty) * 0.0001000000
+                        from
+                                partsupp,
+                                supplier,
+                                nation
+                        where
+                                ps_suppkey = s_suppkey
+                                and s_nationkey = n_nationkey
+                                and n_name = 'FRANCE'
+                )
+order by
+        value desc
+LIMIT 1;""": "SELECT ps_partkey, SUM(ps_supplycost * ps_availqty) AS value "
+             "FROM partsupp, supplier, nation WHERE ps_suppkey = s_suppkey AND s_nationkey = n_nationkey "
+             "AND n_name = 'FRANCE' AND SUM(ps_supplycost * ps_availqty) > "
+             "(SELECT SUM(ps_supplycost * ps_availqty) * 0.0001 FROM partsupp, supplier, nation WHERE "
+             "ps_suppkey = s_suppkey AND s_nationkey = n_nationkey AND n_name = 'FRANCE') "
+             "GROUP BY ps_partkey ORDER BY value DESC LIMIT 1;"},
     'ImplicitConversion': {
         'select * from bmsql_oorder where o_w_id +1  >3;':
             'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder WHERE o_w_id > 2;',
@@ -264,4 +295,3 @@ class RewriteTester(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

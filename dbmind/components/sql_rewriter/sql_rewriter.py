@@ -118,7 +118,6 @@ class SQLRewriter:
         self.add_rule(Star2Columns)
         self.add_rule(ImplicitConversion)
         self.add_rule(OrderbyConst)
-        self.add_rule(Having2Where)
         self.add_rule(OrderbyConstColumns)
         self.add_rule(AlwaysTrue)
         self.add_rule(UnionAll)
