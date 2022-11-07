@@ -276,7 +276,8 @@ def download(path, url):
 
 def unzip(path, filename, extract_path):
     filepath = os.path.join(path, filename)
-    tar_file = filename.strip('.gz')
+    suffix = ".gz"
+    tar_file = filename[:-len(suffix)] if filename.endswith(suffix) else filename
     tar_path = os.path.join(path, tar_file)
 
     print('Extracting {}.'.format(filename))
@@ -345,8 +346,10 @@ def checksum_sha256(path, filename, sha256_checksum):
 
 
 def url_generate(filename, host):
-    name = filename.split('-', 1)[0]
-    version = 'v' + filename.lstrip(name + '-').rstrip('.linux-amd64.tar.gz')
+    left = filename.find('-') + 1 if "-" in filename else None
+    right = filename.find(".linux") if ".linux" in filename else None
+    name = filename[:left - 1]
+    version = 'v' + filename[left:right]
     return '/'.join([host, name, 'releases/download', version, filename])
 
 
@@ -370,7 +373,7 @@ def download_sha256(file, download_path, host, sha256_checksum):
                     break
 
     url = url_generate(file, host)
-    sha256_url = url.rstrip(file) + 'sha256sums.txt'
+    sha256_url = url.rsplit('/', 1)[0] + '/sha256sums.txt'
     sha256_file_downloaded = download(download_path, sha256_url)
     find_sha256(download_path, file)
     return sha256_file_downloaded
