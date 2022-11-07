@@ -857,7 +857,7 @@ def generate_checks(configs):
     return checks
 
 
-def check(checks):
+def check(checks, timeout):
     """
     Check the status of prometheus and exporters with the information in checks.
     Check the status_code of request.get(check_item['url'], header) to see if the target
@@ -875,7 +875,7 @@ def check(checks):
                 'http://' + check_item['url'],
                 headers={"Content-Type": "application/json"},
                 verify=False,
-                timeout=5
+                timeout=timeout
             )
             if response.status_code == 200:
                 checks[i]['status'] = GREEN_FMT.format('Up')
@@ -893,7 +893,7 @@ def check(checks):
                         'https://' + check_item['url'],
                         headers={"Content-Type": "application/json"},
                         verify=True,
-                        timeout=10
+                        timeout=timeout
                     )
                     if response.status_code == 200:
                         checks[i]['status'] = GREEN_FMT.format('Up')
@@ -955,6 +955,9 @@ def main(argv):
     parser.add_argument('-c', '--conf', type=path_type,
                         help='Indicates the location of the config file to skip interactive configuration. '
                              'Default path is %s.' % CONFIG_PATH)
+    parser.add_argument('--timeout', default=10, type=int,
+                        help='Indicates the time in seconds to wait for response '
+                             'from exporters when --check.')
     parser.add_argument('-v', '--version', action='version', version=__version__)
     args = vars(parser.parse_args(argv))
 
@@ -1017,10 +1020,10 @@ def main(argv):
                 run(tasks)
                 print('Wait for checking, just a moment.')
                 time.sleep(10)
-                check(checks)
+                check(checks, args['timeout'])
             elif args['check']:
                 checks = generate_checks(configs)
-                check(checks)
+                check(checks, args['timeout'])
 
     except KeyboardInterrupt:
         print("\nThe procedure was manual terminated.")
