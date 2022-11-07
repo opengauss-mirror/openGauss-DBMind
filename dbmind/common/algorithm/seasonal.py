@@ -58,6 +58,7 @@ def is_seasonal_series(x, high_ac_threshold: float = 0.5, min_seasonal_freq=3):
     # are not separated, the autocorrelation will be significantly affected and
     # it is difficult to identify the period. So we extract the trend components.
     window = max(MIN_WINDOW, len(x) // (min_seasonal_freq + 1))
+    window = min(window, len(x) - 1)
     detrended = x - decompose_trend(x, np.ones(window) / window)
 
     ac_coef = acf(detrended, nlags=len(x) - 1)  # auto-correlation coefficient
@@ -100,10 +101,15 @@ def _conv_kernel(period):
 
 
 def extrapolate(x, head, tail, length):
-    head_template = x[head:head + length]
+    """
+    Try to extrapolate the moving_average result by two gradients of
+    head and tail of the sequence. The length of reference is the size
+    of the convolution kernel.
+    """
+    head_template = x[:length]
     k = np.polyfit(np.arange(1, len(head_template) + 1), head_template, deg=1)
     head = k[0] * np.arange(head) + x[0] - head * k[0]
-    tail_template = x[-tail - length:-tail]
+    tail_template = x[-length:]
     k = np.polyfit(np.arange(1, len(tail_template) + 1), tail_template, deg=1)
     tail = k[0] * np.arange(tail) + x[-1] + k[0]
     x = np.r_[head, x, tail]
