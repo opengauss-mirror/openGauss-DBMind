@@ -109,11 +109,11 @@ class Having2Where(Rule):
         if where_clause is None:
             return having_clause
         if 'and' in where_clause:
-            where_clause = [where_clause['and']]
+            where_clause = where_clause['and']
         else:
             where_clause = [where_clause]
         if 'and' in having_clause:
-            having_clause = [having_clause['and']]
+            having_clause = having_clause['and']
         else:
             having_clause = [having_clause]
         return where_clause + having_clause
@@ -127,7 +127,7 @@ class Having2Where(Rule):
                 having_count = self.find_having(list(parsed_sql.values())[0], having_count)
             if 'having' in parsed_sql:
                 having_count += 1
-                parsed_sql['where'] = self.merge_where(parsed_sql.get('where'), parsed_sql['having'])
+                parsed_sql['where']['and'] = self.merge_where(parsed_sql.get('where'), parsed_sql['having'])
                 parsed_sql.pop('having')
         return having_count
 
