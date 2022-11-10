@@ -560,7 +560,8 @@ def deploy(configs, online=False):
         generate_targets = get_target_generator(exporters)
         node_exporter_targets = generate_targets(configs.get(EXPORTERS, 'node_exporter_port'))
         cmd_exporter_targets = generate_targets(configs.get(EXPORTERS, 'cmd_exporter_port'))
-        opengauss_exporter_targets = exporters[host]['opengauss_exporters']
+        opengauss_exporter_targets = sum([[t for t in exporters[host]['opengauss_exporters']]
+                                          for host in exporters], [])        
         edit_prometheus_yaml(
             yaml_path,
             configs,
