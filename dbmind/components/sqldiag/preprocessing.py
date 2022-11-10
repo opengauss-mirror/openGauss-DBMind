@@ -195,7 +195,7 @@ def get_sql_template(sql):
 
 class LoadData:
     def __init__(self, csv_file):
-        self.csv_file = csv_file
+        self.csv_file = open(csv_file)
 
     def load_predict_file(self):
         for line in self.csv_file:
@@ -222,3 +222,5 @@ class LoadData:
             return self.load_train_file()
         else:
             return self.load_predict_file()
+    def __del__(self):
+        self.csv_file.close()
