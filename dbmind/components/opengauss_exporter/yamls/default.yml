@@ -32,7 +32,7 @@ pg_db:
       timeout: 9
       ttl: -1
       status: enable
-      dbRole: ""
+
   metrics:
     - name: datid
       description: OID of a database
@@ -130,7 +130,7 @@ pg_connections:
       version: '>=0.0.0' 
       timeout: 1
       status: disable
-      dbRole: ""
+
   metrics:
     - name: used_conn
       description: used of connections
@@ -175,7 +175,7 @@ pg_session_connection:
       version: '>=0.0.0'
       timeout: 9
       status: disable
-      dbRole: ""
+
   metrics:
     - name: coorname
       description: client address
@@ -235,7 +235,7 @@ pg_downstream:
       timeout: 0.5
       ttl: 10
       status: disable
-      dbRole: ""
+
   metrics:
     - name: state
       description: downstream state
@@ -338,7 +338,7 @@ pg_stat_replication:
       timeout: 1
       ttl: 60
       status: enable
-      dbRole: ""
+
   metrics:
     - name: pid
       description: unique walsender pid
@@ -412,7 +412,7 @@ pg_stat_replication:
 # ┃ LABEL    active                         Is active
 # ┃ LABEL    xmin                           replication xid
 # ┃ LABEL    catalog_xmin                   logical decode xid
-# ┃ LABEL    restart_lsn                    Xlog info
+# ┃ GAUGE    restart_lsn                    Xlog info
 # ┃ GAUGE    delay_lsn                      delay lsn from pg_current_xlog_location()
 # ┃ DISCARD  dummy_standby                  Is real standby
 # ┣┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈
@@ -430,8 +430,8 @@ pg_replication_slots:
             active,
             coalesce(xmin,'_') as xmin,
             coalesce(catalog_xmin,'_') as catalog_xmin,
-            restart_lsn,
-            pg_xlog_location_diff(pg_current_xlog_location(),restart_lsn) as delay_lsn,
+            CASE WHEN pg_is_in_recovery() THEN null ELSE pg_xlog_location_diff(pg_current_xlog_location(),restart_lsn) END
+            as delay_lsn,
             dummy_standby,
             pg_xlog_location_diff(restart_lsn ,'0/0'::text)        AS restart_lsn,
             pg_xlog_location_diff(CASE WHEN pg_is_in_recovery() THEN pg_last_xlog_receive_location()
@@ -441,7 +441,7 @@ pg_replication_slots:
       timeout: 1
       ttl: 60
       status: enable
-      dbRole: ""
+
   metrics:
     - name: slot_name
       description: Slot name
@@ -469,7 +469,7 @@ pg_replication_slots:
       usage: LABEL
     - name: restart_lsn
       description: Xlog info
-      usage: LABEL
+      usage: GAUGE
     - name: delay_lsn
       description: delay lsn from pg_current_xlog_location()
       usage: GAUGE
@@ -518,18 +518,6 @@ pg_database:
       timeout: 1
       ttl: 60
       status: enable
-      dbRole: "primary"
-    - name: pg_database
-      sql: |-
-        SELECT datname,
-          pg_catalog.pg_database_size(pg_database.datname) as size_bytes
-        FROM pg_database
-        where datname NOT IN ('template0','template1');
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 60
-      status: disable
-      dbRole: "standby"
   metrics:
     - name: datname
       description: Name of this database
@@ -614,7 +602,7 @@ pg_checkpoint:
       timeout: 1
       ttl: 5
       status: disable
-      dbRole: ""
+
   metrics:
     - name: checkpoint_lsn
       description: lsn of checkpoint
@@ -685,7 +673,7 @@ pg_stat_activity:
       timeout: 1
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: datname
       description: Name of this database
@@ -724,7 +712,7 @@ pg_node_info:
       timeout: 1
       ttl: 3600
       status: enable
-      dbRole: ""
+
   metrics:
     - name: is_slave
       description: is slave node?
@@ -766,7 +754,7 @@ pg_stat_bgwriter:
       timeout: 1
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: total_seconds
       description: total sync time of checkpoints
@@ -793,7 +781,7 @@ pg_locker:
       timeout: 9
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: usename
       description: locker user name
@@ -826,7 +814,7 @@ pg_wait_events:
       timeout: 9
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: nodename
       description: Name of node
@@ -913,7 +901,7 @@ pg_session_memory:
       timeout: 15
       ttl: 60
       status: disable
-      dbRole: ""
+
   metrics:
     - name: sessionid
       description: sessionid
@@ -946,7 +934,7 @@ pg_sesstype_memory:
       timeout: 9
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: name
       description: name of sesstype
@@ -974,7 +962,7 @@ pg_memory_context:
       timeout: 9
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: name
       description: name of sesstype
@@ -1006,7 +994,7 @@ pg_state_memory:
       timeout: 30
       ttl: 600
       status: disable
-      dbRole: ""
+
   metrics:
     - name: state
       description: session state
@@ -1029,7 +1017,7 @@ pg_cpu_load:
       timeout: 1
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: total_cpu
       description: total cpu use
@@ -1050,7 +1038,7 @@ pg_recovery_status:
       timeout: 1
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: standby_node_name
       description: node name
@@ -1077,7 +1065,7 @@ pg_stat_get_wal_senders:
       timeout: 1
       ttl: 10
       status: disable
-      dbRole: ""
+
   metrics:
     - name: pid
       description: pid
@@ -1107,7 +1095,7 @@ statement_responsetime_percentile:
       timeout: 1
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: p80
       description: 80percent SQL rt
@@ -1130,7 +1118,7 @@ pg_prepared_xacts:
       timeout: 1
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: count
       description: current_prepared_xacts_count
@@ -1160,7 +1148,7 @@ pg_lock_time_info:
       timeout: 9
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: datname
       description: database name
@@ -1188,7 +1176,7 @@ pg_sql_count:
       timeout: 9
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: node_name
       description: the name of node
@@ -1230,7 +1218,7 @@ db_timed_task:
       timeout: 1
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: job_id
       description: the id of job
@@ -1266,7 +1254,7 @@ pg_autovacuum_worker:
       timeout: 9
       ttl: 10
       status: enable
-      dbRole: ""
+
   metrics:
     - name: datname
       description: name of database
