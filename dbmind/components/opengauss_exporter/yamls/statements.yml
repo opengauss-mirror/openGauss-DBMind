@@ -225,26 +225,28 @@ pg_sql_statement_statistics:
       sql: |-
         WITH db_time_top10 AS (SELECT node_name,
                                       unique_sql_id,
-                                      regexp_replace(query, E'[\\n\\r\\s]+', ' ', 'g') as query,
+                                      lower(regexp_replace(dbe_perf.STATEMENT.query, E'[\\n\\r\\s]+', ' ', 'g')) as query,
                                       n_calls,
                                       db_time,
                                       sort_spill_count,
                                       hash_spill_count
                                FROM dbe_perf.STATEMENT
                                WHERE n_calls > 1
-                                 AND lower(query) similar to ('%((select)|(delete)|(insert)|(update)|(merge))%')
+                                 AND query similar to ('%((select)|(delete)|(insert)|(update)|(merge))%')
+                                 AND query not similar to ('%((dbe_perf)|(pg_))%')
                                ORDER BY db_time DESC
                                limit 10),
              n_calls_top10 AS (SELECT node_name,
                                       unique_sql_id,
-                                      regexp_replace(query, E'[\\n\\r\\s]+', ' ', 'g') as query,
+                                      lower(regexp_replace(dbe_perf.STATEMENT.query, E'[\\n\\r\\s]+', ' ', 'g')) as query,
                                       n_calls,
                                       db_time,
                                       sort_spill_count,
                                       hash_spill_count
                                FROM dbe_perf.STATEMENT
                                WHERE n_calls > 1
-                                 AND lower(query) similar to ('%((select)|(delete)|(insert)|(update)|(merge))%')
+                                 AND query similar to ('%((select)|(delete)|(insert)|(update)|(merge))%')
+                                 AND query not similar to ('%((dbe_perf)|(pg_))%')
                                ORDER BY n_calls DESC
                                limit 10)
         SELECT *
