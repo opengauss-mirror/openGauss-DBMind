@@ -30,19 +30,6 @@ pg_class:
       timeout: 3
       ttl: 60
       status: disable
-      dbRole: "primary"
-    - name: pg_class
-      sql: |-
-        SELECT CURRENT_CATALOG AS datname,(select nspname from pg_namespace where oid=relnamespace) as nspname,relname,relkind,relpages,reltuples,
-          CASE WHEN relkind = 'i' THEN NULL ELSE pg_catalog.age(relfrozenxid64) END AS relage,pg_catalog.pg_relation_size(oid) AS relsize
-        FROM pg_class
-        WHERE relkind = 'r' and relname not like 'pg_%' and relname not like 'gs_%' and nspname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
-        ORDER BY relpages DESC LIMIT 32;
-      version: '>=0.0.0'
-      timeout: 3
-      ttl: 60
-      status: disable
-      dbRole: "standby"
   metrics:
     - name: datname
       description: database name of this relation
@@ -87,20 +74,7 @@ pg_index:
       version: '>=0.0.0'
       timeout: 9
       ttl: 3600
-      dbRole: "primary"
       status: enable
-    - name: pg_index
-      sql: |-
-        SELECT CURRENT_CATALOG AS datname,psui.schemaname AS nspname,psui.relname AS tablename,psui.indexrelname AS relname, pg_get_indexdef(psui.indexrelid) AS indexdef,
-        idx_scan, idx_blks_read, idx_blks_hit, pgi.indisvalid as indisvalid, pg_catalog.pg_relation_size(psui.indexrelid) / 1024 / 1024 as mbytes
-        FROM pg_stat_user_indexes psui,pg_statio_user_indexes psio, pg_index pgi
-        WHERE psio.indexrelid = psui.indexrelid and psio.indexrelid = pgi.indexrelid and psui.schemaname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
-        order by idx_scan desc limit 10;
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 3600
-      dbRole: "standby"
-      status: disable
   metrics:
     - name: datname
       description: database name of this relation
@@ -154,23 +128,7 @@ pg_tables_size:
       version: '>=0.0.0'
       timeout: 9
       ttl: 3600
-      dbRole: "primary"
       status: enable
-    - name: pg_tables_size
-      sql: |-
-        SELECT CURRENT_CATALOG AS datname,nsp.nspname,rel.relname,
-           pg_catalog.pg_total_relation_size(rel.oid)  / 1024 / 1024      AS totalsize,
-           pg_catalog.pg_relation_size(rel.oid) / 1024 / 1024             AS relsize,
-           pg_catalog.pg_indexes_size(rel.oid) / 1024 / 1024              AS indexsize,
-           (case when reltoastrelid=0 then 0 else pg_catalog.pg_total_relation_size(reltoastrelid) / 1024 / 1024 end) AS toastsize
-        FROM pg_namespace nsp JOIN pg_class rel ON nsp.oid = rel.relnamespace
-        WHERE nspname NOT IN ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') AND rel.relkind = 'r'
-        order by totalsize desc limit 10;
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 3600
-      dbRole: "standby"
-      status: disable
   metrics:
     - name: datname
       description: database name of this relation
@@ -218,25 +176,6 @@ pg_never_used_indexes:
       version: '>=0.0.0'
       timeout: 9
       ttl: 3600
-      dbRole: "primary"
-      status: disable
-    - name: pg_never_used_indexes
-      sql: |-
-        select CURRENT_CATALOG as datname, pi.schemaname, pi.relname, pi.indexrelname, pg_catalog.pg_table_size(pi.indexrelid) as index_size
-        from pg_indexes pis
-        join pg_stat_user_indexes pi
-        on pis.schemaname = pi.schemaname and pis.tablename = pi.relname and pis.indexname = pi.indexrelname
-        left join pg_constraint pco
-        on pco.conname = pi.indexrelname and pco.conrelid = pi.relid
-        where pco.contype is distinct from 'p' and pco.contype is distinct from 'u'
-        and (idx_scan,idx_tup_read,idx_tup_fetch) = (0,0,0)
-        and pis.indexdef !~ ' UNIQUE INDEX '
-        and pis.schemaname not in('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
-        order by pg_catalog.pg_table_size(indexrelid) desc limit 10;
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 3600
-      dbRole: "standby"
       status: disable
   metrics:
     - name: datname
