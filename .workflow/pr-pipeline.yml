@@ -13,43 +13,31 @@ stages:
     strategy: naturally
     trigger: auto
     steps:
-      - step: ut@python
-        name: unit_test_python36
-        displayName: Python36_old
-        pythonVersion: '3.6'
-        commands:
-          - git clone https://gitee.com/opengauss/openGauss-DBMind.git
-          - cd openGauss-DBMind
-          - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-x86.txt
-          - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -i pytest
-          - pytest --html=report/index.html
-        report:
-          path: report
-          index: index36.html
-        checkpoints:
-          - key: TestPassRate
-            value: 100
-            logicalOperator: '&&'
-            relationalOperator: '>='
-        caches: []
-        notify: []
-        strategy:
-          retry: '0'
-      - step: ut@python
-        name: unit_test_python38
-        displayName: Python38_new
-        pythonVersion: '3.8'
-        commands:
-          - git clone https://gitee.com/opengauss/openGauss-DBMind.git
-          - cd openGauss-DBMind
-          - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements-x86.txt
-          - pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple -i pytest
-          - pytest --html=report/index.html
-        report:
-          path: report
-          index: index38.html
-        checkpoints: []
-        caches: []
+      - step: execute@docker
+        name: execute_by_docker
+        displayName: python3.9-slim-docker
+        certificate: ''
+        image: docker.io/python:3.9-slim
+        command:
+          - apt update
+          - ''
+          - apt install wget -y
+          - apt install zip -y
+          - ''
+          - mkdir workspace
+          - cd workspace
+          - ''
+          - wget -O master.zip https://gitee.com/opengauss/openGauss-DBMind/repository/archive/master.zip
+          - unzip master.zip
+          - ''
+          - cd openGauss-DBMind-master
+          - ''
+          - python3 -m pip install -r requirements-x86.txt
+          - python3 -m pip install pytest
+          - ''
+          - python3 -m pytest tests
+          - ''
+          - ''
         notify: []
         strategy:
           retry: '0'
