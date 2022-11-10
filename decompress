@@ -61,6 +61,22 @@ esac
 
 
 echo "Installed successfully."
++echo \
++"==================================================
++If Python is not installed in your system,
++ we suggest you download *miniconda* from
++ the following website:
++
++   - official: https://docs.conda.io/en/latest/miniconda.html#linux-installers
++   - mirror:   https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda
++
++And then, execute the following command to install
++ it into the DBMind installation directory:
++
++   ./Miniconda3-xxx.sh -b -p $inst/python
++
++===================================================
++"
 exit 0
 
 __ARCHIVE_BELOW__
