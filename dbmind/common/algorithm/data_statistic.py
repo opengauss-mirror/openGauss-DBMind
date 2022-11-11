@@ -42,3 +42,30 @@ def n_sigma(values, n=3):
         upper = mean + n * std
         lower = mean - n * std
     return upper, lower
+
+
+def least_square(x, y):
+    x, y = np.asarray(x), np.asarray(y)
+    if np.unique(x).size == 1:
+        raise ValueError("The values on x axis are the same.")
+    elif np.unique(y).size == 1:
+        return 0, y[0], 1
+
+    n = len(x)
+    scale = max(np.abs(x).max(), np.abs(y).max())
+    x = x / scale
+    y = y / scale
+
+    sx = np.sum(x)
+    sy = np.sum(y)
+    sxx = np.sum(np.multiply(x, x))
+    syy = np.sum(np.multiply(y, y))
+    sxy = np.sum(np.multiply(x, y))
+    a = (n * sxy - sx * sy) / (n * sxx - sx * sx)
+    b = (sy - a * sx) / n
+
+    numerator = syy + a * a * sxx + b * b * n + 2 * a * b * sx - 2 * a * sxy - 2 * b * sy
+    denominator = syy - sy * sy / n
+    r2 = 1 - numerator / denominator
+
+    return a, b * scale, r2
