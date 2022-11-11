@@ -29,7 +29,7 @@ COPY --from=prom /etc/prometheus/prometheus.yml /etc/prometheus/prometheus.yml
 COPY --from=prom /usr/share/prometheus/console_libraries/ /usr/share/prometheus/console_libraries/
 COPY --from=prom /usr/share/prometheus/consoles/ /usr/share/prometheus/consoles/
 
-COPY --from=js-builder /ui/build /app/ui
+COPY --from=js-builder /ui/build /app/ui/build
 
 # Install 3rd dependencies and move python runtime.
 RUN pip install --no-cache-dir -r requirements.txt -t 3rd; \
