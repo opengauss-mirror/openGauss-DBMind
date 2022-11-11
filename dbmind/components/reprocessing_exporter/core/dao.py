@@ -44,9 +44,9 @@ class MetricConfig:
 
     def query(self):
         if self.ttl and time.time() < self._expired_time:
+            self._expired_time = time.time() + self.ttl
             return self._cached_result
         self._cached_result = query(self.promql, timeout=self.timeout)
-        self._expired_time = time.time() + self.ttl
         return self._cached_result
 
     def __repr__(self):

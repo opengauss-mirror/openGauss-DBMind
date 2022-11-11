@@ -38,7 +38,10 @@ class RPCExecutionThread(threading.Thread):
             if self._target:
                 self.result = self._target(*self._args, **self._kwargs)
         except Exception:
-            self.exception = traceback.format_exc()
+            message = traceback.format_exc()
+            message += 'func: %s\n' % self._target
+            message += 'args: %s, kwargs: %s.' % (self._args, self._kwargs)
+            self.exception = message
         finally:
             del self._target, self._args, self._kwargs
 

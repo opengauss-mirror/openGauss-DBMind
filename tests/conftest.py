@@ -14,6 +14,7 @@ import configparser
 import glob
 import logging
 import os
+import sys
 import random
 import time
 from collections import defaultdict
@@ -219,11 +220,18 @@ def mock_dai(monkeypatch):
     return dai
 
 
-@pytest.fixture(autouse=True, scope='session')
-def run_before_and_after_tests():
+@pytest.fixture(autouse=True)
+def run_before_and_after_tests(caplog):
     print("Starting to run all tests.")
 
     yield
+
+    # Determine whether there are ERROR logs.
+    errors = [record for record in caplog.get_records('call')
+              if record.levelno >= logging.ERROR]
+    for error in errors:
+        print(error.getMessage(), file=sys.stderr)
+    assert not errors
 
     clean_up()
     print('Tear down all tests.')

@@ -40,7 +40,7 @@ def exception_follower(output=None):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logging.exception("Function execution error: %s" % func.__name__)
+                logging.exception("Function %s execution error: %s.", func.__name__, e)
                 if callable(output):
                     return output()
                 return output
@@ -268,6 +268,9 @@ def parse_field_from_indexdef(indexdef):
         return fields
     return []
 
+def is_sequence_valid(s):
+    return s and s.values
+
 
 class QueryContextFromTSDB(QueryContext):
     """The object of slow query data processing factory"""
@@ -336,7 +339,7 @@ class QueryContextFromTSDB(QueryContext):
 
         sequence = dai.get_latest_metric_value("prometheus_target_interval_length_seconds").filter(
             quantile="0.99").fetchone()
-        if sequence.values:
+        if is_sequence_valid(sequence):
             self.fetch_interval = int(sequence.values[0])
         else:
             return DEFAULT_FETCH_INTERVAL
@@ -357,9 +360,9 @@ class QueryContextFromTSDB(QueryContext):
                                                       self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
             query=f"{self.slow_sql_instance.query}").fetchone()
-        if sort_spill_sequence.values and max(int(item) for item in sort_spill_sequence.values) > 0:
+        if is_sequence_valid(is_sequence_valid(sort_spill_sequence) and max(int(item) for item in sort_spill_sequence)) > 0:
             sort_condition['sort_spill'] = True
-        if hash_spill_sequence.values and max(int(item) for item in hash_spill_sequence.values) > 0:
+        if is_sequence_valid(is_sequence_valid(hash_spill_sequence) and max(int(item) for item in hash_spill_sequence)) > 0:
             sort_condition['hash_spill'] = True
         return sort_condition
 
@@ -374,7 +377,7 @@ class QueryContextFromTSDB(QueryContext):
                                                 self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
             locked_query=f"{locked_query}").fetchone()
-        if lock_sequence.values:
+        if is_sequence_valid(lock_sequence):
             blocks_info.locker_query = lock_sequence.labels.get('locker_query', 'Unknown')
             blocks_info.locker_query_start = lock_sequence.labels.get('locker_query_start', 'Unknown')
         return blocks_info
@@ -434,19 +437,19 @@ class QueryContextFromTSDB(QueryContext):
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     nspname=f"{schema_name}").filter(tablename=f"{table_name}").fetchall()
-                if dead_rate_info.values:
+                if is_sequence_valid(dead_rate_info):
                     table_info.dead_rate = round(float(dead_rate_info.values[0]), 4)
-                if live_tup_info.values:
+                if is_sequence_valid(live_tup_info):
                     table_info.live_tuples = int(live_tup_info.values[0])
-                if dead_tup_info.values:
+                if is_sequence_valid(dead_tup_info):
                     table_info.dead_tuples = int(dead_tup_info.values[0])
-                if dead_rate_info.values:
+                if is_sequence_valid(dead_rate_info):
                     table_info.dead_rate = float(dead_rate_info.values[0])
-                if analyze_delay_info.values:
+                if is_sequence_valid(analyze_delay_info):
                     table_info.analyze_delay = analyze_delay_info.values[-1]
-                if vacuum_delay_info.values:
+                if is_sequence_valid(vacuum_delay_info):
                     table_info.vacuum_delay = vacuum_delay_info.values[-1]
-                if pg_table_size_info.values:
+                if is_sequence_valid(pg_table_size_info):
                     table_info.table_size = round(float(max(pg_table_size_info.values)) / 1024 / 1024, 4)
                 if index_number_info:
                     table_info.index = {item.labels['relname']: parse_field_from_indexdef(item.labels['indexdef'])
@@ -489,9 +492,9 @@ class QueryContextFromTSDB(QueryContext):
                                                     self.query_end_time - timedelta(
                                                         seconds=days_time_interval)).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        if his_tps_sequences.values:
+        if is_sequence_valid(his_tps_sequences):
             database_info.history_tps = int(max(his_tps_sequences.values))
-        if cur_tps_sequences.values:
+        if is_sequence_valid(cur_tps_sequences):
             database_info.current_tps = int(max(cur_tps_sequences.values))
         return database_info
 
@@ -549,11 +552,11 @@ class QueryContextFromTSDB(QueryContext):
         db_mem_usage_info = dai.get_metric_sequence("gaussdb_progress_mem_usage", self.query_start_time,
                                                     self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        if iops_info.values:
+        if is_sequence_valid(iops_info):
             system_info.iops = [int(item) for item in iops_info.values]
         else:
             logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_disk_iops' data.")
-        if process_fds_rate_info.values:
+        if is_sequence_valid(process_fds_rate_info):
             system_info.process_fds_rate = [round(float(item), 4) for item in process_fds_rate_info.values]
         else:
             logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_process_fds_rate' data.")
@@ -573,23 +576,23 @@ class QueryContextFromTSDB(QueryContext):
             system_info.disk_usage = disk_usage_dict
         else:
             logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_disk_usage' data.")
-        if db_cpu_usage_info.values:
+        if is_sequence_valid(db_cpu_usage_info):
             system_info.db_cpu_usage = [round(float(item), 4) for item in db_cpu_usage_info.values]
         else:
             logging.debug("[SLOW SQL][DATA SOURCE]: Not get 'db_cpu_usage' data.")
-        if db_mem_usage_info.values:
+        if is_sequence_valid(db_mem_usage_info):
             system_info.db_mem_usage = [round(float(item), 4) for item in db_mem_usage_info.values]
         else:
             logging.debug("[SLOW SQL][DATA SOURCE]: Not get 'db_mem_usage' data.")
-        if cpu_usage_info.values:
+        if is_sequence_valid(cpu_usage_info):
             system_info.cpu_usage = [round(float(item), 4) for item in cpu_usage_info.values]
         else:
             logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_cpu_usage' data.")
-        if mem_usage_info.values:
+        if is_sequence_valid(mem_usage_info):
             system_info.mem_usage = [round(float(item), 4) for item in mem_usage_info.values]
         else:
             logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_mem_usage' data.")
-        if load_average_info1.values:
+        if is_sequence_valid(load_average_info1):
             system_info.load_average1 = [round(float(item), 4) for item in load_average_info1.values]
         else:
             logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'load_average1' data.")
@@ -615,13 +618,13 @@ class QueryContextFromTSDB(QueryContext):
                                                                      self.query_start_time,
                                                                      self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        if node_network_receive_drop_info.values:
+        if is_sequence_valid(node_network_receive_drop_info):
             network_info.receive_drop = round(float(max(node_network_receive_drop_info.values)), 4)
-        if node_network_transmit_drop_info.values:
+        if is_sequence_valid(node_network_transmit_drop_info):
             network_info.transmit_drop = round(float(max(node_network_transmit_drop_info.values)), 4)
-        if node_network_receive_packets_info.values:
+        if is_sequence_valid(node_network_receive_packets_info):
             network_info.receive_packets = round(float(max(node_network_receive_packets_info.values)), 4)
-        if node_network_transmit_packets_info.values:
+        if is_sequence_valid(node_network_transmit_packets_info):
             network_info.transmit_packets = round(float(max(node_network_transmit_packets_info.values)), 4)
 
         return network_info
