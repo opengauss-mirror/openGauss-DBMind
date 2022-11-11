@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 
 from dbmind.common.types import Sequence
+from dbmind.common.algorithm.data_statistic import least_square
 from .forcasting_algorithm import ForecastingAlgorithm
 
 
@@ -39,20 +40,7 @@ class SimpleLinearFitting(ForecastingAlgorithm):
         if sequence.length < 2:
             raise ValueError('Unable to fit the sequence due to short length.')
 
-        n = len(sequence)
-        sx = sy = sxx = syy = sxy = 0
-        # timestamp acts x-axis, values acts y-axis.
-        for t, v in sequence:
-            sx += t
-            sy += v
-            sxx += t * t
-            syy += v * v
-            sxy += t * v
-        a = (sy * sx / n - sxy) / (sx * sx / n - sxx)
-        b = (sy - a * sx) / n
-        numerator = syy + a * a * sxx + b * b * n + 2 * a * b * sx - 2 * a * sxy - 2 * b * sy
-        denominator = syy - sy * sy / n + 1e-9
-        r2 = 1 - numerator / denominator
+        a, b, r2 = least_square(sequence.timestamps, sequence.values)
 
         self._a = a
         self._b = b
