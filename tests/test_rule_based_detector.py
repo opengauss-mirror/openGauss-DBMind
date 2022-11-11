@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 from dbmind.app.monitoring import detect_future
 from dbmind.common.types import Sequence
+from dbmind.metadatabase import create_dynamic_config_schema
 
 
 def test_disk_spill():
@@ -20,6 +21,8 @@ def test_disk_spill():
     full_sequence = Sequence(timestamps=timestamps, values=values, name="os_disk_usage")
     latest_sequences = (full_sequence[0, 79],)
     future_sequences = (full_sequence[80, 100],)
+
+    create_dynamic_config_schema()
     alarm_list = detect_future("10.244.44.157", ("os_disk_usage",), latest_sequences, future_sequences)
     assert len(alarm_list) >= 1
     for alarm in alarm_list:

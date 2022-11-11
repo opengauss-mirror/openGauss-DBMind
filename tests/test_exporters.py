@@ -30,6 +30,8 @@ from dbmind.components.opengauss_exporter.core.main import parse_argv as og_pars
 from dbmind.components.reprocessing_exporter.core import controller as re_controller
 from dbmind.components.reprocessing_exporter.core.main import ExporterMain
 from dbmind.components.reprocessing_exporter.core.main import parse_argv
+from dbmind.components.reprocessing_exporter.core.service import MetricConfig
+
 
 from .test_rpc import rpc_client_testing
 
@@ -51,18 +53,40 @@ def test_reprocessing_exporter(monkeypatch):
     get_prometheus_status.assert_called_once()
     re_controller.run.assert_called_once()
 
+    # fix issue #I60QZJ
+    def mock_query(self):
+        labels = {k: 'v' for k in self._label_map}
+        return [Sequence(
+            name=self.name,
+            labels=labels,
+            timestamps=(1,),
+            values=(1,)
+        )]
+
+    monkeypatch.setattr(MetricConfig, 'query', mock_query)
+
     assert re_controller.query_all_metrics().startswith(b'# HELP')
 
 
 def test_http_and_rpc_service(monkeypatch, rpc_client_testing):
     expected = [[True], ['aaa']]
+    dict_expected = [{'a': True, 'b': 'aaa'}]
 
-    mock_connect = mock.MagicMock()
-    mock_con = mock_connect.return_value
-    mock_cur = mock_con.cursor.return_value
-    mock_cur_cm = mock_cur.__enter__.return_value
-    mock_cur_cm.fetchall.return_value = expected
-    monkeypatch.setattr(psycopg2, 'connect', mock_connect)
+    mock_psycopg2_connect = mock.MagicMock()
+    mock_conn = mock_psycopg2_connect.return_value
+
+    def mock_cursor_func(**kwargs):
+        retval = mock.MagicMock()
+        final_return_set = retval.__enter__.return_value
+        if 'cursor_factory' in kwargs:
+            final_return_set.fetchall.return_value = dict_expected
+        else:
+            final_return_set.fetchall.return_value = expected
+        return retval
+
+    mock_conn.cursor = mock_cursor_func
+
+    monkeypatch.setattr(psycopg2, 'connect', mock_psycopg2_connect)
     monkeypatch.setattr(psycopg2.extensions, 'parse_dsn', lambda arg: defaultdict(lambda: 'aaa'))
     monkeypatch.setattr(opengauss_exporter.core.opengauss_driver.DriverBundle, 'is_monitor_admin', lambda s: True)
     monkeypatch.setattr(opengauss_exporter.core.opengauss_driver.DriverBundle, 'is_standby', lambda s: False)
@@ -82,7 +106,7 @@ def test_http_and_rpc_service(monkeypatch, rpc_client_testing):
     # test for agent RPC:
     client = RPCClient('http://127.0.0.1:65520/rpc', 'a', 'b')
     res = client.call('query_in_postgres', 'select version();')
-    assert res == expected
+    assert res == dict_expected
 
     # test for metric collecting.
     res = requests.get('http://127.0.0.1:65520/metrics')

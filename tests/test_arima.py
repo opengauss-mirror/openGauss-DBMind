@@ -5171,6 +5171,7 @@ def test_trim_head_and_tail_nan():
 
 
 def test_is_seasonal_series():
+    np.random.seed(0)
     x = [10, 20, 30, 40] * 20 + [1, 1, 1, 1] * 5 + [10, 20, 30, 40] * 20
     is_seasonal, period = is_seasonal_series(
         x,

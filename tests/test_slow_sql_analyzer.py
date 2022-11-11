@@ -352,15 +352,4 @@ def test_calculate_nearest_feature():
     assert nearest_feature[0][1] == 13
 
 
-def test_query_feature(mock_get_funcntion):
-    query_context = MockedComplexQueryContext(slow_sql_instance)
-    feature_generator = query_feature.QueryFeature(query_context)
-    feature_generator.initialize_metrics()
-    features, detail, suggestions = feature_generator()
-    assert features == [0] * len(features)
-
-
-def test_slow_analyzer(mock_get_funcntion):
-    query_context = MockedComplexQueryContext(slow_sql_instance)
-    SlowSQLAnalyzer().run(query_context)
 
