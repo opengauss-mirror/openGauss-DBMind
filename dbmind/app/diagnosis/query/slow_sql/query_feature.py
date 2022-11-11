@@ -10,10 +10,10 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from dbmind.common.parser import sql_parsing
 import logging
 import time
 
+from dbmind.common.parser import sql_parsing
 from dbmind.app import monitoring
 from dbmind.metadatabase.dao import statistical_metric
 from ..slow_sql.query_info_source import QueryContext
@@ -226,8 +226,12 @@ class QueryFeature:
     def unreasonable_database_knob(self):
         """support shared_buffers, work_mem"""
         total_memory = self.system_info.total_memory
-        shared_buffers = self.pg_setting_info['shared_buffers'].setting
-        work_mem = self.pg_setting_info['work_mem'].setting
+        try:
+            shared_buffers = self.pg_setting_info['shared_buffers'].setting
+            work_mem = self.pg_setting_info['work_mem'].setting
+        except KeyError as e:
+            logging.warning('Not found %s in the pg_settings_info.', e)
+            return False
         self.detail['unreasonable_database_knob'], self.suggestion['unreasonable_database_knob'] = '', ''
         return False
 
@@ -833,9 +837,16 @@ class QueryFeature:
             'poor_aggregation_performance',
             'abnormal_sql_structure',
             'timed_task_conflict')
+        current_name = None  # only for bug trace
         try:
-            feature_vector = [int(getattr(self, name)) for name in feature_names]
+            feature_vector = []
+            for name in feature_names:
+                current_name = name
+                feature_vector.append(int(getattr(self, name)))
         except Exception as e:
-            logging.error(e, exc_info=True)
+            logging.error(
+                'Cannot get the feature %s, for details: %s.', current_name, e,
+                exc_info=True
+            )
             feature_vector = [0] * len(feature_names)
         return feature_vector, self.detail, self.suggestion
