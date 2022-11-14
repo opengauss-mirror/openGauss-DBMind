@@ -20,6 +20,7 @@ import configparser
 import os
 import sys
 import time
+import yaml
 from types import SimpleNamespace
 
 import requests
@@ -217,14 +218,21 @@ def start_prometheus(opengauss_exporter_targets):
         yaml_obj['global']['scrape_interval'] = '%ds' % SCRAPE_INTERVAL
         return yaml_obj
 
-    edit_prometheus_yaml(
-        yaml_path=PROMETHEUS_PATHS_CONFIG,
+    with open(PROMETHEUS_PATHS_CONFIG, 'r', encoding='utf-8') as f:
+        yaml_obj = yaml.safe_load(f.read())
+
+    new_yaml_obj = edit_prometheus_yaml(
+        yaml_obj=yaml_obj,
         configs=deploy_config,
         opengauss_exporter_targets=opengauss_exporter_targets,
         node_exporter_targets=strip_scheme(split_with_comma(NODE_EXPORTERS)),
         cmd_exporter_targets=strip_scheme(split_with_comma(CMD_EXPORTERS)),
         additionally_edit=edit
     )
+
+    with open(PROMETHEUS_PATHS_CONFIG, 'w') as f:
+        print("Initiating Prometheus config file.")
+        yaml.dump(new_yaml_obj, f)
 
     if not os.path.exists(PROMETHEUS_PATHS_LOG):
         os.makedirs(PROMETHEUS_PATHS_LOG, exist_ok=True)
