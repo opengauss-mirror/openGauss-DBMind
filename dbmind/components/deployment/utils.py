@@ -167,7 +167,8 @@ def transfer_pool(ip, port, username, passwd, upload_list, workers=4, method='pr
 
 def validate_ssh_connection(pwd, username, host, port):
     try:
-        SSH(host, username, pwd, port=int(port))
+        client = SSH(host, username, pwd, port=int(port))
+        client.close()
         return True
     except (SSHException, NoValidConnectionsError):
         return False
