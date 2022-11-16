@@ -190,7 +190,10 @@ class ProcessWorker(AbstractWorker):
 
     def terminate(self, cancel_futures):
         super().terminate(cancel_futures)
-        self.pool.shutdown(True, cancel_futures=cancel_futures)
+        if WIN32:
+            self.pool.shutdown(True)
+        else:
+            self.pool.shutdown(True, cancel_futures=cancel_futures)
 
 
 def get_worker_instance(_type, process_num) -> AbstractWorker:
