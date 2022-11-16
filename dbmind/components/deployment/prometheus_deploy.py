@@ -337,16 +337,13 @@ def set_deploy_config_interactive(configs):
 
 
 def edit_prometheus_yaml(
-        yaml_path,
+        yaml_obj,
         configs,
         node_exporter_targets,
         cmd_exporter_targets,
         opengauss_exporter_targets,
         additionally_edit: Callable = None
 ):
-    with open(yaml_path, 'r', encoding='utf-8') as f:
-        yaml_obj = yaml.safe_load(f.read())
-
     yaml_obj['scrape_configs'] = [
         {
             'job_name': 'prometheus',
@@ -445,9 +442,7 @@ def edit_prometheus_yaml(
     if additionally_edit:
         yaml_obj = additionally_edit(yaml_obj)
 
-    with open(yaml_path, 'w') as f:
-        print('Initiating Prometheus config file.')
-        yaml.dump(yaml_obj, f)
+    return yaml_obj
 
 
 def get_target_generator(exporters):
@@ -561,14 +556,23 @@ def deploy(configs, online=False):
         node_exporter_targets = generate_targets(configs.get(EXPORTERS, 'node_exporter_port'))
         cmd_exporter_targets = generate_targets(configs.get(EXPORTERS, 'cmd_exporter_port'))
         opengauss_exporter_targets = sum([[t for t in exporters[host]['opengauss_exporters']]
-                                          for host in exporters], [])        
-        edit_prometheus_yaml(
-            yaml_path,
+                                          for host in exporters], [])
+
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            yaml_obj = yaml.safe_load(f.read())
+
+        new_yaml_obj = edit_prometheus_yaml(
+            yaml_obj,
             configs,
             node_exporter_targets=node_exporter_targets,
             cmd_exporter_targets=cmd_exporter_targets,
             opengauss_exporter_targets=opengauss_exporter_targets
         )  # edit the prometheus config file
+
+        with open(yaml_path, 'w') as f:
+            print('Initiating Prometheus config file.')
+            yaml.dump(new_yaml_obj, f)
+
         sftp_upload(
             configs.get(PROMETHEUS, 'host'),
             configs.get(PROMETHEUS, 'host_username'),
