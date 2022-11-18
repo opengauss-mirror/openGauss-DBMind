@@ -17,6 +17,7 @@ import getpass
 import logging
 import sys
 from copy import deepcopy
+from dataclasses import dataclass
 
 import sqlparse
 from prettytable import PrettyTable
@@ -30,19 +31,21 @@ try:
     from utils import get_table_names
     from executor import Executor
     from rules import AlwaysTrue, DistinctStar, OrderbyConst, Star2Columns, UnionAll, Delete2Truncate, \
-        Or2In, \
+        Or2In, In2Exists, \
         OrderbyConstColumns, \
         ImplicitConversion, \
-        SelfJoin, Having2Where
+        SelfJoin, Having2Where, \
+        Group2Hash
     from rules import Rule
 except ImportError:
     from .utils import get_table_names
     from .executor import Executor
     from .rules import AlwaysTrue, DistinctStar, OrderbyConst, Star2Columns, UnionAll, Delete2Truncate, \
-        Or2In, \
+        Or2In, In2Exists,\
         OrderbyConstColumns, \
         ImplicitConversion, \
-        SelfJoin, Having2Where
+        SelfJoin, Having2Where, \
+        Group2Hash
     from .rules import Rule
 
 
@@ -86,6 +89,20 @@ def exists_primary_key(tables, executor: Executor):
     return table_exists_primary
 
 
+def get_notnull_columns(tables, executor: Executor):
+    table_notnull_columns = dict()
+    for table_name in tables:
+        table_notnull_columns[table_name] = executor.get_notnull_columns(table_name)
+    return table_notnull_columns
+
+
+@dataclass
+class TableInfo:
+    table_columns: dict = None
+    table_exists_primary: dict = None
+    table_notnull_columns: dict = None
+
+
 def singleton(cls):
     _instance = {}
 
@@ -107,6 +124,7 @@ def get_offline_rewriter():
     rewriter.add_rule(Delete2Truncate)
     rewriter.add_rule(Or2In)
     rewriter.add_rule(SelfJoin)
+    rewriter.add_rule(Group2Hash)
     return rewriter
 
 
@@ -114,6 +132,7 @@ def get_offline_rewriter():
 class SQLRewriter:
     def __init__(self):
         self.rules = []
+        self.add_rule(In2Exists)
         self.add_rule(DistinctStar)
         self.add_rule(Star2Columns)
         self.add_rule(ImplicitConversion)
@@ -124,15 +143,12 @@ class SQLRewriter:
         self.add_rule(Delete2Truncate)
         self.add_rule(Or2In)
         self.add_rule(SelfJoin)
+        self.add_rule(Group2Hash)
 
-    def rewrite(self, sql, table2columns=None, table_exists_primary=None, if_format=True):
-        if table2columns is None:
-            table2columns = dict()
-        if table_exists_primary is None:
-            table_exists_primary = dict()
+    def rewrite(self, sql, tableinfo=TableInfo(), if_format=True):
         parsed_sql = parse(sql)
         try:
-            checked_rules = self._apply_rules(parsed_sql, table2columns, table_exists_primary)
+            checked_rules, parsed_sql = self._apply_rules(parsed_sql, tableinfo)
         except:
             return False, sql if sql.endswith(';') else sql + ';'
         sql_string = format(parsed_sql) + ';'
@@ -140,10 +156,11 @@ class SQLRewriter:
         sql_string = re.sub(r'"\$(\d+)"', r'$\1', sql_string)
         if Delete2Truncate().__class__.__name__ in checked_rules:
             return True, 'TRUNCATE TABLE ' + sql_string.split('(')[1].split(')')[0] + ';'
+
         if if_format:
             sql_string = sqlparse.format(sql_string, reindent=True, keyword_case='upper')
 
-        return True if checked_rules else False, sqlparse.format(sql_string, reindent=True, keyword_case='upper')
+        return True if checked_rules else False, sql_string
 
     def add_rule(self, rule):
         if not issubclass(rule, Rule):
@@ -153,13 +170,17 @@ class SQLRewriter:
     def clear_rules(self):
         self.rules = []
 
-    def _apply_rules(self, parsed_sql, table2columns, table_exists_primary):
+    def _apply_rules(self, parsed_sql, tableinfo):
         checked_rules = []
+        # Format does not support "delete from" syntax.
+        if not parsed_sql.get('delete'):
+            # Normalize the sql changed during the process.
+            parsed_sql = parse(format(parsed_sql))
         for rule in self.rules:
-            res = rule().check_and_format(parsed_sql, table2columns, table_exists_primary)
+            res, parsed_sql = rule().check_and_format(parsed_sql, tableinfo)
             if res:
                 checked_rules.append(res)
-        return checked_rules
+        return checked_rules, parsed_sql
 
 
 def get_password():
@@ -211,9 +232,14 @@ def main(argv):
         if not executor.syntax_check(sql) or not canbe_parsed(sql):
             output_table.add_row([sql, ''])
             continue
-        table2columns_mapper = get_table_columns(sql, executor)
-        table_exists_primary = exists_primary_key(table2columns_mapper.keys(), executor)
-        res, rewritten_sql = SQLRewriter().rewrite(sql, table2columns_mapper, table_exists_primary)
+        # Unify sql table names and keywords to lowercase for subsequent rules.
+        formatted_sql = sqlparse.format(sql, keyword_case='lower', identifier_case='lower', strip_comments=True)
+        tableinfo = TableInfo()
+        tableinfo.table_columns = get_table_columns(formatted_sql, executor)
+        tables = tableinfo.table_columns.keys()
+        tableinfo.table_exists_primary = exists_primary_key(tables, executor)
+        tableinfo.table_notnull_columns = get_notnull_columns(tables, executor)
+        res, rewritten_sql = SQLRewriter().rewrite(formatted_sql, tableinfo)
         if not executor.syntax_check(rewritten_sql) or not res:
             output_table.add_row([sql, '']) 
         else:

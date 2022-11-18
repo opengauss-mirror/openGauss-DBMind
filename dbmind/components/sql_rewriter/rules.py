@@ -41,47 +41,150 @@ COMMUTATIVE_OP = {'add', 'mul'}
 
 SIGN_CONVERSION_OP = {'mul', 'div'}
 
+AGG_FUNCTIONS = {'sum', 'count', 'min', 'max', 'avg'}
+
 
 class Rule:
     def __init__(self):
-        self.table2columns = dict()
-        self.table_exists_primary = dict()
+        self.tableinfo = None
 
     @abc.abstractmethod
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary) -> str:
+    def _check_and_format(self, parsed_sql, count):
         pass
+
+    def check_and_format(self, parsed_sql, tableinfo):
+        self.tableinfo = tableinfo
+        count = self._check_and_format(parsed_sql, 0)
+        if count:
+            return self.__class__.__name__, parsed_sql
+        return None, parsed_sql
 
 
 class Delete2Truncate(Rule):
     """It is recommended that the DELETE
     without the WHERE condition be changed to TRUNCATE."""
 
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
+    def _check_and_format(self, parsed_sql, count):
         if len(parsed_sql) == 1 and 'delete' in parsed_sql:
             parsed_sql['truncate'] = parsed_sql.pop('delete')
-            return self.__class__.__name__
-        return ''
+            return 1
+        return 0
+
+
+class In2Exists(Rule):
+    """Use (not) exists instead of (not) in if the associated field does not have a NULL value."""
+
+    def _check_and_format(self, parsed_sql, in_count):
+        if isinstance(parsed_sql, list):
+            for sub_parsed_sql in parsed_sql:
+                in_count = self._check_and_format(sub_parsed_sql, in_count)
+        elif isinstance(parsed_sql, dict):
+            if 'union' in parsed_sql or 'union_all' in parsed_sql:
+                return self._check_and_format(list(parsed_sql.values())[0], in_count)
+            if 'where' not in parsed_sql:
+                return in_count
+            if 'from' in parsed_sql and 'select' in parsed_sql:
+                if not isinstance(parsed_sql['from'], str):
+                    return in_count
+                table1 = parsed_sql['from'].split('.')[-1]
+                if isinstance(parsed_sql['where'], dict):
+                    if 'or' not in parsed_sql['where'] and 'and' not in parsed_sql['where']:
+                        parsed_sql['where'] = {'and': [parsed_sql['where']]}
+                where_key = 'and' if parsed_sql['where'].get('and') else 'or'
+                for index, _sub in enumerate(parsed_sql['where'][where_key]):
+                    if isinstance(_sub, dict) and ('in' in _sub or 'nin' in _sub):
+                        column1 = list(_sub.values())[0][0].split('.')[-1]
+                        if column1 not in self.tableinfo.table_notnull_columns.get(table1):
+                            continue
+                        right = list(_sub.values())[0][1]
+                        if (not isinstance(right, dict)) and ('select' not in right) and ('from' not in right):
+                            continue
+                        if not isinstance(right['from'], str) and not (
+                                isinstance(right['select'], dict) and 'value' in right['select']):
+                            continue
+                        table2 = right['from'].split('.')[-1]
+                        column2 = right['select']['value'].split('.')[-1]
+                        in_count += 1
+                        new_condition = {'exists': {'select': '*', 'from': table2,
+                                                              'where': {'eq': [f"{table1}.{column1}",
+                                                                               f"{table2}.{column2}"]}}}
+                        if 'nin' in _sub:
+                            new_condition = {'not': new_condition}
+                        parsed_sql['where'][where_key][index] = new_condition
+
+        return in_count
+
+
+class Group2Hash(Rule):
+    """Enables the executor to select hashagg instead of groupagg."""
+
+    def _check_and_format(self, parsed_sql, groupagg_count):
+        if isinstance(parsed_sql, list):
+            for sub_parsed_sql in parsed_sql:
+                groupagg_count = self._check_and_format(sub_parsed_sql, groupagg_count)
+        elif isinstance(parsed_sql, dict):
+            if 'union' in parsed_sql or 'union_all' in parsed_sql:
+                return self._check_and_format(list(parsed_sql.values())[0], groupagg_count)
+            if 'from' in parsed_sql:
+                if not isinstance(parsed_sql['from'], list):
+                    parsed_sql['from'] = [parsed_sql['from']]
+                groupagg_count = self._check_and_format(parsed_sql['from'], groupagg_count)
+            if not parsed_sql.get('groupby') or not parsed_sql.get('select'):
+                return groupagg_count
+            if not isinstance(parsed_sql.get('select'), list):
+                parsed_sql['select'] = [parsed_sql['select']]
+            if not isinstance(parsed_sql.get('groupby'), list):
+                parsed_sql['groupby'] = [parsed_sql['groupby']]
+            distinct_columns = []
+            targetlist = []
+            sub_targetlist = []
+            for index, target in enumerate(parsed_sql['select']):
+                # make sure only contain columns in the list
+                if isinstance(target, dict):
+                    if isinstance(target.get('value'), str):
+                        targetlist.append(target)
+                        sub_targetlist.append(target)
+                        continue
+                    # the target is not a column or a aggregation
+                    elif not (isinstance(target.get('value'), dict) and
+                              (not target.get('value').keys() - AGG_FUNCTIONS)):
+                        return groupagg_count
+                agg_function = list(target.get('value').keys())[0]
+                # make sure distinct value is a column
+                if not isinstance(target.get('value').get(agg_function), dict) or \
+                        not target.get('value').get(agg_function).get('distinct') or \
+                        not isinstance(target.get('value').get(agg_function).get('distinct'), str):
+                    return groupagg_count
+                distinct_column = {'value': target.get('value').get(agg_function).get('distinct')}
+                distinct_columns.append(distinct_column)
+                targetlist.append({'value': {agg_function: distinct_column}})
+                if distinct_column not in sub_targetlist:
+                    sub_targetlist.append(distinct_column)
+            if distinct_columns:
+                parsed_sql['select'] = targetlist
+            else:
+                return groupagg_count
+            sub_groupby_list = parsed_sql['groupby'] + distinct_columns
+            sub_parsed_sql = {'select': sub_targetlist, 'from': parsed_sql['from'], 'groupby': sub_groupby_list}
+            for other_key in parsed_sql.keys() - {'select', 'from', 'limit', 'groupby'}:
+                sub_parsed_sql[other_key] = parsed_sql.pop(other_key)
+            parsed_sql['from'] = sub_parsed_sql
+            groupagg_count += 1
+        return groupagg_count
 
 
 class Star2Columns(Rule):
     """SELECT * type is not advised."""
 
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
-        self.table2columns = table2columns
-        star_count = self.find_star(parsed_sql, 0)
-        if star_count:
-            return self.__class__.__name__
-        return ''
-
-    def find_star(self, parsed_sql, star_count):
+    def _check_and_format(self, parsed_sql, star_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                star_count = self.find_star(sub_parsed_sql, star_count)
+                star_count = self._check_and_format(sub_parsed_sql, star_count)
         elif isinstance(parsed_sql, dict):
             if 'union' in parsed_sql or 'union_all' in parsed_sql:
-                return self.find_star(list(parsed_sql.values())[0], star_count)
+                return self._check_and_format(list(parsed_sql.values())[0], star_count)
             if parsed_sql.get('select') == '*' or parsed_sql.get('select_distinct') == '*':
-                select_values = get_columns(self.table2columns, parsed_sql)
+                select_values = get_columns(self.tableinfo.table_columns, parsed_sql)
                 if select_values:
                     if parsed_sql.get('select'):
                         parsed_sql['select'] = select_values
@@ -92,17 +195,12 @@ class Star2Columns(Rule):
             if 'from' in parsed_sql:
                 if not isinstance(parsed_sql['from'], list):
                     parsed_sql['from'] = [parsed_sql['from']]
-                star_count = self.find_star(parsed_sql['from'], star_count)
+                star_count = self._check_and_format(parsed_sql['from'], star_count)
         return star_count
 
 
 class Having2Where(Rule):
     """ Having clause is not advised. """
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
-        having_count = self.find_having(parsed_sql, 0)
-        if having_count:
-            return self.__class__.__name__
-        return ''
 
     @staticmethod
     def merge_where(where_clause, having_clause):
@@ -118,13 +216,13 @@ class Having2Where(Rule):
             having_clause = [having_clause]
         return where_clause + having_clause
 
-    def find_having(self, parsed_sql, having_count):
+    def _check_and_format(self, parsed_sql, having_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                having_count = self.find_having(sub_parsed_sql, having_count)
+                having_count = self._check_and_format(sub_parsed_sql, having_count)
         elif isinstance(parsed_sql, dict):
             if 'union' in parsed_sql or 'union_all' in parsed_sql:
-                having_count = self.find_having(list(parsed_sql.values())[0], having_count)
+                having_count = self._check_and_format(list(parsed_sql.values())[0], having_count)
             if 'having' in parsed_sql:
                 having_count += 1
                 parsed_sql['where']['and'] = self.merge_where(parsed_sql.get('where'), parsed_sql['having'])
@@ -134,12 +232,6 @@ class Having2Where(Rule):
 
 class AlwaysTrue(Rule):
     """Remove useless where clause."""
-
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
-        true_count = self.find_true(parsed_sql, 0)
-        if true_count:
-            return self.__class__.__name__
-        return ''
 
     @staticmethod
     def rm_true_expr(where_clause, index, true_count):
@@ -198,19 +290,19 @@ class AlwaysTrue(Rule):
                     where_clause.pop(index)
         return true_count
 
-    def find_true(self, parsed_sql, true_count):
+    def _check_and_format(self, parsed_sql, true_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                true_count = self.find_true(sub_parsed_sql, true_count)
+                true_count = self._check_and_format(sub_parsed_sql, true_count)
         elif isinstance(parsed_sql, dict):
             if 'union' in parsed_sql or 'union_all' in parsed_sql:
-                return self.find_true(list(parsed_sql.values())[0], true_count)
+                return self._check_and_format(list(parsed_sql.values())[0], true_count)
             if 'where' in parsed_sql:
                 true_count += AlwaysTrue.rm_true_expr(parsed_sql, 'where', 0)
             if 'from' in parsed_sql:
                 if not isinstance(parsed_sql['from'], list):
                     parsed_sql['from'] = [parsed_sql['from']]
-                true_count = self.find_true(parsed_sql['from'], true_count)
+                true_count = self._check_and_format(parsed_sql['from'], true_count)
 
         return true_count
 
@@ -218,28 +310,21 @@ class AlwaysTrue(Rule):
 class DistinctStar(Rule):
     """Distinct * is not meaningful for primary keys."""
 
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
-        self.table_exists_primary = table_exists_primary
-        distinctstar_count = self.find_distinctstar(parsed_sql, 0)
-        if distinctstar_count:
-            return self.__class__.__name__
-        return ''
-
-    def find_distinctstar(self, parsed_sql, distinctstar_count):
+    def _check_and_format(self, parsed_sql, distinctstar_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                distinctstar_count = self.find_distinctstar(sub_parsed_sql, distinctstar_count)
+                distinctstar_count = self._check_and_format(sub_parsed_sql, distinctstar_count)
         elif isinstance(parsed_sql, dict):
             if 'union' in parsed_sql or 'union_all' in parsed_sql:
-                return self.find_distinctstar(list(parsed_sql.values())[0], distinctstar_count)
+                return self._check_and_format(list(parsed_sql.values())[0], distinctstar_count)
             if 'from' in parsed_sql:
                 if not isinstance(parsed_sql['from'], list):
                     parsed_sql['from'] = [parsed_sql['from']]
-                distinctstar_count = self.find_distinctstar(parsed_sql['from'], distinctstar_count)
+                distinctstar_count = self._check_and_format(parsed_sql['from'], distinctstar_count)
             if parsed_sql.get('select_distinct') == '*':
                 table_names = get_table_names(parsed_sql['from'])
                 for table_name in table_names:
-                    if self.table_exists_primary.get(table_name):
+                    if self.tableinfo.table_exists_primary.get(table_name):
                         parsed_sql['select'] = parsed_sql.pop('select_distinct')
                         distinctstar_count += 1
                         break
@@ -250,21 +335,15 @@ class DistinctStar(Rule):
 class UnionAll(Rule):
     """Change Union to Union All."""
 
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
-        union_count = self.find_union(parsed_sql, 0)
-        if union_count:
-            return self.__class__.__name__
-        return ''
-
-    def find_union(self, parsed_sql, union_count):
+    def _check_and_format(self, parsed_sql, union_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                union_count = self.find_union(sub_parsed_sql, union_count)
+                union_count = self._check_and_format(sub_parsed_sql, union_count)
         elif isinstance(parsed_sql, dict):
             if 'from' in parsed_sql:
                 if not isinstance(parsed_sql['from'], list):
                     parsed_sql['from'] = [parsed_sql['from']]
-                union_count = self.find_union(parsed_sql['from'], union_count)
+                union_count = self._check_and_format(parsed_sql['from'], union_count)
             if 'union' in parsed_sql:
                 union_count += 1
                 parsed_sql['union_all'] = parsed_sql['union']
@@ -279,13 +358,6 @@ class OrderbyConst(Rule):
     Example: "select id from test where id=1 order by 1.
     """
 
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
-        self.table2columns = table2columns
-        orderby_count = self.find_orderbyconst(parsed_sql, 0)
-        if orderby_count:
-            return self.__class__.__name__
-        return ''
-
     @staticmethod
     def replace_const_by_column(parsed_sql, index, columns, checked=False):
         if isinstance(parsed_sql[index], dict) and isinstance(parsed_sql[index].get('value'), int):
@@ -297,17 +369,17 @@ class OrderbyConst(Rule):
                 checked += OrderbyConst.replace_const_by_column(parsed_sql[index], secondary_index, columns, checked)
         return checked
 
-    def find_orderbyconst(self, parsed_sql, orderby_count):
+    def _check_and_format(self, parsed_sql, orderby_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                orderby_count = self.find_orderbyconst(sub_parsed_sql, orderby_count)
+                orderby_count = self._check_and_format(sub_parsed_sql, orderby_count)
         elif isinstance(parsed_sql, dict):
             if 'union' in parsed_sql or 'union_all' in parsed_sql:
-                return self.find_orderbyconst(list(parsed_sql.values())[0], orderby_count)
+                return self._check_and_format(list(parsed_sql.values())[0], orderby_count)
             if 'from' in parsed_sql:
                 if not isinstance(parsed_sql['from'], list):
                     parsed_sql['from'] = [parsed_sql['from']]
-                orderby_count = self.find_orderbyconst(parsed_sql['from'], orderby_count)
+                orderby_count = self._check_and_format(parsed_sql['from'], orderby_count)
             if 'select' in parsed_sql:
                 select_key = 'select'
             elif 'select_distinct' in parsed_sql:
@@ -337,30 +409,23 @@ class OrderbyConst(Rule):
 class Or2In(Rule):
     """Transform the OR query with different conditions in the same column to the IN query."""
 
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary) -> str:
-        or_count = self.find_or(parsed_sql, 0)
-        if or_count:
-            return self.__class__.__name__
-        return ''
-
-    @staticmethod
-    def find_or(parsed_sql, or_count):
+    def _check_and_format(self, parsed_sql, or_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                or_count = Or2In.find_or(sub_parsed_sql, or_count)
+                or_count = self._check_and_format(sub_parsed_sql, or_count)
         elif isinstance(parsed_sql, dict):
             if 'union' in parsed_sql or 'union_all' in parsed_sql:
-                return Or2In.find_or(list(parsed_sql.values())[0], or_count)
+                return Or2In()._check_and_format(list(parsed_sql.values())[0], or_count)
             if 'from' in parsed_sql:
                 if not isinstance(parsed_sql['from'], list):
                     parsed_sql['from'] = [parsed_sql['from']]
-                or_count = Or2In.find_or(parsed_sql['from'], or_count)
+                or_count = Or2In()._check_and_format(parsed_sql['from'], or_count)
             if 'where' in parsed_sql:
-                or_count = Or2In.find_or(parsed_sql['where'], or_count)
+                or_count = Or2In()._check_and_format(parsed_sql['where'], or_count)
             elif 'or' in parsed_sql:
                 or_count += Or2In.or2in(parsed_sql)
             elif 'and' in parsed_sql:
-                or_count = Or2In.find_or(parsed_sql['and'], or_count)
+                or_count = Or2In()._check_and_format(parsed_sql['and'], or_count)
         return or_count
 
     @staticmethod
@@ -376,7 +441,7 @@ class Or2In(Rule):
                 else:
                     other_expr.append(sub_parsed_sql)
             elif isinstance(sub_parsed_sql, dict) and 'and' in sub_parsed_sql:
-                or_count = Or2In.find_or(sub_parsed_sql['and'], 0) 
+                or_count = Or2In()._check_and_format(sub_parsed_sql['and'], 0)
                 other_expr.append(sub_parsed_sql)
             else:
                 other_expr.append(sub_parsed_sql)
@@ -400,12 +465,6 @@ class OrderbyConstColumns(Rule):
     """Delete useless conditions in ORDER BY or GROUP BY.
     Example: "select id from test where id=1 order by id
     """
-
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
-        orderby_count = self.find_orderbyconstcolumns(parsed_sql, 0)
-        if orderby_count:
-            return self.__class__.__name__
-        return ''
 
     @staticmethod
     def get_columns(whereclause, columns=None):
@@ -445,17 +504,17 @@ class OrderbyConstColumns(Rule):
             return checked
         return False
 
-    def find_orderbyconstcolumns(self, parsed_sql, orderby_count):
+    def _check_and_format(self, parsed_sql, orderby_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                orderby_count = self.find_orderbyconstcolumns(sub_parsed_sql, orderby_count)
+                orderby_count = self._check_and_format(sub_parsed_sql, orderby_count)
         elif isinstance(parsed_sql, dict):
             if 'union' in parsed_sql or 'union_all' in parsed_sql:
-                return self.find_orderbyconstcolumns(list(parsed_sql.values())[0], orderby_count)
+                return self._check_and_format(list(parsed_sql.values())[0], orderby_count)
             if 'from' in parsed_sql:
                 if not isinstance(parsed_sql['from'], list):
                     parsed_sql['from'] = [parsed_sql['from']]
-                orderby_count = self.find_orderbyconstcolumns(parsed_sql['from'], orderby_count)
+                orderby_count = self._check_and_format(parsed_sql['from'], orderby_count)
             if isinstance(parsed_sql.get('where'), dict):
                 columns = OrderbyConstColumns.get_columns(parsed_sql.get('where'))
                 if isinstance(parsed_sql.get('orderby'), (dict, list)):
@@ -469,12 +528,6 @@ class ImplicitConversion(Rule):
     """Expression transformation.
     SQL: select * from table1 where col1 + 1 < 2 -> select * from table1 where col1 < 1
     """
-
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
-        implicit_count = self.find_implicit(parsed_sql, 0)
-        if implicit_count:
-            return self.__class__.__name__
-        return ''
 
     @staticmethod
     def _exists_int_or_float(left_right):
@@ -560,17 +613,17 @@ class ImplicitConversion(Rule):
 
         return implicit_count
 
-    def find_implicit(self, parsed_sql, implicit_count):
+    def _check_and_format(self, parsed_sql, implicit_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                implicit_count = self.find_implicit(sub_parsed_sql, implicit_count)
+                implicit_count = self._check_and_format(sub_parsed_sql, implicit_count)
         elif isinstance(parsed_sql, dict):
             if 'union' in parsed_sql or 'union_all' in parsed_sql:
-                return self.find_implicit(list(parsed_sql.values())[0], implicit_count)
+                return self._check_and_format(list(parsed_sql.values())[0], implicit_count)
             if 'from' in parsed_sql:
                 if not isinstance(parsed_sql['from'], list):
                     parsed_sql['from'] = [parsed_sql['from']]
-                implicit_count = self.find_implicit(parsed_sql['from'], implicit_count)
+                implicit_count = self._check_and_format(parsed_sql['from'], implicit_count)
             if 'where' in parsed_sql:
                 implicit_count += ImplicitConversion._format_implicit(parsed_sql, 'where', 0)
 
@@ -587,13 +640,6 @@ class SelfJoin(Rule):
             SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b
                 WHERE TRUNC((a.c_id) / 20) = TRUNC(b.c_id / 20 + 1) AND a.c_id - b.c_id <= 20);'
     """
-
-    def check_and_format(self, parsed_sql, table2columns, table_exists_primary):
-        self.table2columns = table2columns
-        selfjoin_count = self.find_selfjoin(parsed_sql, 0)
-        if selfjoin_count:
-            return self.__class__.__name__
-        return ''
 
     @staticmethod
     def is_selfjoin(from_clause):
@@ -799,22 +845,22 @@ class SelfJoin(Rule):
             return False
         return True
 
-    def find_selfjoin(self, parsed_sql, selfjoin_count):
+    def _check_and_format(self, parsed_sql, selfjoin_count):
         if isinstance(parsed_sql, list):
             for sub_parsed_sql in parsed_sql:
-                selfjoin_count = self.find_selfjoin(sub_parsed_sql, selfjoin_count)
+                selfjoin_count = self._check_and_format(sub_parsed_sql, selfjoin_count)
         elif isinstance(parsed_sql, dict):
             if 'union' in parsed_sql or 'union_all' in parsed_sql:
-                return self.find_selfjoin(list(parsed_sql.values())[0], selfjoin_count)
+                return self._check_and_format(list(parsed_sql.values())[0], selfjoin_count)
             if 'from' in parsed_sql:
                 if not isinstance(parsed_sql['from'], list):
                     parsed_sql['from'] = [parsed_sql['from']]
-                selfjoin_count = self.find_selfjoin(parsed_sql['from'], selfjoin_count)
+                selfjoin_count = self._check_and_format(parsed_sql['from'], selfjoin_count)
             if not self._check_feasibility(parsed_sql):
                 return selfjoin_count
             if 'from' in parsed_sql:
                 if not SelfJoin.is_selfjoin(parsed_sql['from']):
-                    return self.find_selfjoin(parsed_sql['from'], selfjoin_count)
+                    return self._check_and_format(parsed_sql['from'], selfjoin_count)
             if 'where' in parsed_sql and set(parsed_sql.keys()):
                 selfjoin_count += self.selfjoin2unionall(parsed_sql)
 
