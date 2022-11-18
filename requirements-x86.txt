@@ -12,7 +12,7 @@ sqlalchemy
 psycopg2-binary
 pycryptodome
 ## For components ##
-mo-sql-parsing
+mo-sql-parsing>=8.235
 prettytable>=2.5.0
 ## Prometheus Exporter
 pyyaml

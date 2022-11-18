@@ -14,7 +14,9 @@
 import re
 import unittest
 
-from dbmind.components.sql_rewriter import SQLRewriter, get_offline_rewriter
+import sqlparse
+
+from dbmind.components.sql_rewriter import SQLRewriter, get_offline_rewriter, TableInfo
 
 mapper = {'DistinctStar': {
     'select distinct * from bmsql_config join bmsql_district b on True;':
@@ -148,7 +150,33 @@ WHERE s_i_id IN (1,
             'UNION ALL '
             'SELECT DISTINCT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
             'ORDER BY 1;',
-    }
+    },
+    'In2Exists': {
+        'SELECT * FROM T1 WHERE T1.C1 NOT IN (SELECT T2.C2 FROM T2);':
+            'SELECT * FROM t1 WHERE NOT EXISTS (SELECT * FROM t2 WHERE t1.c1 = t2.c2);',
+        'SELECT * FROM T1 WHERE T1.C1 IN (SELECT T2.C2 FROM T2);':
+            'SELECT * FROM t1 WHERE EXISTS (SELECT * FROM t2 WHERE t1.c1 = t2.c2);',
+        'SELECT * FROM T1 WHERE T1.C1 NOT IN (SELECT T2.C2 FROM T2) and T1.C1 IN (select C3 from T3);':
+            'SELECT * FROM t1 WHERE NOT EXISTS (SELECT * FROM t2 WHERE t1.c1 = t2.c2) AND EXISTS '
+            '(SELECT * FROM t3 WHERE t1.c1 = t3.c3);',
+        'SELECT * FROM T1 WHERE T1.C1 NOT IN (SELECT T2.C2 FROM T2) or T1.C1 IN (select C3 from T3) limit 10;':
+            'SELECT * FROM t1 WHERE NOT EXISTS (SELECT * FROM t2 WHERE t1.c1 = t2.c2) OR EXISTS '
+            '(SELECT * FROM t3 WHERE t1.c1 = t3.c3) LIMIT 10;',
+    },
+    'Group2Hash': {
+        'select c_d_id, max(distinct c_id), max(distinct c_w_id) from bmsql_customer where c_w_id > 10 '
+        'group by c_d_id limit 10':
+            'SELECT c_d_id, MAX(c_id), MAX(c_w_id) FROM (SELECT c_d_id, c_id, c_w_id FROM bmsql_customer '
+            'WHERE c_w_id > 10 GROUP BY c_d_id, c_id, c_w_id) GROUP BY c_d_id LIMIT 10;',
+        'select c_d_id, max(distinct c_id), max(distinct c_w_id+1) from bmsql_customer where c_w_id > 10 '
+        'group by c_d_id limit 10':
+            'SELECT c_d_id, MAX(DISTINCT c_id), MAX(DISTINCT c_w_id + 1) FROM bmsql_customer WHERE c_w_id > 10 '
+            'GROUP BY c_d_id LIMIT 10;',
+        'select c_d_id, max(distinct c_id), max(distinct c_w_id) from bmsql_customer where c_w_id > 10 '
+        'group by c_d_id order by c_d_id':
+            'SELECT c_d_id, MAX(c_id), MAX(c_w_id) FROM (SELECT c_d_id, c_id, c_w_id FROM bmsql_customer '
+            'WHERE c_w_id > 10 GROUP BY c_d_id, c_id, c_w_id ORDER BY c_d_id) GROUP BY c_d_id;',
+    },
 }
 
 offline_mapper = {
@@ -226,14 +254,21 @@ table_exists_primary = {'bmsql_config': True,
                         'bmsql_customer': True,
                         'bmsql_oorder': True,
                         'bmsql_district': True}
+table_notnull_columns ={'t1': ['c1']}
 
+tableinfo = TableInfo()
+tableinfo.table_columns = table2columns_mapper
+tableinfo.table_exists_primary = table_exists_primary
+tableinfo.table_notnull_columns = table_notnull_columns
 offline_rewriter = get_offline_rewriter()
 
 
 class RewriteTester(unittest.TestCase):
     def __test_rule(self, rule):
         for input_sql, expected_output_sql in mapper.get(rule).items():
-            _, output_sql = SQLRewriter().rewrite(input_sql, table2columns_mapper, table_exists_primary)
+            formatted_sql = sqlparse.format(input_sql, keyword_cas='lower',
+                                            identifier_case='lower', strip_comments=True)
+            _, output_sql = SQLRewriter().rewrite(formatted_sql, tableinfo)
             self.assertEqual(re.sub(r'\s+', ' ', output_sql), re.sub(r'\s+', ' ', expected_output_sql))
 
     def test_DistinctStar(self):
@@ -266,9 +301,15 @@ class RewriteTester(unittest.TestCase):
     def test_SelfJoin(self):
         self.__test_rule('SelfJoin')
 
+    def test_In2Exists(self):
+        self.__test_rule('In2Exists')
+
+    def test_Group2Hash(self):
+        self.__test_rule('Group2Hash')
+
     def __test_rule_offline(self, rule):
         for input_sql, expected_output_sql in offline_mapper.get(rule).items():
-            _, output_sql = offline_rewriter.rewrite(input_sql, table2columns_mapper, table_exists_primary)
+            _, output_sql = offline_rewriter.rewrite(input_sql, tableinfo)
             self.assertEqual(re.sub(r'\s+', ' ', output_sql), re.sub(r'\s+', ' ', expected_output_sql))
 
     def test_ImplicitConversion_offline(self):
