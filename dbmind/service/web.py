@@ -23,11 +23,15 @@ from collections import defaultdict
 from functools import partial
 from itertools import groupby
 
+from sql_metadata.compat import get_query_tables
+import sqlparse
+
 from dbmind import global_vars
 from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.types import ALARM_TYPES
 from dbmind.common.utils import ttl_cache
-from dbmind.components.sql_rewriter import get_all_involved_tables, SQLRewriter
+from dbmind.common.parser.sql_parsing import get_generate_prepare_sqls_function
+from dbmind.components.sql_rewriter import SQLRewriter, TableInfo
 from dbmind.metadatabase import dao
 from dbmind.service.utils import SequenceUtils, get_master_instance_address
 from . import dai
@@ -672,6 +676,7 @@ def toolkit_index_advise(database, sqls):
 
 def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True, driver=None):
     rewritten_sqls = []
+    get_prepare_sqls = get_generate_prepare_sqls_function()
     if rewritten_flags is None:
         rewritten_flags = []
     if driver is not None:
@@ -684,27 +689,38 @@ def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True, dr
         if not _sql.strip():
             continue
         sql = _sql + ';'
-        sql_checking_stmt = 'set current_schema=%s;explain %s' % (schemas, sql)
-        if not executor(stmt=sql_checking_stmt, return_tuples=False):
+        formatted_sql = sqlparse.format(sql, keyword_case='lower', identifier_case='lower', strip_comments=True)
+        prepare_sqls = get_prepare_sqls(formatted_sql)
+        sql_checking_stmt = f'set current_schema={schemas};{":".join(prepare_sqls)}'
+        checking_results = executor(stmt=sql_checking_stmt, return_tuples=False, fetch_all=True)
+        if not checking_results:
             rewritten_sqls.append(sql)
             rewritten_flags.append(False)
             continue
-        table2columns_mapper = dict()
+        table_columns = dict()
         table_exists_primary = dict()
-        involved_tables = get_all_involved_tables(sql)
+        table_notnull_columns = dict()
+        involved_tables = get_query_tables(formatted_sql)
+        tableinfo = TableInfo()
         for table_name in involved_tables:
             search_table_stmt = "select column_name, ordinal_position " \
                                 "from information_schema.columns where table_name='%s';" % table_name
             results = sorted(executor(stmt=search_table_stmt, return_tuples=True), key=lambda x: x[1])
-            table2columns_mapper[table_name] = [res[0] for res in results]
+            table_columns[table_name] = [res[0] for res in results]
             exists_primary_stmt = "SELECT count(*)  FROM information_schema.table_constraints WHERE " \
                                   "constraint_type in ('PRIMARY KEY', 'UNIQUE') AND table_name = '%s'" % table_name
             table_exists_primary[table_name] = \
                 executor(stmt=exists_primary_stmt, return_tuples=True)[0][0]
-            rewritten_flag, output_sql = SQLRewriter().rewrite(sql, table2columns_mapper, table_exists_primary,
-                                                               if_format)
-            rewritten_flags.append(rewritten_flag)
-            rewritten_sqls.append(output_sql)
+            notnull_columns_stat = f"SELECT attname from pg_attribute where attrelid=(select oid from pg_class " \
+                                   f"where relname='{table_name}) and attnotnull=True"
+            table_notnull_columns[table_name] = [_tuple[0] for _tuple in
+                                                 executor(stmt=notnull_columns_stat, return_tuples=True)]
+        tableinfo.table_columns = table_columns
+        tableinfo.table_exists_primary = table_exists_primary
+        tableinfo.table_notnull_columns = table_notnull_columns
+        rewritten_flag, output_sql = SQLRewriter().rewrite(formatted_sql, tableinfo, if_format)
+        rewritten_flags.append(rewritten_flag)
+        rewritten_sqls.append(output_sql)
     return '\n'.join(rewritten_sqls)
 
 
