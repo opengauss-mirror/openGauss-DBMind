@@ -272,14 +272,14 @@ class OpenGaussMetric(AbstractMetric):
     def shared_buffer_heap_hit_rate(self):
         return self._get_numeric_metric(
             "select pg_catalog.sum(heap_blks_hit)*100/(pg_catalog.sum(heap_blks_read)+pg_catalog.sum(heap_blks_hit)+1) "
-            "from pg_statio_all_tables ;")
+            "from pg_statio_user_tables ;")
 
     @property
     def shared_buffer_toast_hit_rate(self):
         return self._get_numeric_metric(
             "select "
             "pg_catalog.sum(toast_blks_hit)*100/(pg_catalog.sum(toast_blks_read)+pg_catalog.sum(toast_blks_hit)+1) "
-            "from pg_statio_all_tables ;"
+            "from pg_statio_user_tables ;"
         )
 
     @property
@@ -287,7 +287,7 @@ class OpenGaussMetric(AbstractMetric):
         return self._get_numeric_metric(
             "select "
             "pg_catalog.sum(tidx_blks_hit)*100/(pg_catalog.sum(tidx_blks_read)+pg_catalog.sum(tidx_blks_hit)+1) "
-            "from pg_statio_all_tables ;"
+            "from pg_statio_user_tables ;"
         )
 
     @property
@@ -295,7 +295,7 @@ class OpenGaussMetric(AbstractMetric):
         return self._get_numeric_metric(
             "select "
             "pg_catalog.sum(idx_blks_hit)*100/(pg_catalog.sum(idx_blks_read)+pg_catalog.sum(idx_blks_hit)+1) "
-            "from pg_statio_all_tables ;"
+            "from pg_statio_user_tables ;"
         )
 
     @property
@@ -349,7 +349,9 @@ class OpenGaussMetric(AbstractMetric):
 
     @cached_property
     def nb_gaussdb(self):
-        return int(self._db.exec_command_on_host("ps -ux | grep gaussd[b] | wc -l"))
+        return int(
+            self._db.exec_command_on_host("ps -ux | grep gaussd[b] | wc -l")
+        ) or 1  # set a default value
 
     @cached_property
     def os_mem_total(self):

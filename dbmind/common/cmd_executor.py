@@ -317,7 +317,9 @@ def to_cmds(cmdline):
         require_stdin.append(last_separator == '|')
         cmd_start += sep_index + 1
         last_separator = get_separator(cmd_words[cmd_start:])
-    cmds.append(list(map(dequote, cmd_words[cmd_start:])))
+    last_one = list(map(dequote, cmd_words[cmd_start:]))
+    if len(last_one) > 0:
+        cmds.append(last_one)
     return cmds, require_stdin
 
 

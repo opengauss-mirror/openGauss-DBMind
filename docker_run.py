@@ -23,7 +23,6 @@ import time
 import yaml
 from types import SimpleNamespace
 
-import requests
 from prometheus_client.parser import text_string_to_metric_families
 
 from dbmind import constants
@@ -32,12 +31,46 @@ from dbmind.cmd.config_utils import ConfigUpdater
 from dbmind.common.parser.others import parse_dsn
 from dbmind.components.deployment.prometheus_deploy import PROMETHEUS, SSL, EXPORTERS
 from dbmind.components.deployment.prometheus_deploy import edit_prometheus_yaml
+from dbmind.common.http.requests_utils import create_requests_session
 
-OPENGAUSS_DSNS = os.getenv('OPENGAUSS_DSNS')
-CMD_EXPORTERS = os.getenv('CMD_EXPORTERS')
-NODE_EXPORTERS = os.getenv('NODE_EXPORTERS')
-METADATABASE = os.getenv('METADATABASE')
-SCRAPE_INTERVAL = int(os.getenv('SCRAPE_INTERVAL', 15))
+
+def notify(msg, warn=False):
+    if warn:
+        print('WARN: ' + msg, file=sys.stderr)
+    else:
+        print(msg, file=sys.stdout)
+
+
+def die(msg):
+    print(msg, file=sys.stderr)
+    sys.exit(1)
+
+
+def getenv(key, default=None):
+    variable_value = os.getenv(key)
+    if variable_value is None:
+        return default
+
+    # strip quotes and blank
+    marks = '\'" '
+    new_value = variable_value.strip(marks)
+    if len(variable_value) != len(new_value):
+        notify(
+            'The environment variable %s has been stripped.' % key,
+            warn=True
+        )
+    return new_value
+
+
+OPENGAUSS_DSNS = getenv('OPENGAUSS_DSNS')
+CMD_EXPORTERS = getenv('CMD_EXPORTERS')
+NODE_EXPORTERS = getenv('NODE_EXPORTERS')
+METADATABASE = getenv('METADATABASE')
+SCRAPE_INTERVAL = int(getenv('SCRAPE_INTERVAL', 15))
+
+ADMIN_USER = getenv('MASTER_USER')
+ADMIN_USER_PWD = getenv('MASTER_USER_PWD')
+
 
 # fixed path
 PATHS_CONFIG = '/etc'  # can be modified
@@ -58,15 +91,6 @@ GF_PATHS_LOGS = '{}/grafana'.format(PATHS_LOG)
 
 # dynamically update
 g_agent = None
-
-
-def notify(msg):
-    print(msg, file=sys.stdout)
-
-
-def die(msg):
-    print(msg, file=sys.stderr)
-    sys.exit(1)
 
 
 def execute(cmd):
@@ -92,9 +116,9 @@ def strip_scheme(urls):
             die('Not supported https yet for ' + url)
         if url.startswith('http://'):
             url = url[len('http://'):]
-        url = url.strip('/')
+        url = url.strip('/ ')
         if ':' not in url:
-            die('Require fixed port in the url ' + url)
+            die('Require a fixed port in the url ' + url)
         rv.append(url)
     return rv
 
@@ -102,19 +126,26 @@ def strip_scheme(urls):
 def look_for_master_exporter(targets, dsn_list):
     """Currently, only supports one agent."""
     NODE_INFO_METRIC = 'pg_node_info_uptime'
-    NODE_INFO_IS_SLAVE_LABEL = 'is_slave'
+    NODE_INFO_IS_NOT_SLAVE_LABEL = 'is_slave'
     NODE_INFO_NON_SLAVE_FLAG = 'N'
 
     for i, target in enumerate(targets):
         url = 'http://{}'.format(target)
-        r = requests.get(url + '/metrics')
+        session = create_requests_session(max_retry=3, timeout=5)
+        try:
+            r = session.get(url + '/metrics')
+        except OSError:
+            notify('Failed to access %s/metrics.' % url, warn=True)
+            continue
+
         if r.status_code != 200:
+            notify('Got status code %d from %s.' % (r.status_code, url), warn=True)
             continue
         for family in text_string_to_metric_families(r.text):
             if family.name != NODE_INFO_METRIC:
                 continue
             for sample in family.samples:
-                if sample.labels[NODE_INFO_IS_SLAVE_LABEL] != NODE_INFO_NON_SLAVE_FLAG:
+                if sample.labels[NODE_INFO_IS_NOT_SLAVE_LABEL] == NODE_INFO_NON_SLAVE_FLAG:
                     # The index is consistent with dsn_list.
                     dsn = parse_dsn(dsn_list[i])
                     return SimpleNamespace(
@@ -155,7 +186,7 @@ port_allocator = PortAllocator()
 def start_opengauss_exporters(dsn_list):
     cmd = (
         './gs_dbmind component opengauss_exporter '
-        '--url {dsn} '
+        '--url \'{dsn}\' '
         '--web.listen-address 0.0.0.0 '  # not exposed
         '--web.listen-port {port} '
         '--disable-http --scrape-interval-seconds {scrape_interval} '
@@ -213,10 +244,11 @@ def start_prometheus(opengauss_exporter_targets):
     deploy_config.set(PROMETHEUS, 'reprocessing_exporter_port', '8181')
     deploy_config.set(SSL, 'enable_ssl', 'false')
 
-    def edit(yaml_obj):
+    def edit(obj):
         # unified unit: second
-        yaml_obj['global']['scrape_interval'] = '%ds' % SCRAPE_INTERVAL
-        return yaml_obj
+        obj['global']['scrape_interval'] = '%ds' % SCRAPE_INTERVAL
+        obj['global']['scrape_timeout'] = '%ds' % (SCRAPE_INTERVAL * 0.9)
+        return obj
 
     with open(PROMETHEUS_PATHS_CONFIG, 'r', encoding='utf-8') as f:
         yaml_obj = yaml.safe_load(f.read())
@@ -231,7 +263,7 @@ def start_prometheus(opengauss_exporter_targets):
     )
 
     with open(PROMETHEUS_PATHS_CONFIG, 'w') as f:
-        print("Initiating Prometheus config file.")
+        notify("Initiating Prometheus config file.")
         yaml.dump(new_yaml_obj, f)
 
     if not os.path.exists(PROMETHEUS_PATHS_LOG):
@@ -295,7 +327,7 @@ def config_dbmind_service(confpath):
         config.set('LOG', 'log_directory', DBMIND_PATHS_LOGS)
 
     # override existence data for meta-database
-    setup.initialize_and_check_config(confpath, interactive=False, quiet=True)
+    return setup.initialize_and_check_config(confpath, interactive=False, quiet=True)
 
 
 def start_dbmind_service():
@@ -307,7 +339,9 @@ def start_dbmind_service():
     # Not existing and existing but empty directory are both ok.
     if (not os.path.exists(DBMIND_PATHS_CONFIG) 
             or len(os.listdir(DBMIND_PATHS_CONFIG)) == 0):
-        config_dbmind_service(DBMIND_PATHS_CONFIG)
+        success = config_dbmind_service(DBMIND_PATHS_CONFIG)
+        if not success:
+            die('Failed to configure DBMind.')
 
     # config_dbmind_service() will change cwd, we change it back.
     os.chdir(old_cwd)
@@ -350,6 +384,11 @@ def main_procedure():
 
     global g_agent
     g_agent = look_for_master_exporter(opengauss_exporter_targets, dsn_list)
+    if ADMIN_USER and ADMIN_USER_PWD:
+        # if specified user and password, use them.
+        notify('Use the given administrative account %s.' % ADMIN_USER)
+        g_agent.username = ADMIN_USER
+        g_agent.password = ADMIN_USER_PWD
 
     notify('Starting cmd exporters...')
     start_cmd_exporters()
@@ -377,4 +416,3 @@ def main_procedure():
 
 if __name__ == '__main__':
     main_procedure()
-
