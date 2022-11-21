@@ -33,6 +33,8 @@ from dbmind.metadatabase.dao.dynamic_config import dynamic_config_set, dynamic_c
 
 
 def initialize_and_check_config(confpath, interactive=False, quiet=False):
+    """Returns true while configration procedure is successful. Otherwise,
+    returns default value None."""
     if not os.path.exists(confpath):
         raise SetupError('Not found the directory %s.' % confpath)
     confpath = os.path.realpath(confpath)  # in case of dir changed.
@@ -107,6 +109,7 @@ def initialize_and_check_config(confpath, interactive=False, quiet=False):
     try:
         create_metadatabase_schema(check_first=False)
         utils.cli.write_to_terminal('The setup process finished successfully.', color='green')
+        return True  # return true in this branch
     except (DuplicateTableError, SQLExecutionError) as e:
         if 'already exist' not in str(e):
             utils.cli.write_to_terminal('Failed to link metadatabase due to unknown error (%s), '
@@ -141,6 +144,7 @@ def initialize_and_check_config(confpath, interactive=False, quiet=False):
             dst=os.path.join(confpath, constants.VERFILE_NAME)
         )
         utils.cli.write_to_terminal('The setup process finished successfully.', color='green')
+        return True  # return true in this branch
     except Exception as e:
         utils.cli.write_to_terminal('Failed to link metadatabase due to unknown error (%s), '
                                     'please check the database and its configuration.' % e, color='red')
