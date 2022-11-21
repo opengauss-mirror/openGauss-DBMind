@@ -102,7 +102,9 @@ class Daemon:
             os.dup2(sys.stdout.fileno(), open(self.stdout, 'r').fileno())
             os.dup2(sys.stderr.fileno(), open(self.stderr, 'r').fileno())
 
-            atexit.register(lambda: os.remove(self.pid_file))
+            atexit.register(
+                lambda: os.path.exists(self.pid_file) and os.remove(self.pid_file)
+            )
             atexit.register(self.clean)
 
         # Write daemon pid file.

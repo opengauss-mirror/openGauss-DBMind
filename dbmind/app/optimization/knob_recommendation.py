@@ -201,7 +201,7 @@ class RPCAndTSDBMetric(AbstractMetric):
     def shared_buffer_heap_hit_rate(self):
         if self.is_rpc_valid:
             stmt = "select pg_catalog.sum(heap_blks_hit)*100 / (pg_catalog.sum(heap_blks_read) + " \
-                   "pg_catalog.sum(heap_blks_hit)+1) from pg_statio_all_tables;"
+                   "pg_catalog.sum(heap_blks_hit)+1) from pg_statio_user_tables;"
             return float(_fetch_value_by_rpc(stmt, database=self.most_xact_db, default_val=100))
         return 100.0
 
@@ -209,7 +209,7 @@ class RPCAndTSDBMetric(AbstractMetric):
     def shared_buffer_toast_hit_rate(self):
         if self.is_rpc_valid:
             stmt = "select pg_catalog.sum(toast_blks_hit)*100 / (pg_catalog.sum(toast_blks_read) + " \
-                   "pg_catalog.sum(toast_blks_hit)+1) from pg_statio_all_tables;"
+                   "pg_catalog.sum(toast_blks_hit)+1) from pg_statio_user_tables;"
             return float(_fetch_value_by_rpc(stmt, database=self.most_xact_db, default_val=100))
         return 100.0
 
@@ -217,7 +217,7 @@ class RPCAndTSDBMetric(AbstractMetric):
     def shared_buffer_tidx_hit_rate(self):
         if self.is_rpc_valid:
             stmt = "select pg_catalog.sum(tidx_blks_hit)*100 / (pg_catalog.sum(tidx_blks_read) + " \
-                   "pg_catalog.sum(tidx_blks_hit)+1) from pg_statio_all_tables;"
+                   "pg_catalog.sum(tidx_blks_hit)+1) from pg_statio_user_tables;"
             return float(_fetch_value_by_rpc(stmt, database=self.most_xact_db, default_val=100))
         return 100.0
 
@@ -225,7 +225,7 @@ class RPCAndTSDBMetric(AbstractMetric):
     def shared_buffer_idx_hit_rate(self):
         if self.is_rpc_valid:
             stmt = "select pg_catalog.sum(idx_blks_hit)*100/(pg_catalog.sum(idx_blks_read) + " \
-                   "pg_catalog.sum(idx_blks_hit)+1) from pg_statio_all_tables ;"
+                   "pg_catalog.sum(idx_blks_hit)+1) from pg_statio_user_tables ;"
             return float(_fetch_value_by_rpc(stmt, database=self.most_xact_db, default_val=100))
         return 100.0
 
