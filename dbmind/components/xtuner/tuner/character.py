@@ -349,7 +349,9 @@ class OpenGaussMetric(AbstractMetric):
 
     @cached_property
     def nb_gaussdb(self):
-        return int(self._db.exec_command_on_host("ps -ux | grep gaussd[b] | wc -l"))
+        return int(
+            self._db.exec_command_on_host("ps -ux | grep gaussd[b] | wc -l")
+        ) or 1  # set a default value
 
     @cached_property
     def os_mem_total(self):
