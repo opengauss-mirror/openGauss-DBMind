@@ -21,7 +21,8 @@ def create_dsn(
         host=None,
         port=None,
         username=None,
-        password=None
+        password=None,
+        schema='public'
 ):
     """Generate a DSN (Data Source Name) according to the user's given parameters.
     Meanwhile, DBMind will adapt some interfaces to SQLAlchemy, such as openGauss."""
@@ -42,4 +43,6 @@ def create_dsn(
         host = parse.quote(host)
         database = parse.quote(database)
         dsn = '{}://{}:{}@{}:{}/{}'.format(db_type, username, password, host, port, database)
+    if db_type == 'postgresql':
+        dsn = dsn + '?options=-csearch_path%3Dpublic'  # only use the fixed schema
     return dsn
