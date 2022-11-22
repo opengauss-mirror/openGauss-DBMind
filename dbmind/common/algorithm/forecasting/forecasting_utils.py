@@ -14,13 +14,15 @@
 import numpy as np
 from scipy.linalg import toeplitz
 
+from .linear_models import OLS
+
 
 class InvalidParameter(Exception):
     pass
 
 
 def lag_matrix(x, nlags):
-    """\
+    """
     input a 1D array x and nlags
     returns a 2D array 'lag_matrix' ((len(x) + nlags) * (nlags + 1))
     which shows observation in columns with different lags.
@@ -129,11 +131,12 @@ def ma_inv_trans_params(params):
     return inv_ma_params
 
 
-def yule_walker(x, order=1):
+def yule_walker(x, order=1, method="adjusted"):
     """
     estimate ar parameters.
     :param x type->np.array
     :param order: type->tuple
+    :param method: type->str
     :return rho: type->np.array,
     """
 
@@ -141,13 +144,15 @@ def yule_walker(x, order=1):
     x -= x.mean()
     num = x.shape[0]
 
+    adj = method == "adjusted"
+
     if x.ndim > 1 and x.shape[1] != 1:
         raise InvalidParameter("expecting a vector to estimate ar parameters")
 
     r = np.zeros(order + 1, np.float64)
     r[0] = (x ** 2).sum() / num
     for k in range(1, order + 1):
-        r[k] = (x[0:-k] * x[k:]).sum() / (num - k)
+        r[k] = (x[0:-k] * x[k:]).sum() / (num - k * adj)
 
     R = toeplitz(r[:-1])
     try:
@@ -155,6 +160,45 @@ def yule_walker(x, order=1):
         return rho
     except np.linalg.LinAlgError as e:
         raise InvalidParameter(e)
+
+
+def hannan_rissanen(y, p, q):
+    """
+    the start ar/ma coeffs for lbfgs to give a optimal parameters.
+    :param y: type->np.array
+    :param p: type->int  Auto-Correlation order of the ARIMA model which indicates
+                         how many historical data the AR procedure uses.
+    :param q: type->int  Moving Average order of the ARIMA model which indicates
+                         how many historical resid the MA procedure uses.
+    :return params: type->np.array
+    """
+
+    nobs = len(y)
+    lagged_y = lag_matrix(y, p)
+    lagged_y = lagged_y[p: len(lagged_y) - p, 1:]
+
+    ar_order = max(
+        np.floor(np.log(nobs) ** 2).astype(int),
+        2 * max(p, q)
+    )
+
+    initial_ar_params = yule_walker(y, order=ar_order, method='mle')
+
+    lag_mat = lag_matrix(y, ar_order)
+    X = lag_mat[ar_order: len(lag_mat) - ar_order, 1:]
+    Y = y[ar_order:]
+    resid = Y - X.dot(initial_ar_params)
+
+    lagged_resid = lag_matrix(resid, q)
+    lagged_resid = lagged_resid[q: len(lagged_resid) - q, 1:]
+
+    ix = ar_order + q - p
+    X = np.c_[lagged_y[ix:, :], lagged_resid]
+    Y = y[ar_order + q:]
+
+    mod = OLS(X, Y)
+    coeffs = mod.fit()
+    return coeffs
 
 
 def un_diff(x, heads):
@@ -181,5 +225,13 @@ def diff_heads(x, d):
     :return: diff heads: type->np.array
     """
 
-    x = x[:d]
+    x = x[:d].copy()
     return np.asarray([np.diff(x, n=i)[0] for i in range(d)])
+
+
+def is_invertible(params, threshold=1):
+    """
+    Determine if a polynomial is invertible.
+    Requires all roots of the polynomial lie inside the unit circle.
+    """
+    return np.all(np.abs(np.roots(np.r_[1, params])) < threshold)
