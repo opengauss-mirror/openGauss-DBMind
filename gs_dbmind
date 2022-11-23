@@ -14,7 +14,7 @@
 
 # ------------Utils------------
 function die() {
-    echo -e $1
+    echo -e "FATAL: $1"
     exit 1
 }
 
@@ -61,7 +61,7 @@ fi
 # Run set command
 if [[ $1 == "set" ]]; then
     cd $ORIGIN_PATH
-    echo "The SET operation will not detect the integrity of the module, please install the module in advance."
+    echo "WARN: The SET operation will not detect the integrity of the module, please install the module in advance."
     $PYTHON $DBMIND_PATH/ $@ &
     exit $?
 fi
@@ -85,7 +85,7 @@ fi
 
 ## Secondly, check whether each library has been installed.
 if [[ $PYTHONPATH ]]; then
-    echo "You have set the variable PYTHONPATH. DBMind ignored it."
+    echo "NOTICE: You have set the variable PYTHONPATH. DBMind ignored it."
 fi
 export PYTHONPATH=${ABSPATH}/3rd
 installed_list=$($PYTHON -m pip list --disable-pip-version-check)
@@ -116,7 +116,7 @@ if [[ "$1" == "component" ]] && [[ "$2" == "sqldiag" || "$2" == "xtuner" ]]; the
 
         found=$(echo $installed_list | grep -i "$libname")
         if [[ $found == "" ]]; then
-            die "Need dependency ${libname} while using this component. You should use pip to install it, following:\n
+            echo -e "NOTICE: Maybe you need dependency ${libname} while using this component. You should use pip to install it, following:\n
             ${PYTHON} -m pip install -r ${optional_reqs}"
         fi
     done < $optional_reqs
