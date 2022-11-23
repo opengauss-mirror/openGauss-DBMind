@@ -36,3 +36,53 @@ def test_local_exec():
     assert 'bash' in local_exec.exec_command_sync('bash --version')[0]
     assert 'bash' not in local_exec.exec_command_sync("bash --version | grep -v 'bash'")[0]
 
+
+def test_to_cmds():
+    cases = (
+        (
+            'echo a && echo b ; echo c',
+            ([['echo', 'a'], ['echo', 'b'], ['echo', 'c']], [False, False, False])
+        ),
+        (
+            'echo a && echo b | echo c',
+            ([['echo', 'a'], ['echo', 'b'], ['echo', 'c']], [False, False, True])
+        ),
+        (
+            'echo a',
+            ([['echo', 'a']], [False])
+        ),
+        (
+            'echo a;',
+            ([['echo', 'a;']], [False])
+        ),
+        (
+            'echo a \\;',
+            ([['echo', 'a', ';']], [False])
+        ),
+        (
+            'echo a \\; echo b',
+            ([['echo', 'a', ';', 'echo', 'b']], [False])
+        ),
+        (
+            'echo a ; echo b',
+            ([['echo', 'a'], ['echo', 'b']], [False, False])
+        ),
+        (
+            'echo a \\ echo b',
+            ([['echo', 'a', ' echo', 'b']], [False])
+        ),
+        (
+            'find . -name "*" -exec ls -l {} \\;',
+            ([['find', '.', '-name', '*', '-exec', 'ls', '-l', '{}', ';']], [False])
+        ),
+        (
+            'find . -name "*" -exec ls -l {} \\; && echo "hello world"',
+            ([['find', '.', '-name', '*', '-exec', 'ls', '-l', '{}', ';'], ['echo', 'hello world']], [False, False])
+        )
+    )
+
+    for cmdline, expected in cases:
+        actual = cmd_executor.to_cmds(cmdline)
+        assert len(actual[0]) == len(actual[1])
+        assert actual == expected
+

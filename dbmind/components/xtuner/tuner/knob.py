@@ -208,9 +208,14 @@ class Knob:
         self.fresh_scale()
 
     def normalize(self, val):
+        if not self._scale:
+            return val
         return (float(val) - float(self._min)) / self._scale
 
     def denormalize(self, val):
+        if not self._scale:
+            return val
+
         return val * self._scale + float(self._min)
 
     def to_dict(self):
