@@ -299,28 +299,52 @@ def dequote(text):
 
 def to_cmds(cmdline):
     separators = {'|', '||', '&&', ';'}
+    escaped = '\\'
 
-    def get_separator(candidates):
-        for token in candidates:
+    def get_separators(s):
+        lex = shlex.shlex(s, punctuation_chars=True)
+        lex.whitespace_split = True
+        tokens = list(lex)
+        real_tokens = []
+        separator_indexes = []
+        escape_count = 0
+        for token in tokens:
+            if token == escaped:
+                escape_count += 1
+                continue
+            real_tokens.append(token)
             if token in separators:
-                return token
-        return None
+                if escape_count == 0 and len(real_tokens) > 0:
+                    separator_indexes.append(len(real_tokens) - 1)
+            if escape_count > 0:
+                escape_count -= 1
+        # append left escaped characters
+        for _ in range(escape_count):
+            real_tokens.append(escaped)
+        while separator_indexes and separator_indexes[-1] == len(real_tokens) - 1:
+            separator_indexes.pop()
+            real_tokens.pop()
+        if len(separator_indexes) == 0:
+            real_tokens = shlex.split(s)
+        return real_tokens, separator_indexes
 
-    cmd_words = list(shlex.shlex(cmdline, punctuation_chars=True))
+    cmd_words, seps = get_separators(cmdline)
+    if len(seps) == 0:
+        return [cmd_words], [False]
     cmds = []
-    require_stdin = [False]
+    require_stdin = [False]  # disable to use stdin for the first command
     cmd_start = 0
-    last_separator = get_separator(cmd_words[cmd_start:])
-    while last_separator:
-        sep_index = cmd_words[cmd_start:].index(last_separator)
-        cmds.append(list(map(dequote, cmd_words[cmd_start:sep_index + cmd_start])))
-        require_stdin.append(last_separator == '|')
-        cmd_start += sep_index + 1
-        last_separator = get_separator(cmd_words[cmd_start:])
+    while seps:
+        sep_index = seps.pop(0)
+        cmds.append(list(map(dequote, cmd_words[cmd_start:sep_index])))
+        require_stdin.append(cmd_words[sep_index] == '|')
+        cmd_start = sep_index + 1
     last_one = list(map(dequote, cmd_words[cmd_start:]))
     if len(last_one) > 0:
         cmds.append(last_one)
-    return cmds, require_stdin
+    # Frankly, it is redundant to truncate require_stdin. Coding here is to
+    # avoid untested boundary cases.
+    return cmds, require_stdin[:len(cmds)]
 
 
 def multiple_cmd_exec(cmdline, **communicate_kwargs):
