@@ -52,9 +52,9 @@ def least_square(x, y):
         return 0, y[0], 1
 
     n = len(x)
-    scale = max(np.abs(x).max(), np.abs(y).max())
-    x = x / scale
-    y = y / scale
+    scale_x, scale_y = np.abs(x).max(), np.abs(y).max()
+    x = x / scale_x
+    y = y / scale_y
 
     sx = np.sum(x)
     sy = np.sum(y)
@@ -68,4 +68,6 @@ def least_square(x, y):
     denominator = syy - sy * sy / n
     r2 = 1 - numerator / denominator
 
-    return a, b * scale, r2
+    a, b = a * scale_y / scale_x, b * scale_y
+
+    return a, b, r2

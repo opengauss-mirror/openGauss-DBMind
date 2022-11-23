@@ -5056,15 +5056,15 @@ def test_arima_for_linear():
 
 
 def test_arima_for_nonlinear():
-    data = DATA[2000:5000]
     train_length = 2100
-    forecast_length = 900
+    forecast_length = 50
+    data = DATA[2000: 2000 + train_length + forecast_length]
     train_data = data[:train_length]
     s = Sequence(timestamps=range(0, train_length * 10, 10), values=train_data)
     forecasting_minutes = forecast_length * s.step / (60 * 1000)
     forecast_sequence = quickly_forecast(sequence=s, forecasting_minutes=forecasting_minutes)
     assert forecast_sequence.timestamps[0] == train_length * 10
-    assert mse(data[train_length: train_length + forecast_length], forecast_sequence.values) <= 220000
+    assert mse(data[train_length: train_length + forecast_length], forecast_sequence.values) <= 6000
 
 
 def test_arima_for_seasonal():
@@ -5079,8 +5079,8 @@ def test_arima_for_seasonal():
 
 
 def test_cosine_sequence():
-    t = list(range(200))
-    v = np.cos(np.array(t) / 3.14)
+    t = list(range(300))
+    v = np.cos(np.array(t) / np.pi) + 1
     total = Sequence(timestamps=t, values=v)
     forecast_length = 50
     train = total[0, 149]
@@ -5090,8 +5090,8 @@ def test_cosine_sequence():
     assert mse(test.values, forecast_sequence.values) < 0.35
     # forecast too-long sequence.
     forecast_length = 150
-    train = total[0, 49]
-    test = total[50, 199]
+    train = total[0, 149]
+    test = total[150, 299]
     forecast_sequence = quickly_forecast(sequence=train, forecasting_minutes=forecast_length / (60 * 1000))
     assert mse(test.values, forecast_sequence.values) < 1
 
