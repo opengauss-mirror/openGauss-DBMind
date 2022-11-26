@@ -80,8 +80,9 @@ def rpc_index_advise(executor, templates):
     # only single threads can be used
     index_advisor_workload.get_workload_costs = index_advisor_workload.get_plan_cost
     detail_info = index_advisor_workload.index_advisor_workload({'historyIndexes': {}}, executor, templates,
-                                                                multi_iter_mode=False, show_detail=True, n_distinct=1,
-                                                                reltuples=10, use_all_columns=True, improved_rate=0.1)
+                                                                multi_iter_mode=True, show_detail=True, n_distinct=1,
+                                                                reltuples=10, use_all_columns=True, improved_rate=0.5,
+                                                                max_candidate_columns=40)
     return detail_info
 
 

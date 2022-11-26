@@ -217,11 +217,12 @@ pg_tables_structure:
                n_tup_hot_upd,
                n_live_tup,
                n_dead_tup,
-               round(n_dead_tup / (n_live_tup + 1), 2)   as                                                   dead_rate,
+               round(n_dead_tup / (n_live_tup + n_dead_tup + 1), 2)   as                                                   dead_rate,
                vacuum_count + autovacuum_count as vacuum_count,
                analyze_count + autoanalyze_count as analyze_count,
                case when (last_vacuum is null) then -1 else extract(epoch from pg_catalog.now() - last_vacuum)::bigint end as vacuum_delay,
-               case when (last_analyze is null) then -1 else extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay
+               case when (last_analyze is null) then -1 else extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay,
+               case when (last_data_changed is null) then -1 else extract(epoch from pg_catalog.now() - last_data_changed)::bigint end as last_data_changed_delay
         FROM pg_stat_user_tables psut,
              pg_statio_user_tables psio
         WHERE psio.relid = psut.relid
@@ -276,6 +277,9 @@ pg_tables_structure:
       usage: GAUGE
     - name: analyze_delay
       description: delay from last  analyze time
+      usage: GAUGE
+    - name: last_data_changed_delay
+      description: delay from last data change time
       usage: GAUGE
     - name: vacuum_count
       description: manual vacuum count (FULL not count)

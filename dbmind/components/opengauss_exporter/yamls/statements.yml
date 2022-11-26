@@ -17,7 +17,7 @@ pg_sql_statement_history:
   query:
     - name: pg_sql_statement_history
       sql: "
-  with HS as (select H.unique_query_id,
+  with HS as (select H.unique_query_id, H.debug_query_id,
         H.db_name AS datname,
         H.schema_name AS SCHEMA,
       H.query,

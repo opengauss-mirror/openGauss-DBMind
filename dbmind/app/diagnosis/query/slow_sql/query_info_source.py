@@ -11,23 +11,23 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import logging
-import re
 import math
-from datetime import datetime, timedelta
+import re
+from typing import List
+from datetime import datetime
 from functools import wraps
 
 from dbmind.common.parser import plan_parsing
-from dbmind.common.parser.sql_parsing import to_ts, get_generate_prepare_sqls_function
-from dbmind.common.utils import ExceptionCatcher
-from dbmind.global_vars import agent_rpc_client
-from dbmind.service import dai
 from dbmind.common.parser.sql_parsing import fill_value, standardize_sql, replace_comma_with_dollar
 from dbmind.common.parser.sql_parsing import remove_parameter_part
+from dbmind.common.parser.sql_parsing import to_ts, get_generate_prepare_sqls_function
+from dbmind.common.utils import ExceptionCatcher
+from dbmind import global_vars
+from dbmind.service import dai
+from dbmind.common.types import Sequence
 from dbmind.service.web import toolkit_rewrite_sql
-from dbmind.components.index_advisor.utils import WorkLoad
-from dbmind.components.index_advisor.index_advisor_workload import generate_candidate_indexes
 from dbmind.app.optimization._index_recommend_client_driver import RpcExecutor
-
+from dbmind.app.optimization.index_recommendation import rpc_index_advise
 
 exception_catcher = ExceptionCatcher(strategy='raise', name='SLOW QUERY')
 DEFAULT_FETCH_INTERVAL = 15
@@ -40,7 +40,9 @@ def exception_follower(output=None):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                logging.exception("Function %s execution error: %s.", func.__name__, e)
+                logging.exception(
+                    "Function %s execution error: %s", func.__name__, e
+                )
                 if callable(output):
                     return output()
                 return output
@@ -70,7 +72,9 @@ class TableStructure:
         self.table_name = None
         self.dead_tuples = 0
         self.live_tuples = 0
+        self.data_changed_delay = -1
         self.dead_rate = 0.0
+        self.tuples_diff = 0
         # How to get field num for table
         self.column_number = 0
         # This field can be used as a flag for whether the statistics are updated.
@@ -93,7 +97,7 @@ class LockInfo:
         self.locked_query = None
         self.locked_query_start = None
         self.locker_query = None
-        self.locker_query_end = None
+        self.locker_query_start = None
 
 
 class DatabaseInfo:
@@ -104,20 +108,8 @@ class DatabaseInfo:
         self.db_port = None
         self.history_tps = 1
         self.current_tps = 1
+        self.current_connection = 1
         self.thread_pool = {}
-
-
-class GsSQLCountInfo:
-    def __init__(self):
-        self.node_name = None
-        self.select_count = 0
-        self.update_count = 0
-        self.insert_count = 0
-        self.delete_count = 0
-        self.mergeinto_count = 0
-        self.ddl_count = 0
-        self.dcl_count = 0
-        self.dml_count = 0
 
 
 class SystemInfo:
@@ -127,25 +119,23 @@ class SystemInfo:
         self.db_host = None
         self.db_port = None
         self.iops = 0
-        self.db_iops = []
+        self.db_iops = 0
         self.ioutils = {}
-        self.iocapacity = []
-        self.db_iocapacity = []
-        self.iowait = []
+        self.iocapacity = 0
+        self.db_iocapacity = 0
+        self.iowait = 0.0
         self.total_memory = 0.0
         self.gaussdb_number = 0
         self.cpu_core_number = 1
-        self.db_cpu_usage = []
-        self.db_mem_usage = []
+        self.system_cpu_usage = 0
+        self.system_mem_usage = 0
+        self.db_cpu_usage = 0
+        self.db_mem_usage = 0
         self.db_data_occupy_rate = 0.0
         self.disk_usage = {}
-        self.cpu_usage = []
-        self.mem_usage = []
-        self.load_average1 = []
-        self.load_average5 = []
-        self.load_average15 = []
-        self.db_process_fds_rate = []
-        self.process_fds_rate = []
+        self.load_average1 = 0
+        self.db_process_fds_rate = 0
+        self.process_fds_rate = 0
         self.io_read_delay = {}
         self.io_write_delay = {}
         self.io_queue_number = {}
@@ -179,27 +169,6 @@ class NetWorkInfo:
         self.transmit_bytes = 1.0
 
 
-class PgReplicationInfo:
-    def __init__(self):
-        self.application_name = None
-        self.pg_downstream_state_count = 0
-        self.pg_replication_lsn = 0
-        self.pg_replication_sent_diff = 0
-        self.pg_replication_write_diff = 0
-        self.pg_replication_flush_diff = 0
-        self.pg_replication_replay_diff = 0
-
-
-class BgWriter:
-    def __init__(self):
-        self.checkpoint_avg_sync_time = 0.0
-        self.checkpoint_proactive_triggering_ratio = 0.0
-        self.buffers_checkpoint = 0.0
-        self.buffers_clean = 0.0
-        self.buffers_backend = 0.0
-        self.buffers_alloc = 0.0
-
-
 class Index:
     def __init__(self):
         self.db_name = None
@@ -210,8 +179,8 @@ class Index:
         self.index_type = None
 
     def __repr__(self):
-        return "database: %s, schema: %s, index: %s(%s), index_type: %s" % (
-            self.db_name, self.schema_name, self.table_name, self.column_name, 'b-tree'
+        return "(schema: %s, index: %s(%s), index_type: %s)" % (
+            self.schema_name, self.table_name, self.column_name, self.index_type
         )
 
 
@@ -228,13 +197,24 @@ class TimedTask:
 
 class WaitEvent:
     def __init__(self):
-        self.node_name = None
         self.type = None
         self.event = None
         self.wait = 0
         self.failed_wait = 0
         self.total_wait_time = 0
         self.last_updated = 0
+
+
+class ThreadInfo:
+    def __init__(self):
+        self.type = None
+        self.event = None
+        self.wait_status = None
+        self.last_updated = 0
+        self.sessionid = None
+        self.thread_id = None
+        self.block_sessionid = None
+        self.lockmode = None
 
 
 class Process:
@@ -268,11 +248,76 @@ def parse_field_from_indexdef(indexdef):
         return fields
     return []
 
+
 def is_sequence_valid(s):
-    return s and s.values
+    if isinstance(s, list):
+        return len([item for item in s if item.values]) > 0
+    else:
+        return s and s.values
 
 
-class QueryContextFromTSDB(QueryContext):
+def is_driver_result_valid(s):
+    if isinstance(s, list) and len(s) > 0:
+        return True
+    return False
+
+
+def _get_sequence_max_value(s: Sequence, precision=0):
+    """
+    Get the max value of sequence.
+    precision: 0 means casting to integer,
+               positive value means float with the precision,
+               negative value means nothing to do.
+    """
+    if precision == 0:
+        return int(max(s.values))
+    elif precision > 0:
+        return round(float(max(s.values)), precision)
+    else:
+        return max(s.values)
+
+
+def _get_sequence_first_value(s: Sequence, precision=0):
+    """
+    Get the first value of sequence.
+    precision: 0 means casting to integer,
+               positive value means float with the precision,
+               negative value means nothing to do.
+    """
+    if precision == 0:
+        return int(s.values[0])
+    elif precision > 0:
+        return round(float(s.values[0]), precision)
+    else:
+        return s.values[0]
+
+
+def _get_sequences_sum_value(seqs: List[Sequence], precision=0):
+    """
+    Get the sum value of sequence.
+    precision: 0 means casting to integer,
+               positive value means float with the precision,
+               negative value means nothing to do.
+    """
+    value = 0
+    for s in seqs:
+        if is_sequence_valid(s):
+            value += _get_sequence_first_value(s, precision=precision)
+    return value
+
+
+def _get_driver_value(rows, key, default=0):
+    """
+    Get the execution result of the driver.
+    Note: the result format: '[RealDictRow([('relname', 't1'), ('n_live_tup', 3000076)]), RealDictRow(...), ...]'
+    """
+    if len(rows) == 1:
+        return rows[0].get(key, default)
+    else:
+        return [item.get(key, default) for item in rows]
+
+
+class QueryContextFromTSDBAndRPC(QueryContext):
     """The object of slow query data processing factory"""
 
     def __init__(self, slow_sql_instance, **kwargs):
@@ -282,6 +327,7 @@ class QueryContextFromTSDB(QueryContext):
         :param expansion_factor: Ensure that the time expansion rate of the data can be collected
         """
         super().__init__(slow_sql_instance)
+        self.query_type = 'normal'
         self.fetch_interval = self.acquire_fetch_interval()
         self.expansion_factor = kwargs.get('expansion_factor', 3)
         self.query_start_time = datetime.fromtimestamp(self.slow_sql_instance.start_at / 1000)
@@ -309,26 +355,33 @@ class QueryContextFromTSDB(QueryContext):
     @exception_follower(output=None)
     @exception_catcher
     def acquire_plan(self, query):
-        if self.slow_sql_instance.track_parameter:
-            stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
-                                                            query)
-            fetch_all = False
-        else:
+        query_plan = ''
+        query = query.replace('\"', '')
+        stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
+                                                        query)
+        rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                 stmts,
+                                                 self.slow_sql_instance.db_name,
+                                                 return_tuples=False,
+                                                 fetch_all=False)
+
+        if not rows:
             # Get execution plan based on PBE
             no_comma_query = replace_comma_with_dollar(query)
-            stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(get_generate_prepare_sqls_function()(no_comma_query))
-            fetch_all = True
-
-        if not agent_rpc_client:
-            return ''
-        rows = agent_rpc_client.call('query_in_database',
-                                     stmts,
-                                     self.slow_sql_instance.db_name,
-                                     return_tuples=True,
-                                     fetch_all=fetch_all)
-        query_plan = ''
+            stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(
+                get_generate_prepare_sqls_function()(no_comma_query))
+            rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                     stmts,
+                                                     self.slow_sql_instance.db_name,
+                                                     return_tuples=False,
+                                                     fetch_all=True)
+            self.query_type = 'desensitization'
+        if not rows:
+            return query_plan
+        if self.query_type == 'desensitization':
+            rows = rows[-2]
         for row in rows:
-            query_plan += row[0] + '\n'
+            query_plan += row.get('QUERY PLAN') + '\n'
         if query_plan:
             return query_plan
 
@@ -336,7 +389,6 @@ class QueryContextFromTSDB(QueryContext):
     @exception_catcher
     def acquire_fetch_interval(self) -> int:
         """Get data source collection frequency"""
-
         sequence = dai.get_latest_metric_value("prometheus_target_interval_length_seconds").filter(
             quantile="0.99").fetchone()
         if is_sequence_valid(sequence):
@@ -349,8 +401,16 @@ class QueryContextFromTSDB(QueryContext):
     @exception_catcher
     def acquire_sort_condition(self):
         """
-        Record the SQL for which the total number of template queuing changes during execution
+        Determine whether SQL has been spilled to disk during execution.
+        Judging by gaussdb_statement_sort_spill and gaussdb_statement_hash_spill in reprocessing_exporter,
+        which coming from dbe_perf.statement.
+        This method is not friendly for interactive.
         """
+        query = self.slow_sql_instance.query.replace("\'", "\'\'").lower()
+        stmts = """
+            select sort_spill_count / n_calls as sort_spill_count, hash_spill_count / n_calls as 
+            hash_spill_count from dbe_perf.statement where lower(query) = '%s';
+        """ % query
         sort_condition = {'sort_spill': False, 'hash_spill': False}
         sort_spill_sequence = dai.get_metric_sequence("gaussdb_statement_sort_spill", self.query_start_time,
                                                       self.query_end_time).from_server(
@@ -360,26 +420,30 @@ class QueryContextFromTSDB(QueryContext):
                                                       self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
             query=f"{self.slow_sql_instance.query}").fetchone()
-        if is_sequence_valid(is_sequence_valid(sort_spill_sequence) and max(int(item) for item in sort_spill_sequence)) > 0:
+        if is_sequence_valid(sort_spill_sequence) and max(int(item) for item in sort_spill_sequence.values) > 0:
             sort_condition['sort_spill'] = True
-        if is_sequence_valid(is_sequence_valid(hash_spill_sequence) and max(int(item) for item in hash_spill_sequence)) > 0:
+        if is_sequence_valid(hash_spill_sequence) and max(int(item) for item in hash_spill_sequence.values) > 0:
             sort_condition['hash_spill'] = True
+        rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                 stmts,
+                                                 'postgres',
+                                                 return_tuples=False)
+        if is_driver_result_valid(rows):
+            self.slow_sql_instance.sort_spill_count = _get_driver_value(rows, 'sort_spill_count')
+            self.slow_sql_instance.hash_spill_count = _get_driver_value(rows, 'hash_spill_count')
         return sort_condition
 
     @exception_follower(output=LockInfo)
     @exception_catcher
     def acquire_lock_info(self) -> LockInfo:
-        """Get lock information during slow SQL execution
-        """
+        """Get lock information during slow SQL execution."""
         blocks_info = LockInfo()
-        locked_query = self.slow_sql_instance.query.replace('\n', ' ')
         lock_sequence = dai.get_metric_sequence("pg_lock_sql_locked_times", self.query_start_time,
                                                 self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-            locked_query=f"{locked_query}").fetchone()
+            locked_query=f"{self.slow_sql_instance.query}").fetchone()
         if is_sequence_valid(lock_sequence):
             blocks_info.locker_query = lock_sequence.labels.get('locker_query', 'Unknown')
-            blocks_info.locker_query_start = lock_sequence.labels.get('locker_query_start', 'Unknown')
         return blocks_info
 
     @exception_follower(output=list)
@@ -389,6 +453,32 @@ class QueryContextFromTSDB(QueryContext):
         table_structure = []
         if not self.slow_sql_instance.tables_name:
             return table_structure
+        tuples_statistics_stmt = """
+            select abs(r1.n_live_tup - r2.reltuples) diff from pg_stat_user_tables r1, pg_class r2 
+            where r1.schemaname = '{schemaname}' and r2.relname = '{relname}' and r1.relname = r2.relname;
+        """
+        user_table_stmt = """
+            SELECT n_live_tup, n_dead_tup,
+                   round(n_dead_tup / (n_live_tup + 1), 2) as dead_rate,
+                   case when (last_vacuum is null) then -1 else 
+                   extract(epoch from pg_catalog.now() - last_vacuum)::bigint end as vacuum_delay,
+                   case when (last_analyze is null) then -1 else 
+                   extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay, 
+                   case when (last_data_changed is null) then -1 else 
+                   extract(epoch from pg_catalog.now() - last_data_changed)::bigint end as data_changed_delay 
+            FROM pg_stat_user_tables psut,
+                 pg_statio_user_tables psio
+            WHERE psut.schemaname = '{schemaname}' and psut.relname = '{relname}'
+        """
+        pg_index_stmt = """
+            select indexrelname, pg_get_indexdef(indexrelid) as indexdef from 
+            pg_stat_user_indexes  where schemaname = '{schemaname}' and relname ='{relname}';
+        """
+        table_size_stmt = """
+        select pg_catalog.pg_total_relation_size(rel.oid) / 1024 / 1024 AS mbytes 
+                          FROM pg_namespace nsp JOIN pg_class rel ON nsp.oid = rel.relnamespace  
+                          WHERE nsp.nspname = '{schemaname}' AND rel.relname = '{relname}'; 
+        """
         for schema_name, tables_name in self.slow_sql_instance.tables_name.items():
             for table_name in tables_name:
                 table_info = TableStructure()
@@ -403,59 +493,104 @@ class QueryContextFromTSDB(QueryContext):
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                live_tup_info = dai.get_metric_sequence("pg_tables_structure_n_live_tup",
-                                                        self.query_start_time,
-                                                        self.query_end_time).from_server(
-                    f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-                    datname=f"{self.slow_sql_instance.db_name}").filter(
-                    schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                dead_tup_info = dai.get_metric_sequence("pg_tables_structure_n_dead_tup",
-                                                        self.query_start_time,
-                                                        self.query_end_time).from_server(
-                    f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-                    datname=f"{self.slow_sql_instance.db_name}").filter(
-                    schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                vacuum_delay_info = dai.get_metric_sequence("pg_tables_structure_vacuum_delay",
+                if is_sequence_valid(dead_rate_info):
+                    table_info.dead_rate = _get_sequence_first_value(dead_rate_info, precision=4)
+                    live_tup_info = dai.get_metric_sequence("pg_tables_structure_n_live_tup",
                                                             self.query_start_time,
                                                             self.query_end_time).from_server(
-                    f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-                    datname=f"{self.slow_sql_instance.db_name}").filter(
-                    schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                analyze_delay_info = dai.get_metric_sequence("pg_tables_structure_analyze_delay",
-                                                             self.query_start_time,
-                                                             self.query_end_time).from_server(
-                    f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
-                    datname=f"{self.slow_sql_instance.db_name}").filter(
-                    schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
+                        f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
+                        datname=f"{self.slow_sql_instance.db_name}").filter(
+                        schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
+                    dead_tup_info = dai.get_metric_sequence("pg_tables_structure_n_dead_tup",
+                                                            self.query_start_time,
+                                                            self.query_end_time).from_server(
+                        f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
+                        datname=f"{self.slow_sql_instance.db_name}").filter(
+                        schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
+                    vacuum_delay_info = dai.get_metric_sequence("pg_tables_structure_vacuum_delay",
+                                                                self.query_start_time,
+                                                                self.query_end_time).from_server(
+                        f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
+                        datname=f"{self.slow_sql_instance.db_name}").filter(
+                        schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
+                    last_data_changed_delay_info = dai.get_metric_sequence("pg_tables_structure_last_data_changed_delay",
+                                                                           self.query_start_time,
+                                                                           self.query_end_time).from_server(
+                        f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
+                        datname=f"{self.slow_sql_instance.db_name}").filter(
+                        schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
+                    analyze_delay_info = dai.get_metric_sequence("pg_tables_structure_analyze_delay",
+                                                                 self.query_start_time,
+                                                                 self.query_end_time).from_server(
+                        f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
+                        datname=f"{self.slow_sql_instance.db_name}").filter(
+                        schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
+                    if is_sequence_valid(live_tup_info):
+                        table_info.live_tuples = _get_sequence_first_value(live_tup_info)
+                    if is_sequence_valid(dead_tup_info):
+                        table_info.dead_tuples = _get_sequence_first_value(dead_tup_info)
+                    if is_sequence_valid(dead_rate_info):
+                        table_info.dead_rate = _get_sequence_first_value(dead_rate_info, precision=4)
+                    if is_sequence_valid(analyze_delay_info):
+                        table_info.analyze_delay = _get_sequence_first_value(analyze_delay_info)
+                    if is_sequence_valid(last_data_changed_delay_info):
+                        table_info.data_changed_delay = _get_sequence_first_value(last_data_changed_delay_info)
+                    if is_sequence_valid(vacuum_delay_info):
+                        table_info.vacuum_delay = _get_sequence_first_value(vacuum_delay_info)
+                else:
+                    tuples_statistics_rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                                               tuples_statistics_stmt.
+                                                                               format(schemaname=schema_name,
+                                                                                      relname=table_name),
+                                                                               self.slow_sql_instance.db_name,
+                                                                               return_tuples=False)
+                    user_table_rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                                        user_table_stmt.format(schemaname=schema_name,
+                                                                                               relname=table_name),
+                                                                        self.slow_sql_instance.db_name,
+                                                                        return_tuples=False)
+                    if is_driver_result_valid(tuples_statistics_rows):
+                        table_info.tuples_diff = tuples_statistics_rows.get('diff', 0)
+                    if is_driver_result_valid(user_table_rows):
+                        table_info.live_tuples = _get_driver_value(user_table_rows, 'n_live_tup')
+                        table_info.dead_tuples = _get_driver_value(user_table_rows, 'n_dead_tup')
+                        table_info.dead_rate = _get_driver_value(user_table_rows, 'dead_rate')
+                        table_info.analyze_delay = _get_driver_value(user_table_rows, 'analyze_delay', default=-1)
+                        table_info.vacuum_delay = _get_driver_value(user_table_rows, 'vacuum_delay', default=-1)
+                        table_info.data_changed_delay = _get_driver_value(user_table_rows,
+                                                                          'data_changed_delay', default=-1)
                 pg_table_size_info = dai.get_metric_sequence("pg_tables_size_totalsize", self.query_start_time,
                                                              self.query_end_time).from_server(
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     nspname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
+                if is_sequence_valid(pg_table_size_info):
+                    table_info.table_size = _get_sequence_max_value(pg_table_size_info, precision=4)
+                else:
+                    table_size_rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                                        table_size_stmt.format(schemaname=schema_name,
+                                                                                               relname=table_name),
+                                                                        self.slow_sql_instance.db_name,
+                                                                        return_tuples=False)
+                    if is_driver_result_valid(table_size_rows):
+                        table_info.table_size = _get_driver_value(table_size_rows, 'mbytes')
                 index_number_info = dai.get_metric_sequence("pg_index_idx_scan", self.query_start_time,
                                                             self.query_end_time).from_server(
                     f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     nspname=f"{schema_name}").filter(tablename=f"{table_name}").fetchall()
-                if is_sequence_valid(dead_rate_info):
-                    table_info.dead_rate = round(float(dead_rate_info.values[0]), 4)
-                if is_sequence_valid(live_tup_info):
-                    table_info.live_tuples = int(live_tup_info.values[0])
-                if is_sequence_valid(dead_tup_info):
-                    table_info.dead_tuples = int(dead_tup_info.values[0])
-                if is_sequence_valid(dead_rate_info):
-                    table_info.dead_rate = float(dead_rate_info.values[0])
-                if is_sequence_valid(analyze_delay_info):
-                    table_info.analyze_delay = analyze_delay_info.values[-1]
-                if is_sequence_valid(vacuum_delay_info):
-                    table_info.vacuum_delay = vacuum_delay_info.values[-1]
-                if is_sequence_valid(pg_table_size_info):
-                    table_info.table_size = round(float(max(pg_table_size_info.values)) / 1024 / 1024, 4)
-                if index_number_info:
+                if is_sequence_valid(index_number_info):
                     table_info.index = {item.labels['relname']: parse_field_from_indexdef(item.labels['indexdef'])
                                         for item in index_number_info if item.labels}
+                else:
+                    pg_index_rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                                      pg_index_stmt.format(schemaname=schema_name,
+                                                                                           relname=table_name),
+                                                                      self.slow_sql_instance.db_name,
+                                                                      return_tuples=False)
+                    for row in pg_index_rows:
+                        table_info.index[row.get('indexrelname')] = parse_field_from_indexdef(row.get('indexdef'))
                 table_structure.append(table_info)
-
         return table_structure
 
     @exception_follower(output=dict)
@@ -468,13 +603,17 @@ class QueryContextFromTSDB(QueryContext):
                                                self.query_end_time).from_server(
                 f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                 name=f"{parameter}").fetchone()
-            if sequence.labels:
+            if is_sequence_valid(sequence):
                 pg_setting.name = parameter
                 pg_setting.vartype = sequence.labels['vartype']
-                if pg_setting.vartype in ('integer', 'int64', 'bool'):
-                    pg_setting.setting = int(sequence.values[-1])
-                if pg_setting.vartype == 'real':
-                    pg_setting.setting = float(sequence.values[-1])
+                if pg_setting.vartype in ('integer', 'int64'):
+                    pg_setting.setting = _get_sequence_first_value(sequence)
+                elif pg_setting.vartype == 'bool':
+                    pg_setting.setting = 1 if pg_setting.setting == 'on' else 0
+                elif pg_setting.vartype == 'real':
+                    pg_setting.setting = _get_sequence_first_value(sequence, precision=3)
+                else:
+                    pg_setting.setting = _get_sequence_first_value(sequence, precision=-1)
             pg_settings[parameter] = pg_setting
         return pg_settings
 
@@ -483,40 +622,46 @@ class QueryContextFromTSDB(QueryContext):
     def acquire_database_info(self) -> DatabaseInfo:
         """Acquire table database information related to slow query"""
         database_info = DatabaseInfo()
-        days_time_interval = 24 * 60 * 60
+        used_connection_sequences = dai.get_metric_sequence("pg_stat_activity_count", self.query_start_time,
+                                                            self.query_end_time).from_server(
+            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
         cur_tps_sequences = dai.get_metric_sequence("gaussdb_qps_by_instance", self.query_start_time,
                                                     self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        his_tps_sequences = dai.get_metric_sequence("gaussdb_qps_by_instance",
-                                                    self.query_start_time - timedelta(seconds=days_time_interval),
-                                                    self.query_end_time - timedelta(
-                                                        seconds=days_time_interval)).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchone()
-        if is_sequence_valid(his_tps_sequences):
-            database_info.history_tps = int(max(his_tps_sequences.values))
+        if is_sequence_valid(used_connection_sequences):
+            database_info.current_connection = _get_sequences_sum_value(used_connection_sequences)
+        else:
+            used_connections_stmt = "select count(1) as used_conn from pg_stat_activity;"
+            used_connections_rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                                      used_connections_stmt,
+                                                                      self.slow_sql_instance.db_name,
+                                                                      return_tuples=False)
+            if is_driver_result_valid(used_connections_rows):
+                database_info.current_connection = _get_driver_value(used_connections_rows, 'used_conn')
         if is_sequence_valid(cur_tps_sequences):
-            database_info.current_tps = int(max(cur_tps_sequences.values))
+            database_info.current_tps = cur_tps_sequences.values
         return database_info
 
-    @exception_follower(output=list)
+    @exception_follower(output=ThreadInfo)
     @exception_catcher
-    def acquire_wait_event(self) -> list:
-        """Acquire database wait events"""
-        wait_event = []
-        pg_wait_event_spike_info = dai.get_metric_sequence("gaussdb_wait_event_spike",
-                                                           self.query_start_time,
-                                                           self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").fetchall()
-        for sequence in pg_wait_event_spike_info:
-            wait_event_info = WaitEvent()
-            # Check whether the wait event occurs during this event
-            if not sequence.values or sum(sequence.values) == 0:
-                continue
-            wait_event_info.node_name = sequence.labels['nodename']
-            wait_event_info.type = sequence.labels['type']
-            wait_event_info.event = sequence.labels['event']
-            wait_event.append(wait_event_info)
-        return wait_event
+    def acquire_thread_info(self) -> ThreadInfo:
+        """Acquire database thread info"""
+        stmt = """
+        select event, wait_status, block_sessionid, lockmode, locktag from gs_asp where 
+        gs_asp.query_id={debug_query_id};
+        """.format(debug_query_id=self.slow_sql_instance.query_id)
+        rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                 stmt,
+                                                 'postgres',
+                                                 return_tuples=False)
+        thread_info = ThreadInfo()
+        if is_driver_result_valid(rows):
+            thread_info.event = _get_driver_value(rows, 'event')
+            thread_info.wait_status = _get_driver_value(rows, 'wait_status')
+            thread_info.block_sessionid = _get_driver_value(rows, 'block_sessionid')
+            thread_info.lockmode = _get_driver_value(rows, 'lock_mode')
+            thread_info.locktag = _get_driver_value(rows, 'locktag')
+        return thread_info
 
     @exception_follower(output=SystemInfo)
     @exception_catcher
@@ -548,54 +693,37 @@ class QueryContextFromTSDB(QueryContext):
             f"{self.slow_sql_instance.db_host}").fetchone()
         db_cpu_usage_info = dai.get_metric_sequence("gaussdb_progress_cpu_usage", self.query_start_time,
                                                     self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
+            f"{self.slow_sql_instance.db_host}").fetchall()
         db_mem_usage_info = dai.get_metric_sequence("gaussdb_progress_mem_usage", self.query_start_time,
                                                     self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
+            f"{self.slow_sql_instance.db_host}").fetchall()
         if is_sequence_valid(iops_info):
-            system_info.iops = [int(item) for item in iops_info.values]
-        else:
-            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_disk_iops' data.")
+            system_info.iops = _get_sequence_max_value(iops_info)
         if is_sequence_valid(process_fds_rate_info):
-            system_info.process_fds_rate = [round(float(item), 4) for item in process_fds_rate_info.values]
-        else:
-            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_process_fds_rate' data.")
-        if cpu_process_number_info:
-            system_info.cpu_core_number = int(cpu_process_number_info.values[-1])
-        else:
-            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_cpu_processor_number' data.")
-        if ioutils_info:
-            ioutils_dict = {item.labels['device']: round(float(max(item.values)), 4) for item in ioutils_info if
-                            item.labels}
+            system_info.process_fds_rate = _get_sequence_max_value(process_fds_rate_info, precision=4)
+        if is_sequence_valid(cpu_process_number_info):
+            system_info.cpu_core_number = _get_sequence_max_value(cpu_process_number_info)
+        if is_sequence_valid(ioutils_info):
+            ioutils_dict = {item.labels['device']: _get_sequence_max_value(item, precision=4)
+                            for item in ioutils_info if item.labels}
             system_info.ioutils = ioutils_dict
-        else:
-            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_disk_ioutils' data.")
-        if disk_usage_info:
-            disk_usage_dict = {item.labels['device']: round(float(max(item.values)), 4) for item in disk_usage_info if
-                               item.labels}
+        if is_sequence_valid(disk_usage_info):
+            disk_usage_dict = {item.labels['device']: _get_sequence_max_value(item, precision=4)
+                               for item in disk_usage_info if item.labels}
             system_info.disk_usage = disk_usage_dict
-        else:
-            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_disk_usage' data.")
+        # Add the consumption of all gaussdb related processes as the total consumption,
+        # it is suitable for situations where only one instance exists on a machine, db_mem_usage is the same as him.
         if is_sequence_valid(db_cpu_usage_info):
-            system_info.db_cpu_usage = [round(float(item), 4) for item in db_cpu_usage_info.values]
-        else:
-            logging.debug("[SLOW SQL][DATA SOURCE]: Not get 'db_cpu_usage' data.")
+            system_info.db_cpu_usage = _get_sequences_sum_value(db_cpu_usage_info, precision=4) / \
+                                       (system_info.cpu_core_number * 100)
         if is_sequence_valid(db_mem_usage_info):
-            system_info.db_mem_usage = [round(float(item), 4) for item in db_mem_usage_info.values]
-        else:
-            logging.debug("[SLOW SQL][DATA SOURCE]: Not get 'db_mem_usage' data.")
+            system_info.db_mem_usage = _get_sequences_sum_value(db_mem_usage_info, precision=4)
         if is_sequence_valid(cpu_usage_info):
-            system_info.cpu_usage = [round(float(item), 4) for item in cpu_usage_info.values]
-        else:
-            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_cpu_usage' data.")
+            system_info.system_cpu_usage = _get_sequence_first_value(cpu_usage_info, precision=4) - \
+                                           system_info.db_cpu_usage
         if is_sequence_valid(mem_usage_info):
-            system_info.mem_usage = [round(float(item), 4) for item in mem_usage_info.values]
-        else:
-            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'os_mem_usage' data.")
-        if is_sequence_valid(load_average_info1):
-            system_info.load_average1 = [round(float(item), 4) for item in load_average_info1.values]
-        else:
-            logging.warning("[SLOW SQL][DATA SOURCE]: Not get 'load_average1' data.")
+            system_info.system_mem_usage = _get_sequence_first_value(mem_usage_info, precision=4) - \
+                                           system_info.db_mem_usage
         return system_info
 
     @exception_follower(output=NetWorkInfo)
@@ -619,25 +747,24 @@ class QueryContextFromTSDB(QueryContext):
                                                                      self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
         if is_sequence_valid(node_network_receive_drop_info):
-            network_info.receive_drop = round(float(max(node_network_receive_drop_info.values)), 4)
+            network_info.receive_drop = _get_sequence_first_value(node_network_receive_drop_info, precision=4)
         if is_sequence_valid(node_network_transmit_drop_info):
-            network_info.transmit_drop = round(float(max(node_network_transmit_drop_info.values)), 4)
+            network_info.transmit_drop = _get_sequence_first_value(node_network_transmit_drop_info, precision=4)
         if is_sequence_valid(node_network_receive_packets_info):
-            network_info.receive_packets = round(float(max(node_network_receive_packets_info.values)), 4)
+            network_info.receive_packets = _get_sequence_first_value(node_network_receive_packets_info, precision=4)
         if is_sequence_valid(node_network_transmit_packets_info):
-            network_info.transmit_packets = round(float(max(node_network_transmit_packets_info.values)), 4)
+            network_info.transmit_packets = _get_sequence_first_value(node_network_transmit_packets_info, precision=4)
 
         return network_info
 
     @exception_follower(output=str)
     @exception_catcher
     def acquire_rewritten_sql(self) -> str:
-        if not self.slow_sql_instance.track_parameter or \
-                not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
+        if not self.standard_query.upper().startswith('SELECT'):
             return ''
         rewritten_flags = []
         rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
-                                            self.slow_sql_instance.query,
+                                            self.standard_query,
                                             rewritten_flags=rewritten_flags,
                                             if_format=False)
         flag = rewritten_flags[0]
@@ -654,35 +781,41 @@ class QueryContextFromTSDB(QueryContext):
             return rewritten_sql
         return ''
 
-    @exception_follower(output=str)
+    @exception_follower(output=tuple)
     @exception_catcher
-    def acquire_recommend_index(self) -> str:
-        if not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
-            return ''
-        recommend_indexes = []
-        if self.slow_sql_instance.track_parameter:
-            query = self.slow_sql_instance.query.replace('\'', '\'\'')
-            stmt = "set current_schema=%s;select * from gs_index_advise('%s')" % \
-                   (self.slow_sql_instance.schema_name, query)
-            rows = agent_rpc_client.call('query_in_database',
-                                         stmt,
-                                         self.slow_sql_instance.db_name,
-                                         return_tuples=True)
-            for row in rows:
-                if row[2]:
-                    index = Index()
-                    index.db_name = self.slow_sql_instance.db_name
-                    index.schema_name = row[0]
-                    index.table_name = row[1]
-                    index.column_name = row[2]
-                    recommend_indexes.append(str(index))
-        return ';'.join(recommend_indexes)
+    def acquire_index_analysis_info(self) -> tuple:
+        recommend_indexes, redundant_indexes = [], []
+        query = self.standard_query
+        executor = RpcExecutor(self.slow_sql_instance.db_name, None, None, None, None,
+                               self.slow_sql_instance.schema_name)
+        template = {query: {'cnt': 1, 'samples': [query]}}
+        result = rpc_index_advise(executor, template)
+        if result.get('recommendIndexes'):
+            for recommend_index_detail in result.get('recommendIndexes'):
+                recommend_index = Index()
+                recommend_index.schema_name = recommend_index_detail.get('schemaName')
+                recommend_index.table_name = recommend_index_detail.get('tbName')
+                recommend_index.column_name = recommend_index_detail.get('columns')
+                recommend_index.index_type = recommend_index_detail.get('index_type')
+                recommend_indexes.append(str(recommend_index))
+        if result.get('uselessIndexes'):
+            for unless_index in result.get('uselessIndexes'):
+                if unless_index.get('schemaName') in self.slow_sql_instance.tables_name and \
+                        unless_index.get('tbName') in \
+                        self.slow_sql_instance.tables_name.get(unless_index.get('schemaName')):
+                    redundant_index = Index()
+                    redundant_index.schema_name = unless_index.get('schemaName')
+                    redundant_index.table_name = unless_index.get('tbName')
+                    redundant_index.column_name = unless_index.get('columns')
+                    redundant_index.index_type = unless_index.get('index_type')
+                    redundant_indexes.append(str(redundant_index))
+        return ';'.join(recommend_indexes), ';'.join(redundant_indexes)
 
     @exception_follower(output=dict)
     @exception_catcher
-    def acuire_redundant_index(self):
-        """Real-time access to redundant indexes based on RPC"""
-        redundant_index = {}
+    def acquire_unused_index(self):
+        """Real-time access to unused indexes based on RPC"""
+        unused_index = {}
         stmt = """
             select pi.indexrelname from pg_indexes pis
             join pg_stat_user_indexes pi
@@ -695,20 +828,22 @@ class QueryContextFromTSDB(QueryContext):
             and pis.schemaname = '{schemaname}' and relname = '{relname}'
         """
         if not self.slow_sql_instance.tables_name:
-            return redundant_index
+            return unused_index
         for schema_name, tables_name in self.slow_sql_instance.tables_name.items():
             for table_name in tables_name:
                 sql = stmt.format(schemaname=schema_name, relname=table_name)
-                rows = agent_rpc_client.call('query_in_database',
-                                             sql,
-                                             self.slow_sql_instance.db_name,
-                                             return_tuples=True)
+                rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                         sql,
+                                                         self.slow_sql_instance.db_name,
+                                                         return_tuples=False)
                 for row in rows:
+                    if not row.get('indexrelname'):
+                        continue
                     key = "%s:%s" % (schema_name, table_name)
-                    if key not in redundant_index:
-                        redundant_index[key] = []
-                    redundant_index[key].append(row[0])
-        return redundant_index
+                    if key not in unused_index:
+                        unused_index[key] = []
+                    unused_index[key].append(row.get('indexrelname'))
+        return unused_index
 
     @exception_follower(output=list)
     @exception_catcher
@@ -729,6 +864,320 @@ class QueryContextFromTSDB(QueryContext):
                 if not math.isnan(sequence.labels['last_start_date']) else 0
             timed_task.last_end_date = to_ts(sequence.labels['last_end_date']) * 1000 \
                 if not math.isnan(sequence.labels['last_end_date']) else 0
+            timed_task_list.append(timed_task)
+        return timed_task_list
+
+
+class QueryContextFromDriver(QueryContext):
+    def __init__(self, slow_sql_instance, **kwargs):
+        super().__init__(slow_sql_instance)
+        self.standard_query = self.slow_sql_instance.query
+        self.driver = kwargs.get('driver')
+        self.query_type = 'normal'
+        self.standard_query = self.slow_sql_instance.query
+        if self.slow_sql_instance.track_parameter:
+            self.standard_query = fill_value(self.slow_sql_instance.query)
+            self.slow_sql_instance.query = remove_parameter_part(slow_sql_instance.query)
+        self.standard_query = standardize_sql(self.standard_query)
+        if self.slow_sql_instance.query_plan is None:
+            self.slow_sql_instance.query_plan = self.acquire_plan(self.standard_query)
+            if self.slow_sql_instance.query_plan is None:
+                self.is_sql_valid = False
+
+    @exception_follower(output=None)
+    @exception_catcher
+    def acquire_plan(self, query):
+        query_plan = ''
+        stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name, query)
+        rows = self.driver.query(stmts, return_tuples=True)
+        if not rows:
+            no_comma_query = replace_comma_with_dollar(query)
+            stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(
+                get_generate_prepare_sqls_function()(no_comma_query))
+            rows = self.driver.query(stmts, return_tuples=True, fetch_all=True)
+            if len(rows) == 4 and rows[-2]:
+                rows = rows[-2]
+                self.query_type = "desensitization"
+        for row in rows:
+            if not row:
+                continue
+            query_plan += row[0] + '\n'
+        return query_plan
+
+    @exception_follower(output=dict)
+    @exception_catcher
+    def acquire_sort_condition(self):
+        """
+        Detect whether there is a possible disk spill behavior.
+        """
+        query = self.slow_sql_instance.query.replace('\'', '\'\'').lower()
+        sort_condition = {'sort_spill': False, 'hash_spill': False}
+        stmt = """
+            select sort_spill_count / n_calls as sort_spill_count, hash_spill_count / n_calls as 
+            hash_spill_count from dbe_perf.statement where lower(query) = '%s';
+        """ % query
+        rows = self.driver.query(stmt, return_tuples=False)
+        if is_driver_result_valid(rows):
+            self.slow_sql_instance.sort_spill_count = _get_driver_value(rows, 'sort_spill_count')
+            self.slow_sql_instance.hash_spill_count = _get_driver_value(rows, 'hash_spill_count')
+        return sort_condition
+
+    @exception_follower(output=LockInfo)
+    @exception_catcher
+    def acquire_lock_info(self):
+        blocks_info = LockInfo()
+        query = self.slow_sql_instance.query.replace('\'', '\'\'')
+        stmt = """
+            select distinct locker.pid as locker_pid, 
+                    locked.pid as locked_pid, 
+                    locker_act.query as locker_query,  
+                    locked_act.query as locked_query  
+                    from pg_locks locked,  
+                    pg_locks locker,  
+                    pg_stat_activity locked_act,  
+                    pg_stat_activity locker_act  
+                    where locker.granted=true  
+                    and locked.granted=false  
+                    and locked.pid=locked_act.pid  
+                    and locker.pid=locker_act.pid  
+                    and locked_act.query = '%s'  
+                    and locker.pid <> locked.pid  
+                    and locker.mode not like 'AccessShareLock' and locker.mode not like 'ExclusiveLock';
+        """ % query
+        rows = self.driver.query(stmt, return_tuples=False)
+        if is_driver_result_valid(rows):
+            blocks_info.locker_query = _get_driver_value(rows, 'locker_query')
+        return blocks_info
+
+    @exception_follower(output=list)
+    @exception_catcher
+    def acquire_tables_structure_info(self):
+        tables_info = []
+        tuples_statistics_stmt = """
+            select abs(r1.n_live_tup - r2.reltuples) diff from pg_stat_user_tables r1, pg_class r2 
+            where r1.schemaname = '{schemaname}' and r2.relname = '{relname}' and r1.relname = r2.relname;
+        """
+        user_table_stmt = """
+            SELECT n_live_tup, n_dead_tup,
+                   round(n_dead_tup / (n_live_tup + 1), 2) as dead_rate,
+                   case when (last_vacuum is null) then -1 else 
+                   extract(epoch from pg_catalog.now() - last_vacuum)::bigint end as vacuum_delay,
+                   case when (last_analyze is null) then -1 else 
+                   extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay, 
+                   case when (last_data_changed is null) then -1 else 
+                   extract(epoch from pg_catalog.now() - last_data_changed)::bigint end as data_changed_delay 
+            FROM pg_stat_user_tables psut 
+                 join pg_statio_user_tables psio on psut.relname = psio.relname and psut.schemaname = psio.schemaname  
+            WHERE psut.schemaname = '{schemaname}' and psut.relname = '{relname}'
+        """
+        pg_index_stmt = """
+            select indexrelname, pg_get_indexdef(indexrelid) as indexdef from 
+            pg_stat_user_indexes  where schemaname = '{schemaname}' and relname ='{relname}';
+        """
+        table_size_stmt = """
+        select pg_catalog.pg_total_relation_size(rel.oid) / 1024 / 1024 AS mbytes 
+                          FROM pg_namespace nsp JOIN pg_class rel ON nsp.oid = rel.relnamespace  
+                          WHERE nsp.nspname = '{schemaname}' AND rel.relname = '{relname}'; 
+        """
+        for schema_name, tables_name in self.slow_sql_instance.tables_name.items():
+            for table_name in tables_name:
+                table_info = TableStructure()
+                table_info.db_host = self.slow_sql_instance.db_host
+                table_info.db_port = self.slow_sql_instance.db_port
+                table_info.db_name = self.slow_sql_instance.db_name
+                table_info.schema_name = schema_name
+                table_info.table_name = table_name
+                tuples_statistics_rows = self.driver.query(
+                    tuples_statistics_stmt.format(schemaname=schema_name, relname=table_name), return_tuples=False)
+                user_table_rows = self.driver.query(
+                    user_table_stmt.format(schemaname=schema_name, relname=table_name), return_tuples=False)
+                pg_index_rows = self.driver.query(
+                    pg_index_stmt.format(schemaname=schema_name, relname=table_name), return_tuples=False)
+                table_size_rows = self.driver.query(
+                    table_size_stmt.format(schemaname=schema_name, relname=table_name), return_tuples=False)
+                if is_driver_result_valid(tuples_statistics_rows):
+                    table_info.tuples_diff = _get_driver_value(tuples_statistics_rows, 'diff')
+                if is_driver_result_valid(user_table_rows):
+                    table_info.live_tuples = _get_driver_value(user_table_rows, 'n_live_tup')
+                    table_info.dead_tuples = _get_driver_value(user_table_rows, 'n_dead_tup')
+                    table_info.dead_rate = _get_driver_value(user_table_rows, 'dead_rate')
+                    table_info.analyze_delay = _get_driver_value(user_table_rows, 'analyze_delay', default=-1)
+                    table_info.vacuum_delay = _get_driver_value(user_table_rows, 'vacuum_delay', default=-1)
+                    table_info.data_changed_delay = _get_driver_value(user_table_rows, 'data_changed_delay', default=-1)
+                if is_driver_result_valid(pg_index_rows):
+                    for row in pg_index_rows:
+                        table_info.index[row.get('indexrelname')] = parse_field_from_indexdef(row.get('indexdef'))
+                if is_driver_result_valid(table_size_rows):
+                    table_info.table_size = _get_driver_value(table_size_rows, 'mbytes')
+                tables_info.append(table_info)
+        return tables_info
+
+    @exception_follower(output=dict)
+    @exception_catcher
+    def acquire_pg_settings(self):
+        pg_settings = {}
+        stmts = "select name, setting, vartype from pg_settings where name='{metric_name}';"
+        for parameter in REQUIRED_PARAMETERS:
+            row = self.driver.query(stmts.format(metric_name=parameter), return_tuples=False)
+            if is_driver_result_valid(row):
+                pg_setting = PgSetting()
+                pg_setting.name = row[0].get('name')
+                pg_setting.vartype = row[0].get('vartype')
+                if pg_setting.vartype in ('integer', 'int64'):
+                    pg_setting.setting = int(row[0].get('setting'))
+                elif pg_setting.vartype == 'bool':
+                    pg_setting.setting = 1 if pg_setting.setting == 'on' else 0
+                elif pg_setting.vartype == 'real':
+                    pg_setting.setting = float(row[0].get('setting'))
+                else:
+                    pg_setting.setting = row[0].get('setting')
+                pg_settings[parameter] = pg_setting
+        return pg_settings
+
+    @exception_follower(output=DatabaseInfo)
+    @exception_catcher
+    def acquire_database_info(self):
+        database_info = DatabaseInfo()
+        used_connections_stmt = "select count(1) as used_conn from pg_stat_activity;"
+        tps_stmt = """
+            with 
+               traction_number_1 as (select sum(xact_commit+xact_rollback) from pg_stat_database), 
+               traction_number_2 as (select pg_sleep(0.2), sum(xact_commit+xact_rollback) from pg_stat_database) 
+               select (traction_number_2.sum - traction_number_1.sum) / 0.2 as tps
+               from traction_number_1, traction_number_2;
+                   """
+        used_connections_rows = self.driver.query(used_connections_stmt, return_tuples=False)
+        tps_rows = self.driver.query(tps_stmt, return_tuples=False)
+        if is_driver_result_valid(used_connections_rows):
+            database_info.current_connection = _get_driver_value(used_connections_rows, 'used_conn')
+        if is_driver_result_valid(tps_rows):
+            database_info.current_tps = _get_driver_value(tps_rows, 'tps')
+        return database_info
+
+    @exception_follower(output=list)
+    @exception_catcher
+    def acquire_thread_info(self):
+        stmt = """
+        select event, wait_status, block_sessionid, lockmode, locktag from gs_asp where 
+        query_id={debug_query_id};
+        """.format(debug_query_id=self.slow_sql_instance.query_id)
+        thread_info = ThreadInfo()
+        rows = self.driver.query(stmt, force_connection_db='postgres', return_tuples=False)
+        if is_driver_result_valid(rows):
+            thread_info.event = _get_driver_value(rows, 'event')
+            thread_info.wait_status = _get_driver_value(rows, 'wait_status')
+            thread_info.block_sessionid = _get_driver_value(rows, 'block_sessionid')
+            thread_info.lockmode = _get_driver_value(rows, 'lock_mode')
+            thread_info.locktag = _get_driver_value(rows, 'locktag')
+        return thread_info
+
+    @exception_follower(output=SystemInfo)
+    @exception_catcher
+    def acquire_system_info(self):
+        system_info = SystemInfo()
+        return system_info
+
+    @exception_follower(output=NetWorkInfo)
+    @exception_catcher
+    def acquire_network_info(self):
+        """
+        Unable to get network metrics in driver-based data context
+        """
+        network_info = NetWorkInfo()
+        return network_info
+
+    @exception_follower(output=str)
+    @exception_catcher
+    def acquire_rewritten_sql(self):
+        if not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
+            return ''
+        rewritten_flags = []
+        rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
+                                            self.slow_sql_instance.query,
+                                            rewritten_flags=rewritten_flags,
+                                            if_format=False,
+                                            driver=self.driver)
+        flag = rewritten_flags[0] if len(rewritten_flags) else False
+        if not flag:
+            return ''
+        rewritten_sql = rewritten_sql.replace('\n', ' ')
+        rewritten_sql_plan = self.acquire_plan(rewritten_sql)
+        old_sql_plan_parse = plan_parsing.Plan()
+        rewritten_sql_plan_parse = plan_parsing.Plan()
+        # Abandon the rewrite if the rewritten statement does not perform as well as the original statement.
+        old_sql_plan_parse.parse(self.slow_sql_instance.query_plan)
+        rewritten_sql_plan_parse.parse(rewritten_sql_plan)
+        if old_sql_plan_parse.root_node.total_cost > rewritten_sql_plan_parse.root_node.total_cost:
+            return rewritten_sql
+        return ''
+
+    @exception_follower(output=tuple)
+    @exception_catcher
+    def acquire_index_analysis_info(self):
+        recommend_indexes, redundant_indexes = [], []
+        query = self.standard_query
+        executor = RpcExecutor(self.slow_sql_instance.db_name, None, None, None, None,
+                               self.slow_sql_instance.schema_name, driver=self.driver)
+        template = {query: {'cnt': 1, 'samples': [query]}}
+        result = rpc_index_advise(executor, template)
+        if result.get('recommendIndexes'):
+            for recommend_index_detail in result.get('recommendIndexes'):
+                recommend_index = Index()
+                recommend_index.schema_name = recommend_index_detail.get('schemaName')
+                recommend_index.table_name = recommend_index_detail.get('tbName')
+                recommend_index.column_name = recommend_index_detail.get('columns')
+                recommend_index.index_type = recommend_index_detail.get('index_type')
+                recommend_indexes.append(str(recommend_index))
+        if result.get('uselessIndexes'):
+            for unless_index in result.get('uselessIndexes'):
+                if unless_index.get('schemaName') in self.slow_sql_instance.tables_name and \
+                        unless_index.get('tbName') in \
+                        self.slow_sql_instance.tables_name.get(unless_index.get('schemaName')):
+                    redundant_index = Index()
+                    redundant_index.schema_name = unless_index.get('schemaName')
+                    redundant_index.table_name = unless_index.get('tbName')
+                    redundant_index.column_name = unless_index.get('columns')
+                    redundant_index.index_type = unless_index.get('index_type')
+                    redundant_indexes.append(str(redundant_index))
+        return ';'.join(recommend_indexes), ';'.join(redundant_indexes)
+
+    @exception_follower(output=dict)
+    @exception_catcher
+    def acquire_unused_index(self):
+        unused_index = []
+        unused_index_stmt = """
+            select pi.indexrelname from pg_indexes pis
+            join pg_stat_user_indexes pi
+            on pis.schemaname = pi.schemaname and pis.tablename = pi.relname and pis.indexname = pi.indexrelname
+            left join pg_constraint pco
+            on pco.conname = pi.indexrelname and pco.conrelid = pi.relid
+            where pco.contype is distinct from 'p' and pco.contype is distinct from 'u'
+            and (idx_scan,idx_tup_read,idx_tup_fetch) = (0,0,0)
+            and pis.indexdef !~ ' UNIQUE INDEX '
+            and pis.schemaname = '{schemaname}' and relname = '{relname}'
+        """
+        for schema_name, tables_name in self.slow_sql_instance.tables_name.items():
+            for table_name in tables_name:
+                stmt = unused_index_stmt.format(schemaname=schema_name, relname=table_name)
+                rows = self.driver.query(stmt, return_tuples=False)
+                for row in rows:
+                    unused_index.append(row.get('indexrelname'))
+        return unused_index
+
+    @exception_follower(output=list)
+    @exception_catcher
+    def acquire_timed_task(self):
+        timed_task_list = []
+        stmt = "select job_id, priv_user, dbname, job_status, last_start_date, last_end_date, " \
+               "failure_count from pg_catalog.pg_job;"
+        rows = self.driver.query(stmt, return_tuples=False)
+        if is_driver_result_valid(rows):
+            timed_task = TimedTask()
+            timed_task.job_id = _get_driver_value(rows, 'job_id')
+            timed_task.dbname = _get_driver_value(rows, 'dbname')
+            timed_task.job_status = _get_driver_value(rows, 'job_status')
+            timed_task.last_start_date = _get_driver_value(rows, 'last_start_date')
+            timed_task.last_end_date = _get_driver_value(rows, 'last_end_date')
             timed_task_list.append(timed_task)
         return timed_task_list
 

@@ -170,16 +170,16 @@ class SlowSQLAnalyzer:
     def _analyze(self, query_context: query_info_source.QueryContext) -> [SlowQuery, None]:
         """Slow SQL diagnosis main process"""
         exist_tables = defaultdict(list)
+        if not sum(query_context.slow_sql_instance.query.upper().startswith(item) for item in _white_list_of_type):
+            root_cause = RootCause.get(FEATURES_CAUSE_MAPPER.get('C_UNSUPPORTED_TYPE'))
+            query_context.slow_sql_instance.add_cause(root_cause)
+            return
         if not query_context.is_sql_valid:
-            root_cause = RootCause.get(FEATURES_CAUSE_MAPPER.get('C_UNKNOWN'))
+            root_cause = RootCause.get(FEATURES_CAUSE_MAPPER.get('C_INVALID_SQL'))
             query_context.slow_sql_instance.add_cause(root_cause)
             return
         if sum(item in query_context.slow_sql_instance.query.upper() for item in _system_table_keywords):
             root_cause = RootCause.get(FEATURES_CAUSE_MAPPER.get('C_VIEW'))
-            query_context.slow_sql_instance.add_cause(root_cause)
-            return
-        if not sum(query_context.slow_sql_instance.query.upper().startswith(item) for item in _white_list_of_type):
-            root_cause = RootCause.get(FEATURES_CAUSE_MAPPER.get('C_UNKNOWN'))
             query_context.slow_sql_instance.add_cause(root_cause)
             return
         query = query_context.slow_sql_instance.query

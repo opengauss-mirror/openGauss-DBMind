@@ -977,12 +977,11 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_dis
             advised_indexes = []
             if not has_dollar_placeholder(query.get_statement()):
                 advised_indexes = query_index_advise(executor, query.get_statement())
-            else:
-                for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
-                                                                        reltuples, use_all_columns,
-                                                                        ):
-                    if advised_index not in advised_indexes:
-                        advised_indexes.append(advised_index)
+            for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
+                                                                    reltuples, use_all_columns,
+                                                                    ):
+                if advised_index not in advised_indexes:
+                    advised_indexes.append(advised_index)
             valid_indexes = get_valid_indexes(advised_indexes, original_base_indexes, query.get_statement(), executor,
                                               **kwargs)
             logger.info(f'get valid indexes: {valid_indexes} for the query {query}')

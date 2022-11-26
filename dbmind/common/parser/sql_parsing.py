@@ -18,10 +18,9 @@ from itertools import count
 import logging
 
 import sqlparse
-from mo_sql_parsing import parse, format
-from sqlparse.sql import Identifier
-from sqlparse.sql import Where, Comparison
-from sqlparse.tokens import Keyword, DML
+from sqlparse.sql import Identifier, IdentifierList
+from sqlparse.sql import Where, Comparison, Function, Parenthesis
+from sqlparse.tokens import Keyword, DML, Token
 from sqlparse.tokens import Name
 
 OPERATOR = ('lt', 'lte', 'gt', 'gte', 'eq', 'neq')
@@ -100,6 +99,7 @@ def get_table_token_list(parsed_sql, token_list):
 
 
 def standardize_sql(sql):
+    """Standardized processing of SQL format"""
     return sqlparse.format(
         sql, keyword_case='upper', identifier_case='lower', strip_comments=True,
         use_space_around_operators=True, strip_whitespace=True
@@ -137,8 +137,8 @@ def to_ts(obj):
 def fill_value(query_content):
     """
     Fill specific values into the SQL statement for parameters,
-      input: select id from table where info = $1 and id_d < $2; PARAMETERS: $1 = 1, $2 = 4;
-      output: select id from table where info = '1' and id_d < '4';
+    case: select id from table where info = $1 and id_d < $2; PARAMETERS: $1 = 1, $2 = 4;
+    result: select id from table where info = '1' and id_d < '4';
     """
     if len(query_content.split(';')) == 2 and 'parameters: $1' in query_content.lower():
         template, parameter = query_content.split(';')
@@ -156,138 +156,119 @@ def fill_value(query_content):
 
 
 def exists_regular_match(query):
-    """Check if there is such a regular case in SQL: like '%xxxx', 'xxxx%', '%xxxx%'"""
-    if re.search(r"(like\s+'(%.+)'|like\s+'(.+%)')", query):
-        return True
-    return False
+    """Determine if there is such a regular case in SQL: like '%xxxx', 'xxxx%', '%xxxx%'"""
+    result = re.findall(r"like\s+'%\S+'|like\s+'\S+%'", query)
+    return result
+
+
+def exist_track_parameter(query):
+    """Determine if SQL contains parameters"""
+    return True if '; parameters: $1 = ' in query.lower() else False
 
 
 def remove_parameter_part(query):
+    """
+    remove parameter part when GUC 'track_parameter ' is ON, for example:
+      case: SELECT no_o_id FROM bmsql_new_order WHERE no_w_id = $1 AND no_d_id = $2
+      ORDER BY no_o_id ASC; parameters: $1 = '10', $2 = '2'
+      result: SELECT no_o_id FROM bmsql_new_order WHERE no_w_id = $1 AND no_d_id = $2
+      ORDER BY no_o_id ASC;
+    """
     return re.sub(r";\s*parameters: \$.+", ";", query, flags=re.IGNORECASE)
 
 
 def exists_function(query):
     """
-    Determine if a function is used in a subquery,
-      select * from table where abs(l_quantity) <= 8;
+    Determine if a function is used in Where clause, for example:
+      case1: select * from table where abs(l_quantity) <= 8;
+      result: abs(l_quantity)
+      case2: select col from table2 where id >
+      (select max(id2) from table2 where substring(info from 1 for 2) = 'xxx')
+      result: substring(info from 1 for 2)
     """
-    flag = []
+    flags = []
 
-    def _parser(parsed_sql):
-        if flag:
-            return
-        if isinstance(parsed_sql, list):
-            if isinstance(parsed_sql[0], dict):
-                flag.append(True)
-                return
-        if isinstance(parsed_sql, dict):
-            if 'where' in parsed_sql:
-                _parser(parsed_sql['where'])
-            elif not any(item in parsed_sql for item in OPERATOR):
-                for _, sub_parsed_sql in parsed_sql.items():
-                    if isinstance(sub_parsed_sql, list):
-                        for item in sub_parsed_sql:
-                            _parser(item)
-                    else:
-                        _parser(sub_parsed_sql)
-            elif any(item in parsed_sql for item in OPERATOR):
-                for _, sub_parsed_sql in parsed_sql.items():
-                    _parser(sub_parsed_sql)
-    try: 
-        parsed_sql = parse(query)
-        _parser(parsed_sql)
-    except Exception as e:
-        logging.exception(e)
-    return flag
+    def get_function(parsed):
+        for item in parsed:
+            if item.is_group:
+                if isinstance(item, Comparison) and isinstance(item.parent, Where):
+                    for sub_item in item.tokens:
+                        if isinstance(sub_item, Function):
+                            flags.append(sub_item.value)
+                        elif isinstance(sub_item, Parenthesis):
+                            get_function(sub_item)
+                else:
+                    get_function(item)
+
+    parsed_tree = sqlparse.parse(query)[0]
+    get_function(parsed_tree)
+    return flags
 
 
-def _regular_match(string, pattern):
-    """
-    Provides simple regularization functions.
-    """
-    if re.search(pattern, string):
+def regular_match(pattern, string, **kwargs):
+    """Provides simple regularization functions."""
+    if re.search(pattern, string, **kwargs):
         return True
     return False
+
+
+def remove_bracket(string):
+    """
+    Remove bracket in string.
+    case: "substring"(c1, 2, 4)"
+    result: "substring"
+    """
+    return re.sub(r"\(.*?\)", '', string)
 
 
 def exists_bool_clause(query):
     """
     Get boolean expression in SQL, there are two cases:
-      1. select * from table where col in (xx, xx, xx, ...);
-      2. select * from table where col in (select xxx);
-    Our purpose is to get: '(xx, xx, xx, ...)' and 'select xxx'
+      case1: select * from table where col in (xx, xx, xx, ...);
+      case2: select * from table where col not in (xx, xx, ...);
+      result: '(xx, xx, xx, ...)'
     """
     flags = []
 
-    def _parser(parsed_sql):
-        if isinstance(parsed_sql, list):
-            for item in parsed_sql:
-                _parser(item)
-        if isinstance(parsed_sql, dict):
-            for key, value in parsed_sql.items():
-                if key in ('in', 'nin') and isinstance(value, list):
-                    if isinstance(value[1], dict):
-                        flags.append(format(value[1]))
-                    else:
-                        flags.append(value[1])
-                    _parser(value[-1])
+    def get_in_clause(parsed):
+        for item in parsed:
+            if item.is_group:
+                if isinstance(item, Parenthesis) and isinstance(item.parent, Comparison):
+                    comparisons = [subitem.value for subitem in item.parent.tokens if
+                                   subitem.ttype == sqlparse.tokens.Token.Operator.Comparison]
+                    if any(op in comparisons for op in ('not in')):
+                        for sub_item in item.tokens:
+                            if isinstance(sub_item, IdentifierList):
+                                flags.append(sub_item.value.split(','))
+                            elif sub_item.is_group:
+                                get_in_clause(sub_item)
                 else:
-                    _parser(value)
-    try:
-        parsed_sql = parse(query)
-        _parser(parsed_sql)
-    except Exception as e:
-        logging.exception(e)
-    return flags
+                    get_in_clause(item)
 
-
-def exists_related_select(query):
-    """
-    Determine whether there is a correlated subquery in the where condition of SQL,
-    the current method is inaccurate and can only be roughly judged.
-    """
-    flags = []
-
-    def _parser(parsed_sql):
-        if isinstance(parsed_sql, list):
-            for item in parsed_sql:
-                _parser(item)
-        if isinstance(parsed_sql, dict):
-            for key, value in parsed_sql.items():
-                if key in ('eq', 'lt', 'gt') and all(isinstance(item, str) for item in value) and len(value) == 2:
-                    flags.append(value[1])
-                else:
-                    _parser(value)
-    try:
-        parsed_sql = parse(query)
-        _parser(parsed_sql)
-    except Exception as e:
-        logging.exception(e)
+    parsed_tree = sqlparse.parse(query)[0]
+    get_in_clause(parsed_tree)
     return flags
 
 
 def exists_subquery(query):
     """
-    Determine if there is a subquery in SQL.
+    Determine if there is a subquery in SQL, for example:
+    case: select id from (select id from table2);
+    result: ["select id from table2"]
     """
     flags = []
 
-    def _parser(parsed_sql):
-        if isinstance(parsed_sql, list):
-            for item in parsed_sql:
-                _parser(item)
-        if isinstance(parsed_sql, dict):
-            for key, value in parsed_sql.items():
-                if key == 'select':
-                    subquery = format(parsed_sql)
-                    if parse(subquery) != parse(query):
-                        flags.append(subquery)
-                _parser(value)
-    try:
-        parsed_sql = parse(query)
-        _parser(parsed_sql)
-    except Exception as e:
-        logging.exception(e)
+    def get_subquery(parsed, height):
+        for item in parsed:
+            if item.is_group:
+                get_subquery(item, height+1)
+            elif item.ttype == DML and item.value.upper() == "SELECT":
+                if height == 0:
+                    continue
+                formatted_query = standardize_sql(item.parent.value).strip("()")
+                flags.append((formatted_query, height))
+    parsed_tree = sqlparse.parse(query)[0]
+    get_subquery(parsed_tree, 0)
     return flags
 
 
@@ -303,6 +284,8 @@ def get_generate_prepare_sqls_function():
     counter = count(start=0, step=1)
 
     def get_prepare_sqls(statement):
+        #  Ensure that the end of sql does not exist ';'
+        statement = statement.strip().strip(';')
         prepare_id = 'prepare_' + str(next(counter))
         placeholder_size = len(get_placeholders(statement))
         prepare_args = '' if not placeholder_size else '(%s)' % (','.join(['NULL'] * placeholder_size))
@@ -332,4 +315,3 @@ def replace_comma_with_dollar(query):
         query = query.replace('?', dollar, 1)
         max_dollar_number += 1
     return query
-

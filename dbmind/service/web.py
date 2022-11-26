@@ -31,9 +31,10 @@ from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.types import ALARM_TYPES
 from dbmind.common.utils import ttl_cache
 from dbmind.common.parser.sql_parsing import get_generate_prepare_sqls_function
+from dbmind.common.parser.sql_parsing import exist_track_parameter
 from dbmind.components.sql_rewriter import SQLRewriter, TableInfo
 from dbmind.metadatabase import dao
-from dbmind.service.utils import SequenceUtils, get_master_instance_address
+from dbmind.service.utils import SequenceUtils
 from . import dai
 
 
@@ -691,7 +692,7 @@ def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True, dr
         sql = _sql + ';'
         formatted_sql = sqlparse.format(sql, keyword_case='lower', identifier_case='lower', strip_comments=True)
         prepare_sqls = get_prepare_sqls(formatted_sql)
-        sql_checking_stmt = f'set current_schema={schemas};{":".join(prepare_sqls)}'
+        sql_checking_stmt = f'set current_schema={schemas};{";".join(prepare_sqls)}'
         checking_results = executor(stmt=sql_checking_stmt, return_tuples=False, fetch_all=True)
         if not checking_results:
             rewritten_sqls.append(sql)
@@ -711,10 +712,10 @@ def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True, dr
                                   "constraint_type in ('PRIMARY KEY', 'UNIQUE') AND table_name = '%s'" % table_name
             table_exists_primary[table_name] = \
                 executor(stmt=exists_primary_stmt, return_tuples=True)[0][0]
-            notnull_columns_stat = f"SELECT attname from pg_attribute where attrelid=(select oid from pg_class " \
-                                   f"where relname='{table_name}) and attnotnull=True"
+            notnull_columns_stmt = f"SELECT attname from pg_attribute where attrelid=(select oid from pg_class " \
+                                   f"where relname='{table_name}') and attnotnull=true"
             table_notnull_columns[table_name] = [_tuple[0] for _tuple in
-                                                 executor(stmt=notnull_columns_stat, return_tuples=True)]
+                                                 executor(stmt=notnull_columns_stmt, return_tuples=True)]
         tableinfo.table_columns = table_columns
         tableinfo.table_exists_primary = table_exists_primary
         tableinfo.table_notnull_columns = table_notnull_columns
@@ -724,56 +725,74 @@ def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True, dr
     return '\n'.join(rewritten_sqls)
 
 
-def toolkit_slow_sql_rca(sql, database, schema=None, start_time=None, end_time=None, skip_search=False):
+def search_slow_sql_rca_result(sql, start_time=None, end_time=None, limit=None):
     from dbmind.metadatabase.dao import slow_queries
     root_causes, suggestions = [], []
-    if sql is None or database is None:
-        return root_causes, suggestions
-    # Default interval of searching time is 10S
     default_interval = 120 * 1000
-    start_timestamp, end_timestamp = 0, 0
-    if start_time is not None:
-        start_timestamp = int(start_time)
-    if end_time is not None:
-        end_timestamp = int(end_time)
-    if not skip_search:
-        # If it can be found in the meta-database, return it directly.
-        field_names = (
-            'root_cause', 'suggestion'
-        )
-        # Maximum number of output lines.
-        nb_rows = 3
-        result = slow_queries.select_slow_queries(field_names, sql, start_time, end_time, limit=nb_rows)
-        for slow_query in result:
-            root_causes.append(getattr(slow_query, 'root_cause').split('\n'))
-            suggestions.append(getattr(slow_query, 'suggestion').split('\n'))
-        if root_causes:
-            return root_causes, suggestions
-    if not start_timestamp and not end_timestamp:
-        end_timestamp = int(datetime.datetime.now().timestamp()) * 1000
-        start_timestamp = end_timestamp - default_interval
-    elif not start_timestamp:
-        start_timestamp = end_timestamp - default_interval
-    elif not end_timestamp:
-        end_timestamp = start_timestamp + default_interval
+    if end_time is None:
+        end_time = int(datetime.datetime.now().timestamp()) * 1000
+    if start_time is None:
+        start_time = end_time - default_interval
+    field_names = (
+        'root_cause', 'suggestion'
+    )
+    # Maximum number of output lines.
+    result = slow_queries.select_slow_queries(field_names, sql, start_time, end_time, limit=limit)
+    for slow_query in result:
+        root_causes.append(getattr(slow_query, 'root_cause').split('\n'))
+        suggestions.append(getattr(slow_query, 'suggestion').split('\n'))
+    return root_causes, suggestions
 
+
+def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_time=None,
+                         wdr=None, data_source='tsdb', url=None):
+    # 'wdr' is for web compatibility
+    root_causes, suggestions = [], []
+    if query is None:
+        return root_causes, suggestions
+    track_parameter = exist_track_parameter(query)
     from dbmind.common.types import SlowQuery
-    from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDB
-    from dbmind.app.diagnosis.query.slow_sql.analyzer import SlowSQLAnalyzer
-
-    host, port = get_master_instance_address()
-    slow_sql_instance = SlowQuery(db_host=host,
-                                  db_port=port,
-                                  query=sql,
-                                  db_name=database,
+    slow_sql_instance = SlowQuery(db_host=None,
+                                  db_port=None,
+                                  query=query,
+                                  db_name=dbname,
                                   schema_name=schema,
-                                  start_timestamp=start_timestamp,
-                                  duration_time=end_timestamp - start_timestamp
+                                  start_timestamp=0,
+                                  duration_time=0,
+                                  debug_query_id=-1,
+                                  track_parameter=track_parameter
                                   )
+    if data_source == 'driver':
+        from psycopg2.extensions import parse_dsn
+
+        from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromDriver
+        from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
+        host, port, dbname = parse_dsn(url).get('host'), parse_dsn(url).get('port'), parse_dsn(url).get('dbname')
+        slow_sql_instance.db_host = host
+        slow_sql_instance.db_port = port
+        slow_sql_instance.db_name = dbname
+        driver = Driver()
+        driver.initialize(url)
+        query_context = QueryContextFromDriver(slow_sql_instance, driver=driver)
+    else:
+        from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
+        from dbmind.service.utils import SequenceUtils, get_master_instance_address
+        host, port = get_master_instance_address()
+        default_interval = 120 * 1000
+        if end_time is None:
+            end_time = int(datetime.datetime.now().timestamp()) * 1000
+        if start_time is None:
+            start_time = end_time - default_interval
+        slow_sql_instance.db_host = host
+        slow_sql_instance.db_port = port
+        slow_sql_instance.start_at = start_time
+        slow_sql_instance.duration_time = end_time - start_time
+        query_context = QueryContextFromTSDBAndRPC(slow_sql_instance)
+    # Default interval of searching time is 10S
+    from dbmind.app.diagnosis.query.slow_sql.analyzer import SlowSQLAnalyzer
     try:
         query_analyzer = SlowSQLAnalyzer()
-        query_context = QueryContextFromTSDB
-        slow_sql_instance = query_analyzer.run(query_context(slow_sql_instance))
+        slow_sql_instance = query_analyzer.run(query_context)
         root_causes.append(slow_sql_instance.root_causes.split('\n'))
         suggestions.append(slow_sql_instance.suggestions.split('\n'))
     except Exception as e:

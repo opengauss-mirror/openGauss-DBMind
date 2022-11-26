@@ -161,7 +161,7 @@ class Operator:
         k, v = re.findall(PROPERTY_PATTERN, line)[0]
         if k == 'Filter':
             self.columns = list(set(re.findall(COLUMN_PATTERN, v.strip())))
-        self.properties[k.strip()] = v.strip()
+        self.properties[k.strip()] = v.strip().strip('()')
 
     def __getitem__(self, item):
         return self.properties.get(item)
@@ -299,7 +299,8 @@ class Plan:
                 opts.append(node)
 
         def fuzzy_finder(node):
-            if operator in node.name:
+            items = [item.strip() for item in operator.split()]
+            if all(item in node.name for item in items):
                 opts.append(node)
 
         if accurate:

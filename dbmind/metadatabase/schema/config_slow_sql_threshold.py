@@ -17,29 +17,26 @@ class SlowSQLThreshold(DynamicConfig):
     __tablename__ = "slow_sql_threshold"
 
     __default__ = {
-        'tuple_number_threshold': 5000,
-        'table_total_size_threshold': 2048,
-        'fetch_tuples_threshold': 10000,
-        'returned_rows_threshold': 1000,
-        'updated_tuples_threshold': 1000,
-        'deleted_tuples_threshold': 1000,
-        'inserted_tuples_threshold': 1000,
+        'tuple_number_threshold': 5,
+        'table_total_size_threshold': 3,
+        'fetch_tuples_threshold': 10,
+        'returned_rows_threshold': 1,
+        'updated_tuples_threshold': 1,
+        'deleted_tuples_threshold': 1,
+        'inserted_tuples_threshold': 1,
         'hit_rate_threshold': 0.95,
-        'dead_rate_threshold': 0.2,
-        'index_number_threshold': 5,
-        'column_number_threshold': 20,
-        'analyze_operation_probable_time_interval': 6000,
+        'dead_rate_threshold': 0.00002,
+        'index_number_threshold': 1,
+        'column_number_threshold': 2,
+        'analyze_operation_probable_time_interval': 6,  # unit is second
         'max_elapsed_time': 60,
-        'update_statistics_threshold': 60,
+        'analyze_threshold': 3,  # unit is second
         'nestloop_rows_threshold': 10000,
-        'large_join_threshold': 1000000,
+        'large_join_threshold': 10000,
         'groupagg_rows_threshold': 10000,
-        'cost_rate_threshold': 0.4,
-        'plan_time_occupy_rate_threshold': 0.3,
-        'used_index_tuples_rate_threshold': 0.2,
-        'plan_height_threshold': 40,
-        'complex_operator_threshold': 20,
-        'subquery_threshold': 1,
-        'os_disk_usage_threshold': 0.9,
-        'large_in_list_threshold': 1000
+        'cost_rate_threshold': 0.05,
+        'plan_height_threshold': 10,
+        'complex_operator_threshold': 2,
+        'large_in_list_threshold': 10,
+        'tuples_diff_threshold': 10000
     }

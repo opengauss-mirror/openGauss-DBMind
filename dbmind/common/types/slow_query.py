@@ -23,7 +23,7 @@ class SlowQuery:
                  template_id=0, sort_count=0, sort_mem_used=0, sort_spill_count=0, hash_count=0, plan_time=0,
                  hash_mem_used=0, hash_spill_count=0, lock_wait_count=0, lwlock_wait_count=0, parse_time=0,
                  n_returned_rows=0, n_tuples_returned=0, n_tuples_fetched=0, n_tuples_inserted=0, db_time=1,
-                 n_tuples_updated=0, n_tuples_deleted=0, user_name=None, query_plan=None, **kwargs):
+                 n_tuples_updated=0, n_tuples_deleted=0, user_name=None, query_plan=None, query_id=-1, **kwargs):
         self.db_host = db_host
         self.db_port = db_port
         self.user_name = user_name
@@ -44,6 +44,7 @@ class SlowQuery:
         self.parse_time = parse_time
         self.db_time = db_time
         self.template_id = template_id
+        self.query_id = query_id
         self.sort_count = sort_count
         self.sort_mem_used = sort_mem_used
         self.sort_spill_count = sort_spill_count

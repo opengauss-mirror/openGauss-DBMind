@@ -155,6 +155,9 @@ class Driver:
                 except psycopg2.errors.ObjectNotInPrerequisiteState:
                     logging.warning('ObjectNotInPrerequisiteState while executing %s.', stmt)
                     result = []
+                except psycopg2.errors.UndefinedParameter:
+                    logging.warning('UndefinedParameter while executing %s.', stmt)
+                    result = []
             self.put_conn(conn)
         except psycopg2.InternalError as e:
             logging.error("Cannot execute '%s' due to internal error: %s." % (stmt, e.pgerror))

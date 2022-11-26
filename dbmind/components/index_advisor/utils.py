@@ -32,7 +32,7 @@ PREPARE_KEYWORD = 'PREPARE'
 
 logfile = 'index_advisor.log'
 handler = RotatingFileHandler(
-    filename='index_advisor.log',
+    filename=logfile,
     maxBytes=100 * 1024 * 1024,
     backupCount=5,
 )
