@@ -28,7 +28,6 @@ class _Define:
 
 class RootCause:
     SYSTEM_ERROR = _Define('[SYSTEM]', 'System error')
-    DISK_SPILL = _Define('[SYSTEM][DISK]', 'Disk already spills')
 
     # system level
     SYSTEM_ANOMALY = _Define('[SYSTEM][UNKNOWN]', 'Monitoring metric has anomaly.')
@@ -78,54 +77,35 @@ class RootCause:
                               '{lock_contention}',
                               'Adjust the business reasonably to avoid lock blocking.')
     MANY_DEAD_TUPLES = _Define('[SLOW QUERY][TABLE EXPANSION]',
-                               'Table expansion, '
-                               'detail: table info({large_table}), dead_rate({dead_rate}).',
-                               'Perform the analysis operation in time after a large number of '
-                               'insert and update operations on the table.')
+                               '{many_dead_tuples}.',
+                               '{many_dead_tuples}.')
     FETCH_LARGE_DATA = _Define('[SLOW QUERY][FETCHED TUPLES]',
-                               'The SQL scans a large number of tuples, '
-                               'detail: fetched_tuples({fetched_tuples}), '
-                               'fetched_tuples_rate({fetched_tuples_rate}), '
-                               'returned_rows({returned_rows}), ',
-                               'a. Check whether the field has an index;'
-                               'b. Avoid operations such as select count(*);'
-                               'c. Whether syntax problems cause the statement index to fail, the general '
-                               'index failure cases include: '
-                               '1). The range is too large; '
-                               '2). There is an implicit conversion; '
-                               '3). Use fuzzy query, etc;')
+                               '{fetch_large_data}',
+                               '{fetch_large_data}')
     UNREASONABLE_DATABASE_KNOB = _Define('[SLOW SQL][DATABASE KNOB]',
                                          'Unreasonable parameters affect database performance, '
                                          'detail: {unreasonable_database_knob}.',
                                          'Recommend knob: {unreasonable_database_knob}.')
-    REDUNDANT_INDEX = _Define('[SLOW SQL][REDUNDANT INDEX]',
-                              'There are redundant indexes in related tables,'
-                              'detail: {redundant_index}.',
-                              '{redundant_index}.')
+    UNUSED_AND_REDUNDANT_INDEX = _Define('[SLOW SQL][UNUSED_AND_REDUNDANT_INDEX]',
+                                         '{unused_and_redundant_index}.',
+                                         '{unused_and_redundant_index}.')
     UPDATE_LARGE_DATA = _Define('[SLOW SQL][UPDATED TUPLES]',
-                                'Update a large number of tuples, '
-                                'detail: updated_tuples({updated_tuples}), '
-                                'updated_tuples_rate({updated_tuples_rate}).'
+                                '{update_large_data}.',
+                                '{update_large_data}.'
                                 )
     INSERT_LARGE_DATA = _Define('[SLOW SQL][INSERTED TUPLES]',
-                                'Insert a large number of tuples,'
-                                'detail: inserted_tuples({inserted_tuples}),'
-                                'inserted_tuples_rate({inserted_tuples_rate}).'
+                                '{insert_large_data}.',
+                                '{insert_large_data}.'
                                 )
     DELETE_LARGE_DATA = _Define('[SLOW SQL][DELETED TUPLES]',
-                                'Delete a large number of tuples,'
-                                'detail: deleted_tuples({deleted_tuples}),'
-                                'deleted_tuples_rate({deleted_tuples_rate}).')
+                                '{delete_large_data}.',
+                                '{delete_large_data}.')
     TOO_MANY_INDEX = _Define('[SLOW SQL][INDEX NUMBER]',
-                             'INSERT involves too many indexes in the table, '
-                             'which affects insert performance, '
-                             'detail: {index}.',
-                             'The more non-clustered indexes you have on a table, '
-                             'the slower your inserts and deletes will go.')
-    EXTERNAL_SORT = _Define('[SLOW SQL][EXTERNAL SORT]',
-                            'External sort is suspected during SQL execution, '
-                            'detail: {external_sort}.',
-                            'Adjust work_mem according to business situation.')
+                             '{too_many_index}.',
+                             '{too_many_index}.')
+    DISK_SPILL = _Define('[SLOW SQL][EXTERNAL SORT]',
+                         '{disk_spill}.',
+                         '{disk_spill}.')
     VACUUM_EVENT = _Define('[SLOW SQL][VACUUM]',
                            'During SQL execution, related tables are executing VACUUM tasks, '
                            'resulting in slow queries,'
@@ -181,7 +161,7 @@ class RootCause:
                               '{string_matching}.',
                               '{string_matching}.')
     COMPLEX_EXECUTION_PLAN = _Define('[SLOW SQL][OPERATOR]',
-                                     '{complex_execution_plan}.'
+                                     '{complex_execution_plan}.',
                                      '{complex_execution_plan}.')
     CORRELATED_SUBQUERY = _Define('[SLOW SQL][TASK]',
                                   '{correlated_subquery}.',
@@ -204,9 +184,12 @@ class RootCause:
     LACK_INFORMATION = _Define('[SLOW SQL][UNKNOWN]',
                                'Cannot diagnose due to lack of information.',
                                '')
-    C_UNKNOWN = _Define('[SLOW SQL][UNKNOWN]',
-                        'UNKNOWN',
-                        '')
+    UNKNOWN = _Define('[SLOW SQL][UNKNOWN]',
+                      'UNKNOWN')
+    INVALID_SQL = _Define('[SLOW SQL][INVALID]',
+                          'Invalid SQL.')
+    UNSUPPORTED_TYPE = _Define('[SLOW SQL][TYPE]',
+                               'The SQL type is not supported.')
     # security
     TOO_MANY_ERRORS = _Define(
         '[SECURITY][RISK]',

@@ -399,6 +399,7 @@ def get_all_slow_queries(minutes):
         db_time = round(float(sequence.labels['db_time']), 4)
         data_io_time = round(float(sequence.labels['data_io_time']), 4)
         template_id = sequence.labels['unique_query_id']
+        query_id = sequence.labels['debug_query_id']
         lock_wait_count = int(sequence.labels['lock_wait_count'])
         lwlock_wait_count = int(sequence.labels['lwlock_wait_count'])
         n_returned_rows = int(sequence.labels['n_returned_rows'])
@@ -418,7 +419,7 @@ def get_all_slow_queries(minutes):
             lwlock_wait_count=lwlock_wait_count, n_returned_rows=n_returned_rows,
             n_tuples_returned=n_tuples_returned, n_tuples_fetched=n_tuples_fetched,
             n_tuples_inserted=n_tuples_inserted, n_tuples_updated=n_tuples_updated,
-            n_tuples_deleted=n_tuples_deleted
+            n_tuples_deleted=n_tuples_deleted, query_id=query_id
         )
 
         slow_queries.append(slow_sql_info)

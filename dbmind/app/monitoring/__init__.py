@@ -30,8 +30,7 @@ class MUST_BE_DETECTED_METRICS:
 
     HISTORY = _rules_for_history
     BUILTIN_GOLDEN_KPI = {'os_cpu_usage', 'os_disk_iops', 'os_mem_usage',
-                          'pg_connections_used_conn', 'statement_responsetime_percentile_p80',
-                          'os_network_transmit_error'}
+                          'statement_responsetime_percentile_p80', 'os_network_transmit_error'}
 
 
 def detect_future(host, metrics, latest_sequences, future_sequences):

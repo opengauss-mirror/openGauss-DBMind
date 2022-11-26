@@ -22,13 +22,13 @@ class DetectionParams(DynamicConfig):
     __default__ = {
         'high_ac_threshold': 0.1,
         'min_seasonal_freq': 2,
-        'disk_usage_threshold': 0.8,
+        'disk_usage_threshold': 0.1,
         'disk_usage_max_coef': 2.5e-08,  # window: 5 minutes
-        'mem_usage_threshold': 0.8,
+        'mem_usage_threshold': 0.2,
         'mem_usage_max_coef': 8e-08,  # window: 5 minutes
-        'cpu_usage_threshold': 0.8,
+        'cpu_usage_threshold': 0.05,
         'cpu_high_usage_percent': 0.8,
-        'tps_threshold': 2000,
+        'tps_threshold': 2,
         'qps_max_coef': 8e-03,  # window: 5 minutes
         'connection_max_coef': 4e-04,  # window: 5 minutes
         'p80_threshold': 260,
@@ -38,7 +38,7 @@ class DetectionParams(DynamicConfig):
         'load_average_threshold': 0.6,
         'iops_threshold': 2000,
         'handler_occupation_threshold': 0.7,
-        'disk_ioutils_threshold': 0.5,
+        'disk_ioutils_threshold': 0.7,
         'connection_rate_threshold': 0.1,
         'connection_usage_threshold': 0.9,
         'package_drop_rate_threshold': 0.01,

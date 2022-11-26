@@ -18,7 +18,7 @@ from contextlib import contextmanager
 import psycopg2
 
 from .common import BaseExecutor
-from utils import logger
+from ..utils import logger
 
 
 class DriverExecutor(BaseExecutor):

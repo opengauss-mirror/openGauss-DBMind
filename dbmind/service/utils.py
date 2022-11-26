@@ -12,7 +12,7 @@
 # See the Mulan PSL v2 for more details.
 import logging
 
-from dbmind.global_vars import agent_rpc_client
+from dbmind import global_vars
 from dbmind.common.types import Sequence
 
 # Notice: 'DISTINGUISHING_INSTANCE_LABEL' is a magic string, i.e., our own name.
@@ -43,15 +43,38 @@ class SequenceUtils:
             return address.split(':')[0]
 
 
+def is_rpc_valid():
+    # Determine whether RPC service is valid in the current environment.
+    try:
+        result = global_vars.agent_rpc_client.call('query_in_database',
+                                                   'select 1',
+                                                   'postgres',
+                                                   return_tuples=True)
+        return result[0][0] == 1
+    except Exception:
+        global_vars.agent_rpc_client = None
+        return False
+
+
+def is_tsdb_valid():
+    # Determine whether TSDB is valid in the current environment.
+    from dbmind.common.tsdb import TsdbClientFactory
+    try:
+        client = TsdbClientFactory.get_tsdb_client()
+        return client.check_connection()
+    except Exception:
+        return False
+
+
 def get_master_instance_address():
     try:
-        rows = agent_rpc_client.call('query_in_database',
-                                     'SELECT inet_server_addr(), inet_server_port();',
-                                     'postgres',
-                                     return_tuples=True)
+        rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                 'SELECT inet_server_addr(), inet_server_port();',
+                                                 'postgres',
+                                                 return_tuples=True)
         instance_host, instance_port = rows[0][0], rows[0][1]
     except Exception as e:
-        logging.warning("Maybe the RPC service isn't started.")
+        logging.warning("Maybe the RPC service isn't started.", exc_info=True)
         instance_host, instance_port = None, None
 
     return instance_host, instance_port

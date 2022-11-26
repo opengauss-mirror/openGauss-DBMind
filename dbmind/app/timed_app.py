@@ -23,7 +23,7 @@ from dbmind import constants
 from dbmind import global_vars
 from dbmind.app.diagnosis import diagnose_for_alarm_logs
 from dbmind.app.diagnosis.query import diagnose_query
-from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDB
+from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
 from dbmind.app.healing import (get_repair_toolkit,
                                 get_correspondence_repair_methods,
                                 HealingAction,
@@ -96,6 +96,7 @@ golden_kpi |= MUST_BE_DETECTED_METRICS.BUILTIN_GOLDEN_KPI
 wrapped_golden_kpi = set((kpi,) for kpi in golden_kpi)
 to_be_detected_metrics_for_history = wrapped_golden_kpi | MUST_BE_DETECTED_METRICS.HISTORY
 to_be_detected_metrics_for_future = wrapped_golden_kpi | MUST_BE_DETECTED_METRICS.future()
+need_updated_metrics = set(golden_kpi) | {'os_process_fds_rate'}
 
 
 @timer(detection_interval)
@@ -173,7 +174,7 @@ def self_monitoring_and_diagnosis():
                     'time': int(time.time() * 1000)
                 }
             )
-            query_context = QueryContextFromTSDB
+            query_context = QueryContextFromTSDBAndRPC
             slow_queries = global_vars.worker.parallel_execute(
                 diagnose_query, ((query_context(slow_query),) for slow_query in slow_query_collection)
             ) or []
@@ -426,11 +427,9 @@ def update_statistical_metrics():
         end = datetime.now()
         start = end - timedelta(seconds=updating_statistic_interval)  # Polish later: check more.
         results = []
-        handled_metrics = []
-        for metric in golden_kpi:
-            if metric in handled_metrics:
-                continue
-            handled_metrics.append(metric)
+        logging.error('update metric is : %s' % (str(need_updated_metrics)))
+        for metric in need_updated_metrics:
+            logging.error("update statistic metric is: %s" % metric)
             latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
             logging.debug('The length of latest_sequences is %d and metric name is %s.',
                           len(latest_sequences), metric)

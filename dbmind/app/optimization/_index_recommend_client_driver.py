@@ -24,11 +24,14 @@ class RpcExecutor(BaseExecutor):
         results = []
         sqls = ['set current_schema = %s' % self.get_schema()] + sqls
         sqls = [sql.strip().strip(';') for sql in sqls]
-        sql_results = global_vars.agent_rpc_client.call('query_in_database',
-                                                        ';'.join(sqls),
-                                                        self.dbname,
-                                                        return_tuples=True,
-                                                        fetch_all=True)
+        if self.driver is not None:
+            sql_results = self.driver.query(';'.join(sqls), return_tuples=True, fetch_all=True)
+        else:
+            sql_results = global_vars.agent_rpc_client.call('query_in_database',
+                                                            ';'.join(sqls),
+                                                            self.dbname,
+                                                            return_tuples=True,
+                                                            fetch_all=True)
         for sql, sql_res in zip(sqls[1:], sql_results[1:]):
             sql_type = sql.upper().strip().split()[0]
             if sql_type == 'EXPLAIN':
