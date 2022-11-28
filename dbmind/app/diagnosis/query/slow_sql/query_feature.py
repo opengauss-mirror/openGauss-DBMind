@@ -266,7 +266,7 @@ class QueryFeature:
             if self.plan_parse_info is None:
                 return False
             plan_total_cost = self.plan_parse_info.root_node.total_cost
-            scan_operators = [operator for operator in self.plan_parse_info.find_operators('Seq Scan', accurate=True)
+            scan_operators = [operator for operator in self.plan_parse_info.find_operators('Seq Scan', accurate=False)
                               if operator.rows >= monitoring.get_threshold('fetch_tuples_threshold') and
                               _get_operator_cost(operator) / plan_total_cost >=
                               monitoring.get_threshold('cost_rate_threshold')]
@@ -823,7 +823,7 @@ class QueryFeature:
             matching_results = [item.replace('like', '~~') for item in matching_results]
             existing_functions = [sql_parsing.remove_bracket(item) for item in existing_functions]
             seq_scan_properties = ';'.join([node.properties.get('Filter').replace('\"', '') for
-                                  node in self.plan_parse_info.find_operators('Seq Scan', accurate=True)
+                                  node in self.plan_parse_info.find_operators('Seq Scan', accurate=False)
                                   if node.properties.get('Filter') is not None])
             for function in existing_functions:
                 if function in seq_scan_properties:
