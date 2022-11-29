@@ -11,7 +11,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-import os
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -20,7 +19,7 @@ from dbmind import global_vars
 from dbmind.app.optimization._index_recommend_client_driver import RpcExecutor
 from dbmind.common.parser.sql_parsing import fill_value, standardize_sql
 from dbmind.components.extract_log import get_workload_template
-from dbmind.components.index_advisor import index_advisor_workload, process_bar, utils
+from dbmind.components.index_advisor import index_advisor_workload, process_bar
 from dbmind.components.fetch_statement import fetch_statement
 from dbmind.service import dai
 
@@ -74,15 +73,13 @@ def is_rpc_available(db_name):
 
 
 def rpc_index_advise(executor, templates):
-    if os.path.exists(utils.logfile):
-        os.remove(utils.logfile)
-    utils.logger = logging.getLogger()
     # only single threads can be used
     index_advisor_workload.get_workload_costs = index_advisor_workload.get_plan_cost
-    detail_info = index_advisor_workload.index_advisor_workload({'historyIndexes': {}}, executor, templates,
-                                                                multi_iter_mode=True, show_detail=True, n_distinct=1,
-                                                                reltuples=10, use_all_columns=True, improved_rate=0.5,
-                                                                max_candidate_columns=40)
+    detail_info, _, _ = index_advisor_workload.index_advisor_workload({'historyIndexes': {}}, executor, templates,
+                                                                      multi_iter_mode=True, show_detail=True,
+                                                                      n_distinct=1, reltuples=10,
+                                                                      use_all_columns=True, improved_rate=0.5,
+                                                                      max_candidate_columns=40)
     return detail_info
 
 

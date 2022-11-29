@@ -107,8 +107,12 @@ def parse_hypo_index(results):
 
 
 def parse_explain_plan(results, query_num):
+    # record execution plan for each explain statement (the parameter results contain multiple explain results)
+    plans = []
+    plan = []
     index_names_list = []
     found_plan = False
+    plan_start = False
     costs = []
     i = 0
     index_names = UniqueList()
@@ -118,8 +122,13 @@ def parse_explain_plan(results, query_num):
         if QUERY_PLAN_SUFFIX in text or text == EXPLAIN_SUFFIX:
             index_names_list.append(index_names)
             index_names = UniqueList()
+            plans.append(plan)
+            plan = []
             found_plan = True
+            plan_start = True
             continue
+        if plan_start:
+            plan.append(cur_tuple[0])
         # Consider execution errors and ensure that the cost value of an explain is counted only once.
         if ERROR_KEYWORD in text and 'prepared statement' not in text:
             if i >= query_num:
@@ -147,14 +156,17 @@ def parse_explain_plan(results, query_num):
                 index_names.append(ind2)
     index_names_list.append(index_names)
     index_names_list = index_names_list[1:]
+    plans.append(plan)
+    plans = plans[1:]
 
     # when a syntax error causes multiple explain queries to be run as one query
     while len(index_names_list) < query_num:
         index_names_list.append([])
+        plans.append([])
     while i < query_num:
         costs.append(0)
         i += 1
-    return costs, index_names_list
+    return costs, index_names_list, plans
 
 
 def parse_plan_cost(line):
