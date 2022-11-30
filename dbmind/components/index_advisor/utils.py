@@ -12,8 +12,6 @@
 # See the Mulan PSL v2 for more details.
 
 import re
-import logging
-from logging.handlers import RotatingFileHandler
 from collections import defaultdict
 from enum import Enum
 from functools import lru_cache
@@ -29,18 +27,6 @@ QUERY_PLAN_SUFFIX = 'QUERY PLAN'
 EXPLAIN_SUFFIX = 'EXPLAIN'
 ERROR_KEYWORD = 'ERROR'
 PREPARE_KEYWORD = 'PREPARE'
-
-logfile = 'index_advisor.log'
-handler = RotatingFileHandler(
-    filename=logfile,
-    maxBytes=100 * 1024 * 1024,
-    backupCount=5,
-)
-handler.setLevel(logging.INFO)
-handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s'))
-logger = logging.getLogger('index advisor')
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
 
 
 class QueryType(Enum):
@@ -306,6 +292,7 @@ class WorkLoad:
         self.__queries = queries
         self.__index_names_list = [[] for _ in range(len(self.__queries))]
         self.__indexes_costs = [[] for _ in range(len(self.__queries))]
+        self.__plan_list = [[] for _ in range(len(self.__queries))]
 
     def get_queries(self) -> List[QueryItem]:
         return self.__queries
@@ -370,6 +357,11 @@ class WorkLoad:
             self.__indexes_list.index(indexes if indexes else None)]
 
     @lru_cache(maxsize=None)
+    def get_indexes_plan_of_query(self, query:QueryItem, indexes: (Tuple[AdvisedIndex], None)):
+        return self.__plan_list[self.__queries.index(query)][
+            self.__indexes_list.index(indexes if indexes else None)]
+
+    @lru_cache(maxsize=None)
     def get_origin_cost_of_query(self, query: QueryItem):
         return self.get_indexes_cost_of_query(query, None)
 
@@ -377,7 +369,7 @@ class WorkLoad:
     def is_positive_query(self, index: AdvisedIndex, query: QueryItem):
         return self.get_origin_cost_of_query(query) > self.get_indexes_cost_of_query(query, tuple([index]))
 
-    def add_indexes(self, indexes: (Tuple[AdvisedIndex], None), costs, index_names):
+    def add_indexes(self, indexes: (Tuple[AdvisedIndex], None), costs, index_names, plan_list):
         if not indexes:
             indexes = None
         self.__indexes_list.append(indexes)
@@ -386,6 +378,7 @@ class WorkLoad:
         for i, cost in enumerate(costs):
             self.__indexes_costs[i].append(cost)
             self.__index_names_list[i].append(index_names[i])
+            self.__plan_list[i].append(plan_list[i])
 
     @lru_cache(maxsize=None)
     def get_index_related_queries(self, index: AdvisedIndex):

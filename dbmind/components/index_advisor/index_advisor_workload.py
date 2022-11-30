@@ -20,6 +20,8 @@ import random
 import re
 import sys
 import select
+import logging
+from logging.handlers import RotatingFileHandler
 from collections import defaultdict
 from functools import lru_cache
 from itertools import groupby, chain, combinations
@@ -43,7 +45,7 @@ try:
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
-        replace_comma_with_dollar, replace_function_comma, flatten, ERROR_KEYWORD, logger
+        replace_comma_with_dollar, replace_function_comma, flatten, ERROR_KEYWORD
     from .process_bar import bar_print, ProcessBar
 except ImportError:
     from sql_output_parser import parse_single_advisor_results, parse_explain_plan, \
@@ -58,7 +60,7 @@ except ImportError:
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
-        replace_comma_with_dollar, replace_function_comma, flatten, ERROR_KEYWORD, logger
+        replace_comma_with_dollar, replace_function_comma, flatten, ERROR_KEYWORD
     from process_bar import bar_print, ProcessBar
 
 SAMPLE_NUM = 5
@@ -68,7 +70,7 @@ MAX_INDEX_NUM = None
 MAX_INDEX_STORAGE = None
 FULL_ARRANGEMENT_THRESHOLD = 20
 NEGATIVE_RATIO_THRESHOLD = 0.2
-MAX_BENEFIT_THRESHOLD = 1000000
+MAX_BENEFIT_THRESHOLD = float('inf')
 SHARP = '#'
 JSON_TYPE = False
 BLANK = ' '
@@ -90,6 +92,20 @@ def path_type(path):
     if os.path.exists(realpath):
         return realpath
     raise argparse.ArgumentTypeError('%s is not a valid path.' % path)
+
+
+def set_logger():
+    logfile = 'index_advisor.log'
+    handler = RotatingFileHandler(
+        filename=logfile,
+        maxBytes=100 * 1024 * 1024,
+        backupCount=5,
+    )
+    handler.setLevel(logging.INFO)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s'))
+    logger = logging.getLogger('index advisor')
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 
 class CheckWordValid(argparse.Action):
@@ -121,7 +137,7 @@ def read_input_from_pipe():
 def get_password():
     password = read_input_from_pipe()
     if password:
-        logger.warning("Read password from pipe.")
+        logging.warning("Read password from pipe.")
     else:
         password = getpass.getpass("Password for database user:")
     if not password:
@@ -173,6 +189,8 @@ class IndexAdvisor:
         self.integrate_indexes = {}
 
         self.display_detail_info = {}
+        self.index_benefits = []
+        self.redundant_indexes = []
 
     def complex_index_advisor(self, candidate_indexes: List[AdvisedIndex]):
         atomic_config_total = generate_sorted_atomic_config(self.workload.get_queries(), candidate_indexes)
@@ -252,40 +270,39 @@ class IndexAdvisor:
                 positive_queries, ineffective_queries, \
                 negative_queries = self.workload.get_index_related_queries(index)
             sql_num = self.workload.get_index_sql_num(index)
-            max_benefit = 0
+            total_benefit = 0
             # Calculate the average benefit of each positive SQL.
             for query in positive_queries:
                 current_cost = self.workload.get_indexes_cost_of_query(query, (index,))
                 origin_cost = self.workload.get_origin_cost_of_query(query)
                 sql_optimized += (1 - current_cost / origin_cost) * query.get_frequency()
                 benefit = origin_cost - current_cost
-                if benefit > max_benefit:
-                    max_benefit = benefit
+                total_benefit += benefit
             total_queries_num = sql_num['negative'] + sql_num['ineffective'] + sql_num['positive']
             if total_queries_num:
                 negative_sql_ratio = sql_num['negative'] / total_queries_num
             # Filter the candidate indexes that do not meet the conditions of optimization.
-            logger.info(f'filter low benefit index for {index}')
+            logging.info(f'filter low benefit index for {index}')
             if not positive_queries:
-                logger.info(f'filtered: positive_queries not found for the index')
+                logging.info(f'filtered: positive_queries not found for the index')
                 continue
-            if sql_optimized / sql_num['positive'] < improved_rate and max_benefit < MAX_BENEFIT_THRESHOLD:
-                logger.info(f"filtered: improved_rate {sql_optimized / sql_num['positive']} less than {improved_rate}")
+            if sql_optimized / sql_num['positive'] < improved_rate and total_benefit < MAX_BENEFIT_THRESHOLD:
+                logging.info(f"filtered: improved_rate {sql_optimized / sql_num['positive']} less than {improved_rate}")
                 continue
             if sql_optimized / sql_num['positive'] < \
                     NEGATIVE_RATIO_THRESHOLD < negative_sql_ratio:
-                logger.info(f'filtered: improved_rate {sql_optimized / sql_num["positive"]} < '
+                logging.info(f'filtered: improved_rate {sql_optimized / sql_num["positive"]} < '
                             f'negative_ratio_threshold < negative_sql_ratio {negative_sql_ratio} is not met')
                 continue
-            logger.info(f'{index} has benefit of {self.workload.get_index_benefit(index)}')
+            logging.info(f'{index} has benefit of {self.workload.get_index_benefit(index)}')
             if MAX_INDEX_STORAGE and (index_current_storage + index.get_storage()) > MAX_INDEX_STORAGE:
-                logger.info('filtered: if add the index {index}, it reaches the max index storage.')
+                logging.info('filtered: if add the index {index}, it reaches the max index storage.')
                 continue
             if MAX_INDEX_NUM and cnt == MAX_INDEX_NUM:
-                logger.info('filtered: reach the maximum number for the index.')
+                logging.info('filtered: reach the maximum number for the index.')
                 break
             if not self.multi_iter_mode and index.benefit <= 0:
-                logger.info('filtered: benefit not above 0 for the index.')
+                logging.info('filtered: benefit not above 0 for the index.')
                 continue
             index_current_storage += index.get_storage()
             cnt += 1
@@ -298,18 +315,23 @@ class IndexAdvisor:
             table_indexes[index.get_schema_table()].append(index)
         total_origin_cost = self.workload.get_total_origin_cost()
         for i, index in enumerate(self.determine_indexes):
-            statement = index.get_index_statement()
-            bar_print(f'INDEX {i}: {statement}')
-            benefit = sum([query.get_benefit() for query in index.get_positive_queries()])
-            bar_print('\tCost benefit for workload: %.2f' % benefit)
+            useless_indexes = []
+            existing_indexes = []
+            improved_queries = []
+            indexdef = index.get_index_statement()
+            bar_print(f'INDEX {i}: {indexdef}')
+            workload_benefit = sum([query.get_benefit() for query in index.get_positive_queries()])
+            workload_improved_rate = workload_benefit / total_origin_cost
+            bar_print('\tCost benefit for workload: %.2f' % workload_benefit)
             bar_print('\tCost improved rate for workload: %.2f%%'
-                      % (benefit / total_origin_cost * 100))
+                      % (workload_improved_rate * 100))
 
             # invalid indexes caused by recommended indexes
             source_index = index.get_source_index()
             if source_index and (not source_index.is_primary_key()) and (not source_index.get_is_unique()):
                 bar_print(f'\tCurrently existing useless indexes:')
                 bar_print(f'\t\t{source_index.get_indexdef()}')
+                useless_indexes.append(source_index.get_indexdef())
 
             # information about existing indexes
             created_indexes = table_indexes.get(index.get_table(), [])
@@ -317,6 +339,7 @@ class IndexAdvisor:
                 bar_print(f'\tExisting indexes of this relation:')
                 for created_index in created_indexes:
                     bar_print(f'\t\t{created_index.get_indexdef()}')
+                    existing_indexes.append(created_index.get_indexdef())
 
             bar_print(f'\tImproved query:')
             # get benefit rate for subsequent sorting and display
@@ -324,18 +347,19 @@ class IndexAdvisor:
             for query in sorted(index.get_positive_queries(), key=lambda query: -query.get_benefit()):
                 query_origin_cost = self.workload.get_origin_cost_of_query(query)
                 current_cost = self.workload.get_indexes_cost_of_query(query, tuple([index]))
-                benefit_rate = (query_origin_cost - current_cost) / current_cost * 100
-                if not benefit_rate > 10:
-                    continue
-                query_benefit_rate.append((query, benefit_rate))
+                query_improved_rate = (query_origin_cost - current_cost) / current_cost
+                query_benefit_rate.append((query, query_improved_rate))
             # sort query by benefit rate
-            for i, (query, benefit_rate) in enumerate(sorted(query_benefit_rate, key=lambda x: -x[1])):
+            for i, (query, query_improved_rate) in enumerate(sorted(query_benefit_rate, key=lambda x: -x[1])):
+                other_related_indexes = []
                 bar_print(f'\t\tQuery {i}: {query.get_statement()}')
                 query_origin_cost = self.workload.get_origin_cost_of_query(query)
                 current_cost = self.workload.get_indexes_cost_of_query(query, tuple([index]))
-                benefit = query_origin_cost - current_cost
-                bar_print(f'\t\t\tCost benefit for the query: %.2f' % benefit)
-                bar_print('\t\t\tCost improved rate for the query: %.2f%%' % benefit_rate)
+                query_benefit = query_origin_cost - current_cost
+                origin_plan = self.workload.get_indexes_plan_of_query(query, None)
+                current_plan = self.workload.get_indexes_plan_of_query(query, tuple([index]))
+                bar_print(f'\t\t\tCost benefit for the query: %.2f' % query_benefit)
+                bar_print('\t\t\tCost improved rate for the query: %.2f%%' % (query_improved_rate * 100))
                 bar_print(f'\t\t\tQuery number: {int(query.get_frequency())}')
                 if len(query.get_indexes()) > 1:
                     bar_print(f'\t\t\tOther optimal indexes:')
@@ -343,6 +367,22 @@ class IndexAdvisor:
                         if temp_index is index:
                             continue
                         bar_print(f'\t\t\t\t{temp_index.get_index_statement()}')
+                        other_related_indexes.append(temp_index.get_index_statement())
+                improved_queries.append({'query': query.get_statement(),
+                                         'query_benefit': query_benefit,
+                                         'query_improved_rate': query_improved_rate,
+                                         'query_count': int(query.get_frequency()),
+                                         'origin_plan': origin_plan,
+                                         'current_plan': current_plan,
+                                         'other_related_indexes': other_related_indexes
+                                         })
+            self.index_benefits.append({'indexdef': indexdef,
+                                        'workload_benefit': workload_benefit,
+                                        'workload_improved_rate': workload_improved_rate,
+                                        'useless_indexes': useless_indexes,
+                                        'existing_indexes': existing_indexes,
+                                        'improved_queriies': improved_queries,
+                                        })
 
     def record_info(self, index: AdvisedIndex, sql_info, table_name: str, statement: str):
         sql_num = self.workload.get_index_sql_num(index)
@@ -405,7 +445,7 @@ class IndexAdvisor:
         self.display_detail_info['workloadCount'] = int(
             sum(query.get_frequency() for query in self.workload.get_queries()))
         self.display_detail_info['recommendIndexes'] = []
-        logger.info('filter advised indexes by using max-index-storage and max-index-num.')
+        logging.info('filter advised indexes by using max-index-storage and max-index-num.')
         for key, index in enumerate(self.determine_indexes):
             # display determine indexes
             table_name = index.get_table().split('.')[-1]
@@ -437,8 +477,11 @@ class IndexAdvisor:
             self.record_created_indexes(created_indexes)
             for index in created_indexes:
                 bar_print("%s: %s;" % (index.get_schema(), index.get_indexdef()))
-        display_useless_redundant_indexes(created_indexes, self.workload.get_used_index_names(),
+        workload_indexnames = self.workload.get_used_index_names()
+        display_useless_redundant_indexes(created_indexes, workload_indexnames,
                                           self.display_detail_info)
+        unused_indexes = [index for index in created_indexes if index.get_indexname() not in workload_indexnames]
+        self.redundant_indexes = get_redundant_created_indexes(created_indexes, unused_indexes)
 
     def record_created_indexes(self, created_indexes):
         for index in created_indexes:
@@ -656,23 +699,25 @@ def get_plan_cost(statements, executor):
     for statement in statements:
         plan_sqls.extend(get_prepare_sqls(statement))
     results = executor.execute_sqls(plan_sqls)
-    cost, index_names_list = parse_explain_plan(results, len(statements))
-    return cost, index_names_list
+    cost, index_names_list, plans = parse_explain_plan(results, len(statements))
+    return cost, index_names_list, plans
 
 
 def get_workload_costs(statements, executor, threads=20):
     costs = []
     index_names_list = []
+    plans = []
     statements_blocks = split_iter(statements, threads)
     try:
         with Pool(threads) as p:
             results = p.starmap(get_plan_cost, [[_statements, executor] for _statements in statements_blocks])
     except TypeError:
         results = [get_plan_cost(statements, executor)]
-    for _costs, _index_names_list in results:
+    for _costs, _index_names_list, _plans in results:
         costs.extend(_costs)
         index_names_list.extend(_index_names_list)
-    return costs, index_names_list
+        plans.extend(_plans)
+    return costs, index_names_list, plans
 
 
 def estimate_workload_cost_file(executor, workload, indexes=None):
@@ -686,11 +731,11 @@ def estimate_workload_cost_file(executor, workload, indexes=None):
         index_setting_sqls = get_index_setting_sqls(indexes, is_multi_node(executor))
         hypo_index_ids = parse_hypo_index(executor.execute_sqls(index_setting_sqls))
         update_index_storage(indexes, hypo_index_ids, executor)
-        costs, index_names = get_workload_costs([query.get_statement() for query in workload.get_queries()], executor)
+        costs, index_names, plans = get_workload_costs([query.get_statement() for query in workload.get_queries()], executor)
         # Update query cost for select queries and positive_pos for indexes.
         for cost, query_pos in zip(costs, select_queries_pos):
             query_costs[query_pos] = cost * workload.get_queries()[query_pos].get_frequency()
-        workload.add_indexes(indexes, query_costs, index_names)
+        workload.add_indexes(indexes, query_costs, index_names, plans)
 
 
 def query_index_check(executor, query, indexes):
@@ -929,23 +974,23 @@ def generate_query_placeholder_indexes(query, executor: BaseExecutor, n_distinct
         flatten_columns = UniqueList()
         for column in flatten(columns):
             flatten_columns.append(column)
-        logger.info(f'parsing query: {query}')
-        logger.info(f'found tables: {" ".join(tables)}, columns: {" ".join(flatten_columns)}')
+        logging.info(f'parsing query: {query}')
+        logging.info(f'found tables: {" ".join(tables)}, columns: {" ".join(flatten_columns)}')
     except (ValueError, AttributeError, KeyError) as e:
-        logger.warning('Found %s while parsing SQL statement.', e)
+        logging.warning('Found %s while parsing SQL statement.', e)
         return []
     for table in tables:
         table_indexes = []
         table_context = get_table_context(table, executor)
         if not table_context or table_context.reltuples < reltuples:
-            logger.info(f'filtered: table_context is {table_context} and does not meet the requirements')
+            logging.info(f'filtered: table_context is {table_context} and does not meet the requirements')
             continue
         for column in flatten_columns:
             if table_context.has_column(column) and table_context.get_n_distinct(column) <= n_distinct:
                 table_indexes.extend(generate_placeholder_indexes(table_context, column.split('.')[-1].lower()))
         # top 20 for candidate indexes
         indexes.extend(sorted(table_indexes, key=lambda x: table_context.get_n_distinct(x.get_columns()))[:20])
-    logger.info(f'related indexes: {indexes}')
+    logging.info(f'related indexes: {indexes}')
     return indexes
 
 
@@ -984,7 +1029,7 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_dis
                     advised_indexes.append(advised_index)
             valid_indexes = get_valid_indexes(advised_indexes, original_base_indexes, query.get_statement(), executor,
                                               **kwargs)
-            logger.info(f'get valid indexes: {valid_indexes} for the query {query}')
+            logging.info(f'get valid indexes: {valid_indexes} for the query {query}')
             add_query_indexes(valid_indexes, workload.get_queries(), pos)
             for index in valid_indexes:
                 if index not in all_indexes:
@@ -1052,20 +1097,16 @@ def display_redundant_indexes(redundant_indexes: List[ExistingIndex]):
     if not redundant_indexes:
         bar_print("No redundant indexes!")
     # Display redundant indexes.
-    mark = set()
     for index in redundant_indexes:
-        if index not in mark:
-            mark.add(index)
-            statement = "DROP INDEX %s.%s;(%s)" % (index.get_schema(), index.get_indexname(), index.get_indexdef())
-            bar_print(statement)
-            bar_print('Related indexes:')
-            for _index in index.redundant_objs:
-                if _index not in mark:
-                    mark.add(_index)
-                    _statement = "\tDROP INDEX %s.%s;(%s)" % (_index.get_schema(), _index.get_indexname(),
-                                                              _index.get_indexdef())
-                    bar_print(_statement)
-            bar_print('')
+        if index.get_is_unique() or index.is_primary_key():
+            continue
+        statement = "DROP INDEX %s.%s;(%s)" % (index.get_schema(), index.get_indexname(), index.get_indexdef())
+        bar_print(statement)
+        bar_print('Related indexes:')
+        for _index in index.redundant_objs:
+            _statement = "\t%s" % (_index.get_indexdef())
+            bar_print(_statement)
+        bar_print('')
 
 
 def record_redundant_indexes(redundant_indexes: List[ExistingIndex], detail_info):
@@ -1087,7 +1128,7 @@ def display_useless_redundant_indexes(created_indexes, workload_indexnames, deta
     has_unused_index = False
 
     for cur_index in unused_indexes:
-        if 'UNIQUE INDEX' not in cur_index.get_indexdef():
+        if (not cur_index.get_is_unique()) and (not cur_index.is_primary_key()):
             has_unused_index = True
             statement = "DROP INDEX %s;" % cur_index.get_indexname()
             bar_print(statement)
@@ -1208,7 +1249,7 @@ def index_advisor_workload(history_advise_indexes, executor: BaseExecutor, workl
         sql_info = json.dumps(
             index_advisor.display_detail_info, indent=4, separators=(',', ':'))
         bar_print(sql_info)
-    return index_advisor.display_detail_info
+    return index_advisor.display_detail_info, index_advisor.index_benefits, index_advisor.redundant_indexes
 
 
 def check_parameter(args):
@@ -1293,6 +1334,7 @@ def main(argv):
                             help="Whether to show index benefits", default=False)
     args = arg_parser.parse_args(argv)
 
+    set_logger()
     args.W = get_password()
     check_parameter(args)
     # Initialize the connection.
@@ -1305,8 +1347,8 @@ def main(argv):
                 from executors.driver_executor import DriverExecutor
             executor = DriverExecutor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
         except ImportError:
-            logger.warning('Python driver import failed, '
-                           'the gsql mode will be selected to connect to the database.')
+            logging.warning('Python driver import failed, '
+                            'the gsql mode will be selected to connect to the database.')
 
             executor = GsqlExecutor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
             args.driver = None
