@@ -29,6 +29,17 @@ YELLOW_FMT = "\033[33;1m{}\033[0m"
 WHITE_FMT = "\033[37;1m{}\033[0m"
 
 
+def update_emit(handler):
+    """Update emit of handler to ensure that if the log is deleted, it can be regenerated."""
+    handler.emit_old = handler.emit
+
+    def emit(self, record):
+        if not os.path.exists(self.baseFilename):
+            self.stream = open(self.baseFilename, 'a', encoding=self.encoding)
+        handler.emit_old(self, record)
+    handler.emit = emit
+
+
 class cached_property:
     """A decorator for caching a property."""
 

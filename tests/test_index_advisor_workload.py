@@ -118,15 +118,16 @@ select * from student_range_part1 where credit=1;
     def get_index_advisor():
         queries = [QueryItem('select * from store_sales ;select * from item ', 1) for _ in range(9)]
         workload = WorkLoad(queries)
+
         workload.add_indexes(None, [19933.29, 266350.65, 92390.78, 1734959.92, 0.0, 105765.53, 114289.41, 131445.85,
-                                    1445666.07], [[]] * 9)
+                                    1445666.07], [[]] * 9, [[]] * 9)
         workload.add_indexes((Case.index1,),
                              [19933.29, 266350.65, 14841.35, 1734959.92, 0.0, 105765.53, 114289.41, 131445.85,
                               1445666.07],
-                             [[]] * 2 + ['<171278>btree_store_sales_ss_item_sk_ss_sold_date_sk'] + [[]] * 6)
+                             [[]] * 2 + ['<171278>btree_store_sales_ss_item_sk_ss_sold_date_sk'] + [[]] * 6, [[]] * 9)
         workload.add_indexes((Case.index2,),
                              [19933.29, 266350.65, 90653.52, 1734959.92, 0.0, 105765.53, 114289.41, 131445.85,
-                              1445666.07], [[]] * 2 + ['<171324>btree_global_item_i_manufact_id'] + [[]] * 6)
+                              1445666.07], [[]] * 2 + ['<171324>btree_global_item_i_manufact_id'] + [[]] * 6, [[]] * 9)
         index_advisor = index_advisor_workload.IndexAdvisor(executor=None, workload=workload, multi_iter_mode=False)
         index_advisor.display_detail_info['recommendIndexes'] = []
         return index_advisor
@@ -415,21 +416,21 @@ class SqlOutPutParserTester(unittest.TestCase):
         expected_costs = [19933.29, 266350.65, 92392.95, 1735014.24, 0, 105767.8]
         expected_index_ids = ['99920']
         self.assertEqual((expected_costs, [[]] * 6),
-                         parse_explain_plan(explain_results, query_number))
+                         parse_explain_plan(explain_results, query_number)[:2])
         # test parsing index name for gsql output
         results = [('SET',), ('SET',), ('SET',), ('PREPARE',),
                    ('                                     QUERY PLAN                                     ',),
                    ('Index Scan using temptable_int1_idx on temptable  (cost=0.00..8.27 rows=1 width=8)',),
                    ('Index Cond: (int1 = 10)',),
                    ('(2 rows)',), ('',), ('DEALLOCATE',), ('total time: 1  ms',)]
-        self.assertEqual(([8.27], [['temptable_int1_idx']]), parse_explain_plan(results, 1))
+        self.assertEqual(([8.27], [['temptable_int1_idx']]), parse_explain_plan(results, 1)[:2])
         results = [('SET',), ('SET',), ('SET',), ('PREPARE',),
                    (
                    '                                             QUERY PLAN                                             ',),
                    (
                    'Index Scan using <625283>btree_other_temptable_int2 on temptable  (cost=0.00..8.27 rows=1 width=8)',),
                    ('Index Cond: (int2 = 10)',), ('(2 rows)',), ('',), ('DEALLOCATE',), ('total time: 1  ms',)]
-        self.assertEqual(([8.27], [['<625283>btree_other_temptable_int2']]), parse_explain_plan(results, 1))
+        self.assertEqual(([8.27], [['<625283>btree_other_temptable_int2']]), parse_explain_plan(results, 1)[:2])
 
     def test_parse_single_advisor_result(self):
         ori_inputs = [' (public,date_dim,d_year,global)', ' (public,store_sales,"ss_sold_date_sk,ss_item_sk","")']
@@ -749,11 +750,11 @@ class IndexAdvisorTester(unittest.TestCase):
         query2 = QueryItem('select * from b where col1=2', 2)
         workload = WorkLoad([query1, query2])
         origin_used_indexes = [['index1'], []]
-        workload.add_indexes(None, [1000, 1000], origin_used_indexes)
+        workload.add_indexes(None, [1000, 1000], origin_used_indexes, [[]] * 2)
         used_index1_name = '<12345>btree_global_a_col1'
         used_index2_name = '<12346>btree_global_b_col1'
         indexes = (index1, index2, index3, index4)
-        workload.add_indexes(indexes, [500, 400], [[used_index1_name], [used_index2_name]])
+        workload.add_indexes(indexes, [500, 400], [[used_index1_name], [used_index2_name]], [[]] * 2)
         self.assertEqual(workload.get_workload_used_indexes(None), origin_used_indexes)
         self.assertEqual(workload.get_workload_used_indexes((index1, index2, index3, index4)),
                          [[used_index1_name], [used_index2_name]])
@@ -778,13 +779,13 @@ class IndexAdvisorTester(unittest.TestCase):
         query1 = QueryItem('select * from a where col1=1 and col2=3', 1)
         query2 = QueryItem('select * from c where col1=2', 2)
         workload = WorkLoad([query1, query2])
-        workload.add_indexes(None, [1000, 1000], [[], []])
-        workload.add_indexes((index1,), [100, 1000], [[], []])
-        workload.add_indexes((index2,), [50, 2000], [[], []])
-        workload.add_indexes((index1, index2), [50, 1000], [[], []])
-        workload.add_indexes((index3,), [1000, 500], [[], []])
-        workload.add_indexes((index4,), [1000, 200], [[], []])
-        workload.add_indexes((index3, index4), [1000, 100], [[], []])
+        workload.add_indexes(None, [1000, 1000], [[], []], [[], []])
+        workload.add_indexes((index1,), [100, 1000], [[], []], [[], []])
+        workload.add_indexes((index2,), [50, 2000], [[], []], [[], []])
+        workload.add_indexes((index1, index2), [50, 1000], [[], []], [[], []])
+        workload.add_indexes((index3,), [1000, 500], [[], []], [[], []])
+        workload.add_indexes((index4,), [1000, 200], [[], []], [[], []])
+        workload.add_indexes((index3, index4), [1000, 100], [[], []], [[], []])
         opt_config = [index2, index1, index4, index3]
         IndexAdvisor.filter_same_columns_indexes(opt_config, workload)
         expected = [index1, index4]
@@ -814,7 +815,7 @@ class IndexAdvisorTester(unittest.TestCase):
         storage_threshold = 12
         costs = [10, 7, 5, 9, 4, 11]
         for cost, indexes in zip(costs, atomic_choices):
-            workload.add_indexes(indexes, [cost], [[]])
+            workload.add_indexes(indexes, [cost], [[]], [[]])
         results = mcts.MCTS(workload, atomic_choices, available_choices, storage_threshold, 2)
         self.assertEqual(set(results), {index2, index3})
 
@@ -825,7 +826,7 @@ class IndexAdvisorTester(unittest.TestCase):
         storage_threshold = 20
         costs = [10, 8, 6, 9, 4, 6]
         for cost, indexes in zip(costs, atomic_choices):
-            workload.add_indexes(indexes, [cost], [[]])
+            workload.add_indexes(indexes, [cost], [[]], [[]])
         results = mcts.MCTS(workload, atomic_choices, available_choices, storage_threshold, 3)
         self.assertSetEqual(set(results), {index2, index3, index4})
 
@@ -879,12 +880,12 @@ class IndexAdvisorTester(unittest.TestCase):
             sys.stdin.readable = lambda: True
             sys.stdin.read = lambda: pwd
             sys.argv[1:] = shlex.split(cmd)
-            ret = index_advisor_workload.main()
+            ret = index_advisor_workload.main(sys.argv[1:])
             if '--driver' in cmd:
                 sys.argv[1:] = shlex.split(cmd.replace('--driver', ''))
             else:
                 sys.argv[1:] = shlex.split(cmd + '--driver')
-            ret = index_advisor_workload.main()
+            ret = index_advisor_workload.main(sys.argv[1:])
 
     def test_uniquelist(self):
         uniquelist = UniqueList()
@@ -899,7 +900,7 @@ class IndexAdvisorTester(unittest.TestCase):
         expected = [1, 2, '34', 5, 6, 7, 8, 9, 10, '11']
         self.assertEqual(list(flatten(nested_list)), expected)
 
-    def test_replace_comma_with_dollar(self):
+    def test_replace_function_with_dollar(self):
         sql = 'select count(?) from table1;'
         self.assertEqual(replace_function_comma(sql), 'select count(1) from table1;')
         sql = 'select decode(col1, ?) from table1;'

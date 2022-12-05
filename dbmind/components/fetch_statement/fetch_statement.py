@@ -55,6 +55,9 @@ def is_valid_statement(conn, statement):
     """Determine if the query is correct by whether the executor throws an exception."""
     queries = get_prepare_sqls(statement)
     res = conn.execute_sqls(queries)
+    # Rpc executor return [] if  the statement is not executed successfully.
+    if not res:
+        return False
     for _tuple in res:
         if _tuple[0].upper().startswith('ERROR'):
             return False
