@@ -375,15 +375,17 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                                                      self.slow_sql_instance.db_name,
                                                      return_tuples=False,
                                                      fetch_all=True)
-            self.query_type = 'desensitization'
-        if not rows:
-            return query_plan
-        if self.query_type == 'desensitization':
-            rows = rows[-2]
+            if len(rows) == 4 and rows[-2]:
+                self.query_type = 'desensitization'
+                rows = rows[-2]
         for row in rows:
+            if not row:
+                continue
             query_plan += row.get('QUERY PLAN') + '\n'
-        if query_plan:
-            return query_plan
+        if not query_plan:
+            logging.warning("The plan is not fetched for query: %s", query)
+            return
+        return query_plan
 
     @exception_follower(output=15)
     @exception_catcher
@@ -902,6 +904,9 @@ class QueryContextFromDriver(QueryContext):
             if not row:
                 continue
             query_plan += row[0] + '\n'
+        if not query_plan:
+            logging.warning("The plan is not fetched for query: %s", query)
+            return
         return query_plan
 
     @exception_follower(output=dict)
