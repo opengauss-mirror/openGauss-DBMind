@@ -31,6 +31,64 @@ from dbmind.service.utils import is_rpc_valid, is_tsdb_valid
 from dbmind.common.utils.exporter import set_logger
 
 
+def _initialize_rpc_service():
+    from dbmind.common.rpc import RPCClient
+    from dbmind.common.utils import read_simple_config_file
+    from dbmind.constants import METRIC_MAP_CONFIG
+    global_vars.metric_map = read_simple_config_file(
+        METRIC_MAP_CONFIG
+    )
+    # Initialize RPC components.
+    master_url = global_vars.configs.get('AGENT', 'master_url')
+    ssl_certfile = global_vars.configs.get('AGENT', 'ssl_certfile')
+    ssl_keyfile = global_vars.configs.get('AGENT', 'ssl_keyfile')
+    ssl_keyfile_password = global_vars.configs.get('AGENT', 'ssl_keyfile_password')
+    ssl_ca_file = global_vars.configs.get('AGENT', 'ssl_ca_file')
+    agent_username = global_vars.configs.get('AGENT', 'username')
+    agent_pwd = global_vars.configs.get('AGENT', 'password')
+    global_vars.agent_rpc_client = RPCClient(
+        master_url,
+        username=agent_username,
+        pwd=agent_pwd,
+        ssl_cert=ssl_certfile,
+        ssl_key=ssl_keyfile,
+        ssl_key_password=ssl_keyfile_password,
+        ca_file=ssl_ca_file
+    )
+    return is_rpc_valid()
+
+
+def _initialize_tsdb_param():
+    from dbmind.common.tsdb import TsdbClientFactory
+    try:
+        TsdbClientFactory.set_client_info(
+            global_vars.configs.get('TSDB', 'name'),
+            global_vars.configs.get('TSDB', 'host'),
+            global_vars.configs.get('TSDB', 'port'),
+            global_vars.configs.get('TSDB', 'username'),
+            global_vars.configs.get('TSDB', 'password'),
+            global_vars.configs.get('TSDB', 'ssl_certfile'),
+            global_vars.configs.get('TSDB', 'ssl_keyfile'),
+            global_vars.configs.get('TSDB', 'ssl_keyfile_password'),
+            global_vars.configs.get('TSDB', 'ssl_ca_file')
+        )
+        return is_tsdb_valid()
+    except Exception as e:
+        logging.warning(e)
+        return False
+
+
+def _is_database_exist(database):
+    stmt = "select datname from pg_database where datname='%s'" % database
+    rows = global_vars.agent_rpc_client.call('query_in_database',
+                                             stmt,
+                                             'postgres',
+                                             return_tuples=True)
+    if rows:
+        return True
+    return False
+
+
 def show(query, start_time, end_time):
     field_names = (
         'slow_query_id', 'schema_name', 'db_name',
@@ -76,84 +134,28 @@ def clean(retention_days):
 
 
 def diagnosis(query, database, schema=None, start_time=None, end_time=None, url=None, data_source='tsdb'):
-    def initialize_rpc_service():
-            from dbmind.common.rpc import RPCClient
-            from dbmind.common.utils import read_simple_config_file
-            from dbmind.constants import METRIC_MAP_CONFIG
-            global_vars.metric_map = read_simple_config_file(
-                METRIC_MAP_CONFIG
-            )
-            # Initialize RPC components.
-            master_url = global_vars.configs.get('AGENT', 'master_url')
-            ssl_certfile = global_vars.configs.get('AGENT', 'ssl_certfile')
-            ssl_keyfile = global_vars.configs.get('AGENT', 'ssl_keyfile')
-            ssl_keyfile_password = global_vars.configs.get('AGENT', 'ssl_keyfile_password')
-            ssl_ca_file = global_vars.configs.get('AGENT', 'ssl_ca_file')
-            agent_username = global_vars.configs.get('AGENT', 'username')
-            agent_pwd = global_vars.configs.get('AGENT', 'password')
-            global_vars.agent_rpc_client = RPCClient(
-                master_url,
-                username=agent_username,
-                pwd=agent_pwd,
-                ssl_cert=ssl_certfile,
-                ssl_key=ssl_keyfile,
-                ssl_key_password=ssl_keyfile_password,
-                ca_file=ssl_ca_file
-            )
-            return is_rpc_valid()
-
-    def initialize_tsdb_param():
-        from dbmind.common.tsdb import TsdbClientFactory
-        try:
-            TsdbClientFactory.set_client_info(
-                global_vars.configs.get('TSDB', 'name'),
-                global_vars.configs.get('TSDB', 'host'),
-                global_vars.configs.get('TSDB', 'port'),
-                global_vars.configs.get('TSDB', 'username'),
-                global_vars.configs.get('TSDB', 'password'),
-                global_vars.configs.get('TSDB', 'ssl_certfile'),
-                global_vars.configs.get('TSDB', 'ssl_keyfile'),
-                global_vars.configs.get('TSDB', 'ssl_keyfile_password'),
-                global_vars.configs.get('TSDB', 'ssl_ca_file')
-            )
-            return is_tsdb_valid()
-        except Exception as e:
-            logging.warning(e)
-            return False
-
-    def is_database_exist():
-        stmt = "select datname from pg_database where datname='%s'" % database
-        rows = global_vars.agent_rpc_client.call('query_in_database',
-                                                 stmt,
-                                                 'postgres',
-                                                 return_tuples=True)
-        if rows:
-            return True
-        return False
-
-    from dbmind.service.web import toolkit_slow_sql_rca
-
-    field_names = ('root_cause', 'suggestion')
-    output_table = PrettyTable()
-    output_table.field_names = field_names
-    output_table.align = "l"
-
     if data_source == 'tsdb':
-        if not initialize_rpc_service():
-            write_to_terminal('RPC service not exists, existing...', color='green')
+        if not _initialize_rpc_service():
+            write_to_terminal('RPC service not exists, existing...', color='red')
             return
-        if not initialize_tsdb_param():
-            write_to_terminal('TSDB service not exists, existing...', color='green')
+        if not _initialize_tsdb_param():
+            write_to_terminal('TSDB service not exists, existing...', color='red')
             return
         if database is None:
             write_to_terminal("Lack the information of 'database', stop to diagnosis...", color='red')
             return
-        if not is_database_exist():
+        if not _is_database_exist(database):
             write_to_terminal("Database does not exist, stop to diagnosis.", color='red')
             return
-        if schema is None:
-            write_to_terminal("Lack the information of 'schema', use default value: 'public'.", color='yellow')
-            schema = 'public'
+    if schema is None:
+        write_to_terminal("Lack the information of 'schema', use default value: 'public'.", color='yellow')
+        schema = 'public'
+
+    from dbmind.service.web import toolkit_slow_sql_rca
+    field_names = ('root_cause', 'suggestion')
+    output_table = PrettyTable()
+    output_table.field_names = field_names
+    output_table.align = "l"
     root_causes, suggestions = toolkit_slow_sql_rca(query=query,
                                                     dbname=database,
                                                     schema=schema,
@@ -166,9 +168,31 @@ def diagnosis(query, database, schema=None, start_time=None, end_time=None, url=
     print(output_table)
 
 
+def get_plan(query, url=None, data_source='tsdb'):
+    if data_source == 'tsdb':
+        if not _initialize_rpc_service():
+            write_to_terminal('RPC service not exists, existing...', color='red')
+            return
+        if not _initialize_tsdb_param():
+            write_to_terminal('TSDB service not exists, existing...', color='red')
+            return
+    from dbmind.service.web import toolkit_get_query_plan
+    output_table = PrettyTable()
+    field_names = ('normalized', 'plan')
+    output_table.field_names = field_names
+    output_table.align = "l"
+    query_plan, query_type = toolkit_get_query_plan(query, url=url, data_source=data_source)
+    if query_type == 'normalized':
+        output_table.add_row([True, query_plan])
+    else:
+        output_table.add_row([False, query_plan])
+    print(output_table)
+
+
 def main(argv):
     parser = argparse.ArgumentParser(description='Slow Query Diagnosis: Analyse the root cause of slow query')
-    parser.add_argument('action', choices=('show', 'clean', 'diagnosis'), help='choose a functionality to perform')
+    parser.add_argument('action', choices=('show', 'clean', 'diagnosis', 'get_plan'),
+                        help='choose a functionality to perform')
     parser.add_argument('-c', '--conf', metavar='DIRECTORY', required=True, type=path_type,
                         help='Set the directory of configuration files')
     parser.add_argument('--database', metavar='DATABASE',
@@ -209,7 +233,7 @@ def main(argv):
             inputted_char = keep_inputting_until_correct('Press [A] to agree, press [Q] to quit:', ('A', 'Q'))
             if inputted_char == 'Q':
                 parser.exit(0, "Quitting due to user's instruction.\n")
-    elif args.action == 'diagnosis':
+    elif args.action in ('diagnosis', 'get_plan'):
         if args.query is None or not len(args.query.strip()):
             write_to_terminal('You did noy specify query, so we cant not diagnosis root cause.')
             parser.exit(1, "Quiting due to lack of query.\n")
@@ -240,6 +264,8 @@ def main(argv):
             global_vars.dynamic_configs = DynamicConfig
             diagnosis(args.query, args.database, args.schema,
                       start_time=args.start_time, end_time=args.end_time, url=args.url, data_source=args.data_source)
+        elif args.action == 'get_plan':
+            get_plan(args.query, url=args.url, data_source=args.data_source)
     except Exception as e:
         write_to_terminal('An error occurred probably due to database operations, '
                           'please check database configurations. For details:\n'
