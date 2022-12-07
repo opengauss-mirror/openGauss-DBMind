@@ -19,24 +19,11 @@ stages:
         certificate: ''
         image: docker.io/python:3.9-slim
         command:
-          - apt update
-          - ''
-          - apt install wget -y
-          - apt install zip -y
-          - ''
-          - mkdir workspace
-          - cd workspace
-          - ''
-          - wget -O master.zip https://gitee.com/opengauss/openGauss-DBMind/repository/archive/master.zip
-          - unzip master.zip
-          - ''
-          - cd openGauss-DBMind-master
-          - ''
-          - python3 -m pip install -r requirements-x86.txt
+          - cd ${GITEE_REPO}
+          - python3 -m pip install -r requirements-x86.txt || git clone -b py39-linux-amd64 --depth 1 https://gitee.com/opengauss/openGauss-DBMind-3rd 3rd
           - python3 -m pip install pytest
           - ''
           - python3 -m pytest tests
-          - ''
           - ''
         notify: []
         strategy:
