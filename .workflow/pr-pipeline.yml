@@ -8,7 +8,7 @@ triggers:
       include:
         - master
 stages:
-  - name: build
+  - name: compile
     displayName: build
     strategy: naturally
     trigger: auto
@@ -18,45 +18,16 @@ stages:
         displayName: Python build
         pythonVersion: '3.9'
         commands:
-          - pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+          - python3 -m pip install --upgrade pip
+          - pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
           - ''
-          - cd ${GITEE_REPO}
           - python3 -m pip install -r requirements-x86.txt
           - python3 -m pip install pytest
           - ''
           - python3 -m pytest tests
           - ''
-        caches: []
-        notify: []
-        strategy:
-          retry: '0'
-  - name: stage-d714bf41
-    displayName: test
-    strategy: naturally
-    trigger: auto
-    executor: []
-    steps:
-      - step: ut@python
-        name: unit_test_python
-        displayName: Python unit test
-        pythonVersion: '3.9'
-        commands:
-          - cd ${GITEE_REPO}
-          - ''
-          - ''
-          - ''
-          - pytest --html=report/index.html
-        report:
-          path: report
-          index: index.html
-        checkpoints:
-          - key: TestPassRate
-            value: 100
-            logicalOperator: '&&'
-            relationalOperator: '>='
-        caches: []
-        notify: []
-        strategy:
-          retry: '0'
-strategy:
-  blocking: false
+        artifacts:
+          - name: BUILD_ARTIFACT
+            path:
+              - ./
+        strategy: {}
