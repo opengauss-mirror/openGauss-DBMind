@@ -8,23 +8,55 @@ triggers:
       include:
         - master
 stages:
-  - name: test
-    displayName: test
+  - name: build
+    displayName: build
     strategy: naturally
     trigger: auto
     steps:
-      - step: execute@docker
-        name: execute_by_docker
-        displayName: python3.9-slim-docker
-        certificate: ''
-        image: docker.io/python:3.9-slim
-        command:
+      - step: build@python
+        name: build_python
+        displayName: Python build
+        pythonVersion: '3.9'
+        commands:
+          - pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+          - ''
           - cd ${GITEE_REPO}
-          - python3 -m pip install -r requirements-x86.txt || git clone -b py39-linux-amd64 --depth 1 https://gitee.com/opengauss/openGauss-DBMind-3rd 3rd
+          - python3 -m pip install -r requirements-x86.txt
           - python3 -m pip install pytest
           - ''
           - python3 -m pytest tests
           - ''
+        caches: []
         notify: []
         strategy:
           retry: '0'
+  - name: stage-d714bf41
+    displayName: test
+    strategy: naturally
+    trigger: auto
+    executor: []
+    steps:
+      - step: ut@python
+        name: unit_test_python
+        displayName: Python unit test
+        pythonVersion: '3.9'
+        commands:
+          - cd ${GITEE_REPO}
+          - ''
+          - ''
+          - ''
+          - pytest --html=report/index.html
+        report:
+          path: report
+          index: index.html
+        checkpoints:
+          - key: TestPassRate
+            value: 100
+            logicalOperator: '&&'
+            relationalOperator: '>='
+        caches: []
+        notify: []
+        strategy:
+          retry: '0'
+strategy:
+  blocking: false
