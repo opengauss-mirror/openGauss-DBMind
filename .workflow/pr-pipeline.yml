@@ -18,8 +18,11 @@ stages:
         displayName: Python build
         pythonVersion: '3.9'
         commands:
-          - python3 -m pip install --upgrade pip
           - pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+          - ''
+          - 'ls -l '
+          - env
+          - 'git --version '
           - ''
           - python3 -m pip install -r requirements-x86.txt
           - python3 -m pip install pytest
