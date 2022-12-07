@@ -106,8 +106,8 @@ class In2Exists(Rule):
                         column2 = right['select']['value'].split('.')[-1]
                         in_count += 1
                         new_condition = {'exists': {'select': '*', 'from': table2,
-                                                              'where': {'eq': [f"{table1}.{column1}",
-                                                                               f"{table2}.{column2}"]}}}
+                                                    'where': {'eq': [f"{table1}.{column1}",
+                                                                     f"{table2}.{column2}"]}}}
                         if 'nin' in _sub:
                             new_condition = {'not': new_condition}
                         parsed_sql['where'][where_key][index] = new_condition
@@ -585,8 +585,9 @@ class ImplicitConversion(Rule):
                     compare_op_result = compare_op
                 where_clause[index][compare_op_result] = where_clause[index].pop(compare_op)
                 try:
-                    right_value = OPERATOR[pair_op](right_value,
-                                                    left_value) if operator in COMMUTATIVE_OP or column_index == 0 else \
+                    right_value = OPERATOR[pair_op](
+                        right_value, left_value) if operator in \
+                        COMMUTATIVE_OP or column_index == 0 else \
                         OPERATOR[pair_op](left_value, right_value)
                 except ZeroDivisionError:
                     if operator == 'mul':
@@ -723,7 +724,7 @@ class SelfJoin(Rule):
             {'eq': [{'trunc': {
                 'div': [{'add': [left_column] if left_value == 0 or left_value == 0.0 else [left_column, -left_value]},
                         final_right_value]}},
-                {'trunc': {'div': [right_column, final_right_value]}}]}, final_left_cond]
+                    {'trunc': {'div': [right_column, final_right_value]}}]}, final_left_cond]
         conds2 = [{'eq': [{'trunc': {
             'div': [{'add': [left_column] if left_value == 0 or left_value == 0.0 else [left_column, -left_value]},
                     final_right_value]}},
@@ -740,11 +741,11 @@ class SelfJoin(Rule):
             left_column, right_column = cond[op][0]['sub']
             if op in ('lt', 'lte'):
                 if ('lt' not in column_region[(left_column, right_column)]) and (
-                        not 'lte' in column_region[(left_column, right_column)]):
+                        'lte' not in column_region[(left_column, right_column)]):
                     column_region[(left_column, right_column)][op] = (cond, index)
             else:
                 if ('gt' not in column_region[(left_column, right_column)]) and (
-                        not 'gte' in column_region[(left_column, right_column)]):
+                        'gte' not in column_region[(left_column, right_column)]):
                     column_region[(left_column, right_column)][op] = (cond, index)
         # Check the conditions.
         for key, value in column_region.items():

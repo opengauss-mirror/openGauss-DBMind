@@ -182,11 +182,11 @@ class SqlOutPutParserTester(unittest.TestCase):
                                '          Group By Key: store_returns.sr_customer_sk, store_returns.sr_store_sk',
                                '          ->  Hash Join  (cost=2322.68..11584.94 rows=50895 width=14)',
                                '                Hash Cond: (store_returns.sr_returned_date_sk = date_dim.d_date_sk)',
-                               '                ->  Seq Scan on store_returns  (cost=0.00..7675.14 rows=287514 width=18)',
+                               '->  Seq Scan on store_returns  (cost=0.00..7675.14 rows=287514 width=18)',
                                '                ->  Hash  (cost=2318.11..2318.11 rows=365 width=4)',
                                '                      ->  Partition Iterator  (cost=0.00..2318.11 rows=365 width=4)',
                                '                            Iterations: 6',
-                               '                            ->  Partitioned Seq Scan on date_dim  (cost=0.00..2318.11 rows=365 width=4)',
+                               '->  Partitioned Seq Scan on date_dim  (cost=0.00..2318.11 rows=365 width=4)',
                                '                                  Filter: (d_year = 2000)',
                                '                                  Selected Partitions:  1..6',
                                '  ->  Sort  (cost=7456.43..7458.98 rows=1018 width=17)',
@@ -195,32 +195,32 @@ class SqlOutPutParserTester(unittest.TestCase):
                                '              Hash Cond: (customer.c_customer_sk = ctr1.ctr_customer_sk)',
                                '              ->  Partition Iterator  (cost=0.00..3861.00 rows=100000 width=21)',
                                '                    Iterations: 16',
-                               '                    ->  Partitioned Seq Scan on customer  (cost=0.00..3861.00 rows=100000 width=21)',
+                               '->  Partitioned Seq Scan on customer  (cost=0.00..3861.00 rows=100000 width=21)',
                                '                          Selected Partitions:  1..16',
                                '              ->  Hash  (cost=2646.67..2646.67 rows=1018 width=4)',
                                '                    ->  Hash Join  (cost=1409.91..2646.67 rows=1018 width=4)',
                                '                          Hash Cond: (ctr1.ctr_store_sk = subquery."?column?")',
-                               '                          Join Filter: (ctr1.ctr_total_return > (subquery."?column?" * 1.2))',
+                               'Join Filter: (ctr1.ctr_total_return > (subquery."?column?" * 1.2))',
                                '                          ->  Hash Join  (cost=2.30..1181.80 rows=3054 width=44)',
                                '                                Hash Cond: (ctr1.ctr_store_sk = store.s_store_sk)',
-                               '                                ->  CTE Scan on customer_total_return ctr1  (cost=0.00..1017.90 rows=50895 width=40)',
+                               '->  CTE Scan on customer_total_return ctr1  (cost=0.00..1017.90 rows=50895 width=40)',
                                '                                ->  Hash  (cost=2.15..2.15 rows=12 width=4)',
-                               '                                      ->  Partition Iterator  (cost=0.00..2.15 rows=12 width=4)',
+                               '->  Partition Iterator  (cost=0.00..2.15 rows=12 width=4)',
                                '                                            Iterations: 16',
-                               '                                            ->  Partitioned Seq Scan on store  (cost=0.00..2.15 rows=12 width=4)',
+                               '->  Partitioned Seq Scan on store  (cost=0.00..2.15 rows=12 width=4)',
                                "                                                  Filter: (s_state = 'TN'::bpchar)",
                                '                                                  Selected Partitions:  1..16',
                                '                          ->  Hash  (cost=1405.11..1405.11 rows=200 width=36)',
-                               '                                ->  Subquery Scan on subquery  (cost=1399.61..1405.11 rows=200 width=36)',
-                               '                                      ->  HashAggregate  (cost=1399.61..1403.11 rows=200 width=100)',
+                               '->  Subquery Scan on subquery  (cost=1399.61..1405.11 rows=200 width=36)',
+                               '->  HashAggregate  (cost=1399.61..1403.11 rows=200 width=100)',
                                '                                            Group By Key: ctr2.ctr_store_sk',
-                               '                                            ->  CTE Scan on customer_total_return ctr2  (cost=0.00..1017.90 rows=50895 width=36)',
+                               '->  CTE Scan on customer_total_return ctr2  (cost=0.00..1017.90 rows=50895 width=36)',
                                'EXPLAIN', 'Merge Join  (cost=241750.91..266350.65 rows=562348 width=452)',
                                '  Merge Cond: (public.date_dim.d_week_seq = wswscs.d_week_seq)', '  CTE wscs',
                                '    ->  Result  (cost=0.00..77967.65 rows=2160865 width=10)',
                                '          ->  Append  (cost=0.00..77967.65 rows=2160865 width=10)',
                                '                ->  Seq Scan on web_sales  (cost=0.00..26029.84 rows=719384 width=10)',
-                               '                ->  Seq Scan on catalog_sales  (cost=0.00..51937.81 rows=1441481 width=10)',
+                               '->  Seq Scan on catalog_sales  (cost=0.00..51937.81 rows=1441481 width=10)',
                                '  CTE wswscs',
                                '    ->  HashAggregate  (cost=157010.23..157114.54 rows=10431 width=252)',
                                '          Group By Key: public.date_dim.d_week_seq',
@@ -230,7 +230,7 @@ class SqlOutPutParserTester(unittest.TestCase):
                                '                ->  Hash  (cost=2135.49..2135.49 rows=73049 width=18)',
                                '                      ->  Partition Iterator  (cost=0.00..2135.49 rows=73049 width=18)',
                                '                            Iterations: 6',
-                               '                            ->  Partitioned Seq Scan on date_dim  (cost=0.00..2135.49 rows=73049 width=18)',
+                               '->  Partitioned Seq Scan on date_dim  (cost=0.00..2135.49 rows=73049 width=18)',
                                '                                  Selected Partitions:  1..6',
                                '  ->  Merge Join  (cost=5763.90..5955.32 rows=10782 width=232)',
                                '        Merge Cond: (public.date_dim.d_week_seq = ((wswscs.d_week_seq - 53)))',
@@ -238,7 +238,7 @@ class SqlOutPutParserTester(unittest.TestCase):
                                '              Sort Key: public.date_dim.d_week_seq',
                                '              ->  Partition Iterator  (cost=0.00..2318.11 rows=365 width=4)',
                                '                    Iterations: 6',
-                               '                    ->  Partitioned Seq Scan on date_dim  (cost=0.00..2318.11 rows=365 width=4)',
+                               '->  Partitioned Seq Scan on date_dim  (cost=0.00..2318.11 rows=365 width=4)',
                                '                          Filter: (d_year = 2001)',
                                '                          Selected Partitions:  1..6',
                                '        ->  Sort  (cost=3430.25..3456.77 rows=10605 width=228)',
@@ -249,7 +249,7 @@ class SqlOutPutParserTester(unittest.TestCase):
                                '                    ->  Hash  (cost=2318.11..2318.11 rows=365 width=4)',
                                '                          ->  Partition Iterator  (cost=0.00..2318.11 rows=365 width=4)',
                                '                                Iterations: 6',
-                               '                                ->  Partitioned Seq Scan on date_dim  (cost=0.00..2318.11 rows=365 width=4)',
+                               '->  Partitioned Seq Scan on date_dim  (cost=0.00..2318.11 rows=365 width=4)',
                                '                                      Filter: (d_year = 2002)',
                                '                                      Selected Partitions:  1..6',
                                '  ->  Sort  (cost=904.82..930.89 rows=10431 width=228)',
@@ -258,24 +258,24 @@ class SqlOutPutParserTester(unittest.TestCase):
                                'EXPLAIN',
                                'Limit  (cost=92391.70..92392.95 rows=100 width=91)',
                                '  ->  Sort  (cost=92391.70..92392.37 rows=269 width=97)',
-                               '        Sort Key: dt.d_year, (sum(store_sales.ss_ext_sales_price)) DESC, item.i_brand_id',
+                               'Sort Key: dt.d_year, (sum(store_sales.ss_ext_sales_price)) DESC, item.i_brand_id',
                                '        ->  HashAggregate  (cost=92378.16..92380.85 rows=269 width=97)',
                                '              Group By Key: dt.d_year, item.i_brand, item.i_brand_id',
                                '              ->  Hash Join  (cost=4196.05..92350.39 rows=2777 width=65)',
                                '                    Hash Cond: (store_sales.ss_sold_date_sk = dt.d_date_sk)',
                                '                    ->  Hash Join  (cost=1801.20..89917.32 rows=2786 width=65)',
                                '                          Hash Cond: (store_sales.ss_item_sk = item.i_item_sk)',
-                               '                          ->  Seq Scan on store_sales  (cost=0.00..80598.76 rows=2880576 width=14)',
+                               '->  Seq Scan on store_sales  (cost=0.00..80598.76 rows=2880576 width=14)',
                                '                          ->  Hash  (cost=1801.00..1801.00 rows=16 width=59)',
-                               '                                ->  Partition Iterator  (cost=0.00..1801.00 rows=16 width=59)',
+                               '->  Partition Iterator  (cost=0.00..1801.00 rows=16 width=59)',
                                '                                      Iterations: 16',
-                               '                                      ->  Partitioned Seq Scan on item  (cost=0.00..1801.00 rows=16 width=59)',
+                               '->  Partitioned Seq Scan on item  (cost=0.00..1801.00 rows=16 width=59)',
                                '                                            Filter: (i_manufact_id = 436)',
                                '                                            Selected Partitions:  1..16',
                                '                    ->  Hash  (cost=2318.11..2318.11 rows=6139 width=8)',
-                               '                          ->  Partition Iterator  (cost=0.00..2318.11 rows=6139 width=8)',
+                               '->  Partition Iterator  (cost=0.00..2318.11 rows=6139 width=8)',
                                '                                Iterations: 6',
-                               '                                ->  Partitioned Seq Scan on date_dim dt  (cost=0.00..2318.11 rows=6139 width=8)',
+                               '->  Partitioned Seq Scan on date_dim dt  (cost=0.00..2318.11 rows=6139 width=8)',
                                '                                      Filter: (d_moy = 12)',
                                '                                      Selected Partitions:  1..6',
                                'EXPLAIN',
@@ -283,79 +283,97 @@ class SqlOutPutParserTester(unittest.TestCase):
                                '    ->  Result  (cost=393928.45..982224.47 rows=4779284 width=255)',
                                '          ->  Append  (cost=393928.45..982224.47 rows=4779284 width=255)',
                                '                ->  HashAggregate  (cost=393928.45..515875.92 rows=2633947 width=245)',
-                               '                      Group By Key: public.customer.c_customer_id, public.customer.c_first_name, public.customer.c_last_name, public.customer.c_preferred_cust_flag, public.customer.c_birth_country, public.customer.c_login, public.customer.c_email_address, public.date_dim.d_year',
+                               'Group By Key: public.customer.c_customer_id, public.customer.c_first_name, '
+                               'public.customer.c_last_name, public.customer.c_preferred_cust_flag, '
+                               'public.customer.c_birth_country, public.customer.c_login, '
+                               'public.customer.c_email_address, public.date_dim.d_year',
                                '                      ->  Hash Join  (cost=8159.60..163766.50 rows=2633947 width=213)',
-                               '                            Hash Cond: (store_sales.ss_customer_sk = public.customer.c_customer_sk)',
-                               '                            ->  Hash Join  (cost=3048.60..121988.79 rows=2753927 width=30)',
-                               '                                  Hash Cond: (store_sales.ss_sold_date_sk = public.date_dim.d_date_sk)',
-                               '                                  ->  Seq Scan on store_sales  (cost=0.00..80598.76 rows=2880576 width=30)',
+                               'Hash Cond: (store_sales.ss_customer_sk = public.customer.c_customer_sk)',
+                               '->  Hash Join  (cost=3048.60..121988.79 rows=2753927 width=30)',
+                               'Hash Cond: (store_sales.ss_sold_date_sk = public.date_dim.d_date_sk)',
+                               '->  Seq Scan on store_sales  (cost=0.00..80598.76 rows=2880576 width=30)',
                                '                                  ->  Hash  (cost=2135.49..2135.49 rows=73049 width=8)',
-                               '                                        ->  Partition Iterator  (cost=0.00..2135.49 rows=73049 width=8)',
+                               '->  Partition Iterator  (cost=0.00..2135.49 rows=73049 width=8)',
                                '                                              Iterations: 6',
-                               '                                              ->  Partitioned Seq Scan on date_dim  (cost=0.00..2135.49 rows=73049 width=8)',
+                               '->  Partitioned Seq Scan on date_dim  (cost=0.00..2135.49 rows=73049 width=8)',
                                '                                                    Selected Partitions:  1..6',
                                '                            ->  Hash  (cost=3861.00..3861.00 rows=100000 width=191)',
-                               '                                  ->  Partition Iterator  (cost=0.00..3861.00 rows=100000 width=191)',
+                               '->  Partition Iterator  (cost=0.00..3861.00 rows=100000 width=191)',
                                '                                        Iterations: 16',
-                               '                                        ->  Partitioned Seq Scan on customer  (cost=0.00..3861.00 rows=100000 width=191)',
+                               '->  Partitioned Seq Scan on customer  (cost=0.00..3861.00 rows=100000 width=191)',
                                '                                              Selected Partitions:  1..16',
                                '                ->  HashAggregate  (cost=219065.76..281762.65 rows=1426289 width=248)',
-                               '                      Group By Key: public.customer.c_customer_id, public.customer.c_first_name, public.customer.c_last_name, public.customer.c_preferred_cust_flag, public.customer.c_birth_country, public.customer.c_login, public.customer.c_email_address, public.date_dim.d_year',
+                               'Group By Key: public.customer.c_customer_id, public.customer.c_first_name, '
+                               'public.customer.c_last_name, public.customer.c_preferred_cust_flag, '
+                               'public.customer.c_birth_country, public.customer.c_login, '
+                               'public.customer.c_email_address, public.date_dim.d_year',
                                '                      ->  Hash Join  (cost=8159.60..99479.86 rows=1426289 width=216)',
-                               '                            Hash Cond: (catalog_sales.cs_bill_customer_sk = public.customer.c_customer_sk)',
-                               '                            ->  Hash Join  (cost=3048.60..74729.42 rows=1433745 width=33)',
-                               '                                  Hash Cond: (catalog_sales.cs_sold_date_sk = public.date_dim.d_date_sk)',
-                               '                                  ->  Seq Scan on catalog_sales  (cost=0.00..51937.81 rows=1441481 width=33)',
+                               'Hash Cond: (catalog_sales.cs_bill_customer_sk = public.customer.c_customer_sk)',
+                               '->  Hash Join  (cost=3048.60..74729.42 rows=1433745 width=33)',
+                               'Hash Cond: (catalog_sales.cs_sold_date_sk = public.date_dim.d_date_sk)',
+                               '->  Seq Scan on catalog_sales  (cost=0.00..51937.81 rows=1441481 width=33)',
                                '                                  ->  Hash  (cost=2135.49..2135.49 rows=73049 width=8)',
-                               '                                        ->  Partition Iterator  (cost=0.00..2135.49 rows=73049 width=8)',
+                               '->  Partition Iterator  (cost=0.00..2135.49 rows=73049 width=8)',
                                '                                              Iterations: 6',
-                               '                                              ->  Partitioned Seq Scan on date_dim  (cost=0.00..2135.49 rows=73049 width=8)',
+                               '->  Partitioned Seq Scan on date_dim  (cost=0.00..2135.49 rows=73049 width=8)',
                                '                                                    Selected Partitions:  1..6',
                                '                            ->  Hash  (cost=3861.00..3861.00 rows=100000 width=191)',
-                               '                                  ->  Partition Iterator  (cost=0.00..3861.00 rows=100000 width=191)',
+                               '->  Partition Iterator  (cost=0.00..3861.00 rows=100000 width=191)',
                                '                                        Iterations: 16',
-                               '                                        ->  Partitioned Seq Scan on customer  (cost=0.00..3861.00 rows=100000 width=191)',
+                               '->  Partitioned Seq Scan on customer  (cost=0.00..3861.00 rows=100000 width=191)',
                                '                                              Selected Partitions:  1..16',
                                '                ->  HashAggregate  (cost=108795.58..136793.06 rows=719048 width=248)',
-                               '                      Group By Key: public.customer.c_customer_id, public.customer.c_first_name, public.customer.c_last_name, public.customer.c_preferred_cust_flag, public.customer.c_birth_country, public.customer.c_login, public.customer.c_email_address, public.date_dim.d_year',
+                               'Group By Key: public.customer.c_customer_id, public.customer.c_first_name, '
+                               'public.customer.c_last_name, public.customer.c_preferred_cust_flag, '
+                               'public.customer.c_birth_country, public.customer.c_login, '
+                               'public.customer.c_email_address, public.date_dim.d_year',
                                '                      ->  Hash Join  (cost=8159.60..53966.83 rows=719048 width=216)',
-                               '                            Hash Cond: (web_sales.ws_sold_date_sk = public.date_dim.d_date_sk)',
-                               '                            ->  Hash Join  (cost=5111.00..41030.69 rows=719216 width=216)',
-                               '                                  Hash Cond: (web_sales.ws_bill_customer_sk = public.customer.c_customer_sk)',
-                               '                                  ->  Seq Scan on web_sales  (cost=0.00..26029.84 rows=719384 width=33)',
-                               '                                  ->  Hash  (cost=3861.00..3861.00 rows=100000 width=191)',
-                               '                                        ->  Partition Iterator  (cost=0.00..3861.00 rows=100000 width=191)',
+                               'Hash Cond: (web_sales.ws_sold_date_sk = public.date_dim.d_date_sk)',
+                               '->  Hash Join  (cost=5111.00..41030.69 rows=719216 width=216)',
+                               'Hash Cond: (web_sales.ws_bill_customer_sk = public.customer.c_customer_sk)',
+                               '->  Seq Scan on web_sales  (cost=0.00..26029.84 rows=719384 width=33)',
+                               '->  Hash  (cost=3861.00..3861.00 rows=100000 width=191)',
+                               '->  Partition Iterator  (cost=0.00..3861.00 rows=100000 width=191)',
                                '                                              Iterations: 16',
-                               '                                              ->  Partitioned Seq Scan on customer  (cost=0.00..3861.00 rows=100000 width=191)',
+                               '->  Partitioned Seq Scan on customer  (cost=0.00..3861.00 rows=100000 width=191)',
                                '                                                    Selected Partitions:  1..16',
                                '                            ->  Hash  (cost=2135.49..2135.49 rows=73049 width=8)',
-                               '                                  ->  Partition Iterator  (cost=0.00..2135.49 rows=73049 width=8)',
+                               '->  Partition Iterator  (cost=0.00..2135.49 rows=73049 width=8)',
                                '                                        Iterations: 6',
-                               '                                        ->  Partitioned Seq Scan on date_dim  (cost=0.00..2135.49 rows=73049 width=8)',
+                               '->  Partitioned Seq Scan on date_dim  (cost=0.00..2135.49 rows=73049 width=8)',
                                '                                              Selected Partitions:  1..6',
                                '  ->  Sort  (cost=752789.76..752789.76 rows=1 width=480)',
-                               '        Sort Key: t_s_secyear.customer_id, t_s_secyear.customer_first_name, t_s_secyear.customer_last_name, t_s_secyear.customer_email_address',
+                               'Sort Key: t_s_secyear.customer_id, t_s_secyear.customer_first_name, '
+                               't_s_secyear.customer_last_name, t_s_secyear.customer_email_address',
                                '        ->  Nested Loop  (cost=0.00..752789.74 rows=1 width=480)',
-                               '              Join Filter: ((t_s_secyear.customer_id = t_w_secyear.customer_id) AND (CASE WHEN (t_c_firstyear.year_total > 0::numeric) THEN (t_c_secyear.year_total / t_c_firstyear.year_total) ELSE NULL::numeric END > CASE WHEN (t_w_firstyear.year_total > 0::numeric) THEN (t_w_secyear.year_total / t_w_firstyear.year_total) ELSE NULL::numeric END))',
+                               'Join Filter: ((t_s_secyear.customer_id = t_w_secyear.customer_id) AND (CASE WHEN ('
+                               't_c_firstyear.year_total > 0::numeric) THEN (t_c_secyear.year_total / '
+                               't_c_firstyear.year_total) ELSE NULL::numeric END > CASE WHEN ('
+                               't_w_firstyear.year_total > 0::numeric) THEN (t_w_secyear.year_total / '
+                               't_w_firstyear.year_total) ELSE NULL::numeric END))',
                                '              ->  Nested Loop  (cost=0.00..633304.67 rows=1 width=848)',
-                               '                    Join Filter: ((t_s_secyear.customer_id = t_c_secyear.customer_id) AND (CASE WHEN (t_c_firstyear.year_total > 0::numeric) THEN (t_c_secyear.year_total / t_c_firstyear.year_total) ELSE NULL::numeric END > CASE WHEN (t_s_firstyear.year_total > 0::numeric) THEN (t_s_secyear.year_total / t_s_firstyear.year_total) ELSE NULL::numeric END))',
+                               'Join Filter: ((t_s_secyear.customer_id = t_c_secyear.customer_id) AND (CASE WHEN ('
+                               't_c_firstyear.year_total > 0::numeric) THEN (t_c_secyear.year_total / '
+                               't_c_firstyear.year_total) ELSE NULL::numeric END > CASE WHEN ('
+                               't_s_firstyear.year_total > 0::numeric) THEN (t_s_secyear.year_total / '
+                               't_s_firstyear.year_total) ELSE NULL::numeric END))',
                                '                    ->  Nested Loop  (cost=0.00..513819.60 rows=1 width=812)',
-                               '                          Join Filter: (t_s_firstyear.customer_id = t_s_secyear.customer_id)',
+                               'Join Filter: (t_s_firstyear.customer_id = t_s_secyear.customer_id)',
                                '                          ->  Nested Loop  (cost=0.00..394333.33 rows=2 width=300)',
-                               '                                Join Filter: (t_s_firstyear.customer_id = t_w_firstyear.customer_id)',
-                               '                                ->  Nested Loop  (cost=0.00..262896.22 rows=8 width=200)',
-                               '                                      Join Filter: (t_s_firstyear.customer_id = t_c_firstyear.customer_id)',
-                               '                                      ->  CTE Scan on year_total t_s_firstyear  (cost=0.00..131430.31 rows=40 width=100)',
-                               "                                            Filter: ((year_total > 0::numeric) AND (sale_type = 's'::text) AND (dyear = 2001))",
-                               '                                      ->  CTE Scan on year_total t_c_firstyear  (cost=0.00..131430.31 rows=40 width=100)',
-                               "                                            Filter: ((year_total > 0::numeric) AND (sale_type = 'c'::text) AND (dyear = 2001))",
-                               '                                ->  CTE Scan on year_total t_w_firstyear  (cost=0.00..131430.31 rows=40 width=100)',
-                               "                                      Filter: ((year_total > 0::numeric) AND (sale_type = 'w'::text) AND (dyear = 2001))",
-                               '                          ->  CTE Scan on year_total t_s_secyear  (cost=0.00..119482.10 rows=119 width=512)',
+                               'Join Filter: (t_s_firstyear.customer_id = t_w_firstyear.customer_id)',
+                               '->  Nested Loop  (cost=0.00..262896.22 rows=8 width=200)',
+                               'Join Filter: (t_s_firstyear.customer_id = t_c_firstyear.customer_id)',
+                               '->  CTE Scan on year_total t_s_firstyear  (cost=0.00..131430.31 rows=40 width=100)',
+                               "Filter: ((year_total > 0::numeric) AND (sale_type = 's'::text) AND (dyear = 2001))",
+                               '->  CTE Scan on year_total t_c_firstyear  (cost=0.00..131430.31 rows=40 width=100)',
+                               "Filter: ((year_total > 0::numeric) AND (sale_type = 'c'::text) AND (dyear = 2001))",
+                               '->  CTE Scan on year_total t_w_first-year  (cost=0.00..131430.31 rows=40 width=100)',
+                               "Filter: ((year_total > 0::numeric) AND (sale_type = 'w'::text) AND (dyear = 2001))",
+                               '->  CTE Scan on year_total t_s_secyear  (cost=0.00..119482.10 rows=119 width=512)',
                                "                                Filter: ((sale_type = 's'::text) AND (dyear = 2002))",
-                               '                    ->  CTE Scan on year_total t_c_secyear  (cost=0.00..119482.10 rows=119 width=100)',
+                               '->  CTE Scan on year_total t_c_secyear  (cost=0.00..119482.10 rows=119 width=100)',
                                "                          Filter: ((sale_type = 'c'::text) AND (dyear = 2002))",
-                               '              ->  CTE Scan on year_total t_w_secyear  (cost=0.00..119482.10 rows=119 width=100)',
+                               '->  CTE Scan on year_total t_w_secyear  (cost=0.00..119482.10 rows=119 width=100)',
                                "                    Filter: ((sale_type = 'w'::text) AND (dyear = 2002))",
                                'ERROR',
                                'EXPLAIN', 'Limit  (cost=105767.16..105767.80 rows=51 width=11)',
@@ -365,7 +383,7 @@ class SqlOutPutParserTester(unittest.TestCase):
                                '                Group By Key: date_dim.d_month_seq',
                                '                ->  Partition Iterator  (cost=0.00..2500.73 rows=28 width=4)',
                                '                      Iterations: 6',
-                               '                      ->  Partitioned Seq Scan on date_dim  (cost=0.00..2500.73 rows=28 width=4)',
+                               '->  Partitioned Seq Scan on date_dim  (cost=0.00..2500.73 rows=28 width=4)',
                                '                            Filter: ((d_year = 2000) AND (d_moy = 2))',
                                '                            Selected Partitions:  1..6',
                                '        ->  HashAggregate  (cost=103264.26..103264.90 rows=51 width=19)',
@@ -376,40 +394,40 @@ class SqlOutPutParserTester(unittest.TestCase):
                                '                          Hash Cond: (s.ss_customer_sk = c.c_customer_sk)',
                                '                          ->  Hash Join  (cost=6311.14..95425.31 rows=15071 width=4)',
                                '                                Hash Cond: (s.ss_item_sk = i.i_item_sk)',
-                               '                                ->  Hash Join  (cost=2318.49..91112.00 rows=45320 width=8)',
+                               '                          ->  Hash Join  (cost=2318.49..91112.00 rows=45320 width=8)',
                                '                                      Hash Cond: (s.ss_sold_date_sk = d.d_date_sk)',
-                               '                                      ->  Seq Scan on store_sales s  (cost=0.00..80598.76 rows=2880576 width=12)',
-                               '                                      ->  Hash  (cost=2318.11..2318.11 rows=30 width=4)',
-                               '                                            ->  Partition Iterator  (cost=0.00..2318.11 rows=30 width=4)',
+                               '            ->  Seq Scan on store_sales s  (cost=0.00..80598.76 rows=2880576 width=12)',
+                               '                                     ->  Hash  (cost=2318.11..2318.11 rows=30 width=4)',
+                               '            ->  Partition Iterator  (cost=0.00..2318.11 rows=30 width=4)',
                                '                                                  Iterations: 6',
-                               '                                                  ->  Partitioned Seq Scan on date_dim d  (cost=0.00..2318.11 rows=30 width=4)',
+                               '         ->  Partitioned Seq Scan on date_dim d  (cost=0.00..2318.11 rows=30 width=4)',
                                '                                                        Filter: (d_month_seq = $2)',
                                '                                                        Selected Partitions:  1..6',
                                '                                ->  Hash  (cost=3917.83..3917.83 rows=5986 width=4)',
-                               '                                      ->  Hash Join  (cost=1846.35..3917.83 rows=5986 width=4)',
-                               '                                            Hash Cond: (i.i_category = subquery."?column?")',
-                               '                                            Join Filter: (i.i_current_price > (1.2 * subquery.avg))',
-                               '                                            ->  Partition Iterator  (cost=0.00..1756.00 rows=18000 width=61)',
+                               '                            ->  Hash Join  (cost=1846.35..3917.83 rows=5986 width=4)',
+                               '                                Hash Cond: (i.i_category = subquery."?column?")',
+                               '                               Join Filter: (i.i_current_price > (1.2 * subquery.avg))',
+                               '                      ->  Partition Iterator  (cost=0.00..1756.00 rows=18000 width=61)',
                                '                                                  Iterations: 16',
-                               '                                                  ->  Partitioned Seq Scan on item i  (cost=0.00..1756.00 rows=18000 width=61)',
+                               '  ->  Partitioned Seq Scan on item i  (cost=0.00..1756.00 rows=18000 width=61)',
                                '                                                        Selected Partitions:  1..16',
-                               '                                            ->  Hash  (cost=1846.22..1846.22 rows=10 width=83)',
-                               '                                                  ->  Subquery Scan on subquery  (cost=1846.00..1846.22 rows=10 width=83)',
-                               '                                                        ->  HashAggregate  (cost=1846.00..1846.12 rows=10 width=89)',
-                               '                                                              Group By Key: j.i_category',
-                               '                                                              ->  Partition Iterator  (cost=0.00..1756.00 rows=18000 width=57)',
+                               '            ->  Hash  (cost=1846.22..1846.22 rows=10 width=83)',
+                               '               ->  Subquery Scan on subquery  (cost=1846.00..1846.22 rows=10 width=83)',
+                               '              ->  HashAggregate  (cost=1846.00..1846.12 rows=10 width=89)',
+                               '                                                            Group By Key: j.i_category',
+                               '                   ->  Partition Iterator  (cost=0.00..1756.00 rows=18000 width=57)',
                                '                                                                    Iterations: 16',
-                               '                                                                    ->  Partitioned Seq Scan on item j  (cost=0.00..1756.00 rows=18000 width=57)',
-                               '                                                                          Selected Partitions:  1..16',
+                               '     ->  Partitioned Seq Scan on item j  (cost=0.00..1756.00 rows=18000 width=57)',
+                               '                                            Selected Partitions:  1..16',
                                '                          ->  Hash  (cost=3861.00..3861.00 rows=100000 width=8)',
-                               '                                ->  Partition Iterator  (cost=0.00..3861.00 rows=100000 width=8)',
+                               '                      ->  Partition Iterator  (cost=0.00..3861.00 rows=100000 width=8)',
                                '                                      Iterations: 16',
-                               '                                      ->  Partitioned Seq Scan on customer c  (cost=0.00..3861.00 rows=100000 width=8)',
+                               '     ->  Partitioned Seq Scan on customer c  (cost=0.00..3861.00 rows=100000 width=8)',
                                '                                            Selected Partitions:  1..16',
                                '                    ->  Hash  (cost=1596.00..1596.00 rows=50000 width=7)',
-                               '                          ->  Partition Iterator  (cost=0.00..1596.00 rows=50000 width=7)',
+                               '                       ->  Partition Iterator  (cost=0.00..1596.00 rows=50000 width=7)',
                                '                                Iterations: 17',
-                               '                                ->  Partitioned Seq Scan on customer_address a  (cost=0.00..1596.00 rows=50000 width=7)',
+                               '->  Partitioned Seq Scan on customer_address a  (cost=0.00..1596.00 rows=50000 width=7)',
                                '                                      Selected Partitions:  1..17', ]
         explain_results = [(result,) for result in ori_explain_results]
         expected_costs = [19933.29, 266350.65, 92392.95, 1735014.24, 0, 105767.8]
@@ -425,7 +443,7 @@ class SqlOutPutParserTester(unittest.TestCase):
         self.assertEqual(([8.27], [['temptable_int1_idx']]), parse_explain_plan(results, 1))
         results = [('SET',), ('SET',), ('SET',), ('PREPARE',),
                    (
-                   '                                             QUERY PLAN                                             ',),
+                   '                                       QUERY PLAN                                         ',),
                    (
                    'Index Scan using <625283>btree_other_temptable_int2 on temptable  (cost=0.00..8.27 rows=1 width=8)',),
                    ('Index Cond: (int2 = 10)',), ('(2 rows)',), ('',), ('DEALLOCATE',), ('total time: 1  ms',)]
@@ -444,7 +462,8 @@ class SqlOutPutParserTester(unittest.TestCase):
                       '(171196,<171196>btree_store_sales_ss_item_sk_ss_sold_date_sk)', 'SELECT 3',
                       '(<171194>btree_global_item_i_manufact_id,171194,item,"(i_manufact_id)")',
                       '(<171195>btree_store_sales_ss_item_sk,171195,store_sales,"(ss_item_sk)")',
-                      '(<171196>btree_store_sales_ss_item_sk_ss_sold_date_sk,171196,store_sales,"(ss_item_sk, ss_sold_date_sk)")',
+                      '(<171196>btree_store_sales_ss_item_sk_ss_sold_date_sk,171196,store_sales,"(ss_item_sk, '
+                      'ss_sold_date_sk)")',
                       'EXPLAIN', 'Limit  (cost=13107.63..13108.88 rows=100 width=91)',
                       '  ->  Sort  (cost=13107.63..13108.30 rows=269 width=97)',
                       '        Sort Key: dt.d_year, (sum(store_sales.ss_ext_sales_price)) DESC, item.i_brand_id',
@@ -453,16 +472,18 @@ class SqlOutPutParserTester(unittest.TestCase):
                       '              ->  Hash Join  (cost=2400.45..13066.31 rows=2777 width=65)',
                       '                    Hash Cond: (store_sales.ss_sold_date_sk = dt.d_date_sk)',
                       '                    ->  Nested Loop  (cost=5.60..10633.25 rows=2786 width=65)',
-                      '                          ->  Index Scan using <171194>btree_global_item_i_manufact_id on item  (cost=0.00..68.53 rows=16 width=59)',
+                      '->  Index Scan using <171194>btree_global_item_i_manufact_id on item  (cost=0.00..68.53 '
+                      'rows=16 width=59)',
                       '                                Index Cond: (i_manufact_id = 436)',
-                      '                          ->  Bitmap Heap Scan on store_sales  (cost=5.60..658.55 rows=174 width=14)',
+                      '->  Bitmap Heap Scan on store_sales  (cost=5.60..658.55 rows=174 width=14)',
                       '                                Recheck Cond: (ss_item_sk = item.i_item_sk)',
-                      '                                ->  Bitmap Index Scan on <171196>btree_store_sales_ss_item_sk_ss_sold_date_sk  (cost=0.00..5.55 rows=174 width=0)',
+                      '->  Bitmap Index Scan on <171196>btree_store_sales_ss_item_sk_ss_sold_date_sk  ('
+                      'cost=0.00..5.55 rows=174 width=0)',
                       '                                      Index Cond: (ss_item_sk = item.i_item_sk)',
                       '                    ->  Hash  (cost=2318.11..2318.11 rows=6139 width=8)',
                       '                          ->  Partition Iterator  (cost=0.00..2318.11 rows=6139 width=8)',
                       '                                Iterations: 6',
-                      '                                ->  Partitioned Seq Scan on date_dim dt  (cost=0.00..2318.11 rows=6139 width=8)',
+                      '->  Partitioned Seq Scan on date_dim dt  (cost=0.00..2318.11 rows=6139 width=8)',
                       '                                      Filter: (d_moy = 12)',
                       '                                      Selected Partitions:  1..6', 'SELECT 1', '']
         inputs = [(_input,) for _input in ori_inputs]
@@ -472,26 +493,55 @@ class SqlOutPutParserTester(unittest.TestCase):
 
     def test_parse_existed_indexes_results(self):
         ori_inputs = ['SELECT 6',
-                      'ship_mode|ship_mode_pkey|CREATE UNIQUE INDEX ship_mode_pkey ON ship_mode USING btree (sm_ship_mode_sk) LOCAL(PARTITION p_list_15_sm_ship_mode_sk_idx, PARTITION p_list_14_sm_ship_mode_sk_idx, PARTITION p_list_13_sm_ship_mode_sk_idx, PARTITION p_list_12_sm_ship_mode_sk_idx, PARTITION p_list_11_sm_ship_mode_sk_idx, PARTITION p_list_10_sm_ship_mode_sk_idx, PARTITION p_list_9_sm_ship_mode_sk_idx, PARTITION p_list_8_sm_ship_mode_sk_idx, PARTITION p_list_7_sm_ship_mode_sk_idx, PARTITION p_list_6_sm_ship_mode_sk_idx, PARTITION p_list_5_sm_ship_mode_sk_idx, PARTITION p_list_4_sm_ship_mode_sk_idx, PARTITION p_list_3_sm_ship_mode_sk_idx, PARTITION p_list_2_sm_ship_mode_sk_idx, PARTITION p_list_1_sm_ship_mode_sk_idx)  TABLESPACE pg_default|p',
-                      'temptable|temptable_int2_int3_int4_idx|CREATE INDEX temptable_int2_int3_int4_idx ON temptable USING btree (int2, int3, int4) TABLESPACE pg_default|None',
-                      'temptable|temptable_int2_int3_idx|CREATE INDEX temptable_int2_int3_idx ON temptable USING btree (int2, int3) TABLESPACE pg_default|None',
-                      'temptable|temptable_int1_int2_int3_idx|CREATE INDEX temptable_int1_int2_int3_idx ON temptable USING btree (int1, int2, int3) TABLESPACE pg_default|None',
-                      'temptable|temptable_int1_int2_idx|CREATE INDEX temptable_int1_int2_idx ON temptable USING btree (int1, int2) TABLESPACE pg_default|None',
-                      'temptable|temptable_int1_idx|CREATE INDEX temptable_int1_idx ON temptable USING btree (int1) TABLESPACE pg_default|None']
+                      'ship_mode|ship_mode_pkey|CREATE UNIQUE INDEX ship_mode_pkey ON ship_mode USING btree ('
+                      'sm_ship_mode_sk) LOCAL(PARTITION p_list_15_sm_ship_mode_sk_idx, PARTITION '
+                      'p_list_14_sm_ship_mode_sk_idx, PARTITION p_list_13_sm_ship_mode_sk_idx, PARTITION '
+                      'p_list_12_sm_ship_mode_sk_idx, PARTITION p_list_11_sm_ship_mode_sk_idx, PARTITION '
+                      'p_list_10_sm_ship_mode_sk_idx, PARTITION p_list_9_sm_ship_mode_sk_idx, PARTITION '
+                      'p_list_8_sm_ship_mode_sk_idx, PARTITION p_list_7_sm_ship_mode_sk_idx, PARTITION '
+                      'p_list_6_sm_ship_mode_sk_idx, PARTITION p_list_5_sm_ship_mode_sk_idx, PARTITION '
+                      'p_list_4_sm_ship_mode_sk_idx, PARTITION p_list_3_sm_ship_mode_sk_idx, PARTITION '
+                      'p_list_2_sm_ship_mode_sk_idx, PARTITION p_list_1_sm_ship_mode_sk_idx)  TABLESPACE pg_default|p',
+                      'temptable|temptable_int2_int3_int4_idx|CREATE INDEX temptable_int2_int3_int4_idx ON temptable '
+                      'USING btree (int2, int3, int4) TABLESPACE pg_default|None',
+                      'temptable|temptable_int2_int3_idx|CREATE INDEX temptable_int2_int3_idx ON temptable USING '
+                      'btree (int2, int3) TABLESPACE pg_default|None',
+                      'temptable|temptable_int1_int2_int3_idx|CREATE INDEX temptable_int1_int2_int3_idx ON temptable '
+                      'USING btree (int1, int2, int3) TABLESPACE pg_default|None',
+                      'temptable|temptable_int1_int2_idx|CREATE INDEX temptable_int1_int2_idx ON temptable USING '
+                      'btree (int1, int2) TABLESPACE pg_default|None',
+                      'temptable|temptable_int1_idx|CREATE INDEX temptable_int1_idx ON temptable USING btree (int1) '
+                      'TABLESPACE pg_default|None']
         schema = 'public'
         inputs = [tuple(_input.split('|')) for _input in ori_inputs]
         expected_indexes = [ExistingIndex("public", "ship_mode", "ship_mode_pkey", "sm_ship_mode_sk",
-                                          "CREATE UNIQUE INDEX ship_mode_pkey ON ship_mode USING btree (sm_ship_mode_sk) LOCAL(PARTITION p_list_15_sm_ship_mode_sk_idx, PARTITION p_list_14_sm_ship_mode_sk_idx, PARTITION p_list_13_sm_ship_mode_sk_idx, PARTITION p_list_12_sm_ship_mode_sk_idx, PARTITION p_list_11_sm_ship_mode_sk_idx, PARTITION p_list_10_sm_ship_mode_sk_idx, PARTITION p_list_9_sm_ship_mode_sk_idx, PARTITION p_list_8_sm_ship_mode_sk_idx, PARTITION p_list_7_sm_ship_mode_sk_idx, PARTITION p_list_6_sm_ship_mode_sk_idx, PARTITION p_list_5_sm_ship_mode_sk_idx, PARTITION p_list_4_sm_ship_mode_sk_idx, PARTITION p_list_3_sm_ship_mode_sk_idx, PARTITION p_list_2_sm_ship_mode_sk_idx, PARTITION p_list_1_sm_ship_mode_sk_idx)  TABLESPACE pg_default"),
+                                          "CREATE UNIQUE INDEX ship_mode_pkey ON ship_mode USING btree ("
+                                          "sm_ship_mode_sk) LOCAL(PARTITION p_list_15_sm_ship_mode_sk_idx, "
+                                          "PARTITION p_list_14_sm_ship_mode_sk_idx, PARTITION "
+                                          "p_list_13_sm_ship_mode_sk_idx, PARTITION p_list_12_sm_ship_mode_sk_idx, "
+                                          "PARTITION p_list_11_sm_ship_mode_sk_idx, PARTITION "
+                                          "p_list_10_sm_ship_mode_sk_idx, PARTITION p_list_9_sm_ship_mode_sk_idx, "
+                                          "PARTITION p_list_8_sm_ship_mode_sk_idx, PARTITION "
+                                          "p_list_7_sm_ship_mode_sk_idx, PARTITION p_list_6_sm_ship_mode_sk_idx, "
+                                          "PARTITION p_list_5_sm_ship_mode_sk_idx, PARTITION "
+                                          "p_list_4_sm_ship_mode_sk_idx, PARTITION p_list_3_sm_ship_mode_sk_idx, "
+                                          "PARTITION p_list_2_sm_ship_mode_sk_idx, PARTITION "
+                                          "p_list_1_sm_ship_mode_sk_idx)  TABLESPACE pg_default"),
                             ExistingIndex("public", "temptable", "temptable_int2_int3_int4_idx", "int2, int3, int4",
-                                          "CREATE INDEX temptable_int2_int3_int4_idx ON temptable USING btree (int2, int3, int4) TABLESPACE pg_default"),
+                                          "CREATE INDEX temptable_int2_int3_int4_idx ON temptable USING btree (int2, "
+                                          "int3, int4) TABLESPACE pg_default"),
                             ExistingIndex("public", "temptable", "temptable_int2_int3_idx", "int2, int3",
-                                          "CREATE INDEX temptable_int2_int3_idx ON temptable USING btree (int2, int3) TABLESPACE pg_default"),
+                                          "CREATE INDEX temptable_int2_int3_idx ON temptable USING btree (int2, "
+                                          "int3) TABLESPACE pg_default"),
                             ExistingIndex("public", "temptable", "temptable_int1_int2_int3_idx", "int1, int2, int3",
-                                          "CREATE INDEX temptable_int1_int2_int3_idx ON temptable USING btree (int1, int2, int3) TABLESPACE pg_default"),
+                                          "CREATE INDEX temptable_int1_int2_int3_idx ON temptable USING btree (int1, "
+                                          "int2, int3) TABLESPACE pg_default"),
                             ExistingIndex("public", "temptable", "temptable_int1_int2_idx", "int1, int2",
-                                          "CREATE INDEX temptable_int1_int2_idx ON temptable USING btree (int1, int2) TABLESPACE pg_default"),
+                                          "CREATE INDEX temptable_int1_int2_idx ON temptable USING btree (int1, "
+                                          "int2) TABLESPACE pg_default"),
                             ExistingIndex("public", "temptable", "temptable_int1_idx", "int1",
-                                          "CREATE INDEX temptable_int1_idx ON temptable USING btree (int1) TABLESPACE pg_default")]
+                                          "CREATE INDEX temptable_int1_idx ON temptable USING btree (int1) TABLESPACE "
+                                          "pg_default")]
         indexes = parse_existing_indexes_results(inputs, schema)
         for index, expected_indexes in zip(indexes, expected_indexes):
             self.assertEqual(
@@ -511,7 +561,8 @@ class SqlGeneratorTester(unittest.TestCase):
                    "AS indexdef, p.contype AS pkey from pg_index x JOIN pg_class c ON c.oid = x.indrelid JOIN " \
                    "pg_class i ON i.oid = x.indexrelid LEFT JOIN pg_namespace n ON n.oid = c.relnamespace " \
                    "LEFT JOIN pg_constraint p ON (i.oid = p.conindid AND p.contype = 'p') WHERE (c.relkind = " \
-                   "ANY (ARRAY['r'::\"char\", 'm'::\"char\"])) AND (i.relkind = ANY (ARRAY['i'::\"char\", 'I'::\"char\"])) " \
+                   "ANY (ARRAY['r'::\"char\", 'm'::\"char\"])) AND (i.relkind = ANY (ARRAY['i'::\"char\", " \
+                   "'I'::\"char\"])) " \ 
                    "AND n.nspname = 'public' AND c.relname in ('table1','table2') order by c.relname;"
         self.assertEqual(get_existing_index_sql(schema, tables), expected)
 
@@ -571,7 +622,8 @@ class IndexAdvisorTester(unittest.TestCase):
                               'select * from student_range_part1 where student_range_part1.stu_id =@@@ '
                               'and student_range_part1.stu_name@@@ and credi@@@':
                                   {'cnt': 3, 'samples': ["select * from student_range_part1 where "
-                                                         "student_range_part1.stu_id = '12' and student_range_part1.stu_name='b__1' and credit=1"]},
+                                                         "student_range_part1.stu_id = '12' and "
+                                                         "student_range_part1.stu_name='b__1' and credit=1"]},
                               'select * from student_range_part where stu_id@@@':
                                   {'cnt': 1, 'samples': [
                                       "select * from student_range_part where stu_id='w_1'"]},

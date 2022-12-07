@@ -259,12 +259,11 @@ def test_edit_prometheus_yaml(deploy_configs, prometheus_yaml_origin, prometheus
     new_yaml_obj = edit_prometheus_yaml(
         prometheus_yaml_origin,
         configs,
-        node_exporter_targets = node_exporter_targets,
-        cmd_exporter_targets = cmd_exporter_targets,
-        opengauss_exporter_targets = opengauss_exporter_targets
+        node_exporter_targets=node_exporter_targets,
+        cmd_exporter_targets=cmd_exporter_targets,
+        opengauss_exporter_targets=opengauss_exporter_targets
     )
     assert new_yaml_obj == prometheus_yaml_target
-
 
 
 def test_generate_tasks(monkeypatch, deploy_configs):
@@ -462,82 +461,82 @@ def test_url_generate(deploy_configs):
 
 def test_check_config_validity():
     section, option, value = "EXPORTERS", "opengauss_ports_range", "9187"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'You need to input a range. eg. (start-end)'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'You need to input a range. eg. (start-end)'))
 
     section, option, value = "EXPORTERS", "opengauss_ports_range", "9197-9187"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'The start 9197 must be fewer than the end 9187.'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'The start 9197 must be fewer than the end 9187.'))
 
     section, option, value = "EXPORTERS", "opengauss_ports_range", "1000-1025"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid port for EXPORTERS-opengauss_ports_range: 1000-1025(1024-65535)'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid port for EXPORTERS-opengauss_ports_range: 1000-1025(1024-65535)'))
 
     section, option, value = "EXPORTERS", "opengauss_ports_range", "65534-65545"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid port for EXPORTERS-opengauss_ports_range: 65534-65545(1024-65535)'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid port for EXPORTERS-opengauss_ports_range: 65534-65545(1024-65535)'))
 
     section, option, value = "PROMETHEUS", "ssh_port", "9000"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid port for PROMETHEUS-ssh_port: 9000(1-1023)'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid port for PROMETHEUS-ssh_port: 9000(1-1023)'))
 
     section, option, value = "PROMETHEUS", "ssh_port", "10.0.0.256"
-    assert(check_config_validity(section, option, value) ==
-          (False, '10.0.0.256 is not a integer.'))
+    assert (check_config_validity(section, option, value) ==
+            (False, '10.0.0.256 is not a integer.'))
 
     section, option, value = "PROMETHEUS", "ssh_port", "ssh"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'ssh is not a integer.'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'ssh is not a integer.'))
 
     section, option, value = "PROMETHEUS", "prometheus_port", "1023"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid port for PROMETHEUS-prometheus_port: 1023(1024-65535)'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid port for PROMETHEUS-prometheus_port: 1023(1024-65535)'))
 
     section, option, value = "EXPORTERS", "node_exporter_port", "65536"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid port for EXPORTERS-node_exporter_port: 65536(1024-65535)'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid port for EXPORTERS-node_exporter_port: 65536(1024-65535)'))
 
     section, option, value = "PROMETHEUS", "listen_address", "010.90.56.172"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid IP Address for PROMETHEUS-listen_address: 010.90.56.172'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid IP Address for PROMETHEUS-listen_address: 010.90.56.172'))
 
     section, option, value = "PROMETHEUS", "host", "10.0.0.256"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid IP Address for PROMETHEUS-host: 10.0.0.256'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid IP Address for PROMETHEUS-host: 10.0.0.256'))
 
     section, option, value = "PROMETHEUS", "host", "www.baidu.com"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid IP Address for PROMETHEUS-host: www.baidu.com'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid IP Address for PROMETHEUS-host: www.baidu.com'))
 
     section, option, value = "SSL", "enable_ssl", "false"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'enable_ssl must be "True" or "False".'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'enable_ssl must be "True" or "False".'))
 
     section, option, value = "EXPORTERS", "targets", "10.90.56.172:19995/postgres, "
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Illegal db instance " ", e.g. ip:port/dbname'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Illegal db instance " ", e.g. ip:port/dbname'))
 
     section, option, value = "EXPORTERS", "targets", "10.90.56.172:19995:postgres, 10.90.56.173:19995/postgres"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Illegal db instance "10.90.56.172:19995:postgres", e.g. ip:port/dbname'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Illegal db instance "10.90.56.172:19995:postgres", e.g. ip:port/dbname'))
 
     section, option, value = "EXPORTERS", "targets", "10.90.56.172:19995/postgres, 10.90.56.173/19995/postgres"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Illegal db instance " 10.90.56.173/19995/postgres", e.g. ip:port/dbname'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Illegal db instance " 10.90.56.173/19995/postgres", e.g. ip:port/dbname'))
 
     section, option, value = "EXPORTERS", "targets", "10.90.56.172:1023/postgres, 10.90.56.173:19995/postgres"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid port "1023" (1024-65535) for "10.90.56.172:1023/postgres" in EXPORTERS-targets.'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid port "1023" (1024-65535) for "10.90.56.172:1023/postgres" in EXPORTERS-targets.'))
 
     section, option, value = "EXPORTERS", "targets", "10.90.56.172:19995/postgres:, 10.90.56.256:19995/postgres"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Illegal db instance "10.90.56.172:19995/postgres:", e.g. ip:port/dbname'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Illegal db instance "10.90.56.172:19995/postgres:", e.g. ip:port/dbname'))
 
     section, option, value = "EXPORTERS", "targets", "10.90.56.172:19995/ , 10.90.56.173:19995/postgres"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Empty dbname " " for "10.90.56.172:19995/ " in EXPORTERS-targets.'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Empty dbname " " for "10.90.56.172:19995/ " in EXPORTERS-targets.'))
 
     section, option, value = "EXPORTERS", "targets", "10.90.56.172:19995/postgres, 10.90.56.256:65536/postgres"
-    assert(check_config_validity(section, option, value) ==
-          (False, 'Invalid IP " 10.90.56.256" and Invalid port "65536" (1024-65535) '
-                  'for " 10.90.56.256:65536/postgres" in EXPORTERS-targets.'))
+    assert (check_config_validity(section, option, value) ==
+            (False, 'Invalid IP " 10.90.56.256" and Invalid port "65536" (1024-65535) '
+                    'for " 10.90.56.256:65536/postgres" in EXPORTERS-targets.'))

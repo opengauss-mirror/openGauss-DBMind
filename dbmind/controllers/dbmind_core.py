@@ -231,8 +231,8 @@ def get_log_information():
     lines = text.splitlines()
     timestamp = int(time.time()) - len(lines) * 10
     for i, line in enumerate(lines):
-        lines[i] = datetime.datetime.fromtimestamp(timestamp + i * 10).strftime('%Y-%m-%d %H:%M:%S.%f') + ' ' \
-                   + line.strip()
+        lines[i] = datetime.datetime.fromtimestamp(timestamp + i * 10).strftime('%Y-%m-%d %H:%M:%S.%f') + \
+            ' ' + line.strip()
     return '\n'.join(lines)
 
 

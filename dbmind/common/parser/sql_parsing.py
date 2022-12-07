@@ -274,7 +274,7 @@ def exists_subquery(query):
     def get_subquery(parsed, height):
         for item in parsed:
             if item.is_group:
-                get_subquery(item, height+1)
+                get_subquery(item, height + 1)
             elif item.ttype == DML and item.value.upper() == "SELECT":
                 if height == 0:
                     continue

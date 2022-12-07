@@ -85,4 +85,3 @@ def test_to_cmds():
         actual = cmd_executor.to_cmds(cmdline)
         assert len(actual[0]) == len(actual[1])
         assert actual == expected
-

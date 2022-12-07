@@ -43,7 +43,7 @@ class TestPSO(unittest.TestCase):
         best_val, best_X = pso.minimize()
         logging.debug("function: %s, best reward: %d, best X: %s." % (func.__name__, best_val, best_X))
         logging.debug("fitness list: %s." % pso.fitness_val_list)
-        self.assertLessEqual(np.abs((optimal - best_val)/ (optimal + 0.001)), 0.2)
+        self.assertLessEqual(np.abs((optimal - best_val) / (optimal + 0.001)), 0.2)
 
     def test_one_dim(self):
         self._test_function(1, 0, quadratic_function, 0, 10)

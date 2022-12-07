@@ -152,7 +152,7 @@ def generate_sequence(start, end, step=1, name='os_usage_rate', labels=None):
         ),
             Sequence(
                 range(start, end + 1, step), range(start, end + 1, step), name, labels={'ip': 'xx.xx.xx.100'}
-            )
+        )
         ]
 
     return [Sequence(

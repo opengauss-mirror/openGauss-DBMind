@@ -83,4 +83,3 @@ def parse_dsn(dsn):
 
     except ImportError:
         raise NotImplementedError()
-

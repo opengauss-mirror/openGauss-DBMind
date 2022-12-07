@@ -35,9 +35,7 @@ class SeasonalDetector(AbstractDetector):
     def _fit(self, s: Sequence):
         if not self.period:
             self.period = get_seasonal_period(
-                    s.values,
-                    high_ac_threshold=self.high_ac_threshold,
-                    min_seasonal_freq=self.min_seasonal_freq
+                s.values, high_ac_threshold=self.high_ac_threshold, min_seasonal_freq=self.min_seasonal_freq
             )
 
         self._iqr_detector = InterQuartileRangeDetector(outliers=self.outliers)

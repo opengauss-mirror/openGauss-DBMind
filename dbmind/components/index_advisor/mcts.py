@@ -336,7 +336,7 @@ def monte_carlo_tree_search(node):
     and find the next optimal node.
     """
 
-    computation_budget = len(AVAILABLE_CHOICES) * STORAGE_THRESHOLD/TOTAL_STORAGE * 50
+    computation_budget = len(AVAILABLE_CHOICES) * STORAGE_THRESHOLD / TOTAL_STORAGE * 50
 
     # Run as much as possible under the computation budget.
     for i in range(int(computation_budget)):

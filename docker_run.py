@@ -337,8 +337,8 @@ def start_dbmind_service():
         os.makedirs(DBMIND_PATHS_DATA)
 
     # Not existing and existing but empty directory are both ok.
-    if (not os.path.exists(DBMIND_PATHS_CONFIG) 
-            or len(os.listdir(DBMIND_PATHS_CONFIG)) == 0):
+    if (not os.path.exists(DBMIND_PATHS_CONFIG) or
+            len(os.listdir(DBMIND_PATHS_CONFIG)) == 0):
         success = config_dbmind_service(DBMIND_PATHS_CONFIG)
         if not success:
             die('Failed to configure DBMind.')

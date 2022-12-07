@@ -97,26 +97,24 @@ class ExporterMain(Daemon):
 
     def change_file_permissions(self):
         if (
-                self.args.ssl_keyfile
-                and os.path.exists(self.args.ssl_keyfile)
-                and os.path.isfile(self.args.ssl_keyfile)
+                self.args.ssl_keyfile and
+                os.path.exists(self.args.ssl_keyfile) and
+                os.path.isfile(self.args.ssl_keyfile)
         ):
             os.chmod(self.args.ssl_keyfile, 0o400)
         if (
-                self.args.ssl_certfile
-                and os.path.exists(self.args.ssl_certfile)
-                and os.path.isfile(self.args.ssl_certfile)
+                self.args.ssl_certfile and
+                os.path.exists(self.args.ssl_certfile) and
+                os.path.isfile(self.args.ssl_certfile)
         ):
             os.chmod(self.args.ssl_certfile, 0o400)
         if (
-                self.args.ssl_ca_file
-                and os.path.exists(self.args.ssl_ca_file)
-                and os.path.isfile(self.args.ssl_ca_file)
+                self.args.ssl_ca_file and
+                os.path.exists(self.args.ssl_ca_file) and
+                os.path.isfile(self.args.ssl_ca_file)
         ):
             os.chmod(self.args.ssl_ca_file, 0o400)
-        if self.args.__dict__['log.filepath'] \
-                and os.path.exists(self.args.__dict__['log.filepath']) \
-                and os.path.isfile(
+        if self.args.__dict__['log.filepath'] and os.path.exists(self.args.__dict__['log.filepath']) and os.path.isfile(
             self.args.__dict__['log.filepath']
         ):
             os.chmod(self.args.__dict__['log.filepath'], 0o600)

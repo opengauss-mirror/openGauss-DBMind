@@ -268,8 +268,8 @@ def main(argv):
             get_plan(args.query, url=args.url, data_source=args.data_source)
     except Exception as e:
         write_to_terminal('An error occurred probably due to database operations, '
-                          'please check database configurations. For details:\n'
-                          + str(e), color='red', level='error')
+                          'please check database configurations. For details:\n' +
+                          str(e), color='red', level='error')
         traceback.print_tb(e.__traceback__)
         return 2
     return args

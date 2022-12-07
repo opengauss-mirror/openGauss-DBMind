@@ -103,8 +103,8 @@ class GsqlExecutor(BaseExecutor):
         (stdout, stderr) = proc.communicate()
         stdout, stderr = stdout.decode(errors='ignore'), stderr.decode(errors='ignore')
         if 'gsql: FATAL:' in stderr or 'failed to connect' in stderr:
-            raise ConnectionError("An error occurred while connecting to the database.\n"
-                                  + "Details: " + stderr)
+            raise ConnectionError("An error occurred while connecting to the database.\n" +
+                                  "Details: " + stderr)
         return stdout
 
     @staticmethod

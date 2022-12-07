@@ -518,9 +518,10 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                         f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                         datname=f"{self.slow_sql_instance.db_name}").filter(
                         schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                    last_data_changed_delay_info = dai.get_metric_sequence("pg_tables_structure_last_data_changed_delay",
-                                                                           self.query_start_time,
-                                                                           self.query_end_time).from_server(
+                    last_data_changed_delay_info = dai.get_metric_sequence(
+                        "pg_tables_structure_last_data_changed_delay",
+                        self.query_start_time,
+                        self.query_end_time).from_server(
                         f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                         datname=f"{self.slow_sql_instance.db_name}").filter(
                         schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
@@ -717,15 +718,15 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         # it is suitable for situations where only one instance exists on a machine, db_mem_usage is the same as him.
         if is_sequence_valid(db_cpu_usage_info):
             system_info.db_cpu_usage = _get_sequences_sum_value(db_cpu_usage_info, precision=4) / \
-                                       (system_info.cpu_core_number * 100)
+                (system_info.cpu_core_number * 100)
         if is_sequence_valid(db_mem_usage_info):
             system_info.db_mem_usage = _get_sequences_sum_value(db_mem_usage_info, precision=4)
         if is_sequence_valid(cpu_usage_info):
             system_info.system_cpu_usage = _get_sequence_first_value(cpu_usage_info, precision=4) - \
-                                           system_info.db_cpu_usage
+                system_info.db_cpu_usage
         if is_sequence_valid(mem_usage_info):
             system_info.system_mem_usage = _get_sequence_first_value(mem_usage_info, precision=4) - \
-                                           system_info.db_mem_usage
+                system_info.db_mem_usage
         return system_info
 
     @exception_follower(output=NetWorkInfo)
@@ -1203,4 +1204,3 @@ class QueryContextFromDriver(QueryContext):
             timed_task.last_end_date = _get_driver_value(rows, 'last_end_date')
             timed_task_list.append(timed_task)
         return timed_task_list
-
