@@ -330,7 +330,7 @@ class IndexAdvisor:
             source_index = index.get_source_index()
             if source_index and (not source_index.is_primary_key()) and (not source_index.get_is_unique()):
                 bar_print('\tCurrently existing useless indexes:')
-                bar_print('\t\t{source_index.get_indexdef()}')
+                bar_print(f'\t\t{source_index.get_indexdef()}')
                 useless_indexes.append(source_index.get_indexdef())
 
             # information about existing indexes
@@ -360,7 +360,7 @@ class IndexAdvisor:
                 current_plan = self.workload.get_indexes_plan_of_query(query, tuple([index]))
                 bar_print('\t\t\tCost benefit for the query: %.2f' % query_benefit)
                 bar_print('\t\t\tCost improved rate for the query: %.2f%%' % (query_improved_rate * 100))
-                bar_print('\t\t\tQuery number: {int(query.get_frequency())}')
+                bar_print(f'\t\t\tQuery number: {int(query.get_frequency())}')
                 if len(query.get_indexes()) > 1:
                     bar_print('\t\t\tOther optimal indexes:')
                     for temp_index in query.get_indexes():
