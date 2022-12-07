@@ -1020,8 +1020,6 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_dis
         original_base_indexes = get_original_base_indexes(original_indexes)
         for pos, query in GLOBAL_PROCESS_BAR.process_bar(list(enumerate(workload.get_queries())), 'Candidate indexes'):
             advised_indexes = []
-            if not has_dollar_placeholder(query.get_statement()):
-                advised_indexes = query_index_advise(executor, query.get_statement())
             for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
                                                                     reltuples, use_all_columns,
                                                                     ):

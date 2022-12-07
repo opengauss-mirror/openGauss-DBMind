@@ -166,6 +166,19 @@ def exist_track_parameter(query):
     return True if '; parameters: $1 = ' in query.lower() else False
 
 
+def is_query_normalized(query):
+    """Determine if SQL is normalized or not"""
+    placeholders = []
+    for item in sqlparse.parse(query)[0].flatten():
+        if item.ttype is Name.Placeholder:
+            if not re.match(r"\$\d+|\?", item.value):
+                return False
+            placeholders.append(item.value)
+    if not placeholders:
+        return False
+    return True
+
+
 def remove_parameter_part(query):
     """
     remove parameter part when GUC 'track_parameter ' is ON, for example:
@@ -295,7 +308,35 @@ def get_generate_prepare_sqls_function():
     return get_prepare_sqls
 
 
-def replace_comma_with_dollar(query):
+def replace_question_mark_with_value(query):
+    """
+    PBE does not support the following situations, we can solve it by replacing the '?' with a fixed value.
+      1. col >= date ?
+      2. interval ? year
+      3. fetch first ? row
+      4. count(?)
+      5. decode(?, xx, xx)
+      6. extract(? from o_year) as year
+      7. concat(?, col1, col2, ?)
+    """
+    # replace '?' with '1999-01-01' when meeting 'date ?'
+    query = re.sub(r"([\s+|\s*,]date\s+)\?", r"\1'1999-01-01'", query, flags=re.IGNORECASE)
+    # replace '?' with '1' when meeting 'interval ?'
+    query = re.sub(r"(\s+interval\s+)\?", r"\1'1'", query, flags=re.IGNORECASE)
+    # replace '?' with 1 when meeting 'fetch first ?'
+    query = re.sub(r"(\s+fetch first\s+)\?", r"\g<1>1", query, flags=re.IGNORECASE)
+    # replace '?' with 1 when meeting 'count(?)'
+    query = re.sub(r"([\s+|\s*,]count\(\s*)\?(\s*\)\s+)", r"\g<1>1\g<2>", query, flags=re.IGNORECASE)
+    # replace '?' with '1' when meeting 'decode(?, xx, xx)'
+    query = re.sub(r"([\s+|\s*,]decode\(\s*)\?(\s*,)", r"\1'1'\2", query, flags=re.IGNORECASE)
+    # replace '?' with day when meeting 'extract(year from col) as year'
+    query = re.sub(r"([\s+|\s*,]extract\(\s*)\?(\s+from)", r"\1'day'\2", query, flags=re.IGNORECASE)
+    # replace '?' with day when meeting 'concat(?, col, ?)'
+    query = re.sub(r"([\s+|\s*,]concat)(\(.+\))", lambda x: x.group(1) + x.group(2).replace('?', '\'1\''), query)
+    return query
+
+
+def replace_question_mark_with_dollar(query):
     """
     Replacing '?' with '$+Numbers' in SQL:
       input: UPDATE bmsql_customer SET c_balance = c_balance + $1, c_delivery_cnt = c_delivery_cnt + ?

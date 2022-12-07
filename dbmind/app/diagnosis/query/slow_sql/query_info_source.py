@@ -18,8 +18,9 @@ from datetime import datetime
 from functools import wraps
 
 from dbmind.common.parser import plan_parsing
-from dbmind.common.parser.sql_parsing import fill_value, standardize_sql, replace_comma_with_dollar
-from dbmind.common.parser.sql_parsing import remove_parameter_part
+from dbmind.common.parser.sql_parsing import replace_question_mark_with_value, replace_question_mark_with_dollar
+from dbmind.common.parser.sql_parsing import fill_value, standardize_sql
+from dbmind.common.parser.sql_parsing import remove_parameter_part, is_query_normalized
 from dbmind.common.parser.sql_parsing import to_ts, get_generate_prepare_sqls_function
 from dbmind.common.utils import ExceptionCatcher
 from dbmind import global_vars
@@ -327,7 +328,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         :param expansion_factor: Ensure that the time expansion rate of the data can be collected
         """
         super().__init__(slow_sql_instance)
-        self.query_type = 'normal'
+        self.query_type = 'raw'
         self.fetch_interval = self.acquire_fetch_interval()
         self.expansion_factor = kwargs.get('expansion_factor', 3)
         self.query_start_time = datetime.fromtimestamp(self.slow_sql_instance.start_at / 1000)
@@ -346,6 +347,8 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         if self.slow_sql_instance.track_parameter:
             self.standard_query = fill_value(self.slow_sql_instance.query)
             self.slow_sql_instance.query = remove_parameter_part(slow_sql_instance.query)
+        if is_query_normalized(self.standard_query):
+            self.query_type = 'normalized'
         self.standard_query = standardize_sql(self.standard_query)
         if self.slow_sql_instance.query_plan is None:
             self.slow_sql_instance.query_plan = self.acquire_plan(self.standard_query)
@@ -356,20 +359,11 @@ class QueryContextFromTSDBAndRPC(QueryContext):
     @exception_catcher
     def acquire_plan(self, query):
         query_plan = ''
-        query = query.replace('\"', '')
-        stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
-                                                        query)
-        rows = global_vars.agent_rpc_client.call('query_in_database',
-                                                 stmts,
-                                                 self.slow_sql_instance.db_name,
-                                                 return_tuples=False,
-                                                 fetch_all=False)
-
-        if not rows:
-            # Get execution plan based on PBE
-            no_comma_query = replace_comma_with_dollar(query)
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
             stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(
-                get_generate_prepare_sqls_function()(no_comma_query))
+                get_generate_prepare_sqls_function()(query))
             rows = global_vars.agent_rpc_client.call('query_in_database',
                                                      stmts,
                                                      self.slow_sql_instance.db_name,
@@ -378,6 +372,15 @@ class QueryContextFromTSDBAndRPC(QueryContext):
             if len(rows) == 4 and rows[-2]:
                 self.query_type = 'desensitization'
                 rows = rows[-2]
+        else:
+            query = query.replace('\"', '')
+            stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
+                                                            query)
+            rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                     stmts,
+                                                     self.slow_sql_instance.db_name,
+                                                     return_tuples=False,
+                                                     fetch_all=False)
         for row in rows:
             if not row:
                 continue
@@ -684,9 +687,6 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         mem_usage_info = dai.get_metric_sequence("os_mem_usage", self.query_start_time,
                                                  self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        load_average_info1 = dai.get_metric_sequence("load_average1", self.query_start_time,
-                                                     self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
         process_fds_rate_info = dai.get_metric_sequence("os_process_fds_rate", self.query_start_time,
                                                         self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
@@ -765,8 +765,12 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         if not self.standard_query.upper().startswith('SELECT'):
             return ''
         rewritten_flags = []
+        query = self.standard_query
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
         rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
-                                            self.standard_query,
+                                            query,
                                             rewritten_flags=rewritten_flags,
                                             if_format=False)
         flag = rewritten_flags[0]
@@ -788,6 +792,9 @@ class QueryContextFromTSDBAndRPC(QueryContext):
     def acquire_index_analysis_info(self) -> tuple:
         recommend_indexes, redundant_indexes = [], []
         query = self.standard_query
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
         executor = RpcExecutor(self.slow_sql_instance.db_name, None, None, None, None,
                                self.slow_sql_instance.schema_name)
         template = {query: {'cnt': 1, 'samples': [query]}}
@@ -873,13 +880,15 @@ class QueryContextFromTSDBAndRPC(QueryContext):
 class QueryContextFromDriver(QueryContext):
     def __init__(self, slow_sql_instance, **kwargs):
         super().__init__(slow_sql_instance)
+        self.query_type = 'raw'
         self.standard_query = self.slow_sql_instance.query
         self.driver = kwargs.get('driver')
-        self.query_type = 'normal'
         self.standard_query = self.slow_sql_instance.query
         if self.slow_sql_instance.track_parameter:
             self.standard_query = fill_value(self.slow_sql_instance.query)
             self.slow_sql_instance.query = remove_parameter_part(slow_sql_instance.query)
+        if is_query_normalized(self.standard_query):
+            self.query_type = 'normalized'
         self.standard_query = standardize_sql(self.standard_query)
         if self.slow_sql_instance.query_plan is None:
             self.slow_sql_instance.query_plan = self.acquire_plan(self.standard_query)
@@ -890,16 +899,18 @@ class QueryContextFromDriver(QueryContext):
     @exception_catcher
     def acquire_plan(self, query):
         query_plan = ''
-        stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name, query)
-        rows = self.driver.query(stmts, return_tuples=True)
-        if not rows:
-            no_comma_query = replace_comma_with_dollar(query)
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
             stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(
-                get_generate_prepare_sqls_function()(no_comma_query))
+                get_generate_prepare_sqls_function()(query))
             rows = self.driver.query(stmts, return_tuples=True, fetch_all=True)
             if len(rows) == 4 and rows[-2]:
                 rows = rows[-2]
-                self.query_type = "desensitization"
+        else:
+            query = query.replace('\"', '')
+            stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name, query)
+            rows = self.driver.query(stmts, return_tuples=True)
         for row in rows:
             if not row:
                 continue
@@ -1097,8 +1108,12 @@ class QueryContextFromDriver(QueryContext):
         if not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
             return ''
         rewritten_flags = []
+        query = self.standard_query
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
         rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
-                                            self.slow_sql_instance.query,
+                                            query,
                                             rewritten_flags=rewritten_flags,
                                             if_format=False,
                                             driver=self.driver)
@@ -1121,6 +1136,9 @@ class QueryContextFromDriver(QueryContext):
     def acquire_index_analysis_info(self):
         recommend_indexes, redundant_indexes = [], []
         query = self.standard_query
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
         executor = RpcExecutor(self.slow_sql_instance.db_name, None, None, None, None,
                                self.slow_sql_instance.schema_name, driver=self.driver)
         template = {query: {'cnt': 1, 'samples': [query]}}
