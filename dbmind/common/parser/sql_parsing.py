@@ -356,3 +356,9 @@ def replace_question_mark_with_dollar(query):
         query = query.replace('?', dollar, 1)
         max_dollar_number += 1
     return query
+
+
+def exists_count_operation(query):
+    if re.search(r"[\s+|\s*,]count\(-?[\d+|\*]\)", query, flags=re.IGNORECASE):
+        return True
+    return False

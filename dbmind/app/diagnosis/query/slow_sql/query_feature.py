@@ -86,6 +86,14 @@ def _existing_spike(data):
     return False
 
 
+def _get_seq_scan_rows(table_structures, node):
+    if node.properties.get('Filter'):
+        for table_info in table_structures:
+            if table_info.table_name == node.table:
+                return table_info.live_tuples + table_info.dead_tuples
+    return node.rows
+
+
 class QueryFeature:
     """
     Feature processing factory
@@ -267,19 +275,20 @@ class QueryFeature:
                 return False
             plan_total_cost = self.plan_parse_info.root_node.total_cost
             scan_operators = [operator for operator in self.plan_parse_info.find_operators('Seq Scan', accurate=False)
-                              if operator.rows >= monitoring.get_threshold('fetch_tuples_threshold') and
+                              if _get_seq_scan_rows(self.table_structure, operator) >=
+                              monitoring.get_threshold('fetch_tuples_threshold') and
                               _get_operator_cost(operator) / plan_total_cost >=
                               monitoring.get_threshold('cost_rate_threshold')]
             suggestions = []
             detail = ','.join("(parent: %s, rows:%s(%s), cost rate: %s%%)" %
                               (item.parent.name if item.parent is not None else "None",
-                               item.table, item.rows,
+                               item.table, _get_seq_scan_rows(self.table_structure, item),
                                round(_get_operator_cost(item) * 100 / plan_total_cost, 2)) for item in scan_operators)
-            if sum(item in detail for item in ('Hash', 'Join')):
+            if all(item in detail for item in ('Hash', 'Join')):
                 suggestions.append("HashJoin and SeqScan related, normally it is acceptable")
-            if 'NestedLoop' in detail:
-                suggestions.append("Check the indexes on the table")
-            if scan_operators and 'count(' in self.slow_sql_instance.query:
+            if 'Nested Loop' in detail:
+                suggestions.append("Confirm that the inner table has index")
+            if scan_operators and sql_parsing.exists_count_operation(self.slow_sql_instance.query):
                 suggestions.append("Find 'count' operation, try to avoid this behavior")
             if detail:
                 self.detail['fetch_large_data'] = "Existing large scan situation. " \
@@ -657,14 +666,14 @@ class QueryFeature:
         for table_info in self.table_structure:
             if table_info.data_changed_delay == -1:
                 continue
-            if table_info.analyze_delay - table_info.data_changed_delay >= \
-                    monitoring.get_threshold('analyze_threshold') or table_info.tuples_diff > \
+            if table_info.tuples_diff > \
                     monitoring.get_threshold('tuples_diff_threshold'):
-                abnormal_tables.append("%s:%s(%ss)" % (table_info.schema_name, table_info.table_name,
-                                                       table_info.analyze_delay - table_info.data_changed_delay))
+                abnormal_tables.append("%s:%s(%s tuples)" % (table_info.schema_name,
+                                                             table_info.table_name,
+                                                             table_info.tuples_diff))
         if abnormal_tables:
             self.detail['lack_of_statistics'] = "Statistics not updated in time. " \
-                                                "Analyze delay since last update: %s" % ','.join(abnormal_tables)
+                                                "Detail: %s" % ','.join(abnormal_tables)
             self.suggestion['lack_of_statistics'] = "Timely update statistics to help the " \
                                                     "planner choose the most suitable plan"
             return True
@@ -713,11 +722,11 @@ class QueryFeature:
             hash_full_join_info + hash_anti_join_info + hash_right_semi_join_info + hash_semi_join_info
         if plan_total_cost <= 0:
             return False
-        abnormal_nestloop_info = [item for item in nestloop_info if _get_operator_total_cost(item) / plan_total_cost >=
+        abnormal_nestloop_info = [item for item in nestloop_info if _get_operator_cost(item) / plan_total_cost >=
                                   monitoring.get_threshold('cost_rate_threshold')]
-        abnormal_hashjoin_info = [item for item in hashjoin_info if _get_operator_total_cost(item) / plan_total_cost >=
+        abnormal_hashjoin_info = [item for item in hashjoin_info if _get_operator_cost(item) / plan_total_cost >=
                                   monitoring.get_threshold('cost_rate_threshold')]
-        abnormal_mergejoin_info = [item for item in merge_join_info if _get_operator_total_cost(item) /
+        abnormal_mergejoin_info = [item for item in merge_join_info if _get_operator_cost(item) /
                                    plan_total_cost >= monitoring.get_threshold('cost_rate_threshold')]
         enable_hashjoin = self.pg_setting_info['enable_hashjoin'].setting
         large_join_node_cond, inappropriate_join_node_cond, expensive_join_cond = [], [], []
@@ -725,7 +734,7 @@ class QueryFeature:
             child1, child2 = node.children
             if 'Nested Loop' in node.name:
                 join_filter = 'Join Filter: ' + node.properties.get('Join Filter', '')[:PROPERTY_LENGTH] + '...'
-                node_cond = "%s{cost rate(include child): %s%%, %s}" % \
+                node_cond = "%s{cost rate: %s%%, %s}" % \
                             (node.name,
                              round(_get_operator_cost(node) * 100 / plan_total_cost, 2),
                              join_filter)
@@ -734,14 +743,14 @@ class QueryFeature:
                 if node.properties.get('Join Filter'):
                     join_filter = 'Join Filter: ' + node.properties.get('Join Filter', '')[:PROPERTY_LENGTH] + '...'
                 hash_cond = 'Hash Cond: ' + node.properties.get('Hash Cond', '')[:PROPERTY_LENGTH] + '...'
-                node_cond = "%s{cost rate(include child): %s%%, %s, %s}" % \
+                node_cond = "%s{cost rate: %s%%, %s, %s}" % \
                             (node.name,
                              round(_get_operator_cost(node) * 100 / plan_total_cost, 2),
                              hash_cond,
                              join_filter)
             else:
                 merge_cond = 'Merge Cond: ' + node.properties.get('Merge Cond', '')[:PROPERTY_LENGTH] + '...'
-                node_cond = "%s{cost rate(include child): %s%%, %s}" % \
+                node_cond = "%s{cost rate: %s%%, %s}" % \
                             (node.name,
                              round(_get_operator_cost(node) * 100 / plan_total_cost, 2),
                              merge_cond)
@@ -920,18 +929,17 @@ class QueryFeature:
                 r"count\s*\(\s*distinct \w+\)?", self.slow_sql_instance.query.lower()):
             special_scene = True
         abnormal_groupagg_info = [item for item in groupagg_info if item.children[0].name == 'Sort' and
-                                  (_get_operator_cost(item.children[0]) + _get_operator_cost(item)) / plan_total_cost >=
+                                  _get_operator_cost(item) / plan_total_cost >=
                                   monitoring.get_threshold('cost_rate_threshold')]
-        abnormal_hashagg_info = [item for item in hashagg_info if item.children[0].name == 'Hash Join' and
-                                 (_get_operator_cost(item) + _get_operator_cost(item.children[0])) / plan_total_cost >=
+        abnormal_hashagg_info = [item for item in hashagg_info if _get_operator_cost(item) / plan_total_cost >=
                                  monitoring.get_threshold('cost_rate_threshold')]
         enable_hashagg = self.pg_setting_info['enable_hashagg'].setting
         indexes = ['a', 'b', 'c', 'd']
         self.detail['poor_aggregation_performance'], self.suggestion['poor_aggregation_performance'] = '', ''
         for node in abnormal_groupagg_info + abnormal_hashagg_info:
-            node_cond = "%s{cost rate(include children): %s%%, GroupKey: %s}" % \
+            node_cond = "%s{cost rate: %s%%, GroupKey: %s}" % \
                         (node.name,
-                         round(100 * (_get_operator_cost(node) + _get_operator_cost(node.children[0])) /
+                         round(100 * _get_operator_cost(node) /
                                plan_total_cost, 2), node.properties.get('Group By Key', '')[:PROPERTY_LENGTH] + '...')
             if 'GroupAggregate' in node.name and enable_hashagg == 0:
                 typical_scene = True
