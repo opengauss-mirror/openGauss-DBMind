@@ -26,7 +26,21 @@ from .featurelib import load_feature_lib, get_feature_mapper
 from .query_feature import QueryFeature
 from ..slow_sql import query_info_source
 
-_system_table_keywords = ('PG_', 'GS_')
+# In general, 'application name' can be used to judge whether it is a DevOps-SQL,
+# but it cannot be provided in an interactive situation, so in order to roughly
+# judge whether it is DevOps-SQL when the database cannot be connected, we write them locally.
+# Due to the complexity of actual business, the results may not be accurate, but its impact is limited.
+_system_table_keywords = ('PG_CLASS', 'PG_STAT_DATABASE', 'PG_STAT_REPLICATION', 'STATEMENT',
+                          'STATEMENT_HISTORY', 'GLOBAL_WAIT_EVENTS', 'PG_STAT_USER_TABLES',
+                          'PG_STATIO_USER_TABLES', 'PG_STAT_USER_INDEXES', 'PG_STATIO_USER_INDEXES',
+                          'PG_STAT_DATABASE_CONFLICTS', 'PG_STAT_ACTIVITY', 'PG_LOCKS', 'PG_INDEXES',
+                          'GLOBAL_SESSION_STAT_ACTIVITY', 'PG_STAT_REPLICATION', 'PG_REPLICATION_SLOTS',
+                          'PG_DATABASE', 'PG_CONTROL_CHECKPOINT', 'PG_STAT_BGWRITER', 'GS_SESSION_MEMORY_DETAIL',
+                          'GLOBAL_RECOVERY_STATUS', 'PG_XLOG_LOCATION_DIFF', 'STATEMENT_RESPONSETIME_PERCENTILE',
+                          'PG_PREPARED_XACTS', 'GS_SQL_COUNT', 'PG_JOB', 'GS_REDO_STAT', 'LOCL_CKPT_STAT',
+                          'LOCAL_DOUBLE_WRITE_STAT', 'GS_TOTAL_MEMORY_DETAIL', 'SUMMARY_FILE_IOSTAT', 'INSTANCE_TIME',
+                          'PG_JOB', 'PG_NAMESPACE', 'PG_CONSTRAINT')
+_system_query_threshold = 0.6
 _white_list_of_type = ('SELECT', 'UPDATE', 'DELETE', 'INSERT')
 
 retention_seconds = global_vars.configs.getint('SELF-MONITORING', 'result_storage_retention', fallback=0)
@@ -178,12 +192,14 @@ class SlowSQLAnalyzer:
             root_cause = RootCause.get(FEATURES_CAUSE_MAPPER.get('C_INVALID_SQL'))
             query_context.slow_sql_instance.add_cause(root_cause)
             return
-        if sum(item in query_context.slow_sql_instance.query.upper() for item in _system_table_keywords):
+        query = query_context.slow_sql_instance.query
+        self.associate_table_with_schema(query, query_context.slow_sql_instance.schema_name, exist_tables)
+        if len(exist_tables) and \
+                sum(item in query_context.slow_sql_instance.query.upper() for item in _system_table_keywords) / \
+                len(exist_tables) > _system_query_threshold:
             root_cause = RootCause.get(FEATURES_CAUSE_MAPPER.get('C_VIEW'))
             query_context.slow_sql_instance.add_cause(root_cause)
             return
-        query = query_context.slow_sql_instance.query
-        self.associate_table_with_schema(query, query_context.slow_sql_instance.schema_name, exist_tables)
         query_context.slow_sql_instance.tables_name = exist_tables
         feature_generator = QueryFeature(query_context)
         feature_generator.initialize_metrics()
