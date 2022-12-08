@@ -30,7 +30,7 @@ class Interval:
     def __sub__(self, other):
         if self.column == other.column:
             return Interval(self.interval - other.interval, self.column) if not (
-                    self.interval - other.interval).is_empty() else False
+                self.interval - other.interval).is_empty() else False
         return True
 
     def __or__(self, other):

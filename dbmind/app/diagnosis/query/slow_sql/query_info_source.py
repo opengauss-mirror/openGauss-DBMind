@@ -18,8 +18,9 @@ from datetime import datetime
 from functools import wraps
 
 from dbmind.common.parser import plan_parsing
-from dbmind.common.parser.sql_parsing import fill_value, standardize_sql, replace_comma_with_dollar
-from dbmind.common.parser.sql_parsing import remove_parameter_part
+from dbmind.common.parser.sql_parsing import replace_question_mark_with_value, replace_question_mark_with_dollar
+from dbmind.common.parser.sql_parsing import fill_value, standardize_sql
+from dbmind.common.parser.sql_parsing import remove_parameter_part, is_query_normalized
 from dbmind.common.parser.sql_parsing import to_ts, get_generate_prepare_sqls_function
 from dbmind.common.utils import ExceptionCatcher
 from dbmind import global_vars
@@ -327,7 +328,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         :param expansion_factor: Ensure that the time expansion rate of the data can be collected
         """
         super().__init__(slow_sql_instance)
-        self.query_type = 'normal'
+        self.query_type = 'raw'
         self.fetch_interval = self.acquire_fetch_interval()
         self.expansion_factor = kwargs.get('expansion_factor', 3)
         self.query_start_time = datetime.fromtimestamp(self.slow_sql_instance.start_at / 1000)
@@ -346,6 +347,8 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         if self.slow_sql_instance.track_parameter:
             self.standard_query = fill_value(self.slow_sql_instance.query)
             self.slow_sql_instance.query = remove_parameter_part(slow_sql_instance.query)
+        if is_query_normalized(self.standard_query):
+            self.query_type = 'normalized'
         self.standard_query = standardize_sql(self.standard_query)
         if self.slow_sql_instance.query_plan is None:
             self.slow_sql_instance.query_plan = self.acquire_plan(self.standard_query)
@@ -356,34 +359,36 @@ class QueryContextFromTSDBAndRPC(QueryContext):
     @exception_catcher
     def acquire_plan(self, query):
         query_plan = ''
-        query = query.replace('\"', '')
-        stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
-                                                        query)
-        rows = global_vars.agent_rpc_client.call('query_in_database',
-                                                 stmts,
-                                                 self.slow_sql_instance.db_name,
-                                                 return_tuples=False,
-                                                 fetch_all=False)
-
-        if not rows:
-            # Get execution plan based on PBE
-            no_comma_query = replace_comma_with_dollar(query)
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
             stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(
-                get_generate_prepare_sqls_function()(no_comma_query))
+                get_generate_prepare_sqls_function()(query))
             rows = global_vars.agent_rpc_client.call('query_in_database',
                                                      stmts,
                                                      self.slow_sql_instance.db_name,
                                                      return_tuples=False,
                                                      fetch_all=True)
-            self.query_type = 'desensitization'
-        if not rows:
-            return query_plan
-        if self.query_type == 'desensitization':
-            rows = rows[-2]
+            if len(rows) == 4 and rows[-2]:
+                self.query_type = 'desensitization'
+                rows = rows[-2]
+        else:
+            query = query.replace('\"', '')
+            stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
+                                                            query)
+            rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                     stmts,
+                                                     self.slow_sql_instance.db_name,
+                                                     return_tuples=False,
+                                                     fetch_all=False)
         for row in rows:
+            if not row:
+                continue
             query_plan += row.get('QUERY PLAN') + '\n'
-        if query_plan:
-            return query_plan
+        if not query_plan:
+            logging.warning("The plan is not fetched for query: %s", query)
+            return
+        return query_plan
 
     @exception_follower(output=15)
     @exception_catcher
@@ -454,7 +459,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         if not self.slow_sql_instance.tables_name:
             return table_structure
         tuples_statistics_stmt = """
-            select abs(r1.n_live_tup - r2.reltuples) diff from pg_stat_user_tables r1, pg_class r2 
+            select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2 
             where r1.schemaname = '{schemaname}' and r2.relname = '{relname}' and r1.relname = r2.relname;
         """
         user_table_stmt = """
@@ -466,9 +471,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                    extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay, 
                    case when (last_data_changed is null) then -1 else 
                    extract(epoch from pg_catalog.now() - last_data_changed)::bigint end as data_changed_delay 
-            FROM pg_stat_user_tables psut,
-                 pg_statio_user_tables psio
-            WHERE psut.schemaname = '{schemaname}' and psut.relname = '{relname}'
+            FROM pg_stat_user_tables where schemaname = '{schemaname}' and relname = '{relname}'
         """
         pg_index_stmt = """
             select indexrelname, pg_get_indexdef(indexrelid) as indexdef from 
@@ -513,9 +516,10 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                         f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                         datname=f"{self.slow_sql_instance.db_name}").filter(
                         schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
-                    last_data_changed_delay_info = dai.get_metric_sequence("pg_tables_structure_last_data_changed_delay",
-                                                                           self.query_start_time,
-                                                                           self.query_end_time).from_server(
+                    last_data_changed_delay_info = dai.get_metric_sequence(
+                        "pg_tables_structure_last_data_changed_delay",
+                        self.query_start_time,
+                        self.query_end_time).from_server(
                         f"{self.slow_sql_instance.db_host}:{self.slow_sql_instance.db_port}").filter(
                         datname=f"{self.slow_sql_instance.db_name}").filter(
                         schemaname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
@@ -682,9 +686,6 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         mem_usage_info = dai.get_metric_sequence("os_mem_usage", self.query_start_time,
                                                  self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        load_average_info1 = dai.get_metric_sequence("load_average1", self.query_start_time,
-                                                     self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
         process_fds_rate_info = dai.get_metric_sequence("os_process_fds_rate", self.query_start_time,
                                                         self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
@@ -715,15 +716,15 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         # it is suitable for situations where only one instance exists on a machine, db_mem_usage is the same as him.
         if is_sequence_valid(db_cpu_usage_info):
             system_info.db_cpu_usage = _get_sequences_sum_value(db_cpu_usage_info, precision=4) / \
-                                       (system_info.cpu_core_number * 100)
+                (system_info.cpu_core_number * 100)
         if is_sequence_valid(db_mem_usage_info):
             system_info.db_mem_usage = _get_sequences_sum_value(db_mem_usage_info, precision=4)
         if is_sequence_valid(cpu_usage_info):
             system_info.system_cpu_usage = _get_sequence_first_value(cpu_usage_info, precision=4) - \
-                                           system_info.db_cpu_usage
+                system_info.db_cpu_usage
         if is_sequence_valid(mem_usage_info):
             system_info.system_mem_usage = _get_sequence_first_value(mem_usage_info, precision=4) - \
-                                           system_info.db_mem_usage
+                system_info.db_mem_usage
         return system_info
 
     @exception_follower(output=NetWorkInfo)
@@ -763,8 +764,12 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         if not self.standard_query.upper().startswith('SELECT'):
             return ''
         rewritten_flags = []
+        query = self.standard_query
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
         rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
-                                            self.standard_query,
+                                            query,
                                             rewritten_flags=rewritten_flags,
                                             if_format=False)
         flag = rewritten_flags[0]
@@ -772,6 +777,8 @@ class QueryContextFromTSDBAndRPC(QueryContext):
             return ''
         rewritten_sql = rewritten_sql.replace('\n', ' ')
         rewritten_sql_plan = self.acquire_plan(rewritten_sql)
+        if rewritten_sql_plan is None:
+            return ''
         old_sql_plan_parse = plan_parsing.Plan()
         rewritten_sql_plan_parse = plan_parsing.Plan()
         # Abandon the rewrite if the rewritten statement does not perform as well as the original statement.
@@ -786,6 +793,9 @@ class QueryContextFromTSDBAndRPC(QueryContext):
     def acquire_index_analysis_info(self) -> tuple:
         recommend_indexes, redundant_indexes = [], []
         query = self.standard_query
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
         executor = RpcExecutor(self.slow_sql_instance.db_name, None, None, None, None,
                                self.slow_sql_instance.schema_name)
         template = {query: {'cnt': 1, 'samples': [query]}}
@@ -871,13 +881,15 @@ class QueryContextFromTSDBAndRPC(QueryContext):
 class QueryContextFromDriver(QueryContext):
     def __init__(self, slow_sql_instance, **kwargs):
         super().__init__(slow_sql_instance)
+        self.query_type = 'raw'
         self.standard_query = self.slow_sql_instance.query
         self.driver = kwargs.get('driver')
-        self.query_type = 'normal'
         self.standard_query = self.slow_sql_instance.query
         if self.slow_sql_instance.track_parameter:
             self.standard_query = fill_value(self.slow_sql_instance.query)
             self.slow_sql_instance.query = remove_parameter_part(slow_sql_instance.query)
+        if is_query_normalized(self.standard_query):
+            self.query_type = 'normalized'
         self.standard_query = standardize_sql(self.standard_query)
         if self.slow_sql_instance.query_plan is None:
             self.slow_sql_instance.query_plan = self.acquire_plan(self.standard_query)
@@ -888,20 +900,25 @@ class QueryContextFromDriver(QueryContext):
     @exception_catcher
     def acquire_plan(self, query):
         query_plan = ''
-        stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name, query)
-        rows = self.driver.query(stmts, return_tuples=True)
-        if not rows:
-            no_comma_query = replace_comma_with_dollar(query)
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
             stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(
-                get_generate_prepare_sqls_function()(no_comma_query))
+                get_generate_prepare_sqls_function()(query))
             rows = self.driver.query(stmts, return_tuples=True, fetch_all=True)
             if len(rows) == 4 and rows[-2]:
                 rows = rows[-2]
-                self.query_type = "desensitization"
+        else:
+            query = query.replace('\"', '')
+            stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name, query)
+            rows = self.driver.query(stmts, return_tuples=True)
         for row in rows:
             if not row:
                 continue
             query_plan += row[0] + '\n'
+        if not query_plan:
+            logging.warning("The plan is not fetched for query: %s", query)
+            return
         return query_plan
 
     @exception_follower(output=dict)
@@ -954,7 +971,7 @@ class QueryContextFromDriver(QueryContext):
     def acquire_tables_structure_info(self):
         tables_info = []
         tuples_statistics_stmt = """
-            select abs(r1.n_live_tup - r2.reltuples) diff from pg_stat_user_tables r1, pg_class r2 
+            select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2 
             where r1.schemaname = '{schemaname}' and r2.relname = '{relname}' and r1.relname = r2.relname;
         """
         user_table_stmt = """
@@ -966,9 +983,7 @@ class QueryContextFromDriver(QueryContext):
                    extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay, 
                    case when (last_data_changed is null) then -1 else 
                    extract(epoch from pg_catalog.now() - last_data_changed)::bigint end as data_changed_delay 
-            FROM pg_stat_user_tables psut 
-                 join pg_statio_user_tables psio on psut.relname = psio.relname and psut.schemaname = psio.schemaname  
-            WHERE psut.schemaname = '{schemaname}' and psut.relname = '{relname}'
+            FROM pg_stat_user_tables where schemaname = '{schemaname}' and relname = '{relname}';
         """
         pg_index_stmt = """
             select indexrelname, pg_get_indexdef(indexrelid) as indexdef from 
@@ -1021,16 +1036,16 @@ class QueryContextFromDriver(QueryContext):
             row = self.driver.query(stmts.format(metric_name=parameter), return_tuples=False)
             if is_driver_result_valid(row):
                 pg_setting = PgSetting()
-                pg_setting.name = row[0].get('name')
-                pg_setting.vartype = row[0].get('vartype')
+                pg_setting.name = _get_driver_value(row, 'name')
+                pg_setting.vartype = _get_driver_value(row, 'vartype')
                 if pg_setting.vartype in ('integer', 'int64'):
-                    pg_setting.setting = int(row[0].get('setting'))
+                    pg_setting.setting = int(_get_driver_value(row, 'setting'))
                 elif pg_setting.vartype == 'bool':
-                    pg_setting.setting = 1 if pg_setting.setting == 'on' else 0
+                    pg_setting.setting = 1 if _get_driver_value(row, 'setting') == 'on' else 0
                 elif pg_setting.vartype == 'real':
-                    pg_setting.setting = float(row[0].get('setting'))
+                    pg_setting.setting = float(_get_driver_value(row, 'setting'))
                 else:
-                    pg_setting.setting = row[0].get('setting')
+                    pg_setting.setting = _get_driver_value(row, 'setting')
                 pg_settings[parameter] = pg_setting
         return pg_settings
 
@@ -1092,8 +1107,12 @@ class QueryContextFromDriver(QueryContext):
         if not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
             return ''
         rewritten_flags = []
+        query = self.standard_query
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
         rewritten_sql = toolkit_rewrite_sql(self.slow_sql_instance.db_name,
-                                            self.slow_sql_instance.query,
+                                            query,
                                             rewritten_flags=rewritten_flags,
                                             if_format=False,
                                             driver=self.driver)
@@ -1102,6 +1121,8 @@ class QueryContextFromDriver(QueryContext):
             return ''
         rewritten_sql = rewritten_sql.replace('\n', ' ')
         rewritten_sql_plan = self.acquire_plan(rewritten_sql)
+        if rewritten_sql_plan is None:
+            return ''
         old_sql_plan_parse = plan_parsing.Plan()
         rewritten_sql_plan_parse = plan_parsing.Plan()
         # Abandon the rewrite if the rewritten statement does not perform as well as the original statement.
@@ -1116,6 +1137,9 @@ class QueryContextFromDriver(QueryContext):
     def acquire_index_analysis_info(self):
         recommend_indexes, redundant_indexes = [], []
         query = self.standard_query
+        if self.query_type == 'normalized':
+            query = replace_question_mark_with_value(query)
+            query = replace_question_mark_with_dollar(query)
         executor = RpcExecutor(self.slow_sql_instance.db_name, None, None, None, None,
                                self.slow_sql_instance.schema_name, driver=self.driver)
         template = {query: {'cnt': 1, 'samples': [query]}}
@@ -1180,4 +1204,3 @@ class QueryContextFromDriver(QueryContext):
             timed_task.last_end_date = _get_driver_value(rows, 'last_end_date')
             timed_task_list.append(timed_task)
         return timed_task_list
-

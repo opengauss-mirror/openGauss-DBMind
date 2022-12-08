@@ -95,9 +95,9 @@ class Box:
 
     def __eq__(self, other):
         return isinstance(other, Box) \
-               and (self.shape == other.shape) \
-               and np.allclose(self.low, other.low, equal_nan=True) \
-               and np.allclose(self.high, other.high, equal_nan=True)
+            and (self.shape == other.shape) \
+            and np.allclose(self.low, other.low, equal_nan=True) \
+            and np.allclose(self.high, other.high, equal_nan=True)
 
 
 class Env:

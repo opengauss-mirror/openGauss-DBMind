@@ -29,17 +29,6 @@ YELLOW_FMT = "\033[33;1m{}\033[0m"
 WHITE_FMT = "\033[37;1m{}\033[0m"
 
 
-def update_emit(handler):
-    """Update emit of handler to ensure that if the log is deleted, it can be regenerated."""
-    handler.emit_old = handler.emit
-
-    def emit(self, record):
-        if not os.path.exists(self.baseFilename):
-            self.stream = open(self.baseFilename, 'a', encoding=self.encoding)
-        handler.emit_old(self, record)
-    handler.emit = emit
-
-
 class cached_property:
     """A decorator for caching a property."""
 
@@ -260,6 +249,8 @@ class MultiProcessingRFHandler(RotatingFileHandler):
                 if self._should_exit and self._queue.empty():
                     break
                 record = self._queue.get(timeout=.2)
+                if not os.path.exists(self.baseFilename):
+                    self.stream = open(self.baseFilename, 'a', encoding=self.encoding)
                 super().emit(record)
             except (KeyboardInterrupt, SystemExit):
                 raise
@@ -426,4 +417,3 @@ def chmod_r(path, directory_mode=0o700, file_mode=0o600):
         for f in files:
             os.chmod(os.path.join(root, f), file_mode)
     os.chmod(path, directory_mode)
-

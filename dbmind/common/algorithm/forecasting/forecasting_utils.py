@@ -49,7 +49,7 @@ def lag_matrix(x, nlags):
 
     res = np.zeros((n + nlags, nlags + 1))
     for i in range(0, nlags + 1):
-        res[i:i+n, i] = x
+        res[i: i + n, i] = x
 
     return res
 

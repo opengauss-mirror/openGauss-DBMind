@@ -322,9 +322,9 @@ class SequenceTree:
         fetch the missing sequences from the
         time-series database and add them to the tree."""
         if (
-                self._root is None
-                or end < self._root.start
-                or start > self._root.end
+                self._root is None or
+                end < self._root.start or
+                start > self._root.end
         ):
             return (start, end),
 

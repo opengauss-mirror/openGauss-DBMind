@@ -132,7 +132,7 @@ class HttpService:
         config.load()
         if config.is_ssl:
             config.ssl.options |= (
-                    ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
+                ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
             )  # RFC 7540 Section 9.2: MUST be TLS >=1.2
             config.ssl.set_ciphers('DHE+AESGCM:ECDHE+AESGCM')
         self._server = Server(config)

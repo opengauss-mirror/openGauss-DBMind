@@ -350,6 +350,3 @@ def test_calculate_nearest_feature():
     assert len(nearest_feature) == 1
     assert nearest_feature[0][0] == 1
     assert nearest_feature[0][1] == 13
-
-
-

@@ -267,8 +267,8 @@ def main(argv):
                           labels=args.labels, upper=args.upper, lower=args.lower, save_path=args.csv_dump_path)
     except Exception as e:
         write_to_terminal('An error occurred probably due to database operations, '
-                          'please check database configurations. For details:\n'
-                          + str(e), color='red', level='error')
+                          'please check database configurations. For details:\n' +
+                          str(e), color='red', level='error')
         traceback.print_tb(e.__traceback__)
         return 2
     return args

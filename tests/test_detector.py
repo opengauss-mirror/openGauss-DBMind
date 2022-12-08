@@ -414,7 +414,7 @@ def test_level_shift_detector():
         False, False, False, False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
-        True,  False, False, False, False, False, False, False, False, False
+        True, False, False, False, False, False, False, False, False, False
     )
     assert res.values == correct_data
 
@@ -443,7 +443,7 @@ def test_volatility_shift_detector():
     res = model.fit_predict(raw_data)
     correct_data = (
         False, False, False, False, False, False, False, False, False, False,
-        False, False, False, False, False, False, False, False, True,  False,
+        False, False, False, False, False, False, False, False, True, False,
         False, False, False, False, False, False, False, False, False, False,
         False, False, False, False, False, False, False, False, False, False,
     )

@@ -66,5 +66,3 @@ def construct_dividing_line(title='', padding='-'):
         return padding * term_width
     else:
         return padding * side_width + ' ' + title + ' ' + padding * side_width
-
-

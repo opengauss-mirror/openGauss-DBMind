@@ -284,7 +284,7 @@ class IndexAdvisor:
             # Filter the candidate indexes that do not meet the conditions of optimization.
             logging.info(f'filter low benefit index for {index}')
             if not positive_queries:
-                logging.info(f'filtered: positive_queries not found for the index')
+                logging.info('filtered: positive_queries not found for the index')
                 continue
             if sql_optimized / sql_num['positive'] < improved_rate and total_benefit < MAX_BENEFIT_THRESHOLD:
                 logging.info(f"filtered: improved_rate {sql_optimized / sql_num['positive']} less than {improved_rate}")
@@ -292,7 +292,7 @@ class IndexAdvisor:
             if sql_optimized / sql_num['positive'] < \
                     NEGATIVE_RATIO_THRESHOLD < negative_sql_ratio:
                 logging.info(f'filtered: improved_rate {sql_optimized / sql_num["positive"]} < '
-                            f'negative_ratio_threshold < negative_sql_ratio {negative_sql_ratio} is not met')
+                             f'negative_ratio_threshold < negative_sql_ratio {negative_sql_ratio} is not met')
                 continue
             logging.info(f'{index} has benefit of {self.workload.get_index_benefit(index)}')
             if MAX_INDEX_STORAGE and (index_current_storage + index.get_storage()) > MAX_INDEX_STORAGE:
@@ -329,19 +329,19 @@ class IndexAdvisor:
             # invalid indexes caused by recommended indexes
             source_index = index.get_source_index()
             if source_index and (not source_index.is_primary_key()) and (not source_index.get_is_unique()):
-                bar_print(f'\tCurrently existing useless indexes:')
+                bar_print('\tCurrently existing useless indexes:')
                 bar_print(f'\t\t{source_index.get_indexdef()}')
                 useless_indexes.append(source_index.get_indexdef())
 
             # information about existing indexes
             created_indexes = table_indexes.get(index.get_table(), [])
             if created_indexes:
-                bar_print(f'\tExisting indexes of this relation:')
+                bar_print('\tExisting indexes of this relation:')
                 for created_index in created_indexes:
                     bar_print(f'\t\t{created_index.get_indexdef()}')
                     existing_indexes.append(created_index.get_indexdef())
 
-            bar_print(f'\tImproved query:')
+            bar_print('\tImproved query:')
             # get benefit rate for subsequent sorting and display
             query_benefit_rate = []
             for query in sorted(index.get_positive_queries(), key=lambda query: -query.get_benefit()):
@@ -358,11 +358,11 @@ class IndexAdvisor:
                 query_benefit = query_origin_cost - current_cost
                 origin_plan = self.workload.get_indexes_plan_of_query(query, None)
                 current_plan = self.workload.get_indexes_plan_of_query(query, tuple([index]))
-                bar_print(f'\t\t\tCost benefit for the query: %.2f' % query_benefit)
+                bar_print('\t\t\tCost benefit for the query: %.2f' % query_benefit)
                 bar_print('\t\t\tCost improved rate for the query: %.2f%%' % (query_improved_rate * 100))
                 bar_print(f'\t\t\tQuery number: {int(query.get_frequency())}')
                 if len(query.get_indexes()) > 1:
-                    bar_print(f'\t\t\tOther optimal indexes:')
+                    bar_print('\t\t\tOther optimal indexes:')
                     for temp_index in query.get_indexes():
                         if temp_index is index:
                             continue
@@ -731,7 +731,8 @@ def estimate_workload_cost_file(executor, workload, indexes=None):
         index_setting_sqls = get_index_setting_sqls(indexes, is_multi_node(executor))
         hypo_index_ids = parse_hypo_index(executor.execute_sqls(index_setting_sqls))
         update_index_storage(indexes, hypo_index_ids, executor)
-        costs, index_names, plans = get_workload_costs([query.get_statement() for query in workload.get_queries()], executor)
+        costs, index_names, plans = get_workload_costs([query.get_statement() for query in
+                                                        workload.get_queries()], executor)
         # Update query cost for select queries and positive_pos for indexes.
         for cost, query_pos in zip(costs, select_queries_pos):
             query_costs[query_pos] = cost * workload.get_queries()[query_pos].get_frequency()
@@ -854,7 +855,7 @@ def get_redundant_created_indexes(indexes: List[ExistingIndex], unused_indexes: 
             # Redundant objects are not in the useless index set, or
             # both redundant objects and redundant index in the useless index must be redundant index.
             index_exist = redundant_obj not in unused_indexes or \
-                          (redundant_obj in unused_indexes and index in unused_indexes)
+                (redundant_obj in unused_indexes and index in unused_indexes)
             if index_exist:
                 is_redundant = True
         if not is_redundant:
@@ -1020,8 +1021,6 @@ def generate_candidate_indexes(workload: WorkLoad, executor: BaseExecutor, n_dis
         original_base_indexes = get_original_base_indexes(original_indexes)
         for pos, query in GLOBAL_PROCESS_BAR.process_bar(list(enumerate(workload.get_queries())), 'Candidate indexes'):
             advised_indexes = []
-            if not has_dollar_placeholder(query.get_statement()):
-                advised_indexes = query_index_advise(executor, query.get_statement())
             for advised_index in generate_query_placeholder_indexes(query.get_statement(), executor, n_distinct,
                                                                     reltuples, use_all_columns,
                                                                     ):

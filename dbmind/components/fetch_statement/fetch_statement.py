@@ -22,7 +22,7 @@ from dbmind.common.utils.checking import CheckWordValid
 from dbmind.components.index_advisor.sql_generator import get_prepare_sqls
 from dbmind.components.index_advisor.executors import gsql_executor
 from dbmind.components.index_advisor.index_advisor_workload import get_password
-from dbmind.common.parser.sql_parsing import replace_comma_with_dollar
+from dbmind.common.parser.sql_parsing import replace_question_mark_with_dollar
 
 
 def get_fetch_queries(statement_type, database, schema, **kwargs) -> List[str]:
@@ -99,7 +99,7 @@ def fetch_statements(conn, statement_type, database, schema, **kwargs):
                 re.match(r'SELECT \d+;', statement):
             continue
         statement = add_semicolon(statement)
-        statement = replace_comma_with_dollar(statement)
+        statement = replace_question_mark_with_dollar(statement)
         statements.append(statement)
     return statements
 

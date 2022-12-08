@@ -115,7 +115,7 @@ def do_index_recomm(templatization_args, db_name, schemas, database_templates, o
 
 
 def get_queries(database_templates, db_name, schemas, optimization_interval, templatization_args):
-    source = 'pg_sql_statement_full_count'
+    source = 'tsdb_metric'
     start_time = datetime.now() - timedelta(seconds=optimization_interval)
     end_time = datetime.now()
     queries = []

@@ -13,7 +13,6 @@
 """DBMind common functionality interface"""
 
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 import signal
 import sys
@@ -145,7 +144,6 @@ class DBMindMain(Daemon):
         os.makedirs(log_directory, exist_ok=True)
         max_bytes = global_vars.configs.getint('LOG', 'maxbytes')
         backup_count = global_vars.configs.getint('LOG', 'backupcount')
-        utils.update_emit(RotatingFileHandler)
         logging_handler = utils.MultiProcessingRFHandler(filename=os.path.join(log_directory, constants.LOGFILE_NAME),
                                                          maxBytes=max_bytes,
                                                          backupCount=backup_count)

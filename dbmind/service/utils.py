@@ -53,6 +53,7 @@ def is_rpc_valid():
         return result[0][0] == 1
     except Exception:
         global_vars.agent_rpc_client = None
+        logging.warning("Maybe the RPC service isn't started.", exc_info=True)
         return False
 
 
@@ -63,6 +64,7 @@ def is_tsdb_valid():
         client = TsdbClientFactory.get_tsdb_client()
         return client.check_connection()
     except Exception:
+        logging.warning("Maybe the TSDB service isn't started.", exc_info=True)
         return False
 
 

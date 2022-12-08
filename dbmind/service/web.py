@@ -101,7 +101,7 @@ def get_metric_forecast_sequence(metric_name, from_timestamp=None, to_timestamp=
     forecast_length_factor = 0.33  # 1 / 3
     if from_timestamp is None or to_timestamp is None:
         forecast_minutes = (sequences[0].timestamps[-1] - sequences[0].timestamps[0]) * \
-                           forecast_length_factor / 60 / 1000
+            forecast_length_factor / 60 / 1000
     else:
         forecast_minutes = (to_timestamp - from_timestamp) * forecast_length_factor / 60 / 1000
 
@@ -379,9 +379,9 @@ def get_latest_indexes_stat():
         latest_indexes_stat['stmt_count'] += res.stmt_count
         latest_indexes_stat['positive_sql_count'] += res.positive_stmt_count
     latest_indexes_stat['valid_index'] = (
-            len(list(dao.index_recommendation.get_existing_indexes())) -
-            latest_indexes_stat['redundant_indexes'] -
-            latest_indexes_stat['invalid_indexes']
+        len(list(dao.index_recommendation.get_existing_indexes())) -
+        latest_indexes_stat['redundant_indexes'] -
+        latest_indexes_stat['invalid_indexes']
     )
     return latest_indexes_stat
 
@@ -750,6 +750,10 @@ def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_t
     root_causes, suggestions = [], []
     if query is None:
         return root_causes, suggestions
+    if data_source == 'tsdb':
+        from dbmind.service.utils import is_rpc_valid, is_tsdb_valid
+        if not is_tsdb_valid() or not is_rpc_valid():
+            return root_causes, suggestions
     track_parameter = exist_track_parameter(query)
     from dbmind.common.types import SlowQuery
     slow_sql_instance = SlowQuery(db_host=None,
@@ -799,6 +803,37 @@ def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_t
         logging.exception(e)
         return [], []
     return root_causes, suggestions
+
+
+def toolkit_get_query_plan(query, data_source='tsdb', url=None):
+    if query is None:
+        return '', ''
+    if data_source == 'tsdb':
+        from dbmind.service.utils import is_rpc_valid, is_tsdb_valid
+        if not is_tsdb_valid() or not is_rpc_valid():
+            return '', ''
+    from dbmind.common.types import SlowQuery
+    track_parameter = exist_track_parameter(query)
+    slow_sql_instance = SlowQuery(query=query, track_parameter=track_parameter)
+    if data_source == 'tsdb':
+        from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
+        query_context = QueryContextFromTSDBAndRPC(slow_sql_instance)
+        query_plan = slow_sql_instance.query_plan
+        return query_plan, query_context.query_type
+    else:
+        from psycopg2.extensions import parse_dsn
+
+        from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromDriver
+        from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
+        host, port, dbname = parse_dsn(url).get('host'), parse_dsn(url).get('port'), parse_dsn(url).get('dbname')
+        slow_sql_instance.db_host = host
+        slow_sql_instance.db_port = port
+        slow_sql_instance.db_name = dbname
+        driver = Driver()
+        driver.initialize(url)
+        query_context = QueryContextFromDriver(slow_sql_instance, driver=driver)
+        query_plan = slow_sql_instance.query_plan
+        return query_plan, query_context.query_type
 
 
 def get_metric_statistic():

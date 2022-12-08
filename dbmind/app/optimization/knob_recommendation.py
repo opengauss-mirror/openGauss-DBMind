@@ -332,6 +332,3 @@ class RPCAndTSDBMetric(AbstractMetric):
     @cached_property
     def is_hdd(self):
         return False
-
-
-

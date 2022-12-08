@@ -423,4 +423,3 @@ def mock_get_slow_queries(monkeypatch, mock_dai):
     monkeypatch.setattr(mock_dai, 'get_latest_metric_sequence',
                         mock.Mock(side_effect=lambda x, y: MockedFetcher(metric=x)))
     monkeypatch.setattr(mock_dai, 'get_metric_sequence', mock.Mock(side_effect=lambda x, y, z: MockedFetcher(metric=x)))
-

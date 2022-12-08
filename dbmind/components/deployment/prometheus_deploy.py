@@ -463,15 +463,15 @@ def deploy(configs, online=False):
 
     block_dict = {
         "dir": (
-                glob.glob(os.path.join(EXTRACT_PATH, configs.get(DOWNLOADING, "prometheus"), "data")) +
-                glob.glob(os.path.join(DBMIND_PATH, "**", ".*"), recursive=True) +
-                glob.glob(os.path.join(DBMIND_PATH, "docs")) +
-                glob.glob(os.path.join(DBMIND_PATH, "tests")) +
-                glob.glob(os.path.join(DBMIND_PATH, "**", "__pycache__"), recursive=True)
+            glob.glob(os.path.join(EXTRACT_PATH, configs.get(DOWNLOADING, "prometheus"), "data")) +
+            glob.glob(os.path.join(DBMIND_PATH, "**", ".*"), recursive=True) +
+            glob.glob(os.path.join(DBMIND_PATH, "docs")) +
+            glob.glob(os.path.join(DBMIND_PATH, "tests")) +
+            glob.glob(os.path.join(DBMIND_PATH, "**", "__pycache__"), recursive=True)
         ),
         "file": (
-                glob.glob(os.path.join(DBMIND_PATH, "**", ".gitignore"), recursive=True) +
-                glob.glob(os.path.join(DBMIND_PATH, "**", "*.log"), recursive=True)
+            glob.glob(os.path.join(DBMIND_PATH, "**", ".gitignore"), recursive=True) +
+            glob.glob(os.path.join(DBMIND_PATH, "**", "*.log"), recursive=True)
         )
     }
 

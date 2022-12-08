@@ -562,4 +562,3 @@ def save_regular_inspection_results(results):
     for row in results:
         logging.debug('[REGULAR INSPECTION] %s', str(row))
         dao.regular_inspections.insert_regular_inspection(**row)
-

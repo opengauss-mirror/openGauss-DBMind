@@ -83,7 +83,7 @@ class TsdbClientFactory(object):
         if cls.tsdb_client is None:
             raise ApiClientException("Failed to init TSDB client, please check config file.")
 
-        if (cls.tsdb_client.timestamp() > 0
-                and abs(cls.tsdb_client.timestamp() - time.time() * 1000) > 60 * 1000):  # threshold is 1 minute.
+        if (cls.tsdb_client.timestamp() > 0 and
+                abs(cls.tsdb_client.timestamp() - time.time() * 1000) > 60 * 1000):  # threshold is 1 minute.
             raise_fatal_and_exit('Found clock drift between TSDB client and server, '
                                  'please check and synchronize system clocks.')

@@ -175,8 +175,7 @@ class AdvisedIndex:
 
     def get_index_statement(self):
         table_name = self.get_table().split('.')[-1]
-        index_name = 'idx_%s_%s%s' % (table_name, (self.get_index_type()
-                                                   + '_' if self.get_index_type() else ''),
+        index_name = 'idx_%s_%s%s' % (table_name, (self.get_index_type() + '_' if self.get_index_type() else ''),
                                       '_'.join(self.get_columns().split(COLUMN_DELIMITER))
                                       )
         statement = 'CREATE INDEX %s ON %s%s%s;' % (index_name, self.get_table(),
@@ -357,7 +356,7 @@ class WorkLoad:
             self.__indexes_list.index(indexes if indexes else None)]
 
     @lru_cache(maxsize=None)
-    def get_indexes_plan_of_query(self, query:QueryItem, indexes: (Tuple[AdvisedIndex], None)):
+    def get_indexes_plan_of_query(self, query: QueryItem, indexes: (Tuple[AdvisedIndex], None)):
         return self.__plan_list[self.__queries.index(query)][
             self.__indexes_list.index(indexes if indexes else None)]
 
@@ -402,8 +401,8 @@ class WorkLoad:
                 insert_queries.append(query)
                 if not self.is_positive_query(index, query):
                     negative_queries.append(query)
-            elif any(re.match(r'(delete\s+from\s+%s\s)' % table, query.get_statement().lower())
-                     or re.match(r'(delete\s+%s\s)' % table, query.get_statement().lower())
+            elif any(re.match(r'(delete\s+from\s+%s\s)' % table, query.get_statement().lower()) or
+                     re.match(r'(delete\s+%s\s)' % table, query.get_statement().lower())
                      for table in [cur_table, cur_table.split('.')[-1]]):
                 delete_queries.append(query)
                 if not self.is_positive_query(index, query):
@@ -420,13 +419,13 @@ class WorkLoad:
             positive_queries = [query for query in insert_queries + delete_queries + update_queries + select_queries
                                 if query not in negative_queries + ineffective_queries]
         return insert_queries, delete_queries, update_queries, select_queries, \
-               positive_queries, ineffective_queries, negative_queries
+            positive_queries, ineffective_queries, negative_queries
 
     @lru_cache(maxsize=None)
     def get_index_sql_num(self, index: AdvisedIndex):
         insert_queries, delete_queries, update_queries, \
-        select_queries, positive_queries, ineffective_queries, \
-        negative_queries = self.get_index_related_queries(index)
+            select_queries, positive_queries, ineffective_queries, \
+            negative_queries = self.get_index_related_queries(index)
         insert_sql_num = sum(query.get_frequency() for query in insert_queries)
         delete_sql_num = sum(query.get_frequency() for query in delete_queries)
         update_sql_num = sum(query.get_frequency() for query in update_queries)

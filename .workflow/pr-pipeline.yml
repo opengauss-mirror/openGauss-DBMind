@@ -8,36 +8,29 @@ triggers:
       include:
         - master
 stages:
-  - name: test
-    displayName: test
+  - name: compile
+    displayName: build
     strategy: naturally
     trigger: auto
     steps:
-      - step: execute@docker
-        name: execute_by_docker
-        displayName: python3.9-slim-docker
-        certificate: ''
-        image: docker.io/python:3.9-slim
-        command:
-          - apt update
+      - step: build@python
+        name: build_python
+        displayName: Python build
+        pythonVersion: '3.9'
+        commands:
+          - pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
           - ''
-          - apt install wget -y
-          - apt install zip -y
-          - ''
-          - mkdir workspace
-          - cd workspace
-          - ''
-          - wget -O master.zip https://gitee.com/opengauss/openGauss-DBMind/repository/archive/master.zip
-          - unzip master.zip
-          - ''
-          - cd openGauss-DBMind-master
+          - 'ls -l '
+          - env
+          - 'git --version '
           - ''
           - python3 -m pip install -r requirements-x86.txt
           - python3 -m pip install pytest
           - ''
           - python3 -m pytest tests
           - ''
-          - ''
-        notify: []
-        strategy:
-          retry: '0'
+        artifacts:
+          - name: BUILD_ARTIFACT
+            path:
+              - ./
+        strategy: {}

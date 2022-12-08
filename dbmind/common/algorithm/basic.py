@@ -136,4 +136,3 @@ def djb_hash(str_):
         hashcode = ((hashcode << 5) + hashcode) + ord(char)
         hashcode &= 0xFFFFFFFF
     return hashcode
-

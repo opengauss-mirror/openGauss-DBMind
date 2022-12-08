@@ -121,4 +121,3 @@ def raise_fatal_and_exit(
         exit(exitcode)
     else:
         os.kill(signal.SIGQUIT, os.getppid())
-
