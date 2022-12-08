@@ -101,7 +101,7 @@ def get_metric_forecast_sequence(metric_name, from_timestamp=None, to_timestamp=
     forecast_length_factor = 0.33  # 1 / 3
     if from_timestamp is None or to_timestamp is None:
         forecast_minutes = (sequences[0].timestamps[-1] - sequences[0].timestamps[0]) * \
-                           forecast_length_factor / 60 / 1000
+            forecast_length_factor / 60 / 1000
     else:
         forecast_minutes = (to_timestamp - from_timestamp) * forecast_length_factor / 60 / 1000
 
@@ -379,9 +379,9 @@ def get_latest_indexes_stat():
         latest_indexes_stat['stmt_count'] += res.stmt_count
         latest_indexes_stat['positive_sql_count'] += res.positive_stmt_count
     latest_indexes_stat['valid_index'] = (
-            len(list(dao.index_recommendation.get_existing_indexes())) -
-            latest_indexes_stat['redundant_indexes'] -
-            latest_indexes_stat['invalid_indexes']
+        len(list(dao.index_recommendation.get_existing_indexes())) -
+        latest_indexes_stat['redundant_indexes'] -
+        latest_indexes_stat['invalid_indexes']
     )
     return latest_indexes_stat
 

@@ -77,4 +77,3 @@ class Alarm:
             )
             index += 1
         return '\n'.join(lines)
-

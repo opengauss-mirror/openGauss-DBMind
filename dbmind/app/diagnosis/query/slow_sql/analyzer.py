@@ -207,4 +207,3 @@ class SlowSQLAnalyzer:
         """Further to avoid repetition and diagnosis for slow sql"""
         if self._is_diagnosed(query_context.slow_sql_instance, strict=False):
             query_context.slow_sql_instance.mark_replicated()
-

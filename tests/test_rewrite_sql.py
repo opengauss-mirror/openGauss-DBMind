@@ -28,8 +28,9 @@ mapper = {'DistinctStar': {
         'select * from bmsql_config a, bmsql_config b;':
             'SELECT a.cfg_name, a.cfg_value, b.cfg_name, b.cfg_value FROM bmsql_config AS a, bmsql_config AS b;',
         'select * from (select * from bmsql_config a, bmsql_config b);':
-            'SELECT * FROM (SELECT a.cfg_name, a.cfg_value, b.cfg_name, b.cfg_value FROM bmsql_config AS a, bmsql_config AS b);'
-    },
+            'SELECT * FROM (SELECT a.cfg_name, a.cfg_value, b.cfg_name, b.cfg_value '
+            'FROM bmsql_config AS a, bmsql_config AS b);'
+},
     'Having2Where': {
         """select
         ps_partkey,
@@ -66,23 +67,32 @@ LIMIT 1;""": "SELECT ps_partkey, SUM(ps_supplycost * ps_availqty) AS value "
              "GROUP BY ps_partkey ORDER BY value DESC LIMIT 1;"},
     'ImplicitConversion': {
         'select * from bmsql_oorder where o_w_id +1  >3;':
-            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder WHERE o_w_id > 2;',
+            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d '
+            'FROM bmsql_oorder WHERE o_w_id > 2;',
         'select * from bmsql_oorder where o_w_id +1 < 3;':
-            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder WHERE o_w_id < 2;',
+            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d '
+            'FROM bmsql_oorder WHERE o_w_id < 2;',
         'select * from bmsql_oorder where o_w_id -1  >3;':
-            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder WHERE o_w_id > 4;',
+            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d '
+            'FROM bmsql_oorder WHERE o_w_id > 4;',
         'select * from bmsql_oorder where o_w_id -1 < 3;':
-            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder WHERE o_w_id < 4;',
+            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d '
+            'FROM bmsql_oorder WHERE o_w_id < 4;',
         'select * from bmsql_oorder where o_w_id * 0 < 3;':
-            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder;',
+            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d '
+            'FROM bmsql_oorder;',
         'select * from bmsql_oorder where o_w_id * 2 < 3;':
-            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder WHERE o_w_id < 1.5;',
+            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d '
+            'FROM bmsql_oorder WHERE o_w_id < 1.5;',
         'select * from bmsql_oorder where o_w_id * -2 < 3;':
-            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder WHERE o_w_id > -1.5;',
+            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d '
+            'FROM bmsql_oorder WHERE o_w_id > -1.5;',
         'select * from bmsql_oorder where o_w_id / -2 < 3;':
-            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder WHERE o_w_id > -6;',
+            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d '
+            'FROM bmsql_oorder WHERE o_w_id > -6;',
         'select * from bmsql_oorder where o_w_id / 2 < 3;':
-            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d FROM bmsql_oorder WHERE o_w_id < 6;',
+            'SELECT o_w_id, o_d_id, o_id, o_c_id, o_carrier_id, o_ol_cnt, o_all_local, o_entry_d '
+            'FROM bmsql_oorder WHERE o_w_id < 6;',
         'select * from bmsql_oorder where o_w_id /0 >3;':
             'select * from bmsql_oorder where o_w_id /0 >3;'},
     'OrderbyConst': {
@@ -95,8 +105,7 @@ LIMIT 1;""": "SELECT ps_partkey, SUM(ps_supplycost * ps_availqty) AS value "
     'UnionAll': {
         'select * from bmsql_config union select * from bmsql_config;':
             'SELECT cfg_name, cfg_value FROM bmsql_config UNION ALL SELECT cfg_name, cfg_value FROM bmsql_config;'},
-    'Delete2Truncate': {'delete from bmsql_config;':
-                            'TRUNCATE TABLE bmsql_config;'},
+    'Delete2Truncate': {'delete from bmsql_config;': 'TRUNCATE TABLE bmsql_config;'},
     'Or2In': {
         "select * from bmsql_stock where  s_w_id=10 or  s_w_id=1 or s_w_id=100 or  s_i_id=1 or s_i_id=10":
             '''SELECT s_w_id,
@@ -125,32 +134,45 @@ WHERE s_i_id IN (1,
     'SelfJoin': {
         'select a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id;':
             'SELECT * FROM '
-            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id) / 20) = TRUNC(b.c_id / 20) AND a.c_id > b.c_id '
-            'UNION ALL SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id) / 20) = TRUNC(b.c_id / 20 + 1) AND a.c_id - b.c_id <= 20);',
+            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id) / 20) = TRUNC(b.c_id / 20) AND a.c_id > b.c_id '
+            'UNION ALL SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id) / 20) = TRUNC(b.c_id / 20 + 1) AND a.c_id - b.c_id <= 20);',
         'select a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1;':
             'SELECT * FROM '
-            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
+            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
             'UNION ALL '
-            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20);',
-        'select a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by 1;':
+            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20);',
+            'select a.c_id from bmsql_customer a, bmsql_customer b '
+            'where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by 1;':
             'SELECT * FROM '
-            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
+            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
             'UNION ALL '
-            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
+            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
             'ORDER BY 1;',
-        'select a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by a.c_id;':
+        'select a.c_id from bmsql_customer a, bmsql_customer b '
+        'where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by a.c_id;':
             'SELECT * FROM '
-            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
+            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
             'UNION ALL '
-            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
+            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
             'ORDER BY 1;',
-        'select distinct a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by a.c_id;':
+        'select distinct a.c_id from bmsql_customer a, bmsql_customer b '
+        'where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by a.c_id;':
             'SELECT * FROM '
-            '(SELECT DISTINCT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
+            '(SELECT DISTINCT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
             'UNION ALL '
-            'SELECT DISTINCT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
+            'SELECT DISTINCT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
             'ORDER BY 1;',
-    },
+},
     'In2Exists': {
         'SELECT * FROM T1 WHERE T1.C1 NOT IN (SELECT T2.C2 FROM T2);':
             'SELECT * FROM t1 WHERE NOT EXISTS (SELECT * FROM t2 WHERE t1.c1 = t2.c2);',
@@ -162,7 +184,7 @@ WHERE s_i_id IN (1,
         'SELECT * FROM T1 WHERE T1.C1 NOT IN (SELECT T2.C2 FROM T2) or T1.C1 IN (select C3 from T3) limit 10;':
             'SELECT * FROM t1 WHERE NOT EXISTS (SELECT * FROM t2 WHERE t1.c1 = t2.c2) OR EXISTS '
             '(SELECT * FROM t3 WHERE t1.c1 = t3.c3) LIMIT 10;',
-    },
+},
     'Group2Hash': {
         'select c_d_id, max(distinct c_id), max(distinct c_w_id) from bmsql_customer where c_w_id > 10 '
         'group by c_d_id limit 10':
@@ -176,7 +198,7 @@ WHERE s_i_id IN (1,
         'group by c_d_id order by c_d_id':
             'SELECT c_d_id, MAX(c_id), MAX(c_w_id) FROM (SELECT c_d_id, c_id, c_w_id FROM bmsql_customer '
             'WHERE c_w_id > 10 GROUP BY c_d_id, c_id, c_w_id ORDER BY c_d_id) GROUP BY c_d_id;',
-    },
+},
 }
 
 offline_mapper = {
@@ -196,8 +218,7 @@ offline_mapper = {
     'UnionAll': {
         'select cfg_name, cfg_value from bmsql_config union select cfg_name, cfg_value from bmsql_config;':
             'SELECT cfg_name, cfg_value FROM bmsql_config UNION ALL SELECT cfg_name, cfg_value FROM bmsql_config;'},
-    'Delete2Truncate': {'delete from bmsql_config;':
-                            'TRUNCATE TABLE bmsql_config;'},
+    'Delete2Truncate': {'delete from bmsql_config;': 'TRUNCATE TABLE bmsql_config;'},
     'Or2In': {
         "select s_w_id from bmsql_stock where  s_w_id=10 or  s_w_id=1 or s_w_id=100 or  s_i_id=1 or s_i_id=10":
             '''SELECT s_w_id
@@ -210,30 +231,43 @@ WHERE s_i_id IN (1,
     'SelfJoin': {
         'select a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id;':
             'SELECT * FROM '
-            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id) / 20) = TRUNC(b.c_id / 20) AND a.c_id > b.c_id '
-            'UNION ALL SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id) / 20) = TRUNC(b.c_id / 20 + 1) AND a.c_id - b.c_id <= 20);',
+            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id) / 20) = TRUNC(b.c_id / 20) AND a.c_id > b.c_id '
+            'UNION ALL SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id) / 20) = TRUNC(b.c_id / 20 + 1) AND a.c_id - b.c_id <= 20);',
         'select a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1;':
             'SELECT * FROM '
-            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
+            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
             'UNION ALL '
-            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20);',
-        'select a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by 1;':
+            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20);',
+        'select a.c_id from bmsql_customer a, bmsql_customer b '
+            'where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by 1;':
             'SELECT * FROM '
-            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
+            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
             'UNION ALL '
-            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
+            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
             'ORDER BY 1;',
-        'select a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by a.c_id;':
+        'select a.c_id from bmsql_customer a, bmsql_customer b '
+            'where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by a.c_id;':
             'SELECT * FROM '
-            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
+            '(SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
             'UNION ALL '
-            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
+            'SELECT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
             'ORDER BY 1;',
-        'select distinct a.c_id from bmsql_customer a, bmsql_customer b where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by a.c_id;':
+        'select distinct a.c_id from bmsql_customer a, bmsql_customer b '
+            'where a.c_id - b.c_id <= 20 and a.c_id > b.c_id + 1 order by a.c_id;':
             'SELECT * FROM '
-            '(SELECT DISTINCT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
+            '(SELECT DISTINCT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19) AND a.c_id - b.c_id > 1 '
             'UNION ALL '
-            'SELECT DISTINCT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
+            'SELECT DISTINCT a.c_id FROM bmsql_customer AS a, bmsql_customer AS b '
+            'WHERE TRUNC((a.c_id + -1) / 19) = TRUNC(b.c_id / 19 + 1) AND a.c_id - b.c_id <= 20) '
             'ORDER BY 1;',
     }
 }
@@ -254,7 +288,7 @@ table_exists_primary = {'bmsql_config': True,
                         'bmsql_customer': True,
                         'bmsql_oorder': True,
                         'bmsql_district': True}
-table_notnull_columns ={'t1': ['c1']}
+table_notnull_columns = {'t1': ['c1']}
 
 tableinfo = TableInfo()
 tableinfo.table_columns = table2columns_mapper

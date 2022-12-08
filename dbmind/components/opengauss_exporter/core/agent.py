@@ -47,9 +47,9 @@ def get_driver_address():
 
 def create_agent_rpc_service():
     def checker(username, pwd):
-        if (_agent_exclusive_driver.initialized
-                and _agent_exclusive_driver.username == username
-                and _agent_exclusive_driver.pwd == pwd):
+        if (_agent_exclusive_driver.initialized and
+            _agent_exclusive_driver.username == username and
+                _agent_exclusive_driver.pwd == pwd):
             return True
 
         host, port = get_driver_address()

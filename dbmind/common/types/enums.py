@@ -34,4 +34,3 @@ class ALARM_TYPES:
     ALARM_LOG = 'ALARM_LOG'
     ALARM = 'ALARM'
     SECURITY = 'SECURITY'
-

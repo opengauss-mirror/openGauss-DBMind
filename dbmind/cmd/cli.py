@@ -77,8 +77,7 @@ def build_parser():
     parser_component = subparsers.add_parser('component',
                                              help='pass command line arguments to each sub-component.')
     parser_component.add_argument('name', metavar='COMPONENT_NAME', choices=components,
-                                  help='choice a component to start. '
-                                       + str(components))
+                                  help='choice a component to start. ' + str(components))
     parser_component.add_argument('arguments', metavar='ARGS', nargs=argparse.REMAINDER,
                                   help='arguments for the component to start')
     return parser

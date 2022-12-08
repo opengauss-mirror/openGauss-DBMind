@@ -52,8 +52,8 @@ def get_database_schemas():
         executor = RpcExecutor(db_name, None, None, None, None, 'public')
         schemas = executor.execute_sqls(["select distinct(nspname) FROM pg_namespace nsp JOIN pg_class rel ON "
                                         "nsp.oid = rel.relnamespace WHERE nspname NOT IN "
-                                        "('pg_catalog', 'information_schema','snapshot', "
-                                        "'dbe_pldeveloper', 'db4ai', 'dbe_perf') AND rel.relkind = 'r';"])
+                                         "('pg_catalog', 'information_schema','snapshot', "
+                                         "'dbe_pldeveloper', 'db4ai', 'dbe_perf') AND rel.relkind = 'r';"])
         for schema_tuple in schemas:
             database_schemas[db_name].append(schema_tuple[0])
     return database_schemas
@@ -116,4 +116,3 @@ def do_index_recomm(templatization_args, db_name, schemas, database_templates, o
             detail_info['host'] = database_info.labels['from_instance']
             break
     return detail_info, {db_name: database_templates}
-

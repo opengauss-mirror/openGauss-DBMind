@@ -114,10 +114,9 @@ def get_workload_template(templates, sqls, args):
 
 def output_valid_sql(sql):
     is_quotation_valid = sql.count("'") % 2
-    if re.search(r'=([\s]+)?\$', sql) \
-            or re.search(
-                r'[\s]+\((([\s]+)?\$[\d]+([\s]+)?)((,([\s]+)?\$[\d]+([\s]+)?)+)?\)', sql
-            ):
+    if re.search(r'=([\s]+)?\$', sql) or \
+            re.search(r'[\s]+\((([\s]+)?\$[\d]+([\s]+)?)((,([\s]+)?\$[\d]+([\s]+)?)+)?\)', sql
+                      ):
         return ''
     if 'from pg_' in sql.lower() or 'gs_index_advise' in sql.lower() or is_quotation_valid:
         return ''

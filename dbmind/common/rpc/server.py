@@ -52,8 +52,7 @@ class RPCServer:
         self.checker = credential_checker
         self.rpc_executor = executor
 
-        if not (hasattr(self.rpc_executor, 'start')
-                and hasattr(self.rpc_executor, 'join')):
+        if not (hasattr(self.rpc_executor, 'start') and hasattr(self.rpc_executor, 'join')):
             raise ValueError('Unsupported executor.')
 
     def invoke_handler(self, _json: dict):

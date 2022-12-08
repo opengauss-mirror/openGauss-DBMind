@@ -104,8 +104,7 @@ class RPCJSONAble:
         if not isinstance(data, dict):
             raise ValueError('Given deserialize string should be a dict.')
 
-        if not (data[JSONABLE_KEYWORD]
-                and data[DTYPE_KEYWORD] != recognize_data_type(cls)):
+        if not (data[JSONABLE_KEYWORD] and data[DTYPE_KEYWORD] != recognize_data_type(cls)):
             raise TypeError('Not supported given data for performing from_json() method. '
                             'Should get data from json() method.')
 

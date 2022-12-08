@@ -351,7 +351,7 @@ class QueryFeature:
             self.detail['inserted_tuples'] = inserted_tuples
             if len(self.table_structure) == 1 and self.table_structure[0].live_tuples > 0:
                 self.detail["insert_large_data"] = "Insert a large number of tuples(%s rows)" % \
-                                                      round(inserted_tuples / self.table_structure[0].live_tuples, 4)
+                    round(inserted_tuples / self.table_structure[0].live_tuples, 4)
                 self.suggestion["insert_large_data"] = "Make adjustments to the business"
             return True
         else:
@@ -569,7 +569,7 @@ class QueryFeature:
                 self.detail['system_io_contention'] += "%s. Found a positive spike in IOPS" % indexes.pop(0)
         if io_utils_dict:
             self.detail['system_io_contention'] += '%s. The IO-Utils exceeds the threshold %s' \
-                                                  % (indexes.pop(0), monitoring.get_param('disk_ioutils_threshold'))
+                % (indexes.pop(0), monitoring.get_param('disk_ioutils_threshold'))
         self.suggestion['system_io_contention'] = "a. Detect whether processes outside the database " \
                                                   "compete for resources " \
                                                   "b. Check SLOW-SQL in database"
@@ -710,7 +710,7 @@ class QueryFeature:
         merge_join_info = self.plan_parse_info.find_operators('Merge Join', accurate=False)
         plan_total_cost = self.plan_parse_info.root_node.total_cost
         hashjoin_info = hash_inner_join_info + hash_left_join_info + hash_right_join_info + \
-                        hash_full_join_info + hash_anti_join_info + hash_right_semi_join_info + hash_semi_join_info
+            hash_full_join_info + hash_anti_join_info + hash_right_semi_join_info + hash_semi_join_info
         if plan_total_cost <= 0:
             return False
         abnormal_nestloop_info = [item for item in nestloop_info if _get_operator_total_cost(item) / plan_total_cost >=
@@ -746,7 +746,7 @@ class QueryFeature:
                              round(_get_operator_cost(node) * 100 / plan_total_cost, 2),
                              merge_cond)
             if 'Nested Loop' in node.name and _hashjoin_adaptor(node) and \
-                    min(child1.rows, child2.rows) >= monitoring.get_threshold('nestloop_rows_threshold') :
+                    min(child1.rows, child2.rows) >= monitoring.get_threshold('nestloop_rows_threshold'):
                 # If the number of outer-table rows of the nest-loop is large,
                 # the join node is considered inappropriate, in addition,
                 # the inner table needs to establish an efficient data access method.
@@ -823,8 +823,8 @@ class QueryFeature:
             matching_results = [item.replace('like', '~~') for item in matching_results]
             existing_functions = [sql_parsing.remove_bracket(item) for item in existing_functions]
             seq_scan_properties = ';'.join([node.properties.get('Filter').replace('\"', '') for
-                                  node in self.plan_parse_info.find_operators('Seq Scan', accurate=False)
-                                  if node.properties.get('Filter') is not None])
+                                           node in self.plan_parse_info.find_operators('Seq Scan', accurate=False)
+                                           if node.properties.get('Filter') is not None])
             for function in existing_functions:
                 if function in seq_scan_properties:
                     abnormal_functions.append(function)
@@ -837,7 +837,7 @@ class QueryFeature:
         if abnormal_regulations:
             index = indexes.pop(0)
             self.detail['string_matching'] += "%s. Existing grammatical structure: %s" % \
-                                             (index, ','.join(abnormal_regulations))
+                (index, ','.join(abnormal_regulations))
             self.suggestion['string_matching'] += "%s. Rewrite LIKE %%X into a range query" % index
         if abnormal_functions:
             index = indexes.pop(0)
@@ -863,8 +863,8 @@ class QueryFeature:
             return False
         self.detail['complex_execution_plan'], self.suggestion['complex_execution_plan'] = '', ''
         join_operator = self.plan_parse_info.find_operators('Hash Join', accurate=False) + \
-                        self.plan_parse_info.find_operators('Nested Loop', accurate=False) + \
-                        self.plan_parse_info.find_operators('Merge Join', accurate=False)
+            self.plan_parse_info.find_operators('Nested Loop', accurate=False) + \
+            self.plan_parse_info.find_operators('Merge Join', accurate=False)
         if len(join_operator) >= monitoring.get_threshold('complex_operator_threshold'):
             self.detail['complex_execution_plan'] = "The SQL statements involves " \
                                                     "%s JOIN operators" % \
@@ -1043,7 +1043,7 @@ class QueryFeature:
                 feature_vector.append(feature)
             except Exception as e:
                 logging.error(
-                'Cannot get the feature %s, for details: %s.', feature_name, e, exc_info=True
+                    'Cannot get the feature %s, for details: %s.', feature_name, e, exc_info=True
                 )
                 feature_vector.append(0)
         return feature_vector, self.detail, self.suggestion

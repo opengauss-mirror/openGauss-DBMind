@@ -198,8 +198,7 @@ def self_optimization():
             }
         )
 
-    if (constants.INDEX_OPTIMIZATION_NAME in global_vars.backend_timed_task
-            and need_recommend_index()):
+    if (constants.INDEX_OPTIMIZATION_NAME in global_vars.backend_timed_task and need_recommend_index()):
         database_schemas = get_database_schemas()
         results = global_vars.worker.parallel_execute(
             do_index_recomm,
@@ -497,8 +496,8 @@ def daily_inspection():
                 'catalog': 'diagnosis',
                 'msg': 'Updated daily inspection report.',
                 'time': int(time.time() * 1000)
-             }
-         )
+            }
+        )
     except Exception as e:
         logging.error(e, exc_info=True)
 

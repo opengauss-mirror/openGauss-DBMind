@@ -124,7 +124,7 @@ class RootCause:
     CPU_RESOURCE_CONTENTION = _Define('[SLOW SQL][SYSTEM CPU]',
                                       '{system_cpu_contention}.',
                                       '{system_cpu_contention}.'
-                                     )
+                                      )
     IO_RESOURCE_CONTENTION = _Define('[SLOW SQL][SYSTEM IO]',
                                      '{system_io_contention}.',
                                      '{system_io_contention}.'
@@ -140,7 +140,7 @@ class RootCause:
     OS_RESOURCE_CONTENTION = _Define('[SLOW SQL][FILE HANDLER]',
                                      '{os_resource_contention}.',
                                      '{os_resource_contention}.'
-                                    )
+                                     )
     WAIT_EVENT = _Define('[SLOW SQL][DATABASE]',
                          '{wait_event}',
                          )

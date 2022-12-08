@@ -73,7 +73,7 @@ def api_index_advise(sql_pairs, connection=None, dsn=None,
         multi_iter_mode=True, show_detail=True,
         n_distinct=0.02, reltuples=10, show_benefits=True,
         use_all_columns=True, improved_rate=improved_rate,
-        max_index_columns=max_index_columns, max_n_distinct=1/min_n_distinct,
+        max_index_columns=max_index_columns, max_n_distinct=1 / min_n_distinct,
     )
 
     redundant_indexes = []

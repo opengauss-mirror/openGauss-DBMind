@@ -76,5 +76,3 @@ def decrypt(s1: str, s2: str, iv: str, ct: str) -> str:
     ct = base64.b64decode(ct)
     pt = unpad(cipher.decrypt(ct), nb)
     return pt.decode()
-
-

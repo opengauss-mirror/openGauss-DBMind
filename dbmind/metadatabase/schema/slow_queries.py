@@ -44,4 +44,3 @@ class SlowQueries(Base):
     suggestion = Column(TEXT)
 
     idx_slow_query_hashcode = Index("idx_slow_query_hashcode", hashcode1, hashcode2)
-

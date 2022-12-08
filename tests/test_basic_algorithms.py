@@ -62,4 +62,3 @@ def test_hash_functions():
     assert basic.djb_hash(str1) == 981132161
     assert basic.djb_hash(str2) == 5381
     assert basic.djb_hash(str3) == 4269394821
-

@@ -415,4 +415,3 @@ def chmod_r(path, directory_mode=0o700, file_mode=0o600):
         for f in files:
             os.chmod(os.path.join(root, f), file_mode)
     os.chmod(path, directory_mode)
-

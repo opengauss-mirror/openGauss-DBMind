@@ -112,9 +112,9 @@ def update_history_alarm(alarm_id, alarm_status=None, end_at=None, recovery_time
     with get_session() as session:
         session.execute(
             update(HistoryAlarms)
-                .where(HistoryAlarms.history_alarm_id == alarm_id)
-                .values(**kwargs)
-                .execution_options(synchronize_session="fetch")
+            .where(HistoryAlarms.history_alarm_id == alarm_id)
+            .values(**kwargs)
+            .execution_options(synchronize_session="fetch")
         )
 
 

@@ -299,10 +299,10 @@ class Sequence(RPCJSONAble):
         if len(self) != len(other):
             return False
         return (
-                self.name == other.name and
-                self.labels == other.labels and
-                self.timestamps == other.timestamps and
-                self.values == other.values
+            self.name == other.name and
+            self.labels == other.labels and
+            self.timestamps == other.timestamps and
+            self.values == other.values
         )
 
     def __hash__(self):

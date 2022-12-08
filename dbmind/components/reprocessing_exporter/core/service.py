@@ -42,7 +42,7 @@ def register_prometheus_metrics(rule_filepath):
         if metric_name == 'gaussdb_dlp':
             _look_for_dlp_metrics = True
             _dlb_metric_definition = item
-            logging.info(f"Gauss Data Leak Protection metrics is on")
+            logging.info("Gauss Data Leak Protection metrics is on")
             for time_unit in item['time_units']:
                 _dlp_metric_units.append(time_unit)
             continue
