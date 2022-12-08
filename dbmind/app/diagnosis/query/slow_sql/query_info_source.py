@@ -459,7 +459,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         if not self.slow_sql_instance.tables_name:
             return table_structure
         tuples_statistics_stmt = """
-            select abs(r1.n_live_tup - r2.reltuples) diff from pg_stat_user_tables r1, pg_class r2 
+            select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2 
             where r1.schemaname = '{schemaname}' and r2.relname = '{relname}' and r1.relname = r2.relname;
         """
         user_table_stmt = """
@@ -471,9 +471,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                    extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay, 
                    case when (last_data_changed is null) then -1 else 
                    extract(epoch from pg_catalog.now() - last_data_changed)::bigint end as data_changed_delay 
-            FROM pg_stat_user_tables psut,
-                 pg_statio_user_tables psio
-            WHERE psut.schemaname = '{schemaname}' and psut.relname = '{relname}'
+            FROM pg_stat_user_tables where schemaname = '{schemaname}' and relname = '{relname}'
         """
         pg_index_stmt = """
             select indexrelname, pg_get_indexdef(indexrelid) as indexdef from 
@@ -778,6 +776,8 @@ class QueryContextFromTSDBAndRPC(QueryContext):
             return ''
         rewritten_sql = rewritten_sql.replace('\n', ' ')
         rewritten_sql_plan = self.acquire_plan(rewritten_sql)
+        if rewritten_sql_plan is None:
+            return ''
         old_sql_plan_parse = plan_parsing.Plan()
         rewritten_sql_plan_parse = plan_parsing.Plan()
         # Abandon the rewrite if the rewritten statement does not perform as well as the original statement.
@@ -970,7 +970,7 @@ class QueryContextFromDriver(QueryContext):
     def acquire_tables_structure_info(self):
         tables_info = []
         tuples_statistics_stmt = """
-            select abs(r1.n_live_tup - r2.reltuples) diff from pg_stat_user_tables r1, pg_class r2 
+            select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2 
             where r1.schemaname = '{schemaname}' and r2.relname = '{relname}' and r1.relname = r2.relname;
         """
         user_table_stmt = """
@@ -982,9 +982,7 @@ class QueryContextFromDriver(QueryContext):
                    extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay, 
                    case when (last_data_changed is null) then -1 else 
                    extract(epoch from pg_catalog.now() - last_data_changed)::bigint end as data_changed_delay 
-            FROM pg_stat_user_tables psut 
-                 join pg_statio_user_tables psio on psut.relname = psio.relname and psut.schemaname = psio.schemaname  
-            WHERE psut.schemaname = '{schemaname}' and psut.relname = '{relname}'
+            FROM pg_stat_user_tables where schemaname = '{schemaname}' and relname = '{relname}';
         """
         pg_index_stmt = """
             select indexrelname, pg_get_indexdef(indexrelid) as indexdef from 
@@ -1037,16 +1035,16 @@ class QueryContextFromDriver(QueryContext):
             row = self.driver.query(stmts.format(metric_name=parameter), return_tuples=False)
             if is_driver_result_valid(row):
                 pg_setting = PgSetting()
-                pg_setting.name = row[0].get('name')
-                pg_setting.vartype = row[0].get('vartype')
+                pg_setting.name = _get_driver_value(row, 'name')
+                pg_setting.vartype = _get_driver_value(row, 'vartype')
                 if pg_setting.vartype in ('integer', 'int64'):
-                    pg_setting.setting = int(row[0].get('setting'))
+                    pg_setting.setting = int(_get_driver_value(row, 'setting'))
                 elif pg_setting.vartype == 'bool':
-                    pg_setting.setting = 1 if pg_setting.setting == 'on' else 0
+                    pg_setting.setting = 1 if _get_driver_value(row, 'setting') == 'on' else 0
                 elif pg_setting.vartype == 'real':
-                    pg_setting.setting = float(row[0].get('setting'))
+                    pg_setting.setting = float(_get_driver_value(row, 'setting'))
                 else:
-                    pg_setting.setting = row[0].get('setting')
+                    pg_setting.setting = _get_driver_value(row, 'setting')
                 pg_settings[parameter] = pg_setting
         return pg_settings
 
@@ -1122,6 +1120,8 @@ class QueryContextFromDriver(QueryContext):
             return ''
         rewritten_sql = rewritten_sql.replace('\n', ' ')
         rewritten_sql_plan = self.acquire_plan(rewritten_sql)
+        if rewritten_sql_plan is None:
+            return ''
         old_sql_plan_parse = plan_parsing.Plan()
         rewritten_sql_plan_parse = plan_parsing.Plan()
         # Abandon the rewrite if the rewritten statement does not perform as well as the original statement.
