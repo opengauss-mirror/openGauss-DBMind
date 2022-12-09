@@ -168,7 +168,7 @@ def diagnosis(query, database, schema=None, start_time=None, end_time=None, url=
     print(output_table)
 
 
-def get_plan(query, url=None, data_source='tsdb'):
+def get_plan(query, database, schema=None, url=None, data_source='tsdb'):
     if data_source == 'tsdb':
         if not _initialize_rpc_service():
             write_to_terminal('RPC service not exists, existing...', color='red')
@@ -176,12 +176,25 @@ def get_plan(query, url=None, data_source='tsdb'):
         if not _initialize_tsdb_param():
             write_to_terminal('TSDB service not exists, existing...', color='red')
             return
+        if database is None:
+            write_to_terminal("Lack the information of 'database', stop to get plan...", color='red')
+            return
+        if not _is_database_exist(database):
+            write_to_terminal("Database does not exist, stop to get plan.", color='red')
+            return
+    if schema is None:
+        write_to_terminal("Lack the information of 'schema', use default value: 'public'.", color='yellow')
+        schema = 'public'
     from dbmind.service.web import toolkit_get_query_plan
     output_table = PrettyTable()
     field_names = ('normalized', 'plan')
     output_table.field_names = field_names
     output_table.align = "l"
-    query_plan, query_type = toolkit_get_query_plan(query, url=url, data_source=data_source)
+    query_plan, query_type = toolkit_get_query_plan(query=query,
+                                                    database=database,
+                                                    schema=schema,
+                                                    url=url,
+                                                    data_source=data_source)
     if query_type == 'normalized':
         output_table.add_row([True, query_plan])
     else:

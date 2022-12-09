@@ -805,7 +805,7 @@ def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_t
     return root_causes, suggestions
 
 
-def toolkit_get_query_plan(query, data_source='tsdb', url=None):
+def toolkit_get_query_plan(query, database=None, schema=None, data_source='tsdb', url=None):
     if query is None:
         return '', ''
     if data_source == 'tsdb':
@@ -814,7 +814,10 @@ def toolkit_get_query_plan(query, data_source='tsdb', url=None):
             return '', ''
     from dbmind.common.types import SlowQuery
     track_parameter = exist_track_parameter(query)
-    slow_sql_instance = SlowQuery(query=query, track_parameter=track_parameter)
+    slow_sql_instance = SlowQuery(query=query,
+                                  db_name=database,
+                                  schema_name=schema,
+                                  track_parameter=track_parameter)
     if data_source == 'tsdb':
         from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
         query_context = QueryContextFromTSDBAndRPC(slow_sql_instance)

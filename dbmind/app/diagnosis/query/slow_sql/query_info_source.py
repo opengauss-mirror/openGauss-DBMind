@@ -370,7 +370,6 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                                                      return_tuples=False,
                                                      fetch_all=True)
             if len(rows) == 4 and rows[-2]:
-                self.query_type = 'desensitization'
                 rows = rows[-2]
         else:
             query = query.replace('\"', '')
