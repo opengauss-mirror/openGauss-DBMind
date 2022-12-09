@@ -59,7 +59,7 @@ class Executor:
 
     def get_notnull_columns(self, table_name):
         sql = f"SELECT attname from pg_attribute where attrelid=(select oid from pg_class " \
-              f"where relname='{table_name}) and attnotnull=True"
+              f"where relname='{table_name}') and attnotnull=True"
         return [_tuple[0] for _tuple in self._execute(sql)]
 
     def syntax_check(self, sql):

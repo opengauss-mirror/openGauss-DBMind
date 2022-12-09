@@ -15,9 +15,9 @@ from itertools import count
 from functools import lru_cache
 
 try:
-    from .utils import get_placeholders
+    from .utils import get_placeholders, has_dollar_placeholder, replace_comma_with_dollar, replace_function_comma
 except ImportError:
-    from utils import get_placeholders
+    from utils import get_placeholders, has_dollar_placeholder, replace_comma_with_dollar, replace_function_comma
 
 counter = count(start=0, step=1)
 
@@ -39,6 +39,9 @@ def get_existing_index_sql(schema, tables):
 
 @lru_cache(maxsize=None)
 def get_prepare_sqls(statement):
+    if has_dollar_placeholder(statement):
+        statement = replace_function_comma(statement)
+        statement = replace_comma_with_dollar(statement)
     prepare_id = 'prepare_' + str(next(counter))
     placeholder_size = len(get_placeholders(statement))
     prepare_args = '' if not placeholder_size else '(%s)' % (','.join(['NULL'] * placeholder_size))

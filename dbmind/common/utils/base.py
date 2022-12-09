@@ -249,6 +249,8 @@ class MultiProcessingRFHandler(RotatingFileHandler):
                 if self._should_exit and self._queue.empty():
                     break
                 record = self._queue.get(timeout=.2)
+                if not os.path.exists(self.baseFilename):
+                    self.stream = open(self.baseFilename, 'a', encoding=self.encoding)
                 super().emit(record)
             except (KeyboardInterrupt, SystemExit):
                 raise

@@ -31,7 +31,7 @@ def clear_data():
 
 def insert_recommendation_stat(host, db_name, stmt_count, positive_stmt_count,
                                table_count, rec_index_count,
-                               redundant_index_count, invalid_index_count):
+                               redundant_index_count, invalid_index_count, stmt_source):
     with get_session() as session:
         session.add(IndexRecommendationStats(
             host=host,
@@ -42,6 +42,7 @@ def insert_recommendation_stat(host, db_name, stmt_count, positive_stmt_count,
             stmt_count=stmt_count,
             positive_stmt_count=positive_stmt_count,
             table_count=table_count,
+            stmt_source=stmt_source
         ))
 
 

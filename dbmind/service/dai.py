@@ -505,7 +505,8 @@ def _save_index_recomm(detail_info):
                                                         positive_stmt_count=positive_stmt_count,
                                                         table_count=table_count, rec_index_count=recommend_index_count,
                                                         redundant_index_count=redundant_index_count,
-                                                        invalid_index_count=invalid_index_count)
+                                                        invalid_index_count=invalid_index_count,
+                                                        stmt_source=detail_info['stmt_source'])
     return None
 
 

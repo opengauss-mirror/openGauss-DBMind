@@ -17,7 +17,6 @@ import getpass
 import logging
 import sys
 from copy import deepcopy
-from dataclasses import dataclass
 
 import sqlparse
 from prettytable import PrettyTable
@@ -96,11 +95,12 @@ def get_notnull_columns(tables, executor: Executor):
     return table_notnull_columns
 
 
-@dataclass
 class TableInfo:
-    table_columns: dict = None
-    table_exists_primary: dict = None
-    table_notnull_columns: dict = None
+
+    def __init__(self):
+        self.table_columns = None
+        self.table_exists_primary = None
+        self.table_notnull_columns = None
 
 
 def singleton(cls):
@@ -149,7 +149,8 @@ class SQLRewriter:
         parsed_sql = parse(sql)
         try:
             checked_rules, parsed_sql = self._apply_rules(parsed_sql, tableinfo)
-        except:
+        except Exception as e:
+            logging.warning(e)
             return False, sql if sql.endswith(';') else sql + ';'
         sql_string = format(parsed_sql) + ';'
         # correct "$(\d+)" to the correct placeholder format $(\d+)
