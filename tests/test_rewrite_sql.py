@@ -197,7 +197,7 @@ WHERE s_i_id IN (1,
         'select c_d_id, max(distinct c_id), max(distinct c_w_id) from bmsql_customer where c_w_id > 10 '
         'group by c_d_id order by c_d_id':
             'SELECT c_d_id, MAX(c_id), MAX(c_w_id) FROM (SELECT c_d_id, c_id, c_w_id FROM bmsql_customer '
-            'WHERE c_w_id > 10 GROUP BY c_d_id, c_id, c_w_id ORDER BY c_d_id) GROUP BY c_d_id;',
+            'WHERE c_w_id > 10 GROUP BY c_d_id, c_id, c_w_id) GROUP BY c_d_id ORDER BY c_d_id;',
 },
 }
 
