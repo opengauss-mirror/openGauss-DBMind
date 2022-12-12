@@ -145,19 +145,18 @@ class Group2Hash(Rule):
                         targetlist.append(target)
                         sub_targetlist.append(target)
                         continue
-                    # the target is not a column or a aggregation
-                    elif not (isinstance(target.get('value'), dict) and
-                              (not target.get('value').keys() - AGG_FUNCTIONS)):
+                    elif not (isinstance(target.get('value'), dict) and (not target.get('value').keys() -
+                                                                         AGG_FUNCTIONS - {'distinct'})):
                         return groupagg_count
-                agg_function = list(target.get('value').keys())[0]
+                agg_function = list(target.get('value').keys() - {'distinct'})[0]
                 # make sure distinct value is a column
-                if not isinstance(target.get('value').get(agg_function), dict) or \
-                        not target.get('value').get(agg_function).get('distinct') or \
-                        not isinstance(target.get('value').get(agg_function).get('distinct'), str):
+                if not isinstance(target.get('value').get(agg_function), str):
                     return groupagg_count
-                distinct_column = {'value': target.get('value').get(agg_function).get('distinct')}
+                distinct_column = {'value': target.get('value').get(agg_function)}
                 distinct_columns.append(distinct_column)
                 targetlist.append({'value': {agg_function: distinct_column}})
+                if target.get('name'):
+                    targetlist[-1].update({'name': target.get('name')})
                 if distinct_column not in sub_targetlist:
                     sub_targetlist.append(distinct_column)
             if distinct_columns:
@@ -166,7 +165,7 @@ class Group2Hash(Rule):
                 return groupagg_count
             sub_groupby_list = parsed_sql['groupby'] + distinct_columns
             sub_parsed_sql = {'select': sub_targetlist, 'from': parsed_sql['from'], 'groupby': sub_groupby_list}
-            for other_key in parsed_sql.keys() - {'select', 'from', 'limit', 'groupby'}:
+            for other_key in parsed_sql.keys() - {'select', 'from', 'limit', 'groupby', 'orderby'}:
                 sub_parsed_sql[other_key] = parsed_sql.pop(other_key)
             parsed_sql['from'] = sub_parsed_sql
             groupagg_count += 1
