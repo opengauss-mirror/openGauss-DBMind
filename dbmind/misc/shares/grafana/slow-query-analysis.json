@@ -1,14 +1,15 @@
 {
   "__inputs": [
     {
-      "name": "DS_DBMIND-METADATABASE-OPENGAUSS",
-      "label": "DBMind-metadatabase-openGauss",
+      "name": "DS_METADATABASE",
+      "label": "metadatabase",
       "description": "",
       "type": "datasource",
       "pluginId": "postgres",
       "pluginName": "PostgreSQL"
     }
   ],
+  "__elements": {},
   "__requires": [
     {
       "type": "panel",
@@ -26,7 +27,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "8.2.3"
+      "version": "9.2.7"
     },
     {
       "type": "panel",
@@ -63,7 +64,10 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": "-- Grafana --",
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -80,14 +84,16 @@
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "gnetId": null,
   "graphTooltip": 0,
   "id": null,
   "links": [],
   "liveNow": false,
   "panels": [
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -132,9 +138,13 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -165,7 +175,10 @@
       "type": "stat"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -211,9 +224,13 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "hide": false,
@@ -251,7 +268,10 @@
       "type": "stat"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -298,40 +318,42 @@
         "text": {},
         "textMode": "auto"
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "select pg_catalog.avg(duration_time) from tb_slow_queries;",
+          "rawSql": "SELECT\n  pg_catalog.avg(db_time/1000)\nFROM tb_slow_queries",
           "refId": "A",
           "select": [
             [
               {
                 "params": [
-                  "value"
+                  "pg_catalog.avg(db_time)"
                 ],
                 "type": "column"
               }
             ]
           ],
+          "table": "tb_slow_queries",
           "timeColumn": "time",
-          "where": [
-            {
-              "name": "$__timeFilter",
-              "params": [],
-              "type": "macro"
-            }
-          ]
+          "where": []
         }
       ],
       "title": "Mean Duration for Slow Query",
       "type": "stat"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -361,6 +383,7 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
+          "showLegend": true,
           "values": []
         },
         "pieType": "pie",
@@ -373,11 +396,16 @@
         },
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -408,7 +436,10 @@
       "type": "piechart"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -438,6 +469,7 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
+          "showLegend": true,
           "values": []
         },
         "pieType": "pie",
@@ -450,11 +482,16 @@
         },
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -485,7 +522,10 @@
       "type": "piechart"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -515,6 +555,7 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
+          "showLegend": true,
           "values": []
         },
         "pieType": "pie",
@@ -527,11 +568,16 @@
         },
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -562,7 +608,10 @@
       "type": "piechart"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -595,6 +644,8 @@
       "id": 16,
       "options": {
         "displayMode": "gradient",
+        "minVizHeight": 10,
+        "minVizWidth": 0,
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -606,9 +657,13 @@
         "showUnfilled": true,
         "text": {}
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -639,7 +694,10 @@
       "type": "bargauge"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -669,6 +727,7 @@
         "legend": {
           "displayMode": "list",
           "placement": "right",
+          "showLegend": true,
           "values": []
         },
         "pieType": "pie",
@@ -681,17 +740,22 @@
         },
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "pluginVersion": "7.5.5",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "WITH t_causes AS (SELECT trim(pg_catalog.split_part(pg_catalog.split_part(cause, ':', '2'), ',', '2')) AS title,\r\n                         trim(pg_catalog.split_part(pg_catalog.split_part(cause, ':', '2'), ',', '1'))::float AS prob\r\n   FROM\r\n     (SELECT pg_catalog.unnest(pg_catalog.regexp_split_to_array(root_cause, '\\n')) AS cause\r\n      FROM tb_slow_queries))\r\nSELECT title,\r\n       pg_catalog.sum(prob)\r\nFROM\r\n  t_causes\r\nGROUP BY title \r\nhaving title is not null;",
+          "rawSql": "WITH t_causes AS (SELECT trim(pg_catalog.split_part(pg_catalog.split_part(cause, ':', '2'), ',', '2')) AS title,\r\n                         trim(pg_catalog.split_part(pg_catalog.split_part(pg_catalog.split_part(cause, ':', '2'), ')', '1'), '(', '2'))::float AS prob\r\n   FROM\r\n     (SELECT pg_catalog.unnest(pg_catalog.regexp_split_to_array(root_cause, '\\n')) AS cause\r\n      FROM tb_slow_queries))\r\nSELECT title,\r\n       pg_catalog.sum(prob)\r\nFROM\r\n  t_causes\r\nGROUP BY title \r\nhaving title is not null;",
           "refId": "A",
           "select": [
             [
@@ -713,13 +777,14 @@
           ]
         }
       ],
-      "timeFrom": null,
-      "timeShift": null,
       "title": "Statistics for Root Cause",
       "type": "piechart"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -764,9 +829,13 @@
         "showThresholdMarkers": true,
         "text": {}
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -797,7 +866,10 @@
       "type": "gauge"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -842,9 +914,13 @@
         "showThresholdMarkers": true,
         "text": {}
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -875,7 +951,10 @@
       "type": "gauge"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -923,9 +1002,13 @@
         "showThresholdMarkers": true,
         "text": {}
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -956,7 +1039,10 @@
       "type": "gauge"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -1000,9 +1086,13 @@
         "showThresholdMarkers": true,
         "text": {}
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -1033,13 +1123,18 @@
       "type": "gauge"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "palette-classic"
           },
           "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -1096,19 +1191,25 @@
         "legend": {
           "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "time_series",
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "select (start_at / 1000)::bigint as time, pg_catalog.count(1) from tb_slow_queries group by time order by time;\n",
+          "rawSql": "select (insert_at / 1000)::bigint as time, pg_catalog.count(1) from tb_slow_queries group by time order by time;\n",
           "refId": "A",
           "select": [
             [
@@ -1134,7 +1235,10 @@
       "type": "timeseries"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1149,7 +1253,33 @@
           },
           "mappings": []
         },
-        "overrides": []
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "count",
+                  "4229442465"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 9,
@@ -1163,6 +1293,7 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
+          "showLegend": true,
           "values": []
         },
         "pieType": "pie",
@@ -1175,11 +1306,16 @@
         },
         "text": {},
         "tooltip": {
-          "mode": "single"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -1210,7 +1346,10 @@
       "type": "piechart"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -1220,15 +1359,15 @@
           "custom": {
             "align": "left",
             "displayMode": "auto",
-            "filterable": false
+            "filterable": false,
+            "inspect": false
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1272,12 +1411,23 @@
       },
       "id": 25,
       "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
         "sortBy": []
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -1308,7 +1458,10 @@
       "type": "table"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1316,15 +1469,15 @@
           },
           "custom": {
             "align": "auto",
-            "displayMode": "auto"
+            "displayMode": "auto",
+            "inspect": false
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1343,11 +1496,22 @@
       },
       "id": 34,
       "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
@@ -1378,7 +1542,10 @@
       "type": "table"
     },
     {
-      "datasource": "${DS_DBMIND-METADATABASE-OPENGAUSS}",
+      "datasource": {
+        "type": "postgres",
+        "uid": "${DS_METADATABASE}"
+      },
       "description": "",
       "fieldConfig": {
         "defaults": {
@@ -1388,15 +1555,15 @@
           "custom": {
             "align": "auto",
             "displayMode": "auto",
-            "filterable": true
+            "filterable": true,
+            "inspect": false
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -1415,6 +1582,13 @@
       },
       "id": 2,
       "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
         "showHeader": true,
         "sortBy": [
           {
@@ -1423,14 +1597,18 @@
           }
         ]
       },
-      "pluginVersion": "8.2.3",
+      "pluginVersion": "9.2.7",
       "targets": [
         {
+          "datasource": {
+            "type": "postgres",
+            "uid": "${DS_METADATABASE}"
+          },
           "format": "table",
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "select * from tb_slow_queries order by start_at desc limit 50;",
+          "rawSql": "select * from tb_slow_queries order by insert_at desc limit 50;",
           "refId": "A",
           "select": [
             [
@@ -1456,8 +1634,8 @@
       "type": "table"
     }
   ],
-  "refresh": "",
-  "schemaVersion": 31,
+  "refresh": false,
+  "schemaVersion": 37,
   "style": "dark",
   "tags": [],
   "templating": {
@@ -1471,5 +1649,6 @@
   "timezone": "",
   "title": "DBMind-slow-query-analysis",
   "uid": "KowbonKnz",
-  "version": 42
+  "version": 11,
+  "weekStart": ""
 }
