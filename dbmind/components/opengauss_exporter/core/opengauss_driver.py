@@ -158,7 +158,7 @@ class Driver:
                 except psycopg2.errors.UndefinedParameter:
                     logging.warning('UndefinedParameter while executing %s.', stmt)
                     result = []
-	        except psycopg2.errors.UndefinedColumn:
+                except psycopg2.errors.UndefinedColumn:
                     logging.warning('UndefinedColumn while executing %s.', stmt)
                     result = []
             self.put_conn(conn)
