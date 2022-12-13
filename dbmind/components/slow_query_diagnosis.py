@@ -278,7 +278,7 @@ def main(argv):
             diagnosis(args.query, args.database, args.schema,
                       start_time=args.start_time, end_time=args.end_time, url=args.url, data_source=args.data_source)
         elif args.action == 'get_plan':
-            get_plan(args.query, url=args.url, data_source=args.data_source)
+            get_plan(args.query, args.database, args.schema, url=args.url, data_source=args.data_source)
     except Exception as e:
         write_to_terminal('An error occurred probably due to database operations, '
                           'please check database configurations. For details:\n' +
