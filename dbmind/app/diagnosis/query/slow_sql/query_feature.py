@@ -269,6 +269,7 @@ class QueryFeature:
             self.detail['fetch_large_data'] = "Existing large scan situation. " \
                                               "Detail: fetch_tuples(%s), returned_rows(%s)" % \
                                               (fetched_tuples + returned_tuples, returned_rows)
+            self.suggestion['fetch_large_data'] = "According to business adjustments, try to avoid large scans"
             return True
         else:
             if self.plan_parse_info is None:
