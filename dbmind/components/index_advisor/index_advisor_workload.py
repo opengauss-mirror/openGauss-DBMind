@@ -103,7 +103,7 @@ def set_logger():
     )
     handler.setLevel(logging.INFO)
     handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(funcName)s - %(levelname)s - %(message)s'))
-    logger = logging.getLogger('index advisor')
+    logger = logging.getLogger()
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 
@@ -153,7 +153,7 @@ def is_valid_statement(conn, statement):
     if not res:
         return False
     for _tuple in res:
-        if _tuple[0].upper().startswith(ERROR_KEYWORD):
+        if _tuple[0].upper().startswith(ERROR_KEYWORD) or f' {ERROR_KEYWORD}: ' in _tuple[0].upper():
             return False
     return True
 
@@ -1318,9 +1318,6 @@ def main(argv):
                             default=4)
     arg_parser.add_argument("--min-reltuples", type=int,
                             help="Minimum reltuples value for the index column.", default=10000)
-    arg_parser.add_argument('--use-all-columns', action='store_true',
-                            help="Specify all related columns as candidates",
-                            default=False)
     arg_parser.add_argument("--multi-node", "--multi_node", action='store_true',
                             help="Whether to support distributed scenarios", default=False)
     arg_parser.add_argument("--json", action='store_true',
@@ -1353,9 +1350,10 @@ def main(argv):
             args.driver = None
     else:
         executor = GsqlExecutor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
+    use_all_columns = True
     index_advisor_workload(get_last_indexes_result(args.file), executor, args.file,
                            args.multi_iter_mode, args.show_detail, args.max_n_distinct, args.min_reltuples,
-                           args.use_all_columns, improved_rate=args.min_improved_rate,
+                           use_all_columns, improved_rate=args.min_improved_rate,
                            max_candidate_columns=args.max_candidate_columns, show_benefits=args.show_benefits)
 
 
