@@ -232,7 +232,7 @@ def convert_full_width_character_to_half_width(s):
     return transformed
 
 
-def download(path, url):
+def download(path, url, timeout=10):
     headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) '
                              'AppleWebKit/537.36 (KHTML, like Gecko) '
                              'Chrome/71.0.3578.98 '
@@ -247,7 +247,7 @@ def download(path, url):
     filepath = os.path.join(path, filename)
 
     try:  # make sure that stream == True
-        with s.get(url, stream=True, headers=headers, timeout=10, verify=False) as response:
+        with s.get(url, stream=True, headers=headers, timeout=timeout, verify=False) as response:
             content_size = int(response.headers['content-length'])
 
             if response.status_code == 200:  # 200 means success
@@ -360,7 +360,7 @@ def download_file(file, download_path, host):
     print('Downloading from {}, files will be placed at {}. '
           'The downloading may take a few minutes due to bad '
           'connection.'.format(url, download_path))
-    main_file_downloaded = download(download_path, url)
+    main_file_downloaded = download(download_path, url, 60 * 30)
     return main_file_downloaded
 
 
@@ -376,7 +376,7 @@ def download_sha256(file, download_path, host, sha256_checksum):
 
     url = url_generate(file, host)
     sha256_url = url.rsplit('/', 1)[0] + '/sha256sums.txt'
-    sha256_file_downloaded = download(download_path, sha256_url)
+    sha256_file_downloaded = download(download_path, sha256_url, 60)
     find_sha256(download_path, file)
     return sha256_file_downloaded
 

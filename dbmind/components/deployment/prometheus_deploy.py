@@ -452,7 +452,7 @@ def get_target_generator(exporters):
     return generate
 
 
-def deploy(configs, online=False):
+def deploy(configs, online=False, lite=False):
     """
     To deploy prometheus and exporters to the locations which are given in the config file.
     For once the prometheus and reprocessing exporter will be deployed at the same location.
@@ -503,7 +503,9 @@ def deploy(configs, online=False):
             upload_list = list()
             dbmind_permission = list()
             sftp.remote_executor([f"chmod +w -R {remote_dir}"])
-            upload_preparation(DBMIND_PATH, remote_dir)
+            if not lite:
+                upload_preparation(DBMIND_PATH, remote_dir)
+
             upload_preparation(os.path.join(EXTRACT_PATH, software),
                                os.path.join(remote_dir, software))
 
@@ -978,6 +980,8 @@ def main(argv):
                         help='Indicates the time in seconds to wait for response '
                              'from exporters when --check.')
     parser.add_argument('-v', '--version', action='version', version=__version__)
+    parser.add_argument('--lite', action='store_true',
+                        help='Only deploy Prometheus and node_exporter to the nodes locally.')
     args = vars(parser.parse_args(argv))
 
     if not (args['online'] or args['offline'] or args['run'] or args['check']):
@@ -1024,7 +1028,7 @@ def main(argv):
                 passwd_input(PROMETHEUS, configs)
                 passwd_input(EXPORTERS, configs)
 
-            deploy(configs, online=args['online'])
+            deploy(configs, online=args['online'], lite=args['lite'])
 
         if args['run'] or args['check']:
             if config_ports_has_conflict(configs):
