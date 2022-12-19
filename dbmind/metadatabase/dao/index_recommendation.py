@@ -107,15 +107,15 @@ def insert_recommendation(host, db_name, schema_name, tb_name, columns, index_ty
                                         index_stmt=index_stmt))
 
 
-def get_template_count():
+def get_template_start_id():
     with get_session() as session:
-        return session.query(IndexRecommendationStmtTemplates).count()
+        return session.query(func.min(IndexRecommendationStmtTemplates.id)).first()[0]
 
 
 def insert_recommendation_stmt_details(template_id, db_name, stmt, optimized, correlation_type, stmt_count):
     with get_session() as session:
         session.add(IndexRecommendationStmtDetails(
-            index_id=session.query(IndexRecommendation).count(),
+            index_id=session.query(func.max(IndexRecommendation.id)).first()[0],
             template_id=template_id,
             db_name=db_name,
             stmt=stmt,

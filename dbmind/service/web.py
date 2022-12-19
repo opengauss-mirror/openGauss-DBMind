@@ -360,7 +360,7 @@ def get_db_schema_table_count():
     db_set = set()
     schema_set = set()
     table_set = set()
-    results = dai.get_latest_metric_value('pg_class_relsize').fetchall()
+    results = dai.get_latest_metric_value('pg_tables_size_relsize').fetchall()
     for res in results:
         db_name, schema_name, table_name = res.labels['datname'], res.labels['nspname'], res.labels['relname']
         db_set.add(db_name)

@@ -19,6 +19,8 @@ import sys
 from copy import deepcopy
 
 import sqlparse
+from sqlparse.sql import Parenthesis, IdentifierList, Values
+from sqlparse.tokens import Punctuation, Whitespace
 from prettytable import PrettyTable
 from mo_sql_parsing import parse, format
 
@@ -70,6 +72,32 @@ def get_all_involved_tables(sql, table_names=None):
                 # for select nested statements
                 table_names.extend(get_all_involved_tables(parsed_sql['from'], []))
     return table_names
+
+
+def is_no_column_insert_sql(sql):
+    insert_p = re.compile(r'(\s+)?insert\s+into\s+\w+\s+values(\s+)?', re.IGNORECASE)
+    if insert_p.match(sql):
+        return True
+
+
+def get_insert_value_number(sql):
+    for token in sqlparse.parse(sql)[0].tokens:
+        if isinstance(token, Values):
+            for _token in token:
+                if isinstance(_token, Parenthesis):
+                    for x in _token.tokens:
+                        if x.ttype in (Punctuation, Whitespace):
+                            continue
+                        if isinstance(x, IdentifierList):
+                            return len([_ for _ in x.tokens if _.ttype not in (Whitespace, Punctuation)])
+                        else:
+                            return 1
+
+
+def rewrite_no_column_insert_sql(sql, columns):
+    column_number = get_insert_value_number(sql)
+    res = sql.lower().replace(' values', f' ({",".join(columns[:column_number])}) values')
+    return res
 
 
 def get_table_columns(sql, executor: Executor):
@@ -240,7 +268,15 @@ def main(argv):
         tables = tableinfo.table_columns.keys()
         tableinfo.table_exists_primary = exists_primary_key(tables, executor)
         tableinfo.table_notnull_columns = get_notnull_columns(tables, executor)
-        res, rewritten_sql = SQLRewriter().rewrite(formatted_sql, tableinfo)
+        if is_no_column_insert_sql(formatted_sql):
+            if len(tables) != 1:
+                res = False
+                rewritten_sql = formatted_sql
+            else:
+                res = True
+                rewritten_sql = rewrite_no_column_insert_sql(sql, tableinfo.table_columns[list(tables)[0]])
+        else:
+            res, rewritten_sql = SQLRewriter().rewrite(formatted_sql, tableinfo)
         if not executor.syntax_check(rewritten_sql) or not res:
             output_table.add_row([sql, '']) 
         else:
