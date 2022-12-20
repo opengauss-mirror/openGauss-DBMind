@@ -17,6 +17,8 @@ import unittest
 import sqlparse
 
 from dbmind.components.sql_rewriter import SQLRewriter, get_offline_rewriter, TableInfo
+from dbmind.components.sql_rewriter.sql_rewriter import get_insert_value_number, is_no_column_insert_sql,\
+    rewrite_no_column_insert_sql
 
 mapper = {'DistinctStar': {
     'select distinct * from bmsql_config join bmsql_district b on True;':
@@ -366,6 +368,20 @@ class RewriteTester(unittest.TestCase):
 
     def test_SelfJoin_offline(self):
         self.__test_rule_offline('SelfJoin')
+
+    def test_get_insert_value_number(self):
+        self.assertEqual(get_insert_value_number("insert into table values (1,'2'), (2,3))"), 2)
+        self.assertEqual(get_insert_value_number("insert into table values (1,'2'::interval), (2,3))"), 2)
+        self.assertEqual(get_insert_value_number("insert into table values (1,'2')"), 2)
+        self.assertEqual(get_insert_value_number("insert into table values (1)"), 1)
+
+    def test_is_no_column_insert_sql(self):
+        self.assertEqual(is_no_column_insert_sql('insert into table1 values (1,2,3)'), True)
+
+    def test_rewrite_no_column_insert_sql(self):
+        self.assertEqual(rewrite_no_column_insert_sql('insert into table1 values (1,2,3)',
+                                                      ['col1', 'col2', 'col3', 'col4']),
+                         'insert into table1 (col1,col2,col3) values (1,2,3)')
 
 
 if __name__ == '__main__':

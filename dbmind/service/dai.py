@@ -440,7 +440,7 @@ def _save_index_recomm(detail_info):
     uselessindexes = detail_info.get('uselessIndexes', [])
     created_indexes = detail_info.get('createdIndexes', [])
     table_set = set()
-    template_count = dao.index_recommendation.get_template_count()
+    templates = []
     for index_id, _recomm_index in enumerate(recommend_index):
         sql_details = _recomm_index['sqlDetails']
         optimized = _recomm_index['workloadOptimized']
@@ -462,18 +462,17 @@ def _save_index_recomm(detail_info):
                                                        select_ratio=selectratio, insert_ratio=insertratio,
                                                        delete_ratio=deleteratio, update_ratio=updateratio,
                                                        index_stmt=create_index_sql)
-        templates = []
         for workload_id, sql_detail in enumerate(sql_details):
             template = sql_detail['sqlTemplate']
-            if template not in templates:
-                templates.append(template)
+            if [template, db_name] not in templates:
+                templates.append([template, db_name])
                 dao.index_recommendation.insert_recommendation_stmt_templates(template, db_name)
             stmt = sql_detail['sql']
             stmt_count = sql_detail['sqlCount']
             optimized = sql_detail.get('optimized')
             correlation = sql_detail['correlationType']
             dao.index_recommendation.insert_recommendation_stmt_details(
-                template_id=template_count + templates.index(template) + 1,
+                template_id=templates.index([template, db_name]) + dao.index_recommendation.get_template_start_id(),
                 db_name=db_name, stmt=stmt,
                 optimized=optimized,
                 correlation_type=correlation,
