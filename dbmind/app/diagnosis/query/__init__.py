@@ -29,6 +29,6 @@ def diagnose_query(query_context):
     try:
         _analyzer.run(query_context)
     except Exception as e:
-        query_context.slow_sql_instance.add_cause(RootCause.get('LACK_INFORMATION'))
+        query_context.slow_sql_instance.add_cause(RootCause.get('EXISTING_EXCEPTION'))
         logging.exception(e)
     return query_context.slow_sql_instance

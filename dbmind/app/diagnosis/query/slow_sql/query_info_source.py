@@ -372,7 +372,6 @@ class QueryContextFromTSDBAndRPC(QueryContext):
             if len(rows) == 4 and rows[-2]:
                 rows = rows[-2]
         else:
-            query = query.replace('\"', '')
             stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
                                                             query)
             rows = global_vars.agent_rpc_client.call('query_in_database',
@@ -908,7 +907,6 @@ class QueryContextFromDriver(QueryContext):
             if len(rows) == 4 and rows[-2]:
                 rows = rows[-2]
         else:
-            query = query.replace('\"', '')
             stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name, query)
             rows = self.driver.query(stmts, return_tuples=True)
         for row in rows:

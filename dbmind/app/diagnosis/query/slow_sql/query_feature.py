@@ -860,12 +860,14 @@ class QueryFeature:
             abnormal_regulations = matching_results
         if abnormal_regulations:
             index = indexes.pop(0)
-            self.detail['string_matching'] += "%s. Existing grammatical structure: %s" % \
+            self.detail['string_matching'] += "%s. Existing grammatical structure " \
+                                              "which may cause SeqScan: %s" % \
                                               (index, ','.join(abnormal_regulations))
             self.suggestion['string_matching'] += "%s. Rewrite LIKE %%X into a range query" % index
         if abnormal_functions:
             index = indexes.pop(0)
-            self.detail['string_matching'] += "%s. Suspected to use a function on columns: %s" % \
+            self.detail['string_matching'] += "%s. Suspected to use a function on columns " \
+                                              "which may cause SeqScan: %s" % \
                                               (index, ','.join(abnormal_functions))
             self.suggestion['string_matching'] += "%s. Avoid using functions or expression " \
                                                   "operations on indexed columns or " \
@@ -1027,6 +1029,7 @@ class QueryFeature:
     def __call__(self):
         self.detail['system_cause'] = {}
         self.detail['plan'] = {}
+        self.detail['existing_exception'] = False
         feature_names = (
             'lock_contention',
             'many_dead_tuples',
@@ -1066,5 +1069,6 @@ class QueryFeature:
                 logging.error(
                     'Cannot get the feature %s, for details: %s.', feature_name, e, exc_info=True
                 )
+                self.detail['existing_exception'] = True
                 feature_vector.append(0)
         return feature_vector, self.detail, self.suggestion

@@ -179,15 +179,15 @@ class RootCause:
                             'Poor performance of database views',
                             'System table query service, no suggestion.')
     ILLEGAL_SQL = _Define('[SLOW SQL][SQL]',
-                          'Only support UPDATE, DELETE, INSERT, SELECT',
-                          '')
-    LACK_INFORMATION = _Define('[SLOW SQL][UNKNOWN]',
-                               'Cannot diagnose due to lack of information.',
-                               '')
+                          'Only support UPDATE, DELETE, INSERT, SELECT')
+    EXISTING_EXCEPTION = _Define('[SLOW SQL][EXCEPTION]',
+                                 'Exception occurred during diagnosis.')
     UNKNOWN = _Define('[SLOW SQL][UNKNOWN]',
-                      'UNKNOWN')
+                      'Not found possible root cause.')
     INVALID_SQL = _Define('[SLOW SQL][INVALID]',
-                          'Invalid SQL.')
+                          'Invalid SQL.',
+                          'Confirm whether the SQL is legal. '
+                          'Confirm the schema and database is correct')
     UNSUPPORTED_TYPE = _Define('[SLOW SQL][TYPE]',
                                'The SQL type is not supported.')
     # security
