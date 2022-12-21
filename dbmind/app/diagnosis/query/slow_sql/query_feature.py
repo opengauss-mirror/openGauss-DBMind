@@ -14,10 +14,10 @@ import logging
 import time
 
 from dbmind.app import monitoring
-from dbmind.common.parser import sql_parsing
-from dbmind.metadatabase.dao import statistical_metric
 from dbmind.common.algorithm.anomaly_detection.spike_detector import SpikeDetector
+from dbmind.common.parser import sql_parsing
 from dbmind.common.types import Sequence
+from dbmind.metadatabase.dao import statistical_metric
 from ..slow_sql.query_info_source import QueryContext
 
 PROPERTY_LENGTH = 40
@@ -86,11 +86,12 @@ def _existing_spike(data):
     return False
 
 
-def _get_seq_scan_rows(table_structures, node):
-    if node.properties.get('Filter'):
-        for table_info in table_structures:
-            if table_info.table_name == node.table:
-                return table_info.live_tuples + table_info.dead_tuples
+def _get_node_rows(table_structures, node):
+    if 'Seq Scan' in node.name:
+        if node.properties.get('Filter'):
+            for table_info in table_structures:
+                if table_info.table_name == node.table:
+                    return table_info.live_tuples + table_info.dead_tuples
     return node.rows
 
 
@@ -274,29 +275,44 @@ class QueryFeature:
         else:
             if self.plan_parse_info is None:
                 return False
-            plan_total_cost = self.plan_parse_info.root_node.total_cost
-            scan_operators = [operator for operator in self.plan_parse_info.find_operators('Seq Scan', accurate=False)
-                              if _get_seq_scan_rows(self.table_structure, operator) >=
-                              monitoring.get_threshold('fetch_tuples_threshold') and
-                              _get_operator_cost(operator) / plan_total_cost >=
-                              monitoring.get_threshold('cost_rate_threshold')]
             suggestions = []
-            detail = ','.join("(parent: %s, rows:%s(%s), cost rate: %s%%)" %
-                              (item.parent.name if item.parent is not None else "None",
-                               item.table, _get_seq_scan_rows(self.table_structure, item),
-                               round(_get_operator_cost(item) * 100 / plan_total_cost, 2)) for item in scan_operators)
+            plan_total_cost = self.plan_parse_info.root_node.total_cost
+            seq_scan_operators = [operator for operator in
+                                  self.plan_parse_info.find_operators('Seq Scan', accurate=False)
+                                  if _get_operator_cost(operator) / plan_total_cost >=
+                                  monitoring.get_threshold('cost_rate_threshold')]
+            index_scan_operators = [operator for operator in
+                                    self.plan_parse_info.find_operators('Index Scan', accurate=False)
+                                    if _get_operator_cost(operator) / plan_total_cost >=
+                                    monitoring.get_threshold('cost_rate_threshold')]
+            heap_scan_operators = [operator for operator in
+                                   self.plan_parse_info.find_operators('Heap Scan', accurate=False)
+                                   if _get_operator_cost(operator) / plan_total_cost >=
+                                   monitoring.get_threshold('cost_rate_threshold')]
+            if seq_scan_operators and not (index_scan_operators or heap_scan_operators):
+                self.detail['fetch_large_data'] = "Existing expensive seq scans"
+            elif not seq_scan_operators and (index_scan_operators or heap_scan_operators):
+                self.detail['fetch_large_data'] = "Existing expensive index scans"
+            elif seq_scan_operators and (index_scan_operators or heap_scan_operators):
+                self.detail['fetch_large_data'] = "Existing expensive index and seq scans"
+            detail = ','.join("(name: %s, parent: %s, rows:%s(%s), cost rate: %s%%)" %
+                              (operator.name,
+                               operator.parent.name if operator.parent is not None else "None",
+                               operator.table, _get_node_rows(self.table_structure, operator),
+                               round(_get_operator_cost(operator) * 100 / plan_total_cost, 2)) for operator in
+                              seq_scan_operators + index_scan_operators + heap_scan_operators)
             if all(item in detail for item in ('Hash', 'Join')):
                 suggestions.append("HashJoin and SeqScan related, normally it is acceptable")
             if 'Nested Loop' in detail:
                 suggestions.append("Confirm that the inner table has index")
-            if scan_operators and sql_parsing.exists_count_operation(self.slow_sql_instance.query):
+            if seq_scan_operators and sql_parsing.exists_count_operation(self.slow_sql_instance.query):
                 suggestions.append("Find 'count' operation, try to avoid this behavior")
-            if detail:
-                self.detail['fetch_large_data'] = "Existing large scan situation. " \
-                                                  "Detail: %s" % detail
+            if self.detail.get('fetch_large_data'):
+                self.detail['fetch_large_data'] += ". Detail: %s" % detail
                 if not suggestions:
-                    suggestions.append("According to business adjustments, try to avoid large scans")
-                self.suggestion['fetch_large_data'] = '; '.join(suggestions)
+                    self.suggestion['fetch_large_data'] = "According to business adjustments, try to avoid it"
+                else:
+                    self.suggestion['fetch_large_data'] = '; '.join(suggestions)
                 return True
             return False
 
@@ -342,7 +358,7 @@ class QueryFeature:
         else:
             if self.plan_parse_info is None:
                 return False
-            update_operator = self.plan_parse_info.find_operators("Update on", accurate=True)
+            update_operator = self.plan_parse_info.find_operators("Update on", accurate=False)
             for operator in update_operator:
                 table = operator.table
                 rows = operator.rows
@@ -361,13 +377,13 @@ class QueryFeature:
             self.detail['inserted_tuples'] = inserted_tuples
             if len(self.table_structure) == 1 and self.table_structure[0].live_tuples > 0:
                 self.detail["insert_large_data"] = "Insert a large number of tuples(%s rows)" % \
-                    round(inserted_tuples / self.table_structure[0].live_tuples, 4)
+                                                   round(inserted_tuples / self.table_structure[0].live_tuples, 4)
                 self.suggestion["insert_large_data"] = "Make adjustments to the business"
             return True
         else:
             if self.plan_parse_info is None:
                 return False
-            insert_operator = self.plan_parse_info.find_operators("Insert on", accurate=True)
+            insert_operator = self.plan_parse_info.find_operators("Insert on", accurate=False)
             for operator in insert_operator:
                 table = operator.table
                 rows = operator.rows
@@ -397,7 +413,7 @@ class QueryFeature:
         else:
             if self.plan_parse_info is None:
                 return False
-            delete_operator = self.plan_parse_info.find_operators("Delete on", accurate=True)
+            delete_operator = self.plan_parse_info.find_operators("Delete on", accurate=False)
             for operator in delete_operator:
                 table = operator.table
                 rows = operator.rows
@@ -440,13 +456,12 @@ class QueryFeature:
             if plan_total_cost <= 0:
                 return False
             sort_operators = self.plan_parse_info.find_operators('Sort', accurate=True)
-            hash_operators = [item for item in self.plan_parse_info.find_operators('Hash', accurate=True) if
-                              item.name == 'Hash']
+            hash_operators = [item for item in self.plan_parse_info.find_operators('Hash', accurate=True)]
             abnormal_operator_detail = ','.join("(parent: %s, rows: %s, cost rate: %s%%)" %
-                                                (item.parent.name if item.parent is not None else "None",
-                                                 item.rows, round(_get_operator_cost(item) * 100 / plan_total_cost, 2))
-                                                for item in sort_operators + hash_operators
-                                                if round(_get_operator_cost(item) * 100 / plan_total_cost, 2) >=
+                                                (operator.parent.name if operator.parent is not None else "None",
+                                                 operator.rows, round(_get_operator_cost(operator) * 100 / plan_total_cost, 2))
+                                                for operator in sort_operators + hash_operators
+                                                if round(_get_operator_cost(operator) / plan_total_cost, 2) >=
                                                 monitoring.get_threshold('cost_rate_threshold'))
             if abnormal_operator_detail:
                 self.detail['disk_spill'] = "The SORT/HASH operation may spill to disk. Detail: %s" % \
@@ -464,7 +479,7 @@ class QueryFeature:
             return False
         probable_time_interval = monitoring.get_threshold('analyze_operation_probable_time_interval')
         vacuum_info = {f"{item.schema_name}:{item.table_name}":
-                       int(time.time() * 1000) - item.vacuum_delay * 1000 for item in self.table_structure}
+                           int(time.time() * 1000) - item.vacuum_delay * 1000 for item in self.table_structure}
         self.detail['vacuum'] = {}
         for table_name, vacuum_time in vacuum_info.items():
             if self.slow_sql_instance.start_at <= vacuum_time <= self.slow_sql_instance.start_at + \
@@ -482,7 +497,7 @@ class QueryFeature:
             return False
         probable_time_interval = monitoring.get_threshold('analyze_operation_probable_time_interval')
         analyze_info = {f"{item.schema_name}:{item.table_name}":
-                        int(time.time() * 1000) - item.analyze_delay * 1000 for item in self.table_structure}
+                            int(time.time() * 1000) - item.analyze_delay * 1000 for item in self.table_structure}
         self.detail['analyze'] = {}
         for table_name, analyze_time in analyze_info.items():
             if self.slow_sql_instance.start_at <= analyze_time <= self.slow_sql_instance.start_at + \
@@ -579,7 +594,7 @@ class QueryFeature:
                 self.detail['system_io_contention'] += "%s. Found a positive spike in IOPS" % indexes.pop(0)
         if io_utils_dict:
             self.detail['system_io_contention'] += '%s. The IO-Utils exceeds the threshold %s' \
-                % (indexes.pop(0), monitoring.get_param('disk_ioutils_threshold'))
+                                                   % (indexes.pop(0), monitoring.get_param('disk_ioutils_threshold'))
         self.suggestion['system_io_contention'] = "a. Detect whether processes outside the database " \
                                                   "compete for resources " \
                                                   "b. Check SLOW-SQL in database"
@@ -629,7 +644,6 @@ class QueryFeature:
     def os_resource_contention(self) -> bool:
         """Determine whether other processes outside the database occupy too many handle resources."""
         if self.system_info.process_fds_rate >= monitoring.get_param('handler_occupation_threshold'):
-
             self.detail['os_resource_contention'] = "The system fds occupation rate is significant: %s;" \
                                                     % self.system_info.process_fds_rate
             self.suggestion['os_resource_contention'] = "Determine the handle resource is occupied " \
@@ -720,7 +734,7 @@ class QueryFeature:
         merge_join_info = self.plan_parse_info.find_operators('Merge Join', accurate=False)
         plan_total_cost = self.plan_parse_info.root_node.total_cost
         hashjoin_info = hash_inner_join_info + hash_left_join_info + hash_right_join_info + \
-            hash_full_join_info + hash_anti_join_info + hash_right_semi_join_info + hash_semi_join_info
+                        hash_full_join_info + hash_anti_join_info + hash_right_semi_join_info + hash_semi_join_info
         if plan_total_cost <= 0:
             return False
         abnormal_nestloop_info = [item for item in nestloop_info if _get_operator_cost(item) / plan_total_cost >=
@@ -833,8 +847,8 @@ class QueryFeature:
             matching_results = [item.replace('like', '~~') for item in matching_results]
             existing_functions = [sql_parsing.remove_bracket(item) for item in existing_functions]
             seq_scan_properties = ';'.join([node.properties.get('Filter').replace('\"', '') for
-                                           node in self.plan_parse_info.find_operators('Seq Scan', accurate=False)
-                                           if node.properties.get('Filter') is not None])
+                                            node in self.plan_parse_info.find_operators('Seq Scan', accurate=False)
+                                            if node.properties.get('Filter') is not None])
             for function in existing_functions:
                 if function in seq_scan_properties:
                     abnormal_functions.append(function)
@@ -846,12 +860,14 @@ class QueryFeature:
             abnormal_regulations = matching_results
         if abnormal_regulations:
             index = indexes.pop(0)
-            self.detail['string_matching'] += "%s. Existing grammatical structure: %s" % \
-                (index, ','.join(abnormal_regulations))
+            self.detail['string_matching'] += "%s. Existing grammatical structure " \
+                                              "which may cause SeqScan: %s" % \
+                                              (index, ','.join(abnormal_regulations))
             self.suggestion['string_matching'] += "%s. Rewrite LIKE %%X into a range query" % index
         if abnormal_functions:
             index = indexes.pop(0)
-            self.detail['string_matching'] += "%s. Suspected to use a function on columns: %s" % \
+            self.detail['string_matching'] += "%s. Suspected to use a function on columns " \
+                                              "which may cause SeqScan: %s" % \
                                               (index, ','.join(abnormal_functions))
             self.suggestion['string_matching'] += "%s. Avoid using functions or expression " \
                                                   "operations on indexed columns or " \
@@ -873,8 +889,8 @@ class QueryFeature:
             return False
         self.detail['complex_execution_plan'], self.suggestion['complex_execution_plan'] = '', ''
         join_operator = self.plan_parse_info.find_operators('Hash Join', accurate=False) + \
-            self.plan_parse_info.find_operators('Nested Loop', accurate=False) + \
-            self.plan_parse_info.find_operators('Merge Join', accurate=False)
+                        self.plan_parse_info.find_operators('Nested Loop', accurate=False) + \
+                        self.plan_parse_info.find_operators('Merge Join', accurate=False)
         if len(join_operator) >= monitoring.get_threshold('complex_operator_threshold'):
             self.detail['complex_execution_plan'] = "The SQL statements involves " \
                                                     "%s JOIN operators" % \
@@ -892,15 +908,13 @@ class QueryFeature:
         """
         SQL execution involves sub-queries that cannot be promoted, which includes:
           case1: The execution plan contains the 'SubPlan' keyword.
-          case2: The execution plan contains the 'subquery-scan' operator.
         If the SQL structure not support Sublink-Release, the user needs to rewrite the SQL.
         """
         if self.plan_parse_info is None:
             return False
         self.detail['correlated_subquery'], self.suggestion['correlated_subquery'] = '', ''
         existing_subquery = sql_parsing.exists_subquery(self.slow_sql_instance.query)
-        subquery_scan_node_info = self.plan_parse_info.find_operators('Subquery Scan', accurate=False)
-        if ('SubPlan' in self.slow_sql_instance.query_plan and existing_subquery) or subquery_scan_node_info:
+        if 'SubPlan' in self.slow_sql_instance.query_plan and existing_subquery:
             self.detail['correlated_subquery'] = "There are subqueries that cannot be promoted"
             self.suggestion['correlated_subquery'] = "Try to rewrite the statement " \
                                                      "to support sublink-release"
@@ -1015,6 +1029,7 @@ class QueryFeature:
     def __call__(self):
         self.detail['system_cause'] = {}
         self.detail['plan'] = {}
+        self.detail['existing_exception'] = False
         feature_names = (
             'lock_contention',
             'many_dead_tuples',
@@ -1054,5 +1069,6 @@ class QueryFeature:
                 logging.error(
                     'Cannot get the feature %s, for details: %s.', feature_name, e, exc_info=True
                 )
+                self.detail['existing_exception'] = True
                 feature_vector.append(0)
         return feature_vector, self.detail, self.suggestion

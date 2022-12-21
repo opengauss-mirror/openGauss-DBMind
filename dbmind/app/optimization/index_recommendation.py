@@ -84,7 +84,7 @@ def rpc_index_advise(executor, templates):
     detail_info, _, _ = index_advisor_workload.index_advisor_workload({'historyIndexes': {}}, executor, templates,
                                                                       multi_iter_mode=True, show_detail=True,
                                                                       n_distinct=1, reltuples=10,
-                                                                      use_all_columns=True, improved_rate=0.5,
+                                                                      use_all_columns=True, improved_rate=0.05,
                                                                       max_candidate_columns=40)
     return detail_info
 

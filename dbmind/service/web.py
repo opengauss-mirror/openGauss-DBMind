@@ -745,7 +745,7 @@ def search_slow_sql_rca_result(sql, start_time=None, end_time=None, limit=None):
 
 
 def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_time=None,
-                         wdr=None, data_source='tsdb', url=None):
+                         wdr=None, data_source='tsdb', url=None, driver=None):
     # 'wdr' is for web compatibility
     root_causes, suggestions = [], []
     if query is None:
@@ -767,16 +767,15 @@ def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_t
                                   track_parameter=track_parameter
                                   )
     if data_source == 'driver':
-        from psycopg2.extensions import parse_dsn
-
         from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromDriver
-        from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
-        host, port, dbname = parse_dsn(url).get('host'), parse_dsn(url).get('port'), parse_dsn(url).get('dbname')
+        if driver is None:
+            from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
+            driver = Driver()
+            driver.initialize(url)
+        host, port, dbname = driver.host, driver.port, driver.dbname
         slow_sql_instance.db_host = host
         slow_sql_instance.db_port = port
         slow_sql_instance.db_name = dbname
-        driver = Driver()
-        driver.initialize(url)
         query_context = QueryContextFromDriver(slow_sql_instance, driver=driver)
     else:
         from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
@@ -805,7 +804,7 @@ def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_t
     return root_causes, suggestions
 
 
-def toolkit_get_query_plan(query, database=None, schema=None, data_source='tsdb', url=None):
+def toolkit_get_query_plan(query, database=None, schema=None, data_source='tsdb', url=None, driver=None):
     if query is None:
         return '', ''
     if data_source == 'tsdb':
@@ -824,16 +823,16 @@ def toolkit_get_query_plan(query, database=None, schema=None, data_source='tsdb'
         query_plan = slow_sql_instance.query_plan
         return query_plan, query_context.query_type
     else:
-        from psycopg2.extensions import parse_dsn
-
         from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromDriver
-        from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
-        host, port, dbname = parse_dsn(url).get('host'), parse_dsn(url).get('port'), parse_dsn(url).get('dbname')
+        if driver is None:
+            from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
+            driver = Driver()
+            driver.initialize(url)
+        host, port, dbname = driver.host, driver.port, driver.dbname
         slow_sql_instance.db_host = host
         slow_sql_instance.db_port = port
         slow_sql_instance.db_name = dbname
-        driver = Driver()
-        driver.initialize(url)
+
         query_context = QueryContextFromDriver(slow_sql_instance, driver=driver)
         query_plan = slow_sql_instance.query_plan
         return query_plan, query_context.query_type

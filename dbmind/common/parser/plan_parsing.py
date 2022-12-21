@@ -295,7 +295,7 @@ class Plan:
         opts = []
 
         def accurate_finder(node):
-            if node.name.startswith(operator):
+            if node.name == operator:
                 opts.append(node)
 
         def fuzzy_finder(node):

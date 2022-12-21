@@ -78,15 +78,68 @@ def _initialize_tsdb_param():
         return False
 
 
-def _is_database_exist(database):
-    stmt = "select datname from pg_database where datname='%s'" % database
-    rows = global_vars.agent_rpc_client.call('query_in_database',
-                                             stmt,
-                                             'postgres',
-                                             return_tuples=True)
+def _initialize_driver(driver, url):
+    try:
+        driver.initialize(url)
+        return True
+    except ConnectionError:
+        logging.warning("Error occurred when initialized URL.")
+        return False
+
+
+def _is_database_exist(database, data_source='tsdb', driver=None):
+    stmt = "select datname from pg_database where datname = '%s'" % database
+    if data_source == 'tsdb':
+        rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                 stmt,
+                                                 database,
+                                                 return_tuples=True)
+    else:
+        rows = driver.query(stmt, return_tuples=True)
     if rows:
         return True
     return False
+
+
+def _is_schema_exist(schema, database=None, data_source='tsdb', driver=None):
+    stmt = "select nspname from pg_namespace where nspname = '%s'" % schema
+    if data_source == 'tsdb':
+        rows = global_vars.agent_rpc_client.call('query_in_database',
+                                                 stmt,
+                                                 database,
+                                                 return_tuples=True)
+    else:
+        rows = driver.query(stmt, return_tuples=True)
+    if rows:
+        return True
+    return False
+
+
+def _check_tsdb_configuration(database, schema):
+    if not _initialize_rpc_service():
+        write_to_terminal('RPC service not exists, exiting...', color='red')
+        sys.exit()
+    if not _initialize_tsdb_param():
+        write_to_terminal('TSDB service not exists, exiting...', color='red')
+        sys.exit()
+    if database is None:
+        write_to_terminal("Lack the information of 'database', exiting...", color='red')
+        sys.exit()
+    if not _is_database_exist(database, data_source='tsdb'):
+        write_to_terminal("Database '%s' does not exist, exiting..." % database, color='red')
+        sys.exit()
+    if schema is not None and not _is_schema_exist(schema, database=database, data_source='tsdb'):
+        write_to_terminal("Schema '%s' does not exist, exiting..." % schema, color='red')
+        sys.exit()
+
+
+def _check_driver_configuration(url, schema, driver):
+    if not _initialize_driver(driver, url):
+        write_to_terminal("Error occurred when initialized the URL, exiting...", color='red')
+        sys.exit()
+    if schema is not None and not _is_schema_exist(schema, data_source='driver', driver=driver):
+        write_to_terminal("Schema '%s' does not exist, exiting..." % schema, color='red')
+        sys.exit()
 
 
 def show(query, start_time, end_time):
@@ -134,19 +187,13 @@ def clean(retention_days):
 
 
 def diagnosis(query, database, schema=None, start_time=None, end_time=None, url=None, data_source='tsdb'):
+    driver = None
     if data_source == 'tsdb':
-        if not _initialize_rpc_service():
-            write_to_terminal('RPC service not exists, existing...', color='red')
-            return
-        if not _initialize_tsdb_param():
-            write_to_terminal('TSDB service not exists, existing...', color='red')
-            return
-        if database is None:
-            write_to_terminal("Lack the information of 'database', stop to diagnosis...", color='red')
-            return
-        if not _is_database_exist(database):
-            write_to_terminal("Database does not exist, stop to diagnosis.", color='red')
-            return
+        _check_tsdb_configuration(database, schema)
+    if data_source == 'driver':
+        from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
+        driver = Driver()
+        _check_driver_configuration(url, schema, driver)
     if schema is None:
         write_to_terminal("Lack the information of 'schema', use default value: 'public'.", color='yellow')
         schema = 'public'
@@ -162,29 +209,25 @@ def diagnosis(query, database, schema=None, start_time=None, end_time=None, url=
                                                     start_time=start_time,
                                                     end_time=end_time,
                                                     url=url,
-                                                    data_source=data_source)
+                                                    data_source=data_source,
+                                                    driver=driver)
     for root_cause, suggestion in zip(root_causes[0], suggestions[0]):
         output_table.add_row([root_cause, suggestion])
     print(output_table)
 
 
 def get_plan(query, database, schema=None, url=None, data_source='tsdb'):
+    driver = None
     if data_source == 'tsdb':
-        if not _initialize_rpc_service():
-            write_to_terminal('RPC service not exists, existing...', color='red')
-            return
-        if not _initialize_tsdb_param():
-            write_to_terminal('TSDB service not exists, existing...', color='red')
-            return
-        if database is None:
-            write_to_terminal("Lack the information of 'database', stop to get plan...", color='red')
-            return
-        if not _is_database_exist(database):
-            write_to_terminal("Database does not exist, stop to get plan.", color='red')
-            return
+        _check_tsdb_configuration(database, schema)
+    if data_source == 'driver':
+        from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
+        driver = Driver()
+        _check_driver_configuration(url, schema, driver)
     if schema is None:
         write_to_terminal("Lack the information of 'schema', use default value: 'public'.", color='yellow')
         schema = 'public'
+
     from dbmind.service.web import toolkit_get_query_plan
     output_table = PrettyTable()
     field_names = ('normalized', 'plan')
@@ -194,7 +237,8 @@ def get_plan(query, database, schema=None, url=None, data_source='tsdb'):
                                                     database=database,
                                                     schema=schema,
                                                     url=url,
-                                                    data_source=data_source)
+                                                    data_source=data_source,
+                                                    driver=driver)
     if query_type == 'normalized':
         output_table.add_row([True, query_plan])
     else:
