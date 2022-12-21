@@ -13,11 +13,9 @@
 import logging
 from typing import List
 
-from dbmind.common.algorithm import anomaly_detection
-from dbmind.common.types import Alarm, ALARM_LEVEL, ALARM_TYPES
+from dbmind.common.types import Alarm, ALARM_LEVEL, ALARM_TYPES, ANOMALY_TYPES
 from dbmind.common.types import RootCause
-from dbmind.common.types.sequence import Sequence, EMPTY_SEQUENCE
-from dbmind.common.utils import dbmind_assert
+from dbmind.common.types.sequence import EMPTY_SEQUENCE
 import dbmind.app.monitoring
 from .generic_detection import AnomalyDetections
 
@@ -65,20 +63,12 @@ def will_disk_spill(latest_sequences, future_sequences):
     latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
     full_sequence = latest_sequence + future_sequence
     disk_usage_threshold = dbmind.app.monitoring.get_param('disk_usage_threshold')
-    disk_usage_max_coef = dbmind.app.monitoring.get_param('disk_usage_max_coef')
     disk_device = latest_sequence.labels.get('device', 'unknown')
     disk_mountpoint = latest_sequence.labels.get('mountpoint', 'unknown')
 
     over_threshold_anomalies = AnomalyDetections.do_threshold_detect(
         full_sequence,
         high=disk_usage_threshold
-    )
-
-    rapid_increase_anomalies = AnomalyDetections.do_gradient_detect(
-        full_sequence,
-        side='positive',
-        max_coef=disk_usage_max_coef,
-        timed_window=300000  # 300000 ms
     )
 
     alarms = []
@@ -90,34 +80,15 @@ def will_disk_spill(latest_sequences, future_sequences):
                     disk_device,
                     disk_mountpoint
                 ),
-                alarm_type=ALARM_TYPES.ALARM,
+                alarm_type=ALARM_TYPES.SYSTEM,
                 metric_name='os_disk_usage',
                 start_timestamp=full_sequence.timestamps[0],
                 end_timestamp=full_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.WARNING,
-                alarm_cause=RootCause.get('DISK_WILL_SPILL')
+                anomaly_type=ANOMALY_TYPES.THRESHOLD
             )
         )
-        # If above alarm raises, we can return directly
-        # because the level of subsequent alarm is lower.
-        return alarms
 
-    if True in rapid_increase_anomalies.values:
-        alarm = Alarm(
-            alarm_content="The disk usage increased too fast, and exceeded the warning level: %s"
-                          "(device: %s, mountpoint: %s)." % (disk_usage_max_coef,
-                                                             disk_device,
-                                                             disk_mountpoint,
-                                                             ),
-            alarm_type=ALARM_TYPES.ALARM,
-            metric_name='os_disk_usage',
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
-            alarm_level=ALARM_LEVEL.WARNING,
-            alarm_cause=RootCause.get('DISK_BURST_INCREASE')
-        )
-        alarm.set_timestamp(start=full_sequence.timestamps[0], end=full_sequence.timestamps[-1])
-        alarms.append(alarm)
     return alarms
 
 
@@ -128,80 +99,19 @@ def _add_anomalies_values_2_msg(anomalies):
     return " Abnormal value(s) are " + ",".join(str(item) for item in anomaly_values)
 
 
-@_check_for_metric(('gaussdb_invalid_logins_rate',), only_history=True)
-def has_login_brute_force_attack(latest_sequences, future_sequences):
-    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
-    dbmind_assert(future_sequence or future_sequence == EMPTY_SEQUENCE)
-    logging.debug("starting has_login_brute_force_attack")
-    detector = anomaly_detection.SpikeDetector(side='positive')
-    anomalies_found = detector.detect(latest_sequence)
-
-    alarms = []
-    if len(anomalies_found) > 0:
-        alarm_content = "Find suspicious abnormal brute force logins(%s times). " % (len(anomalies_found))
-        alarm_content += _add_anomalies_values_2_msg(anomalies_found)
-        logging.info(alarm_content)
-        alarm = \
-            Alarm(
-                alarm_content=alarm_content,
-                alarm_type=ALARM_TYPES.SECURITY,
-                metric_name='gaussdb_invalid_logins_rate',
-                start_timestamp=latest_sequence.timestamps[0],
-                end_timestamp=latest_sequence.timestamps[-1],
-                alarm_level=ALARM_LEVEL.WARNING,
-                alarm_cause=RootCause.get('TOO_MANY_INVALID_LOGINS')
-            )
-        alarm.set_timestamp(start=latest_sequence.timestamps[0], end=latest_sequence.timestamps[-1])
-        alarms.append(alarm)
-    return alarms
-
-
-@_check_for_metric(('gaussdb_errors_rate',), only_history=True)
-def has_scanning_attack(latest_sequences, future_sequences):
-    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
-    dbmind_assert(future_sequence or future_sequence == EMPTY_SEQUENCE)
-    logging.debug("starting has_scanning_attack")
-    detector = anomaly_detection.SpikeDetector(side='positive')
-    anomalies_found = detector.detect(latest_sequence)
-
-    alarms = []
-    if len(anomalies_found) > 0:
-        alarm_content = "Found anomalies for gaussdb_errors_rate(%s times)." \
-                        " Operational issue may also be the cause of this alarm." % (len(anomalies_found))
-        logging.info(alarm_content)
-        alarm_content += _add_anomalies_values_2_msg(anomalies_found)
-        alarm = Alarm(
-            alarm_content=alarm_content,
-            alarm_type=ALARM_TYPES.SECURITY,
-            metric_name='gaussdb_errors_rate',
-            start_timestamp=latest_sequence.timestamps[0],
-            end_timestamp=latest_sequence.timestamps[-1],
-            alarm_level=ALARM_LEVEL.WARNING,
-            alarm_cause=RootCause.get('TOO_MANY_ERRORS')
-        )
-        alarm.set_timestamp(start=latest_sequence.timestamps[0], end=latest_sequence.timestamps[-1])
-        alarms.append(alarm)
-    return alarms
-
-
 def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
     latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
     full_sequence = latest_sequence + future_sequence
     mem_usage_threshold = dbmind.app.monitoring.get_param('mem_usage_threshold')
-    mem_usage_max_coef = dbmind.app.monitoring.get_param('mem_usage_max_coef')
 
     over_threshold_anomalies = AnomalyDetections.do_threshold_detect(
         full_sequence,
         high=mem_usage_threshold
     )
-
-    rapid_increase_anomalies = AnomalyDetections.do_gradient_detect(
-        full_sequence,
-        side='positive',
-        max_coef=mem_usage_max_coef,
-        timed_window=300000  # 300000 ms
-    )
-
+    spike_threshold_anomalies = AnomalyDetections.do_spike_detect(full_sequence)
+    level_shift_anomalies = AnomalyDetections.do_level_shift_detect(full_sequence)
+    # todo: the time window needs to be longer
+    increase_anomalies = AnomalyDetections.do_increase_detect(full_sequence, side="positive")
     alarms = []
     if True in over_threshold_anomalies.values:
         alarm = Alarm(
@@ -211,34 +121,49 @@ def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
             start_timestamp=full_sequence.timestamps[0],
             end_timestamp=full_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.WARNING,
-            alarm_cause=RootCause.get('HIGH_MEMORY_USAGE')
+            anomaly_type=ANOMALY_TYPES.THRESHOLD
         )
-        alarm.set_timestamp(start=full_sequence.timestamps[0], end=full_sequence.timestamps[-1])
         alarms.append(alarm)
-    if True in rapid_increase_anomalies.values:
+    if True in spike_threshold_anomalies.values:
         alarm = Alarm(
-            alarm_content="The memory usage increased too fast, and exceeded the warning level: %s" % (
-                mem_usage_max_coef),
-            alarm_type=ALARM_TYPES.ALARM,
+            alarm_content="Find obvious spikes in memory usage.",
+            alarm_type=ALARM_TYPES.SYSTEM,
             metric_name=metric_name,
             start_timestamp=full_sequence.timestamps[0],
             end_timestamp=full_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.WARNING,
-            alarm_cause=RootCause.get('MEMORY_USAGE_BURST_INCREASE')
+            anomaly_type=ANOMALY_TYPES.SPIKE
         )
-        alarm.set_timestamp(start=full_sequence.timestamps[0], end=full_sequence.timestamps[-1])
         alarms.append(alarm)
+    if True in level_shift_anomalies.values:
+        alarm = Alarm(
+            alarm_content="Find obvious level-shift in memory usage.",
+            alarm_type=ALARM_TYPES.SYSTEM,
+            metric_name=metric_name,
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
+            alarm_level=ALARM_LEVEL.WARNING,
+            anomaly_type=ANOMALY_TYPES.LEVEL_SHIFT
+        )
+        alarms.append(alarm)
+    if True in increase_anomalies.values:
+        alarm = Alarm(
+            alarm_content="Find continued growth in memory usage.",
+            alarm_type=ALARM_TYPES.SYSTEM,
+            metric_name=metric_name,
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
+            alarm_level=ALARM_LEVEL.WARNING,
+            anomaly_type=ANOMALY_TYPES.INCREASE
+        )
+        alarms.append(alarm)
+
     return alarms
 
 
 @_check_for_metric(('os_mem_usage',), only_history=True)
 def os_has_mem_leak(latest_sequences, future_sequences):
     return has_mem_leak(latest_sequences, future_sequences, metric_name='os_mem_usage')
-
-
-@_check_for_metric(('gaussdb_state_memory',), only_history=True)
-def db_has_mem_leak(latest_sequences, future_sequences):
-    return has_mem_leak(latest_sequences, future_sequences, metric_name='gaussdb_state_memory')
 
 
 @_check_for_metric(('os_cpu_usage',), only_history=True)
@@ -253,21 +178,31 @@ def has_cpu_high_usage(latest_sequences, future_sequences):
         full_sequence,
         high=cpu_usage_threshold
     )
-
+    level_shift_anomalies = AnomalyDetections.do_level_shift_detect(full_sequence)
     alarms = []
     if over_threshold_anomalies.values.count(True) > cpu_high_usage_percent * len(full_sequence):
         alarm = Alarm(
             alarm_content='The cpu usage has exceeded the warning level '
                           '%s%% of total for over %s%% of last detection period.' % (
                               cpu_usage_threshold * 100, cpu_high_usage_percent * 100),
-            alarm_type=ALARM_TYPES.ALARM,
+            alarm_type=ALARM_TYPES.SYSTEM,
             metric_name='os_cpu_usage',
             start_timestamp=full_sequence.timestamps[0],
             end_timestamp=full_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.ERROR,
-            alarm_cause=RootCause.get('HIGH_CPU_USAGE')
+            anomaly_type=ANOMALY_TYPES.THRESHOLD
         )
-        alarm.set_timestamp(start=full_sequence.timestamps[0], end=full_sequence.timestamps[-1])
+        alarms.append(alarm)
+    if True in level_shift_anomalies.values:
+        alarm = Alarm(
+            alarm_content="Find obvious level-shift in cpu usage.",
+            alarm_type=ALARM_TYPES.SYSTEM,
+            metric_name='os_cpu_usage',
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
+            alarm_level=ALARM_LEVEL.WARNING,
+            anomaly_type=ANOMALY_TYPES.LEVEL_SHIFT
+        )
         alarms.append(alarm)
     return alarms
 
@@ -276,27 +211,19 @@ def has_cpu_high_usage(latest_sequences, future_sequences):
 def has_qps_rapid_change(latest_sequences, future_sequences):
     latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
     full_sequence = latest_sequence + future_sequence
-    qps_max_coef = dbmind.app.monitoring.get_param('qps_max_coef')
-
-    rapid_increase_anomalies = AnomalyDetections.do_gradient_detect(
-        full_sequence,
-        side='positive',
-        max_coef=qps_max_coef,
-        timed_window=300000  # 300000 ms
-    )
+    spike_threshold_anomalies = AnomalyDetections.do_spike_detect(full_sequence)
 
     alarms = []
-    if True in rapid_increase_anomalies:
+    if True in spike_threshold_anomalies.values:
         alarm = Alarm(
-            alarm_content="The qps increased too fast, and exceeded the warning level: %s." % (qps_max_coef),
-            alarm_type=ALARM_TYPES.ALARM,
+            alarm_content="Find obvious spikes in QPS.",
+            alarm_type=ALARM_TYPES.PERFORMANCE,
             metric_name='gaussdb_qps_by_instance',
             start_timestamp=full_sequence.timestamps[0],
             end_timestamp=full_sequence.timestamps[-1],
             alarm_level=ALARM_LEVEL.WARNING,
-            alarm_cause=RootCause.get('QPS_VIOLENT_INCREASE')
+            anomaly_type=ANOMALY_TYPES.SPIKE
         )
-        alarm.set_timestamp(start=full_sequence.timestamps[0], end=full_sequence.timestamps[-1])
         alarms.append(alarm)
     return alarms
 
@@ -319,128 +246,35 @@ def has_connections_high_occupation(latest_sequences, future_sequences):
                     connection_usage_threshold * 100
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
-                metric_name='used connection',
+                metric_name='gaussdb_connections_used_ratio',
                 start_timestamp=full_sequence.timestamps[0],
                 end_timestamp=full_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.ERROR,
-                alarm_cause=RootCause.get('FAST_CONNECTIONS_INCREASE')
+                anomaly_type=ANOMALY_TYPES.THRESHOLD
             )
         )
     return alarms
 
 
-@_check_for_metric(('statement_responsetime_percentile_p80',), only_history=True)
-def has_high_p80(latest_sequences, future_sequences):
+@_check_for_metric(('statement_responsetime_percentile_p95',), only_history=True)
+def has_p95_rapid_change(latest_sequences, future_sequences):
     latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
     full_sequence = latest_sequence + future_sequence
-    p80_threshold = dbmind.app.monitoring.get_param('p80_threshold')
 
-    over_threshold_anomalies = AnomalyDetections.do_threshold_detect(
-        full_sequence,
-        high=p80_threshold
-    )
+    spike_threshold_anomalies = AnomalyDetections.do_spike_detect(full_sequence)
 
     alarms = []
-    if True in over_threshold_anomalies.values:
-        alarms.append(
-            Alarm(
-                alarm_content='The 80%% SQL response time of openGauss has exceeded the warning level: %sms.' % (
-                    p80_threshold
-                ),
-                alarm_type=ALARM_TYPES.ALARM,
-                metric_name='P80',
-                start_timestamp=full_sequence.timestamps[0],
-                end_timestamp=full_sequence.timestamps[-1],
-                alarm_level=ALARM_LEVEL.WARNING,
-                alarm_cause=RootCause.get('POOR_SQL_PERFORMANCE')
-            )
+    if True in spike_threshold_anomalies.values:
+        alarm = Alarm(
+            alarm_content="Find obvious spikes in P95.",
+            alarm_type=ALARM_TYPES.PERFORMANCE,
+            metric_name='statement_responsetime_percentile_p95',
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
+            alarm_level=ALARM_LEVEL.WARNING,
+            anomaly_type=ANOMALY_TYPES.SPIKE
         )
-    return alarms
-
-
-@_check_for_metric(('pg_replication_replay_diff',), only_history=True)
-def has_high_replication_delay(latest_sequences, future_sequences):
-    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
-    full_sequence = latest_sequence + future_sequence
-    replication_replay_diff_threshold = dbmind.app.monitoring.get_param('replication_replay_diff_threshold')
-
-    over_threshold_anomalies = AnomalyDetections.do_threshold_detect(
-        full_sequence,
-        high=replication_replay_diff_threshold
-    )
-
-    alarms = []
-    if True in over_threshold_anomalies.values:
-        alarms.append(
-            Alarm(
-                alarm_content='The primary-standby synchronization delay has exceeded the warning level: %s.' % (
-                    replication_replay_diff_threshold
-                ),
-                alarm_type=ALARM_TYPES.ALARM,
-                metric_name='pg_replication_write_diff',
-                start_timestamp=full_sequence.timestamps[0],
-                end_timestamp=full_sequence.timestamps[-1],
-                alarm_level=ALARM_LEVEL.WARNING,
-                alarm_cause=RootCause.get('REPLICATION_SYNC')
-            )
-        )
-    return alarms
-
-
-@_check_for_metric(('os_disk_iocapacity',), only_history=True)
-def has_high_io_capacity(latest_sequences, future_sequences):
-    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
-    full_sequence = latest_sequence + future_sequence
-    io_capacity_threshold = dbmind.app.monitoring.get_param('io_capacity_threshold')
-
-    over_threshold_anomalies = AnomalyDetections.do_threshold_detect(
-        full_sequence,
-        high=io_capacity_threshold
-    )
-
-    alarms = []
-    if True in over_threshold_anomalies.values:
-        alarms.append(
-            Alarm(
-                alarm_content='The IO_CAPACITY has exceeded the warning level: %s(MB).' % (
-                    io_capacity_threshold
-                ),
-                alarm_type=ALARM_TYPES.ALARM,
-                start_timestamp=full_sequence.timestamps[0],
-                end_timestamp=full_sequence.timestamps[-1],
-                metric_name='io capacity',
-                alarm_level=ALARM_LEVEL.WARNING,
-                alarm_cause=RootCause.get('LARGE_IO_CAPACITY')
-            )
-        )
-    return alarms
-
-
-@_check_for_metric(('node_process_fds_rate',), only_history=True)
-def has_high_handle_occupation(latest_sequences, future_sequences):
-    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
-    full_sequence = latest_sequence + future_sequence
-    handler_occupation_threshold = dbmind.app.monitoring.get_param('handler_occupation_threshold')
-
-    over_threshold_anomalies = AnomalyDetections.do_threshold_detect(
-        full_sequence,
-        high=handler_occupation_threshold
-    )
-
-    alarms = []
-    if True in over_threshold_anomalies.values:
-        alarms.append(
-            Alarm(
-                alarm_content='The usage of handle has exceeded the warning level: %s%%.' % (
-                    handler_occupation_threshold
-                ),
-                alarm_type=ALARM_TYPES.ALARM,
-                metric_name='node_process_fds_rate',
-                start_timestamp=full_sequence.timestamps[0],
-                end_timestamp=full_sequence.timestamps[-1],
-                alarm_level=ALARM_LEVEL.WARNING,
-            )
-        )
+        alarms.append(alarm)
     return alarms
 
 
@@ -448,61 +282,75 @@ def has_high_handle_occupation(latest_sequences, future_sequences):
 def has_high_disk_ioutils(latest_sequences, future_sequences):
     latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
     full_sequence = latest_sequence + future_sequence
-    disk_ioutils_threshold = dbmind.app.monitoring.get_param('disk_ioutils_threshold')
+    disk_usage_threshold = dbmind.app.monitoring.get_param('disk_ioutils_threshold')
+    disk_device = latest_sequence.labels.get('device', 'unknown')
+    disk_mountpoint = latest_sequence.labels.get('mountpoint', 'unknown')
 
     over_threshold_anomalies = AnomalyDetections.do_threshold_detect(
         full_sequence,
-        high=disk_ioutils_threshold
+        high=disk_usage_threshold
     )
 
     alarms = []
     if True in over_threshold_anomalies.values:
         alarms.append(
             Alarm(
-                alarm_content='The DISK_IO_UTILS has exceeded the warning level: %s%%.' % (
-                    disk_ioutils_threshold
+                alarm_content='The IOUtils has exceeded the warning level: %s%%(device: %s, mountpoint: %s).' % (
+                    disk_usage_threshold * 100,
+                    disk_device,
+                    disk_mountpoint
                 ),
-                alarm_type=ALARM_TYPES.ALARM,
+                alarm_type=ALARM_TYPES.SYSTEM,
                 metric_name='os_disk_ioutils',
                 start_timestamp=full_sequence.timestamps[0],
                 end_timestamp=full_sequence.timestamps[-1],
                 alarm_level=ALARM_LEVEL.WARNING,
+                anomaly_type=ANOMALY_TYPES.THRESHOLD
             )
         )
+
     return alarms
 
 
-@_check_for_metric(('pg_connections_used_conn', 'pg_connections_max_conn',), only_history=True)
-def has_too_many_connections(latest_sequences, future_sequences):
-    pg_connections_idle_session = latest_sequences[0] + future_sequences[0]
-    max_connection = latest_sequences[1] + future_sequences[1]
-    timestamps, values = [], []
-    for i in range(min(len(pg_connections_idle_session), len(max_connection))):
-        timestamps.append(pg_connections_idle_session.timestamps[i])
-        values.append(pg_connections_idle_session.values[i] / max_connection.values[i])
-    connection_rate = Sequence(timestamps=timestamps, values=values)
-    connection_rate_threshold = dbmind.app.monitoring.get_param('connection_rate_threshold')
+@_check_for_metric(('os_network_receive_drop',), only_history=True)
+def has_p95_rapid_change(latest_sequences, future_sequences):
+    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
+    full_sequence = latest_sequence + future_sequence
 
-    over_threshold_anomalies = AnomalyDetections.do_threshold_detect(
-        connection_rate,
-        high=connection_rate_threshold
-    )
+    spike_threshold_anomalies = AnomalyDetections.do_spike_detect(full_sequence)
 
     alarms = []
-    if True in over_threshold_anomalies.values:
-        alarms.append(
-            Alarm(
-                alarm_content='The CONNECTION_RATE is over {}%.'.format(
-                    connection_rate_threshold
-                ),
-                alarm_type=ALARM_TYPES.ALARM,
-                metric_name='pg_connections_idle_session',
-                start_timestamp=connection_rate.timestamps[0],
-                end_timestamp=connection_rate.timestamps[-1],
-                alarm_level=ALARM_LEVEL.WARNING,
-            )
+    if True in spike_threshold_anomalies.values:
+        alarm = Alarm(
+            alarm_content="Find obvious spikes in os_network_receive_drop.",
+            alarm_type=ALARM_TYPES.PERFORMANCE,
+            metric_name='os_network_receive_drop',
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
+            alarm_level=ALARM_LEVEL.WARNING,
+            anomaly_type=ANOMALY_TYPES.SPIKE
         )
+        alarms.append(alarm)
     return alarms
 
 
-"""Add checking rules above."""
+@_check_for_metric(('os_network_transmit_drop',), only_history=True)
+def has_p95_rapid_change(latest_sequences, future_sequences):
+    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
+    full_sequence = latest_sequence + future_sequence
+
+    spike_threshold_anomalies = AnomalyDetections.do_spike_detect(full_sequence)
+
+    alarms = []
+    if True in spike_threshold_anomalies.values:
+        alarm = Alarm(
+            alarm_content="Find obvious spikes in os_network_transmit_drop.",
+            alarm_type=ALARM_TYPES.PERFORMANCE,
+            metric_name='os_network_transmit_drop',
+            start_timestamp=full_sequence.timestamps[0],
+            end_timestamp=full_sequence.timestamps[-1],
+            alarm_level=ALARM_LEVEL.WARNING,
+            anomaly_type=ANOMALY_TYPES.SPIKE
+        )
+        alarms.append(alarm)
+    return alarms

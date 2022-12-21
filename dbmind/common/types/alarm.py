@@ -25,7 +25,7 @@ class Alarm:
                  metric_name: str = None, start_timestamp=None, end_timestamp=None,
                  alarm_level: ALARM_LEVEL = ALARM_LEVEL.ERROR,
                  alarm_cause: Optional[Union[RootCause, Iterable[RootCause]]] = None,
-                 extra=None):
+                 extra=None, anomaly_type=None):
         self.host = host
         self.alarm_content = alarm_content
         self.alarm_type = alarm_type
@@ -34,6 +34,7 @@ class Alarm:
         self.start_timestamp = start_timestamp
         self.end_timestamp = end_timestamp
         self.extra = extra
+        self.anomaly_type = anomaly_type
 
         if isinstance(alarm_cause, Iterable):
             self.alarm_cause = list(alarm_cause)

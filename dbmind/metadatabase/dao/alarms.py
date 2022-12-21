@@ -22,20 +22,20 @@ def get_batch_insert_history_alarms_functions():
     objs = []
 
     class _Inner:
-        def add(self, host, alarm_type, occurrence_at, end_at,
-                alarm_level=None, alarm_content=None, root_cause=None,
-                suggestion=None, extra_info=None
+        def add(self, host, alarm_type, start_at, end_at, metric_name,
+                alarm_level=None, alarm_content=None, extra_info=None,
+                anomaly_type=None
                 ):
             obj = HistoryAlarms(
                 host=host,
+                metric_name=metric_name,
                 alarm_type=alarm_type,
                 alarm_level=alarm_level,
-                occurrence_at=occurrence_at,
+                start_at=start_at,
                 end_at=end_at,
                 alarm_content=alarm_content,
-                root_cause=root_cause,
-                suggestion=suggestion,
-                extra_info=extra_info
+                extra_info=extra_info,
+                anomaly_type=anomaly_type
             )
             objs.append(obj)
             return self
@@ -55,9 +55,7 @@ def select_history_alarm(host=None, alarm_type=None, alarm_level=None, alarm_con
             result = session.query(
                 HistoryAlarms.host,
                 HistoryAlarms.alarm_content,
-                HistoryAlarms.root_cause,
-                HistoryAlarms.suggestion,
-                func.count(HistoryAlarms.root_cause),
+                func.count(HistoryAlarms.alarm_content),
             )
         else:
             result = session.query(HistoryAlarms)
@@ -70,17 +68,17 @@ def select_history_alarm(host=None, alarm_type=None, alarm_level=None, alarm_con
         if alarm_content:
             result = result.filter(HistoryAlarms.alarm_content == alarm_content)
         if start_occurrence_time is not None:
-            result = result.filter(HistoryAlarms.occurrence_at >= start_occurrence_time)
+            result = result.filter(HistoryAlarms.start_at >= start_occurrence_time)
         if end_occurrence_time is not None:
             result = result.filter(HistoryAlarms.end_at <= end_occurrence_time)
         if group:
             return result.group_by(
-                HistoryAlarms.root_cause, HistoryAlarms.host,
-                HistoryAlarms.alarm_content, HistoryAlarms.suggestion
+                HistoryAlarms.host,
+                HistoryAlarms.alarm_content
             )
         if limit:
-            return result.order_by(desc(HistoryAlarms.occurrence_at)).limit(limit)
-        return result.order_by(desc(HistoryAlarms.occurrence_at))
+            return result.order_by(desc(HistoryAlarms.start_at)).limit(limit)
+        return result.order_by(desc(HistoryAlarms.start_at))
 
 
 def count_history_alarms(host=None, alarm_type=None, alarm_level=None):
@@ -90,7 +88,7 @@ def count_history_alarms(host=None, alarm_type=None, alarm_level=None):
 def delete_timeout_history_alarms(oldest_occurrence_time):
     with get_session() as session:
         session.query(HistoryAlarms).filter(
-            HistoryAlarms.occurrence_at <= oldest_occurrence_time
+            HistoryAlarms.start_at <= oldest_occurrence_time
         ).delete()
 
 
