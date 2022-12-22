@@ -183,7 +183,7 @@ class RootCause:
     EXISTING_EXCEPTION = _Define('[SLOW SQL][EXCEPTION]',
                                  'Exception occurred during diagnosis.')
     UNKNOWN = _Define('[SLOW SQL][UNKNOWN]',
-                      'Not found possible root cause.')
+                      'The current execution plan is good and not found the possible root cause.')
     INVALID_SQL = _Define('[SLOW SQL][INVALID]',
                           'Invalid SQL.',
                           'Confirm whether the SQL is legal. '
