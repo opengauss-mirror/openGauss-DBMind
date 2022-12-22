@@ -37,7 +37,7 @@ if LINUX:
 else:
     mp_shared_buffer = None
 buff = SequenceBufferPool(600, vacuum_timeout=300, buffer=mp_shared_buffer)
-MERGE_INTERVAL = 600 * 1000  # Alarm merge interval, unit is ms
+MERGE_INTERVAL = 60 * 1000  # Alarm merge interval, unit is ms
 
 
 def datetime_to_timestamp(t: datetime):
@@ -239,14 +239,14 @@ def save_history_alarms(history_alarms):
                 continue
         func.add(
             host=alarm.host,
+            metric_name=alarm.metric_name,
             alarm_type=alarm.alarm_type,
-            occurrence_at=alarm.start_timestamp,
+            start_at=alarm.start_timestamp,
             end_at=alarm.end_timestamp,
             alarm_level=alarm.alarm_level,
             alarm_content=alarm.alarm_content,
-            root_cause=alarm.root_causes,
-            suggestion=alarm.suggestions,
-            extra_info=alarm.extra
+            extra_info=alarm.extra,
+            anomaly_type=alarm.anomaly_type
         )
         func.commit()
 

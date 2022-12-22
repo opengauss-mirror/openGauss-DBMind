@@ -52,7 +52,7 @@ def get_sequences(arg):
     metric, host, start_datetime, end_datetime = arg
     result = []
     if global_vars.configs.get('TSDB', 'name') == "prometheus":
-        if ":" in host and not check_ip_valid(host.split(":")[0]) and check_port_valid(host.split(":")[1]):
+        if ":" in host and check_ip_valid(host.split(":")[0]) and check_port_valid(host.split(":")[1]):
             host_like = {DISTINGUISHING_INSTANCE_LABEL: host.split(":")[0] + "(:[0-9]{4,5}|)"}
         elif check_ip_valid(host):
             host_like = {DISTINGUISHING_INSTANCE_LABEL: host + "(:[0-9]{4,5}|)"}
