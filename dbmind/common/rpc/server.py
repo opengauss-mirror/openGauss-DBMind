@@ -97,18 +97,21 @@ class RPCServer:
                 ).json()
 
             func = self.register[funcname]
-            thr = self.rpc_executor(
-                target=func, name='Executing %s' % funcname,
-                args=req.args, kwargs=req.kwargs
-            )
-            thr.start()
-            thr.join()
-            if thr.exception:
-                return RPCResponse(req, success=False,
-                                   exception=thr.exception).json()
-            return RPCResponse(
-                req, success=True, result=thr.result
-            ).json()
+            # The following implement method can't
+            # support timeout termination.
+            try:
+                result = func(*req.args, **req.kwargs)
+                return RPCResponse(
+                    req, success=True, result=result
+                ).json()
+            except Exception as e:
+                return RPCResponse(
+                    req, success=False,
+                    exception='An error %s occurred while executing function %s: %s.' % (
+                        type(e), funcname, str(e)
+                    )
+                ).json()
+
         except Exception as e:
             # unexpected or unusual errors.
             return RPCResponse(

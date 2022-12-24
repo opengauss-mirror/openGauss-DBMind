@@ -26,5 +26,5 @@ def test_disk_spill():
     alarm_list = detect_future("10.244.44.157", ("os_disk_usage",), latest_sequences, future_sequences)
     assert len(alarm_list) >= 1
     for alarm in alarm_list:
-        assert alarm.host == "10.244.44.157"
+        assert alarm.instance == "10.244.44.157"
         assert alarm.alarm_content

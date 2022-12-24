@@ -45,3 +45,9 @@ TIMED_TASK_NAMES = (
     SLOW_QUERY_DIAGNOSIS_NAME, FORECAST_NAME, ANOMALY_DETECTION_NAME, ALARM_LOG_DIAGNOSIS_NAME,
     INDEX_OPTIMIZATION_NAME, KNOB_OPTIMIZATION_NAME
 )
+
+# Notice: 'DISTINGUISHING_INSTANCE_LABEL' is a magic string, i.e., our own name.
+# Thus, not all collection agents (such as Prometheus's openGauss-exporter)
+# distinguish different instance addresses through this one.
+# Actually, this is a risky action for us, currently.
+DISTINGUISHING_INSTANCE_LABEL = 'from_instance'

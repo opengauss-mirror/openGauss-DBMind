@@ -39,8 +39,9 @@ def _search_in_existing_indexes(index_info, seqscan_info):
     return result
 
 
-def _get_historical_statistics(metric_name, host):
-    result = statistical_metric.select_metric_statistic_avg_records(host=host, metric_name=metric_name, only_avg=True)
+def _get_historical_statistics(metric_name, instance):
+    result = statistical_metric.select_metric_statistic_avg_records(
+        instance=instance, metric_name=metric_name, only_avg=True)
     for item in result:
         avg = list(item)[0] if list(item) else 0
         return avg
@@ -139,7 +140,6 @@ class QueryFeature:
         self.rewritten_sql_info = self.query_context.acquire_rewritten_sql()
         self.recommend_index_info, self.redundant_index_info = self.query_context.acquire_index_analysis_info()
         self.plan_parse_info = self.query_context.acquire_plan_parse()
-        self.timed_task_info = self.query_context.acquire_timed_task()
         self.threads_info = self.query_context.acquire_thread_info()
         self.pg_setting_info = self.query_context.acquire_pg_settings()
         self.sort_condition_info = self.query_context.acquire_sort_condition()
@@ -733,8 +733,11 @@ class QueryFeature:
         hash_anti_join_info = self.plan_parse_info.find_operators('Hash Anti Join', accurate=False)
         merge_join_info = self.plan_parse_info.find_operators('Merge Join', accurate=False)
         plan_total_cost = self.plan_parse_info.root_node.total_cost
-        hashjoin_info = hash_inner_join_info + hash_left_join_info + hash_right_join_info + \
-                        hash_full_join_info + hash_anti_join_info + hash_right_semi_join_info + hash_semi_join_info
+        hashjoin_info = (
+                hash_inner_join_info + hash_left_join_info +
+                hash_right_join_info +
+                hash_full_join_info + hash_anti_join_info +
+                hash_right_semi_join_info + hash_semi_join_info)
         if plan_total_cost <= 0:
             return False
         abnormal_nestloop_info = [item for item in nestloop_info if _get_operator_cost(item) / plan_total_cost >=
@@ -1008,22 +1011,7 @@ class QueryFeature:
     @property
     def timed_task_conflict(self):
         """Conflict with scheduled tasks during SQL execution."""
-        if not self.pg_setting_info:
-            return False
-        if self.pg_setting_info['job_queue_processes'] == 0:
-            return False
-        abnormal_timed_task = []
-        for timed_task in self.timed_task_info:
-            if max(timed_task.last_start_date, self.slow_sql_instance.start_at) <= \
-                    min(timed_task.last_end_date,
-                        self.slow_sql_instance.start_at + self.slow_sql_instance.duration_time):
-                abnormal_timed_task.append("job_id(%s), priv_user(%s), job_status(%s)" % (timed_task.job_id,
-                                                                                          timed_task.priv_user,
-                                                                                          timed_task.job_status))
-        if abnormal_timed_task:
-            self.detail['timed_task_conflict'] = ';'.join(abnormal_timed_task)
-            self.suggestion['timed_task_conflict'] = ';'.join(abnormal_timed_task)
-            return True
+        # useless
         return False
 
     def __call__(self):

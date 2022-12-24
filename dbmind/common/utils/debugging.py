@@ -11,13 +11,12 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 """The functions in this file are only for debugging."""
-from dbmind.common.sequence_buffer import SequenceTree, TreeNode
 
 
-def visualize_sequence_tree(tree: SequenceTree):
+def visualize_sequence_tree(tree):
     lines = []
 
-    def dfs(node: TreeNode, level):
+    def dfs(node, level):
         if node is None:
             return
 
@@ -62,7 +61,7 @@ def shift(value_list):
             for value in value_list]
 
 
-def locate_relative_position_in_sequence_tree(tree: SequenceTree, start, end):
+def locate_relative_position_in_sequence_tree(tree, start, end):
     dst_range = 50
     timestamps = (tree.start, tree.end, start, end)
     tree_start, tree_end, sequence_start, sequence_end = normalize(

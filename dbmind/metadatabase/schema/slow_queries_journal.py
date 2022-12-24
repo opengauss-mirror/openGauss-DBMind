@@ -10,7 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from sqlalchemy import Column, BigInteger, Integer, Float, Index
+from sqlalchemy import Column, BigInteger, Integer, Float, Index, String
 
 from .. import Base
 
@@ -24,5 +24,6 @@ class SlowQueriesJournal(Base):
     start_at = Column(BigInteger, nullable=False)
     round_start_at = Column(BigInteger, nullable=False)
     duration_time = Column(Float, nullable=False)
+    instance = Column(String, nullable=False)
 
     idx_faked_foreign_key = Index("idx_slow_queries_journal_slow_query_id", slow_query_id)

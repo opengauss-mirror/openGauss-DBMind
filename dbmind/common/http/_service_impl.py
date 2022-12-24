@@ -132,7 +132,7 @@ class HttpService:
         config.load()
         if config.is_ssl:
             config.ssl.options |= (
-                ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
+                    ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
             )  # RFC 7540 Section 9.2: MUST be TLS >=1.2
             config.ssl.set_ciphers('DHE+AESGCM:ECDHE+AESGCM')
         self._server = Server(config)
@@ -224,11 +224,22 @@ class OAuth2:
     @property
     def credential(self):
         token = self._session.token
-        return OAuth2.timed_session.get(token, default=(None, None))
+        details = OAuth2.timed_session.get(token)
+        if not details:
+            return None, None
+        return details['username'], details['password']
 
     @property
     def token(self):
         return self._session.token
+
+    @property
+    def scopes(self):
+        token = self._session.token
+        details = OAuth2.timed_session.get(token)
+        if not details:
+            return None
+        return details['scopes']
 
     @staticmethod
     def set_token_ttl(seconds):
@@ -236,18 +247,22 @@ class OAuth2:
 
     def login_handler(self, form: OAuth2PasswordRequestForm = Depends()):
         try:
-            if not self._pwd_checker(form.username, form.password):
+            if not self._pwd_checker(form.username, form.password, scopes=form.scopes):
                 raise HTTPException(400, detail='Incorrect username or password.')
         except ConnectionError:
             raise HTTPException(500, detail='Cannot connect to the agent. Please check whether the agent '
                                             'has been deployed correctly.')
 
-        # Generate a unique token.
+        # Generate a unique token, using implicit mode.
         token = safe_random_string(16)
         while token in OAuth2.timed_session:
             token = safe_random_string(16)
-        OAuth2.timed_session[token] = (form.username, form.password)
+        OAuth2.timed_session[token] = {'username': form.username,
+                                       'password': form.password,
+                                       'scopes': form.scopes
+                                       }
 
+        # Not used JWT because we don't require the stateless function.
         return {
             "access_token": token,
             "token_type": "bearer",
@@ -269,13 +284,20 @@ class OAuth2:
         OAuth2.timed_session.refresh_ttl(token)
         return token
 
+    def before_hook(self, *args, **kwargs):
+        token = kwargs.get('token')
+        self._session.token = token
+
+    def after_hook(self, *args, **kwargs):
+        self._session.token = None
+
     def token_authentication(self):
         def decorator(f):
             @wraps(f)
             def wrapped(*args, token: str = Depends(self._authenticate), **kwargs):
-                self._session.token = token
+                self.before_hook(token=token)
                 rv = f(*args, **kwargs)
-                self._session.token = None
+                self.after_hook()
                 return rv
 
             # Append Oauth field into the parameter list of this function. Then, fastapi can
@@ -286,7 +308,9 @@ class OAuth2:
                 default=Depends(self._authenticate), annotation=str
             )
 
-            sig = sig.replace(parameters=tuple(sig.parameters.values()) + (token_param,))
+            sig = sig.replace(
+                parameters=tuple(sig.parameters.values()) + (token_param,)
+            )
             wrapped.__signature__ = sig
             return wrapped
 

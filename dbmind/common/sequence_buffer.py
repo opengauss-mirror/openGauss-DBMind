@@ -14,6 +14,7 @@ import logging
 import math
 import threading
 import time
+import re
 from collections import defaultdict
 from typing import Callable
 
@@ -525,6 +526,16 @@ def dict_belongs_to(parent: dict, child: dict):
     return True
 
 
+def is_dict_matched_regex(parent: dict, regex: dict):
+    if not regex:
+        # If not given rules, means anyone can be allowed.
+        return True
+    for k, rule in regex.items():
+        if k not in parent or not re.match(rule, parent[k]):
+            return False
+    return True
+
+
 class SequenceBufferPool:
     def __init__(self, ttl=float('inf'), vacuum_timeout=10, buffer=None):
         """\
@@ -585,12 +596,12 @@ class SequenceBufferPool:
             time.sleep(self.timeout)
             self.evict(self.time() - self.ttl)
 
-    def _get_matched_collection(self, metric_name, labels):
+    def _get_matched_collection(self, metric_name, labels, labels_like=None):
         with self._lock:
             lists = []
             dictionaries = [restore2dict(t) for t in self._buffer[metric_name].keys()]
             for d in dictionaries:
-                if dict_belongs_to(d, labels):
+                if dict_belongs_to(d, labels) and is_dict_matched_regex(d, labels_like):
                     list_ = self._buffer[metric_name][frozendict(d)]
                     dbmind_assert(isinstance(list_, list))
                     if len(list_) > 0:
@@ -733,9 +744,9 @@ class SequenceBufferPool:
             tree = trees[0]
         return tree
 
-    def get(self, metric_name, start_time, end_time, step, labels, fetcher_func: Callable):
+    def get(self, metric_name, start_time, end_time, step, labels, fetcher_func: Callable, labels_like=None):
         with self._lock:
-            matched_collection = self._get_matched_collection(metric_name, labels)
+            matched_collection = self._get_matched_collection(metric_name, labels, labels_like)
             if len(matched_collection) == 0:
                 sequences = fetcher_func(start_time, end_time, step)
                 for sequence in sequences:

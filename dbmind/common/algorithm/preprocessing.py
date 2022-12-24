@@ -17,6 +17,11 @@ import numpy as np
 class MinMaxScaler:
     def __init__(self, feature_range=(0, 1)):
         self.feature_range = feature_range
+        self.scale_ = None
+        self.min_ = None
+        self.data_min_ = None
+        self.data_max_ = None
+        self.data_range_ = None
 
     def _reset(self):
         # Checking one attribute is enough, because they are all set together

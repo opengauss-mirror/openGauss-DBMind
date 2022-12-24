@@ -18,6 +18,7 @@ from .. import Base
 class RegularInspection(Base):
     __tablename__ = "tb_regular_inspections"
     id = Column(Integer, primary_key=True, autoincrement=True)
+    instance = Column(String(24), nullable=False)
     inspection_type = Column(String(64), nullable=False)
     report = Column(TEXT)
     conclusion = Column(TEXT)

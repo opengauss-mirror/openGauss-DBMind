@@ -100,7 +100,7 @@ class ARIMA(ForecastingAlgorithm):
         self.resid = None
 
     def fit(self, sequence):
-        self.original_data = np.array(sequence.values).astype('float32')
+        self.original_data = np.array(sequence.values).astype('float64')
         if self.given_parameters is None:
             # To determine d by Augmented-Dickey-Fuller method.
             n_diff = MIN_DIFF_TIMES
@@ -129,7 +129,13 @@ class ARIMA(ForecastingAlgorithm):
                 except InvalidParameter:
                     continue
 
-            _, p0, q0 = sorted(orders)[0]
+            sorted_orders = sorted(orders)
+            if len(sorted_orders) == 0:
+                raise InvalidParameter(
+                    'Cannot get proper parameters for the sequence: %s.' % str(sequence.values)
+                )
+
+            _, p0, q0 = sorted_orders[0]
             for p, q in [(p0 - 1, q0), (p0, q0 - 1), (p0 + 1, q0), (p0, q0 + 1)]:
                 if p < 0 or q < 0:
                     continue

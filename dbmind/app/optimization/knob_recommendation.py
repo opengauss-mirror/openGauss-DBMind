@@ -17,19 +17,22 @@ from dbmind.components.xtuner.tuner.character import AbstractMetric
 from dbmind.components.xtuner.tuner.recommend import recommend_knobs as rk
 from dbmind.components.xtuner.tuner.utils import cached_property
 from dbmind.service import dai
-from dbmind.service.utils import get_master_instance_address
+from dbmind.service.utils import get_agent_instance_address
 from dbmind.service.utils import SequenceUtils
 
 
 def _fetch_value_by_rpc(sql, database='postgres', default_val=0):
     # Ensure that RPC collects correct data
     try:
-        result = global_vars.agent_rpc_client.call('query_in_database',
-                                                   sql,
-                                                   database,
-                                                   return_tuples=True)
+        result = global_vars.agent_proxy.call('query_in_database',
+                                              sql,
+                                              database,
+                                              return_tuples=True)
         return result[0][0]
-    except Exception:
+    except Exception as e:
+        logging.warning(
+            'Failed to use RPC in the KnobRecommendation.', exc_info=e
+        )
         return default_val
 
 
@@ -62,32 +65,35 @@ def _fetch_one_value_by_host(metric_name, host, default_val=0, **condition):
 
 
 def get_database_addresses():
-    database_addresses = set()
     seqs = _fetch_all_value("pg_node_info_uptime")
+    database_addresses = set()
     for seq in seqs:
-        host, port = SequenceUtils.from_server(seq).split(':')
-        database_addresses.add((host, port))
+        database_addresses.add(SequenceUtils.from_server(seq))
     return database_addresses
 
 
 def recommend_knobs():
-    metric = RPCAndTSDBMetric()
     addresses = get_database_addresses()
     result = dict()
-    primary_host, primary_port = get_master_instance_address()
-    for host, port in addresses:
+    metric = RPCAndTSDBMetric()
+    for address in addresses:
         try:
-            metric.set_host(host)
-            metric.set_port(port)
-            metric.set_address()
-            if host == primary_host and port == primary_port:
-                metric.is_rpc_valid = True
-            knobs = rk("recommend", metric)
-            address = "%s:%s" % (host, port)
-            result[address] = [knobs, metric.to_dict()]
+            with global_vars.agent_proxy.context(address):
+                host, port = address.split(':')
+                metric.set_host(host)
+                metric.set_port(port)
+                metric.set_address()
+                knobs = rk("recommend", metric)
+                result[address] = [knobs, metric.to_dict()]
+        except global_vars.agent_proxy.RPCAddressError as e:
+            logging.warning(
+                'Cannot recommend knobs for the address %s because %s.',
+                address, str(e)
+            )
         except Exception as e:
             logging.warning(
-                'Cannot recommend knobs for the address %s maybe because of information lack.', f"{host}:{port}",
+                'Cannot recommend knobs for the '
+                'address %s maybe because of information lack.', address,
                 exc_info=e
             )
     return result

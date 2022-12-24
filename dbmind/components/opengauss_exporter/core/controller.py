@@ -11,19 +11,28 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 from dbmind.common.http import HttpService
-from dbmind.common.http import Response
-from .service import query_all_metrics
+from dbmind.common.http import Response, JSONResponse
+from . import service
 
 app = HttpService('DBMind-openGauss-exporter')
 
 
 @app.route('/', methods=['GET', 'POST'])
 def index(*args):
-    return Response('openGauss exporter (DBMind)')
+    return Response(
+        'openGauss exporter (DBMind)\n'
+        'metric URI: /metrics \n'
+        'info URI: /info'
+    )
+
+
+@app.route('/info', methods=['GET', 'POST'])
+def info(*args):
+    return JSONResponse(service.EXPORTER_FIXED_INFO)
 
 
 def metrics(*args):
-    return Response(query_all_metrics())
+    return Response(service.query_all_metrics())
 
 
 def bind_rpc_service(rpc_service, uri='/rpc'):

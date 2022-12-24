@@ -89,6 +89,8 @@ class TsdbClient(object):
         """get the scrape interval of tsdb. Unit is second."""
         pass
 
+    @property
     def all_metrics(self):
         """get all the metric name from tsdb."""
-        pass
+        return None
+

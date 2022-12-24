@@ -22,15 +22,17 @@ import logging
 from datetime import timedelta, datetime
 
 from dbmind import global_vars
+from dbmind.app.diagnosis.query.slow_sql import SlowQuery
 from dbmind.common import utils
 from dbmind.common.dispatcher.task_worker import get_mp_sync_manager
 from dbmind.common.platform import LINUX
 from dbmind.common.sequence_buffer import SequenceBufferPool
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.common.types import Sequence, SlowQuery
+from dbmind.common.types import Sequence
 from dbmind.common.utils import dbmind_assert
 from dbmind.metadatabase import dao
-from dbmind.service.utils import SequenceUtils, DISTINGUISHING_INSTANCE_LABEL
+from dbmind.service.utils import SequenceUtils
+from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
 
 if LINUX:
     mp_shared_buffer = get_mp_sync_manager().defaultdict(dict)
@@ -129,6 +131,7 @@ class LazyFetcher:
                 end_time=end_time,
                 step=step,
                 labels=self.labels,
+                labels_like=self.labels_like,
                 fetcher_func=self._fetch_sequence
             )
         except Exception as e:
@@ -222,7 +225,7 @@ def save_history_alarms(history_alarms):
     for alarm in history_alarms:
         if not alarm:
             continue
-        query = dao.alarms.select_history_alarm(host=alarm.host, alarm_type=alarm.alarm_type,
+        query = dao.alarms.select_history_alarm(instance=alarm.instance, alarm_type=alarm.alarm_type,
                                                 alarm_content=alarm.alarm_content,
                                                 alarm_level=alarm.alarm_level, limit=1)
         field_names = ['history_alarm_id', 'end_at']
@@ -238,7 +241,7 @@ def save_history_alarms(history_alarms):
                 dao.alarms.update_history_alarm(alarm_id=pre_alarm_id, end_at=cur_alarm_end_at)
                 continue
         func.add(
-            host=alarm.host,
+            instance=alarm.instance,
             metric_name=alarm.metric_name,
             alarm_type=alarm.alarm_type,
             start_at=alarm.start_timestamp,
@@ -261,7 +264,7 @@ def save_future_alarms(future_alarms):
         if not alarm:
             continue
         func.add(
-            host=alarm.host,
+            instance=alarm.instance,
             metric_name=alarm.metric_name,
             alarm_type=alarm.alarm_type,
             alarm_level=str(alarm.alarm_level),
@@ -275,7 +278,7 @@ def save_future_alarms(future_alarms):
 
 def save_healing_record(record):
     dao.healing_records.insert_healing_record(
-        host=record.host,
+        instance=record.instance,
         trigger_events=record.trigger_events,
         trigger_root_causes=record.trigger_root_causes,
         action=record.action,
@@ -286,12 +289,12 @@ def save_healing_record(record):
     )
 
 
-def save_forecast_sequence(metric_name, host, sequence):
+def save_forecast_sequence(metric_name, instance, sequence):
     if not sequence:
         return
 
     dao.forecasting_metrics.batch_insert_forecasting_metric(
-        metric_name, host, sequence.values, sequence.timestamps,
+        metric_name, instance, sequence.values, sequence.timestamps,
         labels=json.dumps(sequence.labels)
     )
 
@@ -302,9 +305,11 @@ def save_slow_queries(slow_queries):
             continue
 
         h1, h2 = slow_query.hash_query()
-        if not slow_query.replicated:
+        instance = '%s:%s' % (slow_query.db_host, slow_query.db_port)
+
+        def insert():
             dao.slow_queries.insert_slow_query(
-                address="%s:%s" % (slow_query.db_host, slow_query.db_port),
+                instance=instance,
                 schema_name=slow_query.schema_name,
                 db_name=slow_query.db_name,
                 query=slow_query.query,
@@ -316,23 +321,14 @@ def save_slow_queries(slow_queries):
                 plan_time=slow_query.plan_time, root_cause=slow_query.root_causes,
                 suggestion=slow_query.suggestions, template_id=slow_query.template_id
             )
+
+        if not slow_query.replicated:
+            insert()
         query_id_result = dao.slow_queries.select_slow_query_id_by_hashcode(
             hashcode1=h1, hashcode2=h2
         ).all()
         if len(query_id_result) == 0:
-            dao.slow_queries.insert_slow_query(
-                address="%s:%s" % (slow_query.db_host, slow_query.db_port),
-                schema_name=slow_query.schema_name,
-                db_name=slow_query.db_name,
-                query=slow_query.query,
-                hashcode1=h1,
-                hashcode2=h2,
-                hit_rate=slow_query.hit_rate, fetch_rate=slow_query.fetch_rate,
-                cpu_time=slow_query.cpu_time, data_io_time=slow_query.data_io_time,
-                db_time=slow_query.db_time, parse_time=slow_query.parse_time,
-                plan_time=slow_query.plan_time, root_cause=slow_query.root_causes,
-                suggestion=slow_query.suggestions, template_id=slow_query.template_id
-            )
+            insert()
             query_id_result = dao.slow_queries.select_slow_query_id_by_hashcode(
                 hashcode1=h1, hashcode2=h2
             ).all()
@@ -341,7 +337,8 @@ def save_slow_queries(slow_queries):
         dao.slow_queries.insert_slow_query_journal(
             slow_query_id=slow_query_id,
             start_at=slow_query.start_at,
-            duration_time=slow_query.duration_time
+            duration_time=slow_query.duration_time,
+            instance=instance
         )
 
 
@@ -413,7 +410,7 @@ def get_all_slow_queries(minutes):
             schema_name=schema_name, db_name=db_name, query=query,
             start_timestamp=start_timestamp, duration_time=duration_time,
             hit_rate=hit_rate, fetch_rate=fetch_rate, track_parameter=track_parameter,
-            cpu_time=cpu_time, data_io_time=data_io_time, plan_time=plan_time, 
+            cpu_time=cpu_time, data_io_time=data_io_time, plan_time=plan_time,
             parse_time=parse_time, db_time=db_time,
             template_id=template_id, lock_wait_count=lock_wait_count,
             lwlock_wait_count=lwlock_wait_count, n_returned_rows=n_returned_rows,
@@ -434,7 +431,7 @@ def save_index_recomm(index_infos):
 
 def _save_index_recomm(detail_info):
     db_name = detail_info.get('db_name')
-    host = detail_info.get('host')
+    instance = detail_info.get('instance')
     positive_stmt_count = detail_info.get('positive_stmt_count', 0)
     recommend_index = detail_info.get('recommendIndexes', [])
     uselessindexes = detail_info.get('uselessIndexes', [])
@@ -454,7 +451,7 @@ def _save_index_recomm(detail_info):
         deleteratio = _recomm_index['deleteRatio']
         updateratio = _recomm_index['updateRatio']
         table_set.add(tb_name)
-        dao.index_recommendation.insert_recommendation(host=host,
+        dao.index_recommendation.insert_recommendation(instance=instance,
                                                        db_name=db_name,
                                                        schema_name=schemaname, tb_name=tb_name, columns=columns,
                                                        optimized=optimized, stmt_count=stmtcount,
@@ -480,7 +477,7 @@ def _save_index_recomm(detail_info):
 
     for uselessindex in uselessindexes:
         table_set.add(uselessindex['tbName'])
-        dao.index_recommendation.insert_recommendation(host=host,
+        dao.index_recommendation.insert_recommendation(instance=instance,
                                                        db_name=db_name,
                                                        schema_name=uselessindex['schemaName'],
                                                        tb_name=uselessindex['tbName'],
@@ -488,7 +485,7 @@ def _save_index_recomm(detail_info):
                                                        index_stmt=uselessindex['statement'])
     for created_index in created_indexes:
         table_set.add(created_index['tbName'])
-        dao.index_recommendation.insert_existing_index(host=host,
+        dao.index_recommendation.insert_existing_index(instance=instance,
                                                        db_name=db_name,
                                                        tb_name=created_index['tbName'],
                                                        columns=created_index['columns'],
@@ -498,7 +495,7 @@ def _save_index_recomm(detail_info):
     invalid_index_count = sum(uselessindex['type'] == 3 for uselessindex in uselessindexes)
     stmt_count = detail_info['workloadCount']
     table_count = len(table_set)
-    dao.index_recommendation.insert_recommendation_stat(host=host,
+    dao.index_recommendation.insert_recommendation_stat(instance=instance,
                                                         db_name=db_name,
                                                         stmt_count=stmt_count,
                                                         positive_stmt_count=positive_stmt_count,
@@ -512,11 +509,11 @@ def _save_index_recomm(detail_info):
 def save_knob_recomm(recommend_knob_dict):
     dao.knob_recommendation.truncate_knob_recommend_tables()
 
-    for host, result in recommend_knob_dict.items():
+    for instance, result in recommend_knob_dict.items():
         knob_recomms, metric_dict = result
 
         # 1. save report msg
-        dao.knob_recommendation.batch_insert_knob_metric_snapshot(host, metric_dict)
+        dao.knob_recommendation.batch_insert_knob_metric_snapshot(instance, metric_dict)
 
         # 2. save recommend setting
         for knob in knob_recomms.all_knobs:
@@ -525,11 +522,11 @@ def save_knob_recomm(recommend_knob_dict):
                 .fetchall()
             current_setting = -1
             for s in sequences:
-                if SequenceUtils.from_server(s).startswith(host) and len(s) > 0:
+                if SequenceUtils.from_server(s).startswith(instance) and len(s) > 0:
                     current_setting = s.values[0]
                     break
             dao.knob_recommendation.insert_knob_recommend(
-                host,
+                instance,
                 name=knob.name,
                 current=current_setting,
                 recommend=knob.recommend,
@@ -539,15 +536,15 @@ def save_knob_recomm(recommend_knob_dict):
             )
 
         # 3. save recommend warnings
-        dao.knob_recommendation.batch_insert_knob_recommend_warnings(host,
+        dao.knob_recommendation.batch_insert_knob_recommend_warnings(instance,
                                                                      knob_recomms.reporter.warn,
                                                                      knob_recomms.reporter.bad)
 
 
-def save_killed_slow_queries(results):
+def save_killed_slow_queries(instance, results):
     for row in results:
         logging.debug('[Killed Slow Query] %s.', str(row))
-        dao.slow_queries.insert_killed_slow_queries(**row)
+        dao.slow_queries.insert_killed_slow_queries(instance, **row)
 
 
 def save_statistical_metric_records(results):
@@ -557,7 +554,7 @@ def save_statistical_metric_records(results):
         dao.statistical_metric.insert_record(**row)
 
 
-def save_regular_inspection_results(results):
+def save_regular_inspection_results(instance, results):
     for row in results:
         logging.debug('[REGULAR INSPECTION] %s', str(row))
-        dao.regular_inspections.insert_regular_inspection(**row)
+        dao.regular_inspections.insert_regular_inspection(instance=instance, **row)

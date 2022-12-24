@@ -14,8 +14,8 @@
 from unittest import mock
 import pytest
 
-from dbmind.app.diagnosis.query.slow_sql import query_info_source
-from dbmind.common.types import Sequence, SlowQuery
+from dbmind.common.types import Sequence
+from dbmind.app.diagnosis.query.slow_sql import SlowQuery
 from dbmind.service import dai
 
 pg_class_relsize_dict = {'datname': 'database1', 'nspname': 'schema1', 'relname': 'table1',

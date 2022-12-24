@@ -249,7 +249,7 @@ def exists_bool_clause(query):
                 if isinstance(item, Parenthesis) and isinstance(item.parent, Comparison):
                     comparisons = [subitem.value for subitem in item.parent.tokens if
                                    subitem.ttype == sqlparse.tokens.Token.Operator.Comparison]
-                    if any(op in comparisons for op in ('not in')):
+                    if any(op in comparisons for op in ('not in',)):
                         for sub_item in item.tokens:
                             if isinstance(sub_item, IdentifierList):
                                 flags.append(sub_item.value.split(','))

@@ -52,7 +52,8 @@ pg_sql_statement_history:
             S.hash_spill_count / S.n_calls AS hash_spill_count
   FROM dbe_perf.statement_history H inner join dbe_perf.statement S
   on H.unique_query_id = S.unique_sql_id
-  WHERE H.query != 'COMMIT'
+  WHERE lower(H.query) similar to ('%((select)|(delete)|(insert)|(update)|(merge))%')
+    AND lower(H.query) not similar to ('%((dbe_perf)|(pg_))%')
     AND H.application_name NOT IN ('gs_clean', 'DBMind-openGauss-exporter')
     AND S.n_calls > 1
     AND H.finish_time > (now() - interval '{scrape_interval_seconds} seconds')

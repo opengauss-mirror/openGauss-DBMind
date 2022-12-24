@@ -19,10 +19,10 @@ class KnobRecommendationDetails(Base):
     __tablename__ = "tb_knob_recommendation_details"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    host = Column(String(24), nullable=False)
+    instance = Column(String(24), nullable=False)
     name = Column(String(128), nullable=False)
-    current = Column(Numeric(), nullable=False)
-    recommend = Column(Numeric(), nullable=False)
-    min = Column(Numeric(), nullable=False)
-    max = Column(Numeric(), nullable=False)
+    current = Column(String, nullable=False)
+    recommend = Column(String, nullable=False)
+    min = Column(String, nullable=False)
+    max = Column(String, nullable=False)
     restart = Column(Boolean(), nullable=False)

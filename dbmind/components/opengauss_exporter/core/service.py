@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 import logging
 import time
+import os
 from concurrent.futures import as_completed
 from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import datetime
@@ -23,8 +24,9 @@ from prometheus_client.exposition import generate_latest
 from prometheus_client.registry import CollectorRegistry
 
 from dbmind.common.utils import dbmind_assert
+from dbmind import constants
 from dbmind.common.parser.sql_parsing import standardize_sql
-from .opengauss_driver import DriverBundle
+from dbmind.common.opengauss_driver import DriverBundle
 
 STATUS_ENABLE = "enable"
 STATUS_DISABLE = "disable"
@@ -32,7 +34,6 @@ DEFAULT_VERSION = ">=0.0.0"
 DBROLE_PRIMARY = 'primary'
 DBROLE_STANDBY = 'standby'
 DBROLE_UNSET = 'unset'
-
 
 PROMETHEUS_TYPES = {
     # Indeed, COUNTER should use the type `Counter` rather than `Gauge`,
@@ -47,13 +48,30 @@ PROMETHEUS_LABEL = 'LABEL'
 PROMETHEUS_DISCARD = 'DISCARD'
 FROM_INSTANCE_KEY = 'from_instance'
 
+EXPORTER_FIXED_INFO = {
+    # fixed name below
+    # Don't change the following fixed key name casually because
+    # some scenarios may depend on them.
+    'version': constants.__version__,
+    'updated': os.stat(
+        os.path.realpath(
+            os.path.join(os.path.dirname(__file__), '../yamls')
+        )
+    ).st_ctime,  # the last updated timestamp for yaml files
+    'url': None,  # exporter url
+    'primary': None,  # true means primary, false means standby
+    'rpc': None,  # support rpc, true or false
+    'dbname': None,  # which database to monitor
+    'monitoring': None  # what address is the database instance
+}
+
 driver = None
 
 # yaml macros
 scrape_interval_seconds = 0
 
 _thread_pool_executor = None
-_registry = CollectorRegistry()
+REGISTRY = CollectorRegistry()
 
 _use_cache = True
 global_labels = {FROM_INSTANCE_KEY: ''}
@@ -148,7 +166,7 @@ class Metric:
         """Instantiate specific Prometheus metric objects."""
         dbmind_assert(not self.is_label and self.prefix)
 
-        self.value = PROMETHEUS_TYPES[self.usage](
+        self.value = (PROMETHEUS_TYPES[self.usage])(
             # Prefix query instance name to the specific metric.
             '%s_%s' % (self.prefix, self.name), self.desc, labels
         )
@@ -156,6 +174,7 @@ class Metric:
 
 
 def process_particular_field(field_name, field_value):
+    """Transform a particular field's value."""
     if field_name == 'query':
         return standardize_sql(field_value)
     return field_value
@@ -330,8 +349,25 @@ def register_metrics(parsed_yml, force_connection_db=None):
         raw_query_instance.setdefault('name', name)
         instance = QueryInstance(raw_query_instance)
         instance.force_query_into_particular_db(force_connection_db)
-        instance.register(_registry)
+        instance.register(REGISTRY)
         query_instances.append(instance)
+
+
+def register_exporter_fixed_info():
+    # register fixed metric, which is similar to
+    # node_exporter_build_info etc.
+    exporter_fixed_info = Gauge(
+        name='opengauss_exporter_fixed_info',
+        documentation='build and monitoring info',
+        labelnames=EXPORTER_FIXED_INFO.keys()
+    )
+    REGISTRY.register(
+        exporter_fixed_info
+    )
+
+
+def update_exporter_fixed_info(k, v):
+    EXPORTER_FIXED_INFO[k] = v
 
 
 def query_all_metrics():
@@ -345,4 +381,14 @@ def query_all_metrics():
         except Exception as e:
             logging.exception(e)
 
-    return generate_latest(_registry)
+    # refresh fixed info below
+    update_exporter_fixed_info(
+        'primary', (not driver.is_standby())
+    )
+    # have to get the private variable
+    exporter_fixed_info = getattr(REGISTRY, '_names_to_collectors')[
+        'opengauss_exporter_fixed_info'
+    ]
+    exporter_fixed_info.labels(**EXPORTER_FIXED_INFO).set(1)
+
+    return generate_latest(REGISTRY)

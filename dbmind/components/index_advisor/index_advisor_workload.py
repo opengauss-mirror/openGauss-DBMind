@@ -350,9 +350,9 @@ class IndexAdvisor:
                 query_improved_rate = (query_origin_cost - current_cost) / current_cost
                 query_benefit_rate.append((query, query_improved_rate))
             # sort query by benefit rate
-            for i, (query, query_improved_rate) in enumerate(sorted(query_benefit_rate, key=lambda x: -x[1])):
+            for j, (query, query_improved_rate) in enumerate(sorted(query_benefit_rate, key=lambda x: -x[1])):
                 other_related_indexes = []
-                bar_print(f'\t\tQuery {i}: {query.get_statement()}')
+                bar_print(f'\t\tQuery {j}: {query.get_statement()}')
                 query_origin_cost = self.workload.get_origin_cost_of_query(query)
                 current_cost = self.workload.get_indexes_cost_of_query(query, tuple([index]))
                 query_benefit = query_origin_cost - current_cost

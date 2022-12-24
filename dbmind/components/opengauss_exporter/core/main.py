@@ -172,7 +172,7 @@ class ExporterMain(Daemon):
                 constant_labels=self.args.constant_labels,
                 scrape_interval_seconds=self.args.scrape_interval_seconds,
             )
-        except ConnectionError as e:
+        except ConnectionError:
             # We can not throw the exception details due to the default security policy.
             write_to_terminal('Failed to connect to the database using the url, exiting...', color='red')
             sys.exit(1)
@@ -212,6 +212,27 @@ class ExporterMain(Daemon):
             controller.bind_rpc_service(rpc)
 
         warn_ssl_certificate(self.args.ssl_certfile, self.args.ssl_keyfile)
+
+        # All startup works are completed, then mark the global
+        # exporter fixed information.
+        service.register_exporter_fixed_info()
+        service.update_exporter_fixed_info(
+            'url', '%s://%s:%s' % (
+                'http' if self.args.disable_https else 'https',
+                self.args.__dict__['web.listen_address'],
+                self.args.__dict__['web.listen_port']
+            )
+        )
+        service.update_exporter_fixed_info(
+            'rpc', (not self.args.disable_agent)
+        )
+        service.update_exporter_fixed_info(
+            'dbname', service.driver.main_dbname
+        )
+        service.update_exporter_fixed_info(
+            'monitoring', service.driver.address
+        )
+
         controller.run(
             host=self.args.__dict__['web.listen_address'],
             port=self.args.__dict__['web.listen_port'],

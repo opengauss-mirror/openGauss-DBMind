@@ -222,5 +222,6 @@ class LoadData:
             return self.load_train_file()
         else:
             return self.load_predict_file()
+
     def __del__(self):
         self.csv_file.close()

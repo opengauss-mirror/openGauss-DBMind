@@ -29,12 +29,12 @@ def clear_data():
     truncate_table(IndexRecommendationStmtTemplates.__tablename__)
 
 
-def insert_recommendation_stat(host, db_name, stmt_count, positive_stmt_count,
+def insert_recommendation_stat(instance, db_name, stmt_count, positive_stmt_count,
                                table_count, rec_index_count,
                                redundant_index_count, invalid_index_count, stmt_source):
     with get_session() as session:
         session.add(IndexRecommendationStats(
-            host=host,
+            instance=instance,
             db_name=db_name,
             recommend_index_count=rec_index_count,
             redundant_index_count=redundant_index_count,
@@ -46,27 +46,47 @@ def insert_recommendation_stat(host, db_name, stmt_count, positive_stmt_count,
         ))
 
 
-def get_latest_recommendation_stat():
+def get_latest_recommendation_stat(instance=None):
     with get_session() as session:
+        if instance is not None:
+            return session.query(IndexRecommendationStats).filter(
+                IndexRecommendationStats.occurrence_time == func.max(
+                    IndexRecommendationStats.occurrence_time).select(),
+                IndexRecommendationStats.instance == instance
+            )
         return session.query(IndexRecommendationStats).filter(
             IndexRecommendationStats.occurrence_time == func.max(
                 IndexRecommendationStats.occurrence_time).select())
 
 
-def get_recommendation_stat():
+def get_recommendation_stat(instance=None):
     with get_session() as session:
-        recommendation_stat = session.query(IndexRecommendationStats)
-    return recommendation_stat
+        if instance is not None:
+            return session.query(IndexRecommendationStats).filter(
+                IndexRecommendationStats.instance == instance
+            )
+        return session.query(IndexRecommendationStats)
 
 
-def get_advised_index():
+def get_advised_index(instance=None):
     with get_session() as session:
-        advised_index = session.query(IndexRecommendation).filter(IndexRecommendation.index_type == 1)
-    return advised_index
+        if instance is not None:
+            return session.query(IndexRecommendation).filter(
+                IndexRecommendation.index_type == 1, IndexRecommendation.instance == instance
+            )
+        return session.query(IndexRecommendation).filter(IndexRecommendation.index_type == 1)
 
 
-def get_advised_index_details():
+def get_advised_index_details(instance=None):
     with get_session() as session:
+        if instance is not None:
+            return session.query(IndexRecommendationStmtDetails, IndexRecommendationStmtTemplates,
+                                 IndexRecommendation).filter(
+                IndexRecommendationStmtDetails.template_id == IndexRecommendationStmtTemplates.id).filter(
+                IndexRecommendationStmtDetails.index_id == IndexRecommendation.id).filter(
+                IndexRecommendationStmtDetails.correlation_type == 0,
+                IndexRecommendationStmtDetails.instance == instance
+            )
         return session.query(IndexRecommendationStmtDetails, IndexRecommendationStmtTemplates,
                              IndexRecommendation).filter(
             IndexRecommendationStmtDetails.template_id == IndexRecommendationStmtTemplates.id).filter(
@@ -74,25 +94,29 @@ def get_advised_index_details():
             IndexRecommendationStmtDetails.correlation_type == 0)
 
 
-def get_existing_indexes():
+def get_existing_indexes(instance=None):
     with get_session() as session:
-        return session.query(ExistingIndexes)
+        if instance is None:
+            return session.query(ExistingIndexes)
+        return session.query(ExistingIndexes).filter(
+            ExistingIndexes.instance == instance
+        )
 
 
-def insert_existing_index(host, db_name, tb_name, columns, index_stmt):
+def insert_existing_index(instance, db_name, tb_name, columns, index_stmt):
     with get_session() as session:
-        session.add(ExistingIndexes(host=host,
+        session.add(ExistingIndexes(instance=instance,
                                     db_name=db_name,
                                     tb_name=tb_name,
                                     columns=columns,
                                     index_stmt=index_stmt))
 
 
-def insert_recommendation(host, db_name, schema_name, tb_name, columns, index_type, index_stmt, optimized=None,
+def insert_recommendation(instance, db_name, schema_name, tb_name, columns, index_type, index_stmt, optimized=None,
                           stmt_count=None, select_ratio=None, insert_ratio=None, update_ratio=None,
                           delete_ratio=None):
     with get_session() as session:
-        session.add(IndexRecommendation(host=host,
+        session.add(IndexRecommendation(instance=instance,
                                         db_name=db_name,
                                         schema_name=schema_name,
                                         tb_name=tb_name,

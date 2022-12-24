@@ -97,9 +97,13 @@ class ExporterMain(Daemon):
         set_logger(self.args.__dict__['log.filepath'],
                    self.args.__dict__['log.level'])
         self.handle_file_permission()
+        constant_labels = self.args.constant_labels or {}
+        # If supports remote login, the following filed will
+        # play a critical role.
+        constant_labels[service.FROM_INSTANCE_KEY] = self.args.__dict__['web.listen_address']
         service.config_collecting_params(
             parallel=self.args.parallel,
-            constant_labels=self.args.constant_labels,
+            constant_labels=constant_labels,
         )
         with open(self.args.config, errors='ignore') as fp:
             service.register_metrics(yaml.load(fp, Loader=yaml.FullLoader))

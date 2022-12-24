@@ -29,6 +29,6 @@ worker = None
 confpath = None
 backend_timed_task = []
 is_dry_run_mode = False
-agent_rpc_client = None
+agent_proxy = None
 self_driving_records = None
 executor_lock = multiprocessing.Lock()

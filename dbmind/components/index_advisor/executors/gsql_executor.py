@@ -128,8 +128,9 @@ class GsqlExecutor(BaseExecutor):
 
     def execute_sqls(self, sqls):
         sqls = ['set current_schema = %s' % self.get_schema()] + sqls
+
+        file1 = tempfile.NamedTemporaryFile(mode='w+', delete=True)
         try:
-            file1 = tempfile.NamedTemporaryFile(mode='w+', delete=True)
             for sql in sqls:
                 if not sql.strip().endswith(';'):
                     sql += ';'

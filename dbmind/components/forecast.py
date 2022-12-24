@@ -12,36 +12,34 @@
 # See the Mulan PSL v2 for more details.
 import argparse
 import csv
+import logging
 import os
 import sys
 import time
-import logging
+import traceback
 from datetime import datetime
 from math import inf
-import traceback
 
 from prettytable import PrettyTable
 
-from dbmind import constants
-from dbmind import global_vars
-from dbmind.service import dai
-from dbmind.cmd.config_utils import load_sys_configs
-from dbmind.common.utils.cli import keep_inputting_until_correct
-from dbmind.common.utils import write_to_terminal, read_simple_config_file
-from dbmind.common.utils.checking import path_type, date_type
-from dbmind.service.utils import SequenceUtils
-from dbmind.metadatabase.dao import forecasting_metrics
+from dbmind.cmd.edbmind import init_tsdb_with_config, init_global_configs
 from dbmind.common.algorithm.forecasting import quickly_forecast
+from dbmind.common.utils import write_to_terminal
+from dbmind.common.utils.checking import path_type, date_type
+from dbmind.common.utils.cli import keep_inputting_until_correct
 from dbmind.common.utils.exporter import KVPairAction
+from dbmind.metadatabase.dao import forecasting_metrics
+from dbmind.service import dai
+from dbmind.service.utils import SequenceUtils
 
 
 def _get_sequences(metric, host, labels, start_datetime, end_datetime):
     result = []
     if labels is None:
-        sequences = dai.get_metric_sequence(metric, start_datetime, end_datetime).\
+        sequences = dai.get_metric_sequence(metric, start_datetime, end_datetime). \
             from_server(host).fetchall()
     else:
-        sequences = dai.get_metric_sequence(metric, start_datetime, end_datetime).\
+        sequences = dai.get_metric_sequence(metric, start_datetime, end_datetime). \
             from_server(host).filter(**labels).fetchall()
     for sequence in sequences:
         name = metric
@@ -56,21 +54,9 @@ def _get_sequences(metric, host, labels, start_datetime, end_datetime):
 
 
 def _initialize_tsdb_param():
-    from dbmind.common.tsdb import TsdbClientFactory
-    global_vars.metric_map = read_simple_config_file(constants.METRIC_MAP_CONFIG)
     try:
-        TsdbClientFactory.set_client_info(
-            global_vars.configs.get('TSDB', 'name'),
-            global_vars.configs.get('TSDB', 'host'),
-            global_vars.configs.get('TSDB', 'port'),
-            global_vars.configs.get('TSDB', 'username'),
-            global_vars.configs.get('TSDB', 'password'),
-            global_vars.configs.get('TSDB', 'ssl_certfile'),
-            global_vars.configs.get('TSDB', 'ssl_keyfile'),
-            global_vars.configs.get('TSDB', 'ssl_keyfile_password'),
-            global_vars.configs.get('TSDB', 'ssl_ca_file')
-        )
-        return True
+        tsdb = init_tsdb_with_config()
+        return tsdb.check_connection()
     except Exception as e:
         logging.error(e)
         return False
@@ -83,8 +69,10 @@ def _save_forecast_result(result, save_path):
         writer = csv.writer(fp)
         for name, value, timestamp in result:
             writer.writerow([name])
-            writer.writerow([time.strftime("%Y-%m-%d %H:%M:%S",
-                                           time.localtime(int(item / 1000))) for item in timestamp])
+            writer.writerow([time.strftime(
+                "%Y-%m-%d %H:%M:%S",
+                time.localtime(int(item / 1000))) for item in timestamp]
+            )
             writer.writerow(value)
 
     os.chmod(save_path, 0o600)
@@ -100,7 +88,7 @@ def show(metric, host, start_time, end_time):
     output_table.field_names = field_names
 
     result = forecasting_metrics.select_forecasting_metric(
-        metric_name=metric, host=host,
+        metric_name=metric, instance=host,
         min_metric_time=start_time, max_metric_time=end_time
     ).all()
     for row_ in result:
@@ -256,7 +244,7 @@ def main(argv):
             parser.exit(1, 'You did not specify warning hours.')
     # Set the global_vars so that DAO can login the meta-database.
     os.chdir(args.conf)
-    global_vars.configs = load_sys_configs(constants.CONFILE_NAME)
+    init_global_configs(args.conf)
     try:
         if args.action == 'show':
             show(args.metric_name, args.host, args.start_time, args.end_time)

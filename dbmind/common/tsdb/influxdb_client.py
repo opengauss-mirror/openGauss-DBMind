@@ -17,10 +17,9 @@ from urllib.parse import urlparse
 
 from dbmind.common.http.requests_utils import create_requests_session
 from dbmind.common.utils import cached_property
-from dbmind.common.tsdb.tsdb_client import cast_duration_to_seconds
-from dbmind.service.utils import DISTINGUISHING_INSTANCE_LABEL
+from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
 
-from .tsdb_client import TsdbClient
+from .tsdb_client import TsdbClient, cast_duration_to_seconds
 from ..exceptions import ApiClientException
 from ..types import Sequence
 from ..types.ssl import SSLContext
@@ -83,6 +82,7 @@ def _influxql_generator(
 
     return influxql
 
+
 # Standardized the format of return value.
 def _standardize(data):
     results_dict = defaultdict(list)
@@ -130,8 +130,14 @@ class InfluxdbClient(TsdbClient):
         self.url = url
         self.influxdb_host = urlparse(self.url).netloc
         self._all_metrics = None
-        self._session = create_requests_session(username, password, ssl_context)
+
         self.dbname = dbname if dbname else self._dbname
+
+        self._session_args = (username, password, ssl_context)
+
+    def _get(self, url, **kwargs):
+        with create_requests_session(*self._session_args) as session:
+            return session.get(url=url, **kwargs)
 
     def check_connection(self, params: dict = None) -> bool:
         """
@@ -140,7 +146,7 @@ class InfluxdbClient(TsdbClient):
             sent along with the API request.
         :returns: (bool) True if the endpoint can be reached, False if cannot be reached.
         """
-        response = self._session.get(
+        response = self._get(
             f"{self.url}/ping",
             headers=self.headers,
             params=params
@@ -176,7 +182,7 @@ class InfluxdbClient(TsdbClient):
         )
         influxql = influxql.replace("SELECT value", "SELECT last(value)")
         # using the query API to get raw data
-        response = self._session.get(
+        response = self._get(
             f"{self.url}/query",
             params={**params, **{"q": influxql, "epoch": "ms", "db": self.dbname}},
             headers=self.headers,
@@ -232,7 +238,7 @@ class InfluxdbClient(TsdbClient):
             label_config=label_config,
             labels_like=labels_like
         )
-        response = self._session.get(
+        response = self._get(
             f"{self.url}/query",
             params={**params, **{"q": influxql, "epoch": "ms", "db": self.dbname}},
             headers=self.headers,
@@ -251,6 +257,7 @@ class InfluxdbClient(TsdbClient):
         Send an influxql to a InfluxDB Host.
         This method takes as input a string which will be sent as a query to
         the specified InfluxDB Host. This query is a influxql query.
+        :param timeout: wait for query
         :param query: (str) This is a influxql query
         :param params: (dict) Optional dictionary containing GET parameters to be
             sent along with the API request, such as "epoch", "db"
@@ -262,7 +269,7 @@ class InfluxdbClient(TsdbClient):
         params = params or {}
         query = str(query)
         # using the query API to get raw data
-        response = self._session.get(
+        response = self._get(
             f"{self.url}/query",
             params={**params, **{"q": query, "epoch": "ms", "db": self.dbname}},
             headers=self.headers,
@@ -278,7 +285,7 @@ class InfluxdbClient(TsdbClient):
         return _standardize(data)
 
     def _get_node_name(self, metric_name):
-        response = self._session.get(
+        response = self._get(
             f"{self.url}/query",
             params={
                 "q": f"select value, nodename, node_name from {metric_name} limit 1",
@@ -293,7 +300,7 @@ class InfluxdbClient(TsdbClient):
 
     def timestamp(self):
         influxql = "SHOW DIAGNOSTICS"
-        response = self._session.get(
+        response = self._get(
             f"{self.url}/query",
             params={"q": influxql, "epoch": "ms", "db": self.dbname},
         )
@@ -309,7 +316,7 @@ class InfluxdbClient(TsdbClient):
     @cached_property
     def scrape_interval(self):
         influxql = "SHOW DIAGNOSTICS"
-        response = self._session.get(
+        response = self._get(
             f"{self.url}/query",
             params={"q": influxql, "epoch": "ms", "db": self.dbname},
         )
@@ -324,7 +331,7 @@ class InfluxdbClient(TsdbClient):
     @cached_property
     def all_metrics(self):
         influxql = "SHOW TAG KEYS"
-        response = self._session.get(
+        response = self._get(
             f"{self.url}/query",
             params={"q": influxql, "db": self.dbname},
             headers=self.headers
@@ -340,9 +347,10 @@ class InfluxdbClient(TsdbClient):
     @cached_property
     def _dbname(self):
         influxql = "SHOW DATABASES"
-        response = self._session.get(
+        response = self._get(
             f"{self.url}/query",
             params={"q": influxql},
         )
         if response.status_code == 200 and len(response.json()["results"]) > 0:
             return response.json()["results"][0]["series"][0]["values"][0][0]
+

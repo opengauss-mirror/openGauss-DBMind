@@ -1207,41 +1207,6 @@ pg_sql_count:
       usage: GAUGE
 
 
-db_timed_task:
-  name: db_timed_task
-  desc: db_timed_task
-  query:
-    - name: db_timed_task
-      sql: |-
-        select job_id, priv_user, dbname, job_status, last_start_date, last_end_date, failure_count from pg_catalog.pg_job;
-      version: '>=0.0.0'
-      timeout: 1
-      ttl: 10
-      status: enable
-
-  metrics:
-    - name: job_id
-      description: the id of job
-      usage: LABEL
-    - name: priv_user
-      description: the executor of task
-      usage: LABEL
-    - name: dbname
-      description: the related database of task
-      usage: LABEL
-    - name: job_status
-      description: the status of job
-      usage: LABEL
-    - name: last_start_date
-      description: the last start time of task
-      usage: LABEL
-    - name: last_end_date
-      description: the last end time of task
-      usage: LABEL
-    - name: failure_count
-      description: the failure count of task
-      usage: GAUGE
-
 pg_autovacuum_worker:
   name: pg_autovacuum_worker
   desc: pg_autovacuum_worker

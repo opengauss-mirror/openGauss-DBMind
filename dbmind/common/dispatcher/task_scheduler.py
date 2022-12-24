@@ -72,6 +72,7 @@ class _TimedTaskManager:
 
     def start(self):
         for t in self.timers:
+            logging.info('Applied timed task %s.', t)
             t.start()
 
     def stop(self):

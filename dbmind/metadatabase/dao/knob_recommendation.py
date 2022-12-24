@@ -25,7 +25,7 @@ def truncate_knob_recommend_tables():
     truncate_table(KnobRecommendationMetricSnapshot.__tablename__)
 
 
-def insert_knob_recommend(host,
+def insert_knob_recommend(instance,
                           name,
                           current: str,
                           recommend,
@@ -37,7 +37,7 @@ def insert_knob_recommend(host,
     with get_session() as session:
         session.add(
             KnobRecommendationDetails(
-                host=host,
+                instance=instance,
                 name=name,
                 current=current,
                 recommend=recommend,
@@ -48,7 +48,7 @@ def insert_knob_recommend(host,
         )
 
 
-def batch_insert_knob_metric_snapshot(host, metric_dict):
+def batch_insert_knob_metric_snapshot(instance, metric_dict):
     """batch insert knob recommend metric snapshot into the table."""
     metric_lists = []
     for metric_name, metric_value in metric_dict.items():
@@ -59,7 +59,7 @@ def batch_insert_knob_metric_snapshot(host, metric_dict):
             continue
         metric_lists.append(
             KnobRecommendationMetricSnapshot(
-                host=host,
+                instance=instance,
                 metric=metric_name,
                 value=metric_value
             )
@@ -68,13 +68,13 @@ def batch_insert_knob_metric_snapshot(host, metric_dict):
         session.bulk_save_objects(metric_lists)
 
 
-def batch_insert_knob_recommend_warnings(host, warn, bad):
+def batch_insert_knob_recommend_warnings(instance, warn, bad):
     """insert knob recommend warnings into the table."""
     warning_list = []
     for line in warn:
         warning_list.append(
             KnobRecommendationWarnings(
-                host=host,
+                instance=instance,
                 comment=line,
                 level="WARN"
             )
@@ -83,7 +83,7 @@ def batch_insert_knob_recommend_warnings(host, warn, bad):
     for line in bad:
         warning_list.append(
             KnobRecommendationWarnings(
-                host=host,
+                instance=instance,
                 comment=line,
                 level="BAD"
             )
@@ -93,16 +93,28 @@ def batch_insert_knob_recommend_warnings(host, warn, bad):
         session.bulk_save_objects(warning_list)
 
 
-def select_metric_snapshot():
+def select_metric_snapshot(instance=None):
     with get_session() as session:
+        if instance is not None:
+            return session.query(KnobRecommendationMetricSnapshot).filter(
+                KnobRecommendationMetricSnapshot.instance == instance
+            )
         return session.query(KnobRecommendationMetricSnapshot)
 
 
-def select_warnings():
+def select_warnings(instance=None):
     with get_session() as session:
+        if instance is not None:
+            return session.query(KnobRecommendationWarnings).filter(
+                KnobRecommendationWarnings.instance == instance
+            )
         return session.query(KnobRecommendationWarnings)
 
 
-def select_details():
+def select_details(instance=None):
     with get_session() as session:
+        if instance is not None:
+            return session.query(KnobRecommendationDetails).filter(
+                KnobRecommendationDetails.instance == instance
+            )
         return session.query(KnobRecommendationDetails)

@@ -21,7 +21,7 @@ class SlowQueries(Base):
     slow_query_id = Column(
         BigInteger().with_variant(Integer, 'sqlite'), primary_key=True, autoincrement=True
     )
-    address = Column(CHAR(24), nullable=False)
+    instance = Column(CHAR(24), nullable=False)
     schema_name = Column(String(64), nullable=False)
     db_name = Column(String(64), nullable=False)
     query = Column(TEXT, nullable=False)

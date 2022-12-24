@@ -10,7 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-import json
+import json as json_utils
 import re
 import threading
 from urllib.parse import urlparse
@@ -46,13 +46,38 @@ class RPCClient:
         self.pwd = pwd
         self.timeout = None
 
-        ssl_context = SSLContext(ssl_cert, ssl_key, ssl_key_password, ca_file)
-        self.session = create_requests_session(ssl_context=ssl_context)
+        self._ssl_context = SSLContext(ssl_cert, ssl_key, ssl_key_password, ca_file)
 
-        self._lock = threading.RLock()
+        self._lock = threading.Lock()
 
     def set_timeout(self, seconds):
         self.timeout = seconds
+
+    def _post(self, url, data=None, json=None, **kwargs):
+        with create_requests_session(
+                ssl_context=self._ssl_context) as session:
+            return session.post(url, data, json, **kwargs)
+
+    def _call_without_lock(self, funcname, *args, **kwargs):
+        """Internal private implementation."""
+        req = RPCRequest(self.username, self.pwd, funcname, args, kwargs)
+        try:
+            recv = self._post(self.url, json=req.json(), timeout=self.timeout)
+        except requests.exceptions.ConnectionError as e:
+            raise RPCConnectionError(e.strerror or 'Cannot access to %s.' % self.url)
+
+        if not recv.ok:
+            raise RPCExecutionError(recv.reason)
+
+        try:
+            res = RPCResponse.from_json(recv.json())
+        except json_utils.decoder.JSONDecodeError as e:
+            raise RPCExecutionError('RPC Client received invalid content: %s, which cannot '
+                                    'decode to JSON because %s.' %
+                                    (recv.text, e))
+        if not res.success:
+            raise RPCExecutionError(res.exception)
+        return res.result
 
     def call(self, funcname, *args, **kwargs):
         """Send request to remote server and fetch response from it.
@@ -65,24 +90,7 @@ class RPCClient:
         :return: the execution result, not including any wrappers.
         """
         with self._lock:
-            req = RPCRequest(self.username, self.pwd, funcname, args, kwargs)
-        try:
-            recv = self.session.post(self.url, json=req.json(), timeout=self.timeout)
-        except requests.exceptions.ConnectionError as e:
-            raise RPCConnectionError(e.strerror or 'Cannot access to %s.' % self.url)
-
-        if not recv.ok:
-            raise RPCExecutionError(recv.reason)
-
-        try:
-            res = RPCResponse.from_json(recv.json())
-        except json.decoder.JSONDecodeError as e:
-            raise RPCExecutionError('RPC Client received invalid content: %s, which cannot '
-                                    'decode to JSON because %s.',
-                                    recv.text, e)
-        if not res.success:
-            raise RPCExecutionError(res.exception)
-        return res.result
+            return self._call_without_lock(funcname, *args, **kwargs)
 
     def call_with_another_credential(
             self, username, password,
@@ -96,7 +104,7 @@ class RPCClient:
             self.pwd = password
 
             try:
-                return self.call(funcname, *args, **kwargs)
+                return self._call_without_lock(funcname, *args, **kwargs)
             finally:
                 self.username = old_username
                 self.pwd = old_pwd
@@ -114,7 +122,18 @@ class RPCClient:
                 password = self.pwd
 
             try:
-                return self.call_with_another_credential(username, password, AUTH_FLAG) == 'ok'
+                old_username = self.username
+                old_pwd = self.pwd
+
+                self.username = username
+                self.pwd = password
+
+                try:
+                    return self._call_without_lock(AUTH_FLAG) == 'ok'
+                finally:
+                    self.username = old_username
+                    self.pwd = old_pwd
+
             except RPCConnectionError as e:
                 if receive_exception:
                     raise e

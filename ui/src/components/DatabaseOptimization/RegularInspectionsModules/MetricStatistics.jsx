@@ -52,7 +52,7 @@ export default class Statistics extends React.PureComponent {
         });
         let optionsArr = []
         res.forEach((item) => {
-          optionsArr.push(item.host.replace(/(\s*$)/g, ''))
+          optionsArr.push(item.instance.replace(/(\s*$)/g, ''))
         })
         this.setState(() => ({
           loading: false,

@@ -74,7 +74,7 @@ class ProcessBar:
 def _print_wrap():
     last_content = ''
 
-    def bar_print(*content):
+    def inner_bar_print(*content):
         nonlocal last_content
         if ProcessBar.match(last_content):
             print(f'\x1b[1A{" " * TERMINAL_SIZE}\r')
@@ -89,7 +89,7 @@ def _print_wrap():
                 print(content[0])
                 last_content = content[0]
 
-    return bar_print 
+    return inner_bar_print
 
 
 bar_print = _print_wrap()

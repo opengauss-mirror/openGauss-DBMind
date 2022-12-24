@@ -18,11 +18,10 @@ from datetime import timedelta, datetime
 
 import numpy as np
 
-import dbmind.service.utils
+from dbmind.service.utils import SequenceUtils
 from dbmind import constants
 from dbmind import global_vars
-from dbmind.app.diagnosis import diagnose_for_alarm_logs
-from dbmind.app.diagnosis.query import diagnose_query
+from dbmind.app.diagnosis.entry import diagnose_for_alarm_logs, diagnose_query
 from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
 from dbmind.app.healing import (get_repair_toolkit,
                                 get_correspondence_repair_methods,
@@ -174,9 +173,19 @@ def self_monitoring_and_diagnosis():
                     'time': int(time.time() * 1000)
                 }
             )
-            query_context = QueryContextFromTSDBAndRPC
+            query_contexts = []
+            for slow_query in slow_query_collection:
+                try:
+                    with global_vars.agent_proxy.context(slow_query.instance):
+                        query_contexts.append(
+                            (QueryContextFromTSDBAndRPC(slow_query),)
+                        )
+                except global_vars.agent_proxy.RPCAddressError as e:
+                    logging.warning(
+                        'Cannot diagnose slow queries because %s.', e
+                    )
             slow_queries = global_vars.worker.parallel_execute(
-                diagnose_query, ((query_context(slow_query),) for slow_query in slow_query_collection)
+                diagnose_query, query_contexts
             ) or []
             dai.save_slow_queries(slow_queries)
             alarms_need_to_repair.extend(slow_queries)
@@ -198,13 +207,21 @@ def self_optimization():
             }
         )
 
-    if (constants.INDEX_OPTIMIZATION_NAME in global_vars.backend_timed_task and need_recommend_index()):
+    if (constants.INDEX_OPTIMIZATION_NAME in global_vars.backend_timed_task
+            and need_recommend_index()):
         database_schemas = get_database_schemas()
+
+        args_collection = []
+        for address in database_schemas:
+            for db_name in database_schemas[address]:
+                schema_names = database_schemas[address][db_name]
+                args_collection.append(
+                    (index_template_args, address, db_name,
+                     schema_names, templates[db_name], optimization_interval)
+                )
         results = global_vars.worker.parallel_execute(
-            do_index_recomm,
-            ((index_template_args, db_name, ','.join(schemas), templates[db_name], optimization_interval) for
-             db_name, schemas in
-             database_schemas.items())) or []
+            do_index_recomm, args_collection
+        )
         index_infos = []
         for result in results:
             if result is None:
@@ -306,16 +323,17 @@ def slow_query_killer():
       AND length(trim(query)) > 0
       AND elapsed_time >= {};
     """.format(max_elapsed_time)
-    results = global_vars.agent_rpc_client.call('query_in_postgres', stmt)
-    if len(results) > 0:
-        dai.save_killed_slow_queries(results)
-        global_vars.self_driving_records.put(
-            {
-                'catalog': 'optimization',
-                'msg': 'Automatically killed %d slow queries.' % len(results),
-                'time': int(time.time() * 1000)
-            }
-        )
+    for instance_addr, rpc in global_vars.agent_proxy:
+        results = rpc.call('query_in_postgres', stmt)
+        if len(results) > 0:
+            dai.save_killed_slow_queries(instance_addr, results)
+            global_vars.self_driving_records.put(
+                {
+                    'catalog': 'optimization',
+                    'msg': 'Automatically killed %d slow queries.' % len(results),
+                    'time': int(time.time() * 1000)
+                }
+            )
 
 
 @timer(how_long_to_forecast_minutes * 60)
@@ -357,7 +375,7 @@ def forecast_kpi():
                         latest_to_future[latest_sequences[i]] = future_sequences[i]
                         # Save the forecast future KPIs for users browsing.
                         metric = latest_sequences[i].name
-                        host = dbmind.service.utils.SequenceUtils.from_server(latest_sequences[i])
+                        host = SequenceUtils.from_server(latest_sequences[i])
                         dai.save_forecast_sequence(metric, host, future_sequences[i])
                     else:
                         latest_to_future[latest_sequences[i]] = EMPTY_SEQUENCE
@@ -370,12 +388,13 @@ def forecast_kpi():
         for latest_sequences in group_list:
             future_sequences = []
             for latest_sequence in latest_sequences:
-                if latest_to_future.get(latest_sequence):
-                    future_sequences.append(latest_to_future.get(latest_sequence))
+                future_sequence = latest_to_future.get(latest_sequence)
+                if future_sequence:
+                    future_sequences.append(future_sequence)
                 else:
                     future_sequences.append(EMPTY_SEQUENCE)
 
-            host = dbmind.service.utils.SequenceUtils.from_server(latest_sequences[0])
+            host = SequenceUtils.from_server(latest_sequences[0])
             detect_materials.append((host, metrics, latest_sequences, future_sequences))
 
         alarms.extend(global_vars.worker.parallel_execute(detect_future, detect_materials) or [])
@@ -426,19 +445,18 @@ def update_statistical_metrics():
         end = datetime.now()
         start = end - timedelta(seconds=updating_statistic_interval)  # Polish later: check more.
         results = []
-        logging.error('update metric is : %s' % (str(need_updated_metrics)))
         for metric in need_updated_metrics:
-            logging.error("update statistic metric is: %s" % metric)
+            logging.info("updating statistic metric is %s.", metric)
             latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
             logging.debug('The length of latest_sequences is %d and metric name is %s.',
                           len(latest_sequences), metric)
             for sequence in latest_sequences:
                 if not sequence.values:
                     continue
-                host = dbmind.service.utils.SequenceUtils.from_server(sequence)
+                instance = SequenceUtils.from_server(sequence)
                 date = int(time.time() * 1000)
                 metric_name = metric
-                unique_metric_name = '%s-%s' % (metric, host)
+                unique_metric_name = '%s-%s' % (metric, instance)
                 if 'mountpoint' in sequence.labels:
                     unique_metric_name += sequence.labels['mountpoint']
                     metric_name = '%s(%s)' % (metric_name, sequence.labels['mountpoint'])
@@ -455,7 +473,7 @@ def update_statistical_metrics():
                 max_val = round(max(max(sequence.values), statistical_metrics[unique_metric_name].get('max_val', 0)), 4)
                 the_95_quantile = round(np.nanpercentile(sequence.values, 95), 4)
                 results.append({'metric_name': metric_name,
-                                'host': host,
+                                'instance': instance,
                                 'date': date,
                                 'avg_val': avg_val,
                                 'min_val': min_val,
@@ -479,18 +497,19 @@ def daily_inspection():
     logging.info('Starting to inspect.')
     try:
         results = []
-        host, port = dbmind.service.utils.get_master_instance_address()
         end = datetime.now()
         start = end - timedelta(seconds=daily_inspection_interval)
-        regular_inspector = regular_inspection.Inspection(host=host, port=port, start=start, end=end)
-        report = regular_inspector.inspect()
-        conclusion = regular_inspector.conclusion()
-        results.append({'inspection_type': 'daily check',
-                        'start': int(start.timestamp() * 1000),
-                        'end': int(end.timestamp()) * 1000,
-                        'report': report,
-                        'conclusion': conclusion})
-        dai.save_regular_inspection_results(results)
+        for instance, rpc in global_vars.agent_proxy:
+            regular_inspector = regular_inspection.Inspection(
+                instance=instance, start=start, end=end)
+            report = regular_inspector.inspect()
+            conclusion = regular_inspector.conclusion()
+            results.append({'inspection_type': 'daily check',
+                            'start': int(start.timestamp() * 1000),
+                            'end': int(end.timestamp()) * 1000,
+                            'report': report,
+                            'conclusion': conclusion})
+            dai.save_regular_inspection_results(instance, results)
         global_vars.self_driving_records.put(
             {
                 'catalog': 'diagnosis',
@@ -506,9 +525,9 @@ def daily_inspection():
 def update_detection_param():
     logging.info('Start to update detection params.')
     try:
-        host, port = dbmind.service.utils.get_master_instance_address()
         end = datetime.now()
         start = end - timedelta(seconds=daily_inspection_interval)
-        regular_inspection.update_detection_param(host, port, start, end)
+        for instance, rpc in global_vars.agent_proxy:
+            regular_inspection.update_detection_param(instance, start, end)
     except Exception as e:
         logging.error(e, exc_info=True)

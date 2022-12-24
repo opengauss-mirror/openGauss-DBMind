@@ -19,6 +19,7 @@ class IndexRecommendationStmtDetails(Base):
     __tablename__ = 'tb_index_recommendation_stmt_details'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    instance = Column(String(24), nullable=False)
     db_name = Column(String(32), nullable=False)
     index_id = Column(BigInteger)  # ForeignKey('tb_index_recommendation.id', ondelete='CASCADE')
     template_id = Column(BigInteger)  # ForeignKey('tb_index_recommendation_stmt_templates.id', ondelete='CASCADE')

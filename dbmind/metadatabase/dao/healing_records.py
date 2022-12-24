@@ -17,7 +17,7 @@ from ..schema import HealingRecords
 
 
 def insert_healing_record(
-        host,
+        instance,
         trigger_events,
         trigger_root_causes,
         action,
@@ -29,7 +29,7 @@ def insert_healing_record(
     with get_session() as session:
         session.add(
             HealingRecords(
-                host=host,
+                instance=instance,
                 trigger_events=trigger_events,
                 trigger_root_causes=trigger_root_causes,
                 action=action,
@@ -41,13 +41,15 @@ def insert_healing_record(
         )
 
 
-def select_healing_records(action=None, success=None, min_occurrence=None):
+def select_healing_records(action=None, instance=None, success=None, min_occurrence=None):
     with get_session() as session:
         result = session.query(HealingRecords)
         if action is not None:
             result = result.filter(HealingRecords.action == action)
         if success is not None:
             result = result.filter(HealingRecords.success == success)
+        if instance is not None:
+            result = result.filter(HealingRecords.instance == instance)
         if min_occurrence is not None:
             result = result.filter(
                 HealingRecords.occurrence_at >= min_occurrence

@@ -56,7 +56,7 @@ def _recognize_query_type(query):
 
 
 def insert_slow_query(
-        address, schema_name, db_name, query, hashcode1, hashcode2=None,
+        instance, schema_name, db_name, query, hashcode1, hashcode2=None,
         template_id=None, hit_rate=None, fetch_rate=None, plan_time=None,
         parse_time=None, db_time=None, cpu_time=None, data_io_time=None,
         root_cause=None, suggestion=None
@@ -65,7 +65,7 @@ def insert_slow_query(
     with get_session() as session:
         session.add(
             SlowQueries(
-                address=address,
+                instance=instance,
                 schema_name=schema_name,
                 db_name=db_name,
                 query=query,
@@ -88,7 +88,7 @@ def insert_slow_query(
         )
 
 
-def insert_slow_query_journal(slow_query_id, start_at, duration_time):
+def insert_slow_query_journal(slow_query_id, start_at, duration_time, instance):
     with get_session() as session:
         session.merge(
             SlowQueriesJournal(
@@ -96,6 +96,7 @@ def insert_slow_query_journal(slow_query_id, start_at, duration_time):
                 start_at=start_at,
                 round_start_at=int(start_at / 1000) * 1000,
                 duration_time=duration_time,
+                instance=instance
             )
         )
 
@@ -109,7 +110,9 @@ def select_slow_query_id_by_hashcode(hashcode1, hashcode2):
         return result
 
 
-def select_slow_queries(target_list=(), query=None, start_time=None, end_time=None, limit=50, group: bool = False):
+def select_slow_queries(
+        target_list=(), query=None, start_time=None, end_time=None, limit=50, group: bool = False,
+        instance=None):
     with get_session() as session:
         if group:
             tb_journal = session.query(
@@ -124,11 +127,18 @@ def select_slow_queries(target_list=(), query=None, start_time=None, end_time=No
                 SlowQueries.root_cause,
                 SlowQueries.suggestion,
                 tb_journal.c.count
-            ).join(
+            )
+            if instance is not None:
+                result = result.filter(
+                    SlowQueries.instance == instance
+                )
+
+            result = result.join(
                 tb_journal, and_(
                     tb_journal.c.slow_query_id == SlowQueries.slow_query_id
                 )
             )
+
         else:
             if len(target_list) > 0:
                 attr_targets = []
@@ -142,7 +152,7 @@ def select_slow_queries(target_list=(), query=None, start_time=None, end_time=No
                 )
             else:
                 result = session.query(
-                    SlowQueries.address,
+                    SlowQueries.instance,
                     SlowQueries.schema_name,
                     SlowQueries.db_name,
                     SlowQueries.query,
@@ -168,6 +178,10 @@ def select_slow_queries(target_list=(), query=None, start_time=None, end_time=No
                 result = result.filter(
                     SlowQueries.query.like('%{}%'.format(query))
                 )
+            if instance is not None:
+                result = result.filter(
+                    SlowQueries.instance == instance
+                )
             if start_time:
                 result = result.filter(
                     SlowQueriesJournal.start_at >= start_time
@@ -184,22 +198,43 @@ def select_slow_queries(target_list=(), query=None, start_time=None, end_time=No
         return result.limit(limit)
 
 
-def count_slow_queries(distinct=False):
+def count_slow_queries(distinct=False, instance=None):
     with get_session() as session:
         if distinct:
-            return session.query(SlowQueries.slow_query_id).count()
-        return session.query(SlowQueriesJournal.slow_query_id).count()
+            result = session.query(SlowQueries.slow_query_id)
+            if instance is not None:
+                result = result.filter(
+                    SlowQueries.instance == instance
+                )
+            return result.count()
+
+        result = session.query(SlowQueriesJournal.slow_query_id)
+        if instance is not None:
+            result = result.filter(
+                SlowQueriesJournal.instance == instance
+            )
+        return result.count()
 
 
-def group_by_dbname():
+def group_by_dbname(instance=None):
     with get_session() as session:
-        query = session.query(SlowQueries.db_name, func.count(1)).group_by(SlowQueries.db_name)
+        query = session.query(SlowQueries.db_name, func.count(1))
+        if instance is not None:
+            query = query.filter(
+                SlowQueries.instance == instance
+            )
+        query = query.group_by(SlowQueries.db_name)
         return key_value_format(query)
 
 
-def group_by_schema():
+def group_by_schema(instance=None):
     with get_session() as session:
-        query = session.query(SlowQueries.schema_name, func.count(1)).group_by(SlowQueries.schema_name)
+        query = session.query(SlowQueries.schema_name, func.count(1))
+        if instance is not None:
+            query = query.filter(
+                SlowQueries.instance == instance
+            )
+        query = query.group_by(SlowQueries.schema_name)
         return key_value_format(query)
 
 
@@ -208,12 +243,21 @@ def execute_on_the_table(sql):
         return session.execute(text(sql)).all()
 
 
-def count_systable():
-    stmt = """
-    with systable(n) as (select count(1) from tb_slow_queries where involving_systable),
-     bussiness(n) as (select count(1) from tb_slow_queries where not involving_systable)
-      select systable.n, bussiness.n from systable, bussiness;
-"""
+def count_systable(instance=None):
+    if instance is None:
+        stmt = """
+        with systable(n) as (select count(1) from tb_slow_queries where involving_systable),
+         bussiness(n) as (select count(1) from tb_slow_queries where not involving_systable)
+          select systable.n, bussiness.n from systable, bussiness;
+    """
+    else:
+        stmt = """
+            with systable(n) as (
+                select count(1) from tb_slow_queries where involving_systable and instance = '{instance}'),
+             bussiness(n) as (
+                select count(1) from tb_slow_queries where not involving_systable and instance = '{instance}')
+              select systable.n, bussiness.n from systable, bussiness;
+        """.format(instance=instance)
     result = execute_on_the_table(stmt)
     if len(result) > 0:
         systable, busstable = result[0]
@@ -222,11 +266,17 @@ def count_systable():
     return {}
 
 
-def slow_query_trend():
-    stmt = """
-        select round_start_at as time, count(1) 
-        from tb_slow_queries_journal group by time order by time limit 100;
-        """
+def slow_query_trend(instance=None):
+    if instance is None:
+        stmt = """
+            select round_start_at as time, count(1) 
+            from tb_slow_queries_journal group by time order by time limit 100;
+            """
+    else:
+        stmt = """
+            select round_start_at as time, count(1) 
+            from tb_slow_queries_journal where instance = '{instance}' group by time order by time limit 100;
+            """.format(instance=instance)
     result = execute_on_the_table(stmt)
     if len(result) > 0:
         timestamps = []
@@ -240,21 +290,37 @@ def slow_query_trend():
     return {'timestamps': [], 'values': []}
 
 
-def slow_query_distribution():
-    stmt = """
-    SELECT (SELECT Count(1)
-        FROM   tb_slow_queries
-        WHERE  query_type = 's'),
-       (SELECT Count(1)
-        FROM   tb_slow_queries
-        WHERE  query_type = 'd'),
-       (SELECT Count(1)
-        FROM   tb_slow_queries
-        WHERE  query_type = 'i'),
-       (SELECT Count(1)
-        FROM   tb_slow_queries
-        WHERE  query_type = 'u'); 
-    """
+def slow_query_distribution(instance=None):
+    if instance is None:
+        stmt = """
+        SELECT (SELECT Count(1)
+            FROM   tb_slow_queries
+            WHERE  query_type = 's'),
+           (SELECT Count(1)
+            FROM   tb_slow_queries
+            WHERE  query_type = 'd'),
+           (SELECT Count(1)
+            FROM   tb_slow_queries
+            WHERE  query_type = 'i'),
+           (SELECT Count(1)
+            FROM   tb_slow_queries
+            WHERE  query_type = 'u'); 
+        """
+    else:
+        stmt = """
+        SELECT (SELECT Count(1)
+            FROM   tb_slow_queries
+            WHERE  query_type = 's' AND instance = '{instance}'),
+           (SELECT Count(1)
+            FROM   tb_slow_queries
+            WHERE  query_type = 'd' AND instance = '{instance}'),
+           (SELECT Count(1)
+            FROM   tb_slow_queries
+            WHERE  query_type = 'i' AND instance = '{instance}'),
+           (SELECT Count(1)
+            FROM   tb_slow_queries
+            WHERE  query_type = 'u' AND instance = '{instance}'); 
+        """.format(instance=instance)
     result = execute_on_the_table(stmt)
     if len(result) > 0:
         select, delete, insert, update = result[0]
@@ -268,36 +334,42 @@ def slow_query_distribution():
     return {'select': 0, 'delete': 0, 'insert': 0, 'update': 0}
 
 
-def mean_cpu_time():
+def _mean(field, instance=None):
     with get_session() as session:
-        avg = session.query(func.avg(SlowQueries.cpu_time) / 1000 / 1000).all()[0][0]
-        if avg is None:
-            return -1
-        return avg
+        query = session.query(func.avg(field))
+        if instance is not None:
+            query = query.filter(
+                SlowQueries.instance == instance
+            )
+        return query.all()[0][0]
 
 
-def mean_io_time():
-    with get_session() as session:
-        avg = session.query(func.avg(SlowQueries.data_io_time) / 1000 / 1000).all()[0][0]
-        if avg is None:
-            return -1
-        return avg
+def mean_cpu_time(instance=None):
+    r = _mean(SlowQueries.cpu_time, instance=instance)
+    if r is None:
+        return -1
+    return r / 1000 / 1000
 
 
-def mean_fetch_rate():
-    with get_session() as session:
-        avg = session.query(func.avg(SlowQueries.fetch_rate) * 100).all()[0][0]
-        if avg is None:
-            return -1
-        return avg
+def mean_io_time(instance=None):
+    r = _mean(SlowQueries.data_io_time, instance=instance)
+    if r is None:
+        return -1
+    return r / 1000 / 1000
 
 
-def mean_buffer_hit_rate():
-    with get_session() as session:
-        avg = session.query(func.avg(SlowQueries.hit_rate) * 100).all()[0][0]
-        if avg is None:
-            return -1
-        return avg
+def mean_fetch_rate(instance=None):
+    r = _mean(SlowQueries.fetch_rate, instance=instance)
+    if r is None:
+        return -1
+    return r * 100
+
+
+def mean_buffer_hit_rate(instance=None):
+    r = _mean(SlowQueries.hit_rate, instance=instance)
+    if r is None:
+        return -1
+    return r * 100
 
 
 def delete_slow_queries(retention_start_time):
@@ -316,33 +388,55 @@ def truncate_slow_queries():
     truncate_table(SlowQueriesJournal.__tablename__)
 
 
-def slow_query_template():
-    stmt = """
-    SELECT t1.template_id,
-           t1.count,
-           t2.query
-    FROM
-      (SELECT template_id,
-              Count(1) AS COUNT
-       FROM tb_slow_queries GROUP  BY template_id) t1
-    INNER JOIN
-      (SELECT template_id,
-              query,
-              ROW_NUMBER() OVER (PARTITION BY template_id
-                                 ORDER BY insert_at DESC) AS rn
-       FROM tb_slow_queries) t2 
-       ON t1.template_id = t2.template_id
-    WHERE t2.rn = 1
-      ORDER  BY t1.count DESC
-    LIMIT 50;
-    """
+def slow_query_template(instance=None):
+    if instance is None:
+        stmt = """
+        SELECT t1.template_id,
+               t1.count,
+               t2.query
+        FROM
+          (SELECT template_id,
+                  Count(1) AS COUNT
+           FROM tb_slow_queries GROUP  BY template_id) t1
+        INNER JOIN
+          (SELECT template_id,
+                  query,
+                  ROW_NUMBER() OVER (PARTITION BY template_id
+                                     ORDER BY insert_at DESC) AS rn
+           FROM tb_slow_queries) t2 
+           ON t1.template_id = t2.template_id
+        WHERE t2.rn = 1
+          ORDER  BY t1.count DESC
+        LIMIT 50;
+        """
+    else:
+        stmt = """
+        SELECT t1.template_id,
+               t1.count,
+               t2.query
+        FROM
+          (SELECT template_id,
+                  Count(1) AS COUNT
+           FROM tb_slow_queries WHERE instance = '{instance}' GROUP  BY template_id) t1
+        INNER JOIN
+          (SELECT template_id,
+                  query,
+                  ROW_NUMBER() OVER (PARTITION BY template_id
+                                     ORDER BY insert_at DESC) AS rn
+           FROM tb_slow_queries) t2 
+           ON t1.template_id = t2.template_id
+        WHERE t2.rn = 1
+          ORDER  BY t1.count DESC
+        LIMIT 50;
+        """.format(instance=instance)
     return execute_on_the_table(stmt)
 
 
-def insert_killed_slow_queries(db_name, query, killed, username, elapsed_time, killed_time):
+def insert_killed_slow_queries(instance, db_name, query, killed, username, elapsed_time, killed_time):
     with get_session() as session:
         session.add(
             SlowQueriesKilled(
+                instance=instance,
                 db_name=db_name.lower(),
                 query=sql_parsing.standardize_sql(query),
                 killed=killed,
@@ -353,7 +447,7 @@ def insert_killed_slow_queries(db_name, query, killed, username, elapsed_time, k
         )
 
 
-def select_killed_slow_queries(query=None, start_time=None, end_time=None, limit=None):
+def select_killed_slow_queries(query=None, start_time=None, end_time=None, limit=None, instance=None):
     with get_session() as session:
         result = session.query(SlowQueriesKilled)
         if query:
@@ -368,7 +462,10 @@ def select_killed_slow_queries(query=None, start_time=None, end_time=None, limit
             result = result.filter(
                 SlowQueriesKilled.killed_time <= end_time
             )
-
+        if instance is not None:
+            result = result.filter(
+                SlowQueriesKilled.instance == instance
+            )
         result = result.order_by(SlowQueriesKilled.killed_time)
         if limit is None:
             return result

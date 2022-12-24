@@ -18,24 +18,87 @@ import json
 import logging
 import os
 import sys
+import threading
 import time
 from collections import defaultdict
-from functools import partial
 from itertools import groupby
-
-from sql_metadata.compat import get_query_tables
-import sqlparse
 
 from dbmind import global_vars
 from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.types import ALARM_TYPES
-from dbmind.common.utils import ttl_cache
-from dbmind.common.parser.sql_parsing import get_generate_prepare_sqls_function
-from dbmind.common.parser.sql_parsing import exist_track_parameter
-from dbmind.components.sql_rewriter import SQLRewriter, TableInfo
+from dbmind.common.types import Sequence
+from dbmind.components.slow_query_diagnosis import analyze_slow_query_with_rpc
+from dbmind.components.sql_rewriter.sql_rewriter import rewrite_sql_api
 from dbmind.metadatabase import dao
 from dbmind.service.utils import SequenceUtils
 from . import dai
+
+_access_context = threading.local()
+
+
+class ACCESS_CONTEXT_NAME:
+    TSDB_FROM_SERVERS_REGEX = 'tsdb_from_servers_regex'
+    INSTANCE_IP_WITH_PORT_LIST = 'instance_ip_with_port_list'
+    INSTANCE_IP_LIST = 'instance_ip_list'
+    AGENT_INSTANCE_IP_WITH_PORT = 'agent_instance_ip_with_port'
+
+
+def set_access_context(**kwargs):
+    """Since the web front-end login user can specify
+    a cope, we should also pay attention
+    to this context when returning data to the user.
+    Through this function, set the effective visible field."""
+    for k, v in kwargs.items():
+        setattr(_access_context, k, v)
+
+
+def get_access_context(name):
+    return getattr(_access_context, name, None)
+
+
+def split_ip_and_port(address):
+    if not address:
+        return None, None
+    arr = address.split(':')
+    if len(arr) < 2:
+        return arr[0], None
+    return arr[0], arr[1]
+
+
+# The following functions are
+# used to override LazyFetcher so that
+# we can filter sequences by custom rules, such as
+# agent ip and port.
+def _override_fetchall(self):
+    self.rv = self._read_buffer()
+    valid_addresses = get_access_context(
+        ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
+
+    i = 0
+    while i < len(self.rv):
+        addr = SequenceUtils.from_server(self.rv[i])
+        # Filter the metric that doesn't come
+        # from the valid address list.
+        if ':' in addr and addr not in valid_addresses:
+            self.rv.pop(i)
+            i -= 1
+        i += 1
+    return self.rv
+
+
+def _override_fetchone(self):
+    self.rv = self.rv or self._read_buffer()
+    try:
+        valid_addresses = get_access_context(
+            ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
+        s = self.rv.pop(0)
+        addr = SequenceUtils.from_server(s)
+        while ':' in addr and addr not in valid_addresses:
+            s = self.rv.pop(0)
+            addr = SequenceUtils.from_server(s)
+        return s
+    except IndexError:
+        return Sequence()
 
 
 def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=None, step=None):
@@ -47,6 +110,13 @@ def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=
     from_datetime = datetime.datetime.fromtimestamp(from_timestamp / 1000)
     to_datetime = datetime.datetime.fromtimestamp(to_timestamp / 1000)
     fetcher = dai.get_metric_sequence(metric_name, from_datetime, to_datetime, step)
+    from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
+    if from_server_predicate:
+        fetcher.from_server_like(from_server_predicate)
+
+    # monkeypatch trick
+    setattr(fetcher, 'fetchall', lambda: _override_fetchall(fetcher))
+    setattr(fetcher, 'fetchone', lambda: _override_fetchone(fetcher))
     return fetcher
 
 
@@ -57,12 +127,29 @@ def get_metric_sequence(metric_name, from_timestamp=None, to_timestamp=None, ste
     return list(map(lambda s: s.jsonify(), result))
 
 
+def get_metric_value(metric_name):
+    fetcher = dai.get_latest_metric_value(metric_name)
+    from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
+    if from_server_predicate:
+        fetcher.from_server_like(from_server_predicate)
+
+    # monkeypatch trick
+    setattr(fetcher, 'fetchall', lambda: _override_fetchall(fetcher))
+    setattr(fetcher, 'fetchone', lambda: _override_fetchone(fetcher))
+    return fetcher
+
+
 def get_forecast_sequence_info(metric_name):
-    return sqlalchemy_query_jsonify(dao.forecasting_metrics.aggregate_forecasting_metric(metric_name))
+    return _sqlalchemy_query_jsonify_for_multiple_instances(
+        query_function=dao.forecasting_metrics.aggregate_forecasting_metric,
+        instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST),
+        metric_name=metric_name
+    )
 
 
-def get_stored_forecast_sequence(metric_name, start_at=None, limit=None):
-    r = dao.forecasting_metrics.select_forecasting_metric(metric_name, min_metric_time=start_at)
+def get_stored_forecast_sequence(metric_name, instance, start_at=None, limit=None):
+    r = dao.forecasting_metrics.select_forecasting_metric(
+        metric_name, instance=instance, min_metric_time=start_at)
     metric_forecast_result = dict()
     for row in r:
         metric_time = row.metric_time
@@ -91,7 +178,6 @@ def get_stored_forecast_sequence(metric_name, start_at=None, limit=None):
     return rv
 
 
-@ttl_cache(10)
 def get_metric_forecast_sequence(metric_name, from_timestamp=None, to_timestamp=None, step=None):
     fetcher = get_metric_sequence_internal(metric_name, from_timestamp, to_timestamp, step)
     sequences = fetcher.fetchall()
@@ -101,7 +187,7 @@ def get_metric_forecast_sequence(metric_name, from_timestamp=None, to_timestamp=
     forecast_length_factor = 0.33  # 1 / 3
     if from_timestamp is None or to_timestamp is None:
         forecast_minutes = (sequences[0].timestamps[-1] - sequences[0].timestamps[0]) * \
-            forecast_length_factor / 60 / 1000
+                           forecast_length_factor / 60 / 1000
     else:
         forecast_minutes = (to_timestamp - from_timestamp) * forecast_length_factor / 60 / 1000
 
@@ -111,19 +197,27 @@ def get_metric_forecast_sequence(metric_name, from_timestamp=None, to_timestamp=
     except Exception:
         lower, upper = 0, float("inf")
     # Sorted by labels to bring into correspondence with get_metric_sequence().
-    sequences.sort(key=lambda s: str(s.labels))
+    sequences.sort(key=lambda _s: str(_s.labels))
     future_sequences = global_vars.worker.parallel_execute(
         quickly_forecast, ((sequence, forecast_minutes, lower, upper)
                            for sequence in sequences)
     ) or []
 
-    return list(map(lambda s: s.jsonify() if s else {}, future_sequences))
+    # pop invalid sequences
+    i = 0
+    while i < len(future_sequences):
+        s = future_sequences[i]
+        if not s or not len(s):
+            future_sequences.pop(i)
+            i -= 1
+        i += 1
+
+    return list(map(lambda _s: _s.jsonify(), future_sequences))
 
 
-@ttl_cache(seconds=60)
 def get_xact_status():
-    committed = dai.get_latest_metric_value('pg_db_xact_commit').fetchall()
-    aborted = dai.get_latest_metric_value('pg_db_xact_rollback').fetchall()
+    committed = get_metric_value('pg_db_xact_commit').fetchall()
+    aborted = get_metric_value('pg_db_xact_rollback').fetchall()
 
     rv = defaultdict(lambda: defaultdict(dict))
     for seq in committed:
@@ -140,11 +234,10 @@ def get_xact_status():
     return rv
 
 
-@ttl_cache(seconds=24 * 60 * 60)
 def get_cluster_node_status():
     node_list = []
     topo = {'root': [], 'leaf': []}
-    sequences = dai.get_latest_metric_value('pg_node_info_uptime').fetchall()
+    sequences = get_metric_value('pg_node_info_uptime').fetchall()
     for seq in sequences:
         node_info = {
             'node_name': seq.labels['node_name'],
@@ -172,26 +265,26 @@ def get_cluster_node_status():
 
 
 def stat_object_proportion(obj_read_metric, obj_hit_metric):
-    obj_read = dai.get_latest_metric_value(obj_read_metric).fetchall()
+    obj_read = get_metric_value(obj_read_metric).fetchall()
     obj_read_tbl = defaultdict(dict)
     for s in obj_read:
-        host = SequenceUtils.from_server(s)
+        instance = SequenceUtils.from_server(s)
         datname = s.labels['datname']
         value = s.values[0]
-        obj_read_tbl[host][datname] = value
-    obj_hit = dai.get_latest_metric_value(obj_hit_metric).fetchall()
+        obj_read_tbl[instance][datname] = value
+    obj_hit = get_metric_value(obj_hit_metric).fetchall()
     obj_hit_tbl = defaultdict(dict)
     for s in obj_hit:
-        host = SequenceUtils.from_server(s)
+        instance = SequenceUtils.from_server(s)
         datname = s.labels['datname']
         value = s.values[0]
-        obj_hit_tbl[host][datname] = value
+        obj_hit_tbl[instance][datname] = value
     buff_hit_tbl = defaultdict(dict)
-    for host in obj_read_tbl.keys():
-        for datname in obj_read_tbl[host].keys():
-            read_value = obj_read_tbl[host][datname]
-            hit_value = obj_hit_tbl[host][datname]
-            buff_hit_tbl[host][datname] = hit_value / (hit_value + read_value + 0.0001)
+    for instance in obj_read_tbl.keys():
+        for datname in obj_read_tbl[instance].keys():
+            read_value = obj_read_tbl[instance][datname]
+            hit_value = obj_hit_tbl[instance][datname]
+            buff_hit_tbl[instance][datname] = hit_value / (hit_value + read_value + 0.0001)
 
     return buff_hit_tbl
 
@@ -208,40 +301,34 @@ def stat_xact_successful():
     return stat_object_proportion('pg_db_xact_rollback', 'pg_db_xact_commit')
 
 
-def stat_group_by_host(to_agg_tbl):
+def stat_group_by_instance(to_agg_tbl):
     each_db = to_agg_tbl
     return {
-        host: sum(each_db[host].values()) / len(each_db[host])
-        for host in each_db
+        instance: sum(each_db[instance].values()) / len(each_db[instance])
+        for instance in each_db
     }
 
 
-@ttl_cache(seconds=60)
 def get_running_status():
-    buffer_pool = stat_group_by_host(stat_buffer_hit())
-    index = stat_group_by_host(stat_idx_hit())
-    transaction = stat_group_by_host(stat_xact_successful())
+    buffer_pool = stat_group_by_instance(stat_buffer_hit())
+    index = stat_group_by_instance(stat_idx_hit())
+    transaction = stat_group_by_instance(stat_xact_successful())
 
-    hosts = set(buffer_pool.keys())
-    hosts = hosts.intersection(index.keys(), transaction.keys())
+    instances = set(buffer_pool.keys())
+    instances = instances.intersection(index.keys(), transaction.keys())
     rv = defaultdict(dict)
-    for host in hosts:
-        rv[host]['buffer_pool'] = buffer_pool[host]
-        rv[host]['index'] = index[host]
-        rv[host]['transaction'] = transaction[host]
+    for instance in instances:
+        rv[instance]['buffer_pool'] = buffer_pool[instance]
+        rv[instance]['index'] = index[instance]
+        rv[instance]['transaction'] = transaction[instance]
 
         try:
-            host_ip = host.split(':')[0]
-        except IndexError:
-            logging.error('Cannot split the host string: %s.', host)
-            host_ip = host
-        try:
-            rv[host]['cpu'] = 1 - dai.get_latest_metric_value('os_cpu_usage') \
-                .from_server(host_ip).fetchone().values[0]
-            rv[host]['mem'] = 1 - dai.get_latest_metric_value('os_mem_usage') \
-                .from_server(host_ip).fetchone().values[0]
-            rv[host]['io'] = 1 - dai.get_latest_metric_value('os_disk_usage') \
-                .from_server(host_ip).fetchone().values[0]
+            rv[instance]['cpu'] = 1 - get_metric_value('os_cpu_usage') \
+                .fetchone().values[0]
+            rv[instance]['mem'] = 1 - get_metric_value('os_mem_usage') \
+                .fetchone().values[0]
+            rv[instance]['io'] = 1 - get_metric_value('os_disk_usage') \
+                .fetchone().values[0]
         except IndexError as e:
             logging.warning('Cannot fetch value from sequence with given fields. '
                             'Maybe relative metrics are not stored in the time-series database or '
@@ -249,38 +336,36 @@ def get_running_status():
     return rv
 
 
-@ttl_cache(seconds=60)
-def get_host_status():
+def get_instance_status():
     rv = defaultdict(dict)
-    for seq in dai.get_latest_metric_value('os_cpu_usage').fetchall():
-        host = SequenceUtils.from_server(seq)
-        rv[host]['os_cpu_usage'] = seq.values[0]
-    for seq in dai.get_latest_metric_value('os_mem_usage').fetchall():
-        host = SequenceUtils.from_server(seq)
-        rv[host]['os_mem_usage'] = seq.values[0]
-    for seq in dai.get_latest_metric_value('os_disk_usage').fetchall():
-        host = SequenceUtils.from_server(seq)
-        rv[host]['os_disk_usage'] = seq.values[0]
-    for seq in dai.get_latest_metric_value('os_cpu_processor_number').fetchall():
-        host = SequenceUtils.from_server(seq)
-        rv[host]['cpu_cores'] = seq.values[0]
-    for seq in dai.get_latest_metric_value('node_uname_info').fetchall():
-        host = SequenceUtils.from_server(seq)
-        rv[host]['host_name'] = seq.labels['nodename']
-        rv[host]['release'] = seq.labels['release']
-    for seq in dai.get_latest_metric_value('node_time_seconds').fetchall():
-        host = SequenceUtils.from_server(seq)
-        rv[host]['node_timestamp'] = seq.values[0]
-    for seq in dai.get_latest_metric_value('node_boot_time_seconds').fetchall():
-        host = SequenceUtils.from_server(seq)
-        rv[host]['boot_time'] = rv[host]['node_timestamp'] - seq.values[0]
+    for seq in get_metric_value('os_cpu_usage').fetchall():
+        instance = SequenceUtils.from_server(seq)
+        rv[instance]['os_cpu_usage'] = seq.values[0]
+    for seq in get_metric_value('os_mem_usage').fetchall():
+        instance = SequenceUtils.from_server(seq)
+        rv[instance]['os_mem_usage'] = seq.values[0]
+    for seq in get_metric_value('os_disk_usage').fetchall():
+        instance = SequenceUtils.from_server(seq)
+        rv[instance]['os_disk_usage'] = seq.values[0]
+    for seq in get_metric_value('os_cpu_processor_number').fetchall():
+        instance = SequenceUtils.from_server(seq)
+        rv[instance]['cpu_cores'] = seq.values[0]
+    for seq in get_metric_value('node_uname_info').fetchall():
+        instance = SequenceUtils.from_server(seq)
+        rv[instance]['instance_name'] = seq.labels['nodename']
+        rv[instance]['release'] = seq.labels['release']
+    for seq in get_metric_value('node_time_seconds').fetchall():
+        instance = SequenceUtils.from_server(seq)
+        rv[instance]['node_timestamp'] = seq.values[0]
+    for seq in get_metric_value('node_boot_time_seconds').fetchall():
+        instance = SequenceUtils.from_server(seq)
+        rv[instance]['boot_time'] = rv[instance]['node_timestamp'] - seq.values[0]
 
     return rv
 
 
-@ttl_cache(seconds=60)
 def get_database_list():
-    sequences = dai.get_latest_metric_value('pg_database_size_bytes').fetchall()
+    sequences = get_metric_value('pg_database_size_bytes').fetchall()
     rv = set()
     for seq in sequences:
         if seq.values[0] != 1:
@@ -294,7 +379,6 @@ def get_latest_alert():
     return alerts
 
 
-@ttl_cache(seconds=24 * 60 * 60)
 def get_cluster_summary():
     node_status = get_cluster_node_status()['node_list']
     nb_node = len(node_status)
@@ -347,12 +431,17 @@ def get_cluster_summary():
 
 def toolkit_recommend_knobs_by_metrics():
     return {
-        "metric_snapshot": sqlalchemy_query_jsonify(dao.knob_recommendation.select_metric_snapshot(),
-                                                    field_names=('host', 'metric', 'value')),
-        "warnings": sqlalchemy_query_jsonify(dao.knob_recommendation.select_warnings(),
-                                             field_names=('host', 'level', 'comment')),
-        "details": sqlalchemy_query_jsonify(dao.knob_recommendation.select_details(),
-                                            field_names=('host', 'name', 'current', 'recommend', 'min', 'max'))
+        "metric_snapshot": sqlalchemy_query_jsonify(
+            dao.knob_recommendation.select_metric_snapshot(
+                get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+            field_names=('instance', 'metric', 'value')),
+        "warnings": sqlalchemy_query_jsonify(
+            dao.knob_recommendation.select_warnings(
+                get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+            field_names=('instance', 'level', 'comment')),
+        "details": sqlalchemy_query_jsonify(
+            dao.knob_recommendation.select_details(get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+            field_names=('instance', 'name', 'current', 'recommend', 'min', 'max'))
     }
 
 
@@ -371,7 +460,8 @@ def get_db_schema_table_count():
 
 def get_latest_indexes_stat():
     latest_indexes_stat = defaultdict(int)
-    latest_recommendation_stat = dao.index_recommendation.get_latest_recommendation_stat()
+    latest_recommendation_stat = dao.index_recommendation.get_latest_recommendation_stat(
+        get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT))
     for res in latest_recommendation_stat:
         latest_indexes_stat['suggestions'] += res.recommend_index_count
         latest_indexes_stat['redundant_indexes'] += res.redundant_index_count
@@ -379,9 +469,9 @@ def get_latest_indexes_stat():
         latest_indexes_stat['stmt_count'] += res.stmt_count
         latest_indexes_stat['positive_sql_count'] += res.positive_stmt_count
     latest_indexes_stat['valid_index'] = (
-        len(list(dao.index_recommendation.get_existing_indexes())) -
-        latest_indexes_stat['redundant_indexes'] -
-        latest_indexes_stat['invalid_indexes']
+            len(list(dao.index_recommendation.get_existing_indexes())) -
+            latest_indexes_stat['redundant_indexes'] -
+            latest_indexes_stat['invalid_indexes']
     )
     return latest_indexes_stat
 
@@ -389,7 +479,8 @@ def get_latest_indexes_stat():
 def get_index_change():
     timestamps = []
     index_count_change = dict()
-    recommendation_stat = dao.index_recommendation.get_recommendation_stat()
+    recommendation_stat = dao.index_recommendation.get_recommendation_stat(
+        get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT))
     for res in recommendation_stat:
         timestamp = res.occurrence_time
         if timestamp not in timestamps:
@@ -418,7 +509,8 @@ def get_index_change():
 
 def get_index_details():
     advised_indexes = dict()
-    _advised_indexes = dao.index_recommendation.get_advised_index()
+    _advised_indexes = dao.index_recommendation.get_advised_index(
+        get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT))
     advised_indexes['header'] = ['schema', 'database', 'table', 'advised_indexes', 'number_of_indexes', 'select',
                                  'update',
                                  'delete', 'insert', 'workload_improvement_rate']
@@ -440,7 +532,9 @@ def get_index_details():
     positive_sql['header'] = ['schema', 'database', 'table', 'template', 'typical_sql_stmt',
                               'number_of_sql_statement']
     positive_sql['rows'] = []
-    for positive_sql_result in dao.index_recommendation.get_advised_index_details():
+    for positive_sql_result in dao.index_recommendation.get_advised_index_details(
+            get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
+    ):
         row = [positive_sql_result[2].schema_name, positive_sql_result[2].db_name,
                positive_sql_result[2].tb_name, positive_sql_result[1].template,
                positive_sql_result[0].stmt,
@@ -452,10 +546,11 @@ def get_index_details():
 
 def get_existing_indexes():
     filenames = ['db_name', 'tb_name', 'columns', 'index_stmt']
-    return sqlalchemy_query_jsonify(dao.index_recommendation.get_existing_indexes(), filenames)
+    return sqlalchemy_query_jsonify(dao.index_recommendation.get_existing_indexes(
+        get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
+    ), filenames)
 
 
-@ttl_cache(seconds=10 * 60)
 def get_index_advisor_summary():
     db_count, schema_count, table_count = get_db_schema_table_count()
     index_advisor_summary = {'db': db_count,
@@ -478,6 +573,10 @@ def get_all_metrics():
     return list(global_vars.metric_map.keys())
 
 
+def get_all_agents():
+    return global_vars.agent_proxy.get_all_agents()
+
+
 def sqlalchemy_query_jsonify(query, field_names=None):
     rv = {'header': field_names, 'rows': []}
     if not field_names:
@@ -489,6 +588,21 @@ def sqlalchemy_query_jsonify(query, field_names=None):
         else:
             row = [getattr(result, field) for field in field_names]
         rv['rows'].append(row)
+    return rv
+
+
+def _sqlalchemy_query_jsonify_for_multiple_instances(
+        query_function, instances, **kwargs
+):
+    if not instances:
+        return sqlalchemy_query_jsonify(query_function(**kwargs))
+    rv = None
+    for instance in instances:
+        r = sqlalchemy_query_jsonify(query_function(instance=instance, **kwargs))
+        if not rv:
+            rv = r
+        else:
+            rv['rows'].extend(r['rows'])
     return rv
 
 
@@ -507,63 +621,138 @@ def psycopg2_dict_jsonify(realdict, field_names=None):
     return rv
 
 
-def get_history_alarms(host=None, alarm_type=None, alarm_level=None, group: bool = False):
-    return sqlalchemy_query_jsonify(dao.alarms.select_history_alarm(host, alarm_type, alarm_level, group=group))
+def _sqlalchemy_query_records_logic(query_function, instances, **kwargs):
+    if instances is None or len(instances) != 1:
+        r1 = _sqlalchemy_query_jsonify_for_multiple_instances(
+            query_function=query_function,
+            instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST),
+            **kwargs
+        )
+        r2 = _sqlalchemy_query_jsonify_for_multiple_instances(
+            query_function=query_function,
+            instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST),
+            **kwargs
+        )
+        r1['rows'].extend(r2['rows'])
+        return r1
+
+    instance = instances[0]
+    ip, port = split_ip_and_port(instance)
+    if port is None:
+        if ip not in get_access_context(
+                ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST
+        ):
+            # return nothing
+            return sqlalchemy_query_jsonify(query_function(instance='', **kwargs))
+    else:
+        if instance not in get_access_context(
+                ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST
+        ):
+            # return nothing
+            return sqlalchemy_query_jsonify(query_function(instance='', **kwargs))
+    r1 = sqlalchemy_query_jsonify(
+        query_function(ip, **kwargs)
+    )
+    if port is None:
+        return r1
+    r2 = sqlalchemy_query_jsonify(
+        query_function(instance, **kwargs)
+    )
+    r1['rows'].extend(r2['rows'])
+    return r1
 
 
-def get_future_alarms(metric_name=None, host=None, start_at=None, group: bool = False):
-    return sqlalchemy_query_jsonify(dao.alarms.select_future_alarm(metric_name, host, start_at, group=group))
-
-
-def get_security_alarms(host=None):
-    return get_history_alarms(host, alarm_type=ALARM_TYPES.SECURITY)
-
-
-def get_healing_info(action=None, success=None, min_occurrence=None):
-    return sqlalchemy_query_jsonify(
-        dao.healing_records.select_healing_records(action, success, min_occurrence)
+def get_history_alarms(instance=None, alarm_type=None, alarm_level=None, group: bool = False):
+    if instance is not None:
+        instances = [instance]
+    else:
+        instances = None
+    return _sqlalchemy_query_records_logic(
+        query_function=dao.alarms.select_history_alarm,
+        instances=instances,
+        alarm_type=alarm_type, alarm_level=alarm_level, group=group
     )
 
 
-@ttl_cache(600)
+def get_future_alarms(metric_name=None, instance=None, start_at=None, group: bool = False):
+    if instance is not None:
+        instances = [instance]
+    else:
+        instances = None
+    return _sqlalchemy_query_records_logic(
+        query_function=dao.alarms.select_future_alarm,
+        instances=instances,
+        metric_name=metric_name, start_at=start_at, group=group
+    )
+
+
+def get_security_alarms(instance=None):
+    return get_history_alarms(instance, alarm_type=ALARM_TYPES.SECURITY)
+
+
+def get_healing_info(action=None, success=None, min_occurrence=None):
+    return _sqlalchemy_query_records_logic(
+        query_function=dao.healing_records.select_healing_records,
+        instances=None,
+        action=action, success=success, min_occurrence=min_occurrence
+    )
+
+
 def get_slow_queries(query=None, start_time=None, end_time=None, limit=None, group: bool = False):
-    query = dao.slow_queries.select_slow_queries([], query, start_time, end_time, limit, group=group)
-    return sqlalchemy_query_jsonify(query)
+    return _sqlalchemy_query_jsonify_for_multiple_instances(
+        query_function=dao.slow_queries.select_slow_queries,
+        instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST),
+        target_list=(), query=query, start_time=start_time, end_time=end_time, limit=limit, group=group
+    )
 
 
-@ttl_cache(10)
 def get_killed_slow_queries(query=None, start_time=None, end_time=None, limit=None):
-    query = dao.slow_queries.select_killed_slow_queries(query, start_time, end_time, limit)
-    return sqlalchemy_query_jsonify(query)
+    return _sqlalchemy_query_jsonify_for_multiple_instances(
+        query_function=dao.slow_queries.select_killed_slow_queries,
+        instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST),
+        query=query, start_time=start_time, end_time=end_time, limit=limit
+    )
 
 
-@ttl_cache(60)
 def get_slow_query_summary():
     # Maybe multiple nodes, but we don't need to care.
     # Because that is an abnormal scenario.
-    threshold = dai.get_latest_metric_value('pg_settings_setting') \
+    threshold = get_metric_value('pg_settings_setting') \
         .filter(name='log_min_duration_statement') \
         .fetchone().values[0]
+
     return {
-        'nb_unique_slow_queries': dao.slow_queries.count_slow_queries(),
+        'nb_unique_slow_queries': dao.slow_queries.count_slow_queries(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
         'slow_query_threshold': threshold,
-        'main_slow_queries': dao.slow_queries.count_slow_queries(distinct=True),
-        'statistics_for_database': dao.slow_queries.group_by_dbname(),
-        'statistics_for_schema': dao.slow_queries.group_by_schema(),
-        'systable': dao.slow_queries.count_systable(),
-        'slow_query_count': dao.slow_queries.slow_query_trend(),
-        'distribution': dao.slow_queries.slow_query_distribution(),
-        'mean_cpu_time': dao.slow_queries.mean_cpu_time(),
-        'mean_io_time': dao.slow_queries.mean_io_time(),
-        'mean_buffer_hit_rate': dao.slow_queries.mean_buffer_hit_rate(),
-        'mean_fetch_rate': dao.slow_queries.mean_fetch_rate(),
-        'slow_query_template': sqlalchemy_query_jsonify(dao.slow_queries.slow_query_template(),
-                                                        ['template_id', 'count', 'query']),
+        'main_slow_queries': dao.slow_queries.count_slow_queries(distinct=True, instance=get_access_context(
+            ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'statistics_for_database': dao.slow_queries.group_by_dbname(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'statistics_for_schema': dao.slow_queries.group_by_schema(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'systable': dao.slow_queries.count_systable(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'slow_query_count': dao.slow_queries.slow_query_trend(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'distribution': dao.slow_queries.slow_query_distribution(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'mean_cpu_time': dao.slow_queries.mean_cpu_time(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'mean_io_time': dao.slow_queries.mean_io_time(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'mean_buffer_hit_rate': dao.slow_queries.mean_buffer_hit_rate(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'mean_fetch_rate': dao.slow_queries.mean_fetch_rate(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+        'slow_query_template': sqlalchemy_query_jsonify(
+            dao.slow_queries.slow_query_template(
+                instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
+            ['template_id', 'count', 'query']),
         'table_of_slow_query': get_slow_queries(limit=20)
     }
 
 
-@ttl_cache(60)
 def get_top_queries(username, password):
     stmt = """\
     SELECT user_name,
@@ -586,7 +775,7 @@ def get_top_queries(username, password):
               avg_elapse_time DESC
     LIMIT  10; 
     """
-    res = global_vars.agent_rpc_client.call_with_another_credential(
+    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(
         username, password, 'query_in_postgres', stmt
     )
     sorted_fields = [
@@ -622,7 +811,7 @@ def get_active_query(username, password):
            connection_info
     FROM   pg_stat_activity; 
     """
-    res = global_vars.agent_rpc_client.call_with_another_credential(
+    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(
         username, password, 'query_in_postgres', stmt
     )
     sorted_fields = [
@@ -654,14 +843,25 @@ def get_holding_lock_query(username, password):
     INNER JOIN pg_stat_activity AS s ON l.pid = s.pid
     WHERE s.pid != pg_catalog.pg_backend_pid();
     """
-    res = global_vars.agent_rpc_client.call_with_another_credential(
+    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(
         username, password, 'query_in_postgres', stmt
     )
     return psycopg2_dict_jsonify(res)
 
 
-def check_credential(username, password):
-    return global_vars.agent_rpc_client.handshake(username, password, receive_exception=True)
+def check_credential(username, password, scopes=None):
+    rpc = None
+    if not scopes:
+        rpc = global_vars.agent_proxy.current_rpc()
+    else:
+        logging.debug("Login user %s using scopes '%s'.", username, scopes)
+        for instance_addr in scopes:
+            if global_vars.agent_proxy.has(instance_addr):
+                rpc = global_vars.agent_proxy.get(instance_addr)
+                break
+    if not rpc:
+        return False
+    return rpc.handshake(username, password, receive_exception=True)
 
 
 def toolkit_index_advise(database, sqls):
@@ -671,62 +871,22 @@ def toolkit_index_advise(database, sqls):
         sqls[i] = advise_stmt
 
     stmt = ' union '.join(sqls) + ';'
-    res = global_vars.agent_rpc_client.call('query_in_database', stmt, database, return_tuples=False)
+    res = global_vars.agent_proxy.current_rpc().call('query_in_database', stmt, database, return_tuples=False)
     return psycopg2_dict_jsonify(res)
 
 
-def toolkit_rewrite_sql(database, sqls, rewritten_flags=None, if_format=True, driver=None):
-    rewritten_sqls = []
-    get_prepare_sqls = get_generate_prepare_sqls_function()
-    if rewritten_flags is None:
-        rewritten_flags = []
-    if driver is not None:
-        executor = partial(driver.query, force_connection_db=database)
-    else:
-        executor = partial(global_vars.agent_rpc_client.call, funcname='query_in_database', database=database)
-    schemas_results = executor(stmt='select distinct(table_schema) from information_schema.tables;', return_tuples=True)
-    schemas = ','.join([res[0] for res in schemas_results]) if schemas_results else 'public'
-    for _sql in sqls.split(';'):
-        if not _sql.strip():
-            continue
-        sql = _sql + ';'
-        formatted_sql = sqlparse.format(sql, keyword_case='lower', identifier_case='lower', strip_comments=True)
-        prepare_sqls = get_prepare_sqls(formatted_sql)
-        sql_checking_stmt = f'set current_schema={schemas};{";".join(prepare_sqls)}'
-        checking_results = executor(stmt=sql_checking_stmt, return_tuples=False, fetch_all=True)
-        if not checking_results:
-            rewritten_sqls.append(sql)
-            rewritten_flags.append(False)
-            continue
-        table_columns = dict()
-        table_exists_primary = dict()
-        table_notnull_columns = dict()
-        involved_tables = get_query_tables(formatted_sql)
-        tableinfo = TableInfo()
-        for table_name in involved_tables:
-            search_table_stmt = "select column_name, ordinal_position " \
-                                "from information_schema.columns where table_name='%s';" % table_name
-            results = sorted(executor(stmt=search_table_stmt, return_tuples=True), key=lambda x: x[1])
-            table_columns[table_name] = [res[0] for res in results]
-            exists_primary_stmt = "SELECT count(*)  FROM information_schema.table_constraints WHERE " \
-                                  "constraint_type in ('PRIMARY KEY', 'UNIQUE') AND table_name = '%s'" % table_name
-            table_exists_primary[table_name] = \
-                executor(stmt=exists_primary_stmt, return_tuples=True)[0][0]
-            notnull_columns_stmt = f"SELECT attname from pg_attribute where attrelid=(select oid from pg_class " \
-                                   f"where relname='{table_name}') and attnotnull=true"
-            table_notnull_columns[table_name] = [_tuple[0] for _tuple in
-                                                 executor(stmt=notnull_columns_stmt, return_tuples=True)]
-        tableinfo.table_columns = table_columns
-        tableinfo.table_exists_primary = table_exists_primary
-        tableinfo.table_notnull_columns = table_notnull_columns
-        rewritten_flag, output_sql = SQLRewriter().rewrite(formatted_sql, tableinfo, if_format)
-        rewritten_flags.append(rewritten_flag)
-        rewritten_sqls.append(output_sql)
-    return '\n'.join(rewritten_sqls)
+def toolkit_rewrite_sql(database, sqls):
+    return rewrite_sql_api(database, sqls)
+
+
+def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_time=None):
+    return analyze_slow_query_with_rpc(
+        query=query, dbname=dbname, schema=schema,
+        start_time=start_time, end_time=end_time
+    )
 
 
 def search_slow_sql_rca_result(sql, start_time=None, end_time=None, limit=None):
-    from dbmind.metadatabase.dao import slow_queries
     root_causes, suggestions = [], []
     default_interval = 120 * 1000
     if end_time is None:
@@ -737,116 +897,25 @@ def search_slow_sql_rca_result(sql, start_time=None, end_time=None, limit=None):
         'root_cause', 'suggestion'
     )
     # Maximum number of output lines.
-    result = slow_queries.select_slow_queries(field_names, sql, start_time, end_time, limit=limit)
+    result = dao.slow_queries.select_slow_queries(field_names, sql, start_time, end_time, limit=limit)
     for slow_query in result:
         root_causes.append(getattr(slow_query, 'root_cause').split('\n'))
         suggestions.append(getattr(slow_query, 'suggestion').split('\n'))
     return root_causes, suggestions
 
 
-def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_time=None,
-                         wdr=None, data_source='tsdb', url=None, driver=None):
-    # 'wdr' is for web compatibility
-    root_causes, suggestions = [], []
-    if query is None:
-        return root_causes, suggestions
-    if data_source == 'tsdb':
-        from dbmind.service.utils import is_rpc_valid, is_tsdb_valid
-        if not is_tsdb_valid() or not is_rpc_valid():
-            return root_causes, suggestions
-    track_parameter = exist_track_parameter(query)
-    from dbmind.common.types import SlowQuery
-    slow_sql_instance = SlowQuery(db_host=None,
-                                  db_port=None,
-                                  query=query,
-                                  db_name=dbname,
-                                  schema_name=schema,
-                                  start_timestamp=0,
-                                  duration_time=0,
-                                  debug_query_id=-1,
-                                  track_parameter=track_parameter
-                                  )
-    if data_source == 'driver':
-        from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromDriver
-        if driver is None:
-            from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
-            driver = Driver()
-            driver.initialize(url)
-        host, port, dbname = driver.host, driver.port, driver.dbname
-        slow_sql_instance.db_host = host
-        slow_sql_instance.db_port = port
-        slow_sql_instance.db_name = dbname
-        query_context = QueryContextFromDriver(slow_sql_instance, driver=driver)
-    else:
-        from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
-        from dbmind.service.utils import SequenceUtils, get_master_instance_address
-        host, port = get_master_instance_address()
-        default_interval = 120 * 1000
-        if end_time is None:
-            end_time = int(datetime.datetime.now().timestamp()) * 1000
-        if start_time is None:
-            start_time = end_time - default_interval
-        slow_sql_instance.db_host = host
-        slow_sql_instance.db_port = port
-        slow_sql_instance.start_at = start_time
-        slow_sql_instance.duration_time = end_time - start_time
-        query_context = QueryContextFromTSDBAndRPC(slow_sql_instance)
-    # Default interval of searching time is 10S
-    from dbmind.app.diagnosis.query.slow_sql.analyzer import SlowSQLAnalyzer
-    try:
-        query_analyzer = SlowSQLAnalyzer()
-        slow_sql_instance = query_analyzer.run(query_context)
-        root_causes.append(slow_sql_instance.root_causes.split('\n'))
-        suggestions.append(slow_sql_instance.suggestions.split('\n'))
-    except Exception as e:
-        logging.exception(e)
-        return [], []
-    return root_causes, suggestions
-
-
-def toolkit_get_query_plan(query, database=None, schema=None, data_source='tsdb', url=None, driver=None):
-    if query is None:
-        return '', ''
-    if data_source == 'tsdb':
-        from dbmind.service.utils import is_rpc_valid, is_tsdb_valid
-        if not is_tsdb_valid() or not is_rpc_valid():
-            return '', ''
-    from dbmind.common.types import SlowQuery
-    track_parameter = exist_track_parameter(query)
-    slow_sql_instance = SlowQuery(query=query,
-                                  db_name=database,
-                                  schema_name=schema,
-                                  track_parameter=track_parameter)
-    if data_source == 'tsdb':
-        from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
-        query_context = QueryContextFromTSDBAndRPC(slow_sql_instance)
-        query_plan = slow_sql_instance.query_plan
-        return query_plan, query_context.query_type
-    else:
-        from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromDriver
-        if driver is None:
-            from dbmind.components.opengauss_exporter.core.opengauss_driver import Driver
-            driver = Driver()
-            driver.initialize(url)
-        host, port, dbname = driver.host, driver.port, driver.dbname
-        slow_sql_instance.db_host = host
-        slow_sql_instance.db_port = port
-        slow_sql_instance.db_name = dbname
-
-        query_context = QueryContextFromDriver(slow_sql_instance, driver=driver)
-        query_plan = slow_sql_instance.query_plan
-        return query_plan, query_context.query_type
-
-
 def get_metric_statistic():
-    return sqlalchemy_query_jsonify(
-        dao.statistical_metric.select_metric_statistic_records()
+    return _sqlalchemy_query_records_logic(
+        query_function=dao.statistical_metric.select_metric_statistic_records,
+        instances=None
     )
 
 
 def get_regular_inspections(inspection_type):
     if inspection_type not in ('daily check', 'weekly check', 'monthly check'):
         return
-    return sqlalchemy_query_jsonify(
-        dao.regular_inspections.select_metric_regular_inspections(inspection_type, limit=1)
+    return _sqlalchemy_query_records_logic(
+        query_function=dao.regular_inspections.select_metric_regular_inspections,
+        instances=None,
+        inspection_type=inspection_type, limit=1
     )

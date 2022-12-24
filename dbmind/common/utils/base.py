@@ -302,6 +302,9 @@ class MultiProcessingRFHandler(RotatingFileHandler):
 class ExceptionCatcher:
     """Class for catching object exception"""
 
+    class DontIgnoreThisError(Exception):
+        pass
+
     def __init__(self, strategy='warn', name='UNKNOWN'):
         """
         :param strategy: Exception handling strategy
@@ -334,7 +337,7 @@ class ExceptionCatcher:
                     )
                     error = str(e).upper()
                     for word in SENSITIVE_WORD:
-                        if word in error:
+                        if word in error and not isinstance(e, self.DontIgnoreThisError):
                             raise AssertionError(
                                 "Involves sensitive information, details are ignored, "
                                 "please check the call stack."

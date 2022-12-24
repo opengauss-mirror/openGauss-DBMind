@@ -18,13 +18,12 @@ import time
 import numpy as np
 from sql_metadata.compat import get_query_tables
 
-from dbmind.common.types import SlowQuery
 from dbmind.common.types.root_cause import RootCause
 from dbmind import global_vars
 
 from .featurelib import load_feature_lib, get_feature_mapper
 from .query_feature import QueryFeature
-from ..slow_sql import query_info_source
+from ..slow_sql import query_info_source, SlowQuery
 
 # In general, 'application name' can be used to judge whether it is a DevOps-SQL,
 # but it cannot be provided in an interactive situation, so in order to roughly
@@ -43,7 +42,6 @@ _system_table_keywords = ('PG_CLASS', 'PG_STAT_DATABASE', 'PG_STAT_REPLICATION',
 _system_query_threshold = 0.6
 _white_list_of_type = ('SELECT', 'UPDATE', 'DELETE', 'INSERT')
 
-retention_seconds = global_vars.configs.getint('SELF-MONITORING', 'result_storage_retention', fallback=0)
 
 FEATURE_LIB = load_feature_lib()
 FEATURES_CAUSE_MAPPER = get_feature_mapper()
@@ -147,6 +145,9 @@ class SlowSQLAnalyzer:
             # Add start time for expired action.
             sql_hashcode = slow_sql_instance.hash_query(use_root_cause=True)
             diagnosed_flag_tuple = (slow_sql_instance.start_at,) + sql_hashcode
+
+            retention_seconds = global_vars.configs.getint(
+                'SELF-MONITORING', 'result_storage_retention', fallback=0)
             min_retention_time = time.time() - retention_seconds
             # Evict expired records.
             i = 0

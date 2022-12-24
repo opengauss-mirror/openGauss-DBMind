@@ -18,14 +18,14 @@ export default class Alarms extends Component {
       },
       metric_name: '',
       metricnewname: '',
-      host: '',
-      hostnewname: '',
+      instance: '',
+      instancenewname: '',
       start: '',
       group: true,
       options: [],
       loadingFuture: false,
-      hostOptionsFilter: [],
-      futerHostOptionFilter: [],
+      instanceOptionsFilter: [],
+      futerInstanceOptionFilter: [],
       timekey:''
     }
   }
@@ -46,7 +46,7 @@ export default class Alarms extends Component {
   async getFutureAlarms () {
     let params = {
       metric_name: this.state.metric_name === '' ? null : this.state.metric_name,
-      host: this.state.host === '' ? null : this.state.host,
+      instance: this.state.instance === '' ? null : this.state.instance,
       start: this.state.start === '' ? null : this.state.start,
       group: this.state.group,
     }
@@ -56,7 +56,7 @@ export default class Alarms extends Component {
       if (data.header.length > 0) {
         let historyColumObj = {}
         let tableHeader = []
-        let hostOptionsFilterArr = []
+        let instanceOptionsFilterArr = []
         data.header.forEach(item => {
           historyColumObj = {
             title: formatTableTitle(item),
@@ -87,11 +87,11 @@ export default class Alarms extends Component {
           res.push(tabledata)
         });
         res.forEach((item) => {
-          hostOptionsFilterArr.push(item.host.replace(/(\s*$)/g, ''))
+          instanceOptionsFilterArr.push(item.instance.replace(/(\s*$)/g, ''))
         })
-        let hostOptions = this.handleDataDeduplicate(hostOptionsFilterArr)
+        let instanceOptions = this.handleDataDeduplicate(instanceOptionsFilterArr)
         this.setState(() => ({
-          futerHostOptionFilter: hostOptions,
+          futerInstanceOptionFilter: instanceOptions,
           loadingFuture: false,
           futureTableSource: res,
           columns: tableHeader,
@@ -157,23 +157,23 @@ export default class Alarms extends Component {
       })
     }
   }
-  // host
+  // instance
   onChange2 (e) {
-    this.setState({host: e})
+    this.setState({instance: e})
   }
   onSearch2 = (value) => {
     if (value) {
       this.setState({
-        host: value,
-        hostnewname: value
+        instance: value,
+        instancenewname: value
       })
     }
   };
   onBlurSelect2 = () => {
-    const value = this.state.hostnewname
+    const value = this.state.instancenewname
     if (value) {
       this.onChange2(value)
-      this.setState({hostnewname: ''})
+      this.setState({instancenewname: ''})
     }
   }
   // start
@@ -198,7 +198,7 @@ export default class Alarms extends Component {
   handleRefresh(){
     this.setState({
       metric_name: '',
-      host: '',
+      instance: '',
       start: '',
       timekey:new Date(),
       group: true,
@@ -239,13 +239,13 @@ export default class Alarms extends Component {
               </Select>
             </Col>
             <Col>
-              <span>host: </span>
-              <Select showSearch allowClear value={this.state.host} onChange={(ev) => { this.onChange2(ev) }}
+              <span>instance: </span>
+              <Select showSearch allowClear value={this.state.instance} onChange={(ev) => { this.onChange2(ev) }}
                 onSearch={(e) => { this.onSearch2(e) }} onBlur={() => this.onBlurSelect2()} optionFilterProp="children" filterOption={(input, option) =>
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
                 } style={{ width: 200 }}>
                 {
-                  this.state.futerHostOptionFilter.map((item, index) => {
+                  this.state.futerInstanceOptionFilter.map((item, index) => {
                     return (
                       <Option value={item} key={index}>{item}</Option>
                     )

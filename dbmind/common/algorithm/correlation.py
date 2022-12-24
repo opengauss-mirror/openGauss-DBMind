@@ -19,18 +19,17 @@ def dtw_distance(x, y, max_length=10):
     """Compute Dynamic Time Warping (DTW) similarity measure between
     time series and return it.
     DTW is computed as the Euclidean distance between aligned time series,
-    i.e., if :math:`\pi` is the optimal alignment path:
+    i.e., if :math:`\\pi` is the optimal alignment path:
 
     .. math::
 
-        DTW(X, Y) = \sqrt{\sum_{(i, j) \in \pi} \|X_{i} - Y_{j}\|^2}
+        DTW(X, Y) = \\sqrt{\\sum_{(i, j) \\in \\pi} \\|X_{i} - Y_{j}\\|^2}
     Parameters
     ----------
     x : array_like
     y : array_like
     max_length : int
         Maximum warping path length.
-    References:
     ----------
     .. [1] H. Sakoe, S. Chiba, "Dynamic programming algorithm optimization for
            spoken word recognition," IEEE Transactions on Acoustics, Speech and

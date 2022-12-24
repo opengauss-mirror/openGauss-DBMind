@@ -17,11 +17,11 @@ export default class Alarms extends Component {
         defaultCurrent: 1
       },
       loadingHistory: false,
-      hostOptionsFilter: [],
+      instanceOptionsFilter: [],
       alarmOptionsFilter: [],
       alarmLevelOptionsFilter: [],
-      host: '',
-      hostnewval: '',
+      instance: '',
+      instancenewval: '',
       alarm_type: '',
       typenewval: '',
       alarm_level: '',
@@ -36,7 +36,7 @@ export default class Alarms extends Component {
   };
   async getHistoryAlarms () {
     let params = {
-      host: this.state.host === '' ? null : this.state.host,
+      instance: this.state.instance === '' ? null : this.state.instance,
       alarm_type: this.state.alarm_type === '' ? null : this.state.alarm_type,
       alarm_level: this.state.alarm_level === '' ? null : this.state.alarm_level,
       group: this.state.checkedGroup
@@ -47,7 +47,7 @@ export default class Alarms extends Component {
       if (data.header.length > 0) {
         let historyColumObj = {}
         let tableHeader = []
-        let hostOptionsFilterArr = []
+        let instanceOptionsFilterArr = []
         let alarmOptionsFilterArr = []
         let alarmLevelOptionsFilterArr = []
         data.header.forEach((item) => {
@@ -81,15 +81,15 @@ export default class Alarms extends Component {
         });
         formatTableTime(res)
         res.forEach((item) => {
-          hostOptionsFilterArr.push(item.host.replace(/(\s*$)/g, ''))
+          instanceOptionsFilterArr.push(item.instance.replace(/(\s*$)/g, ''))
           alarmOptionsFilterArr.push(item.alarm_type)
           alarmLevelOptionsFilterArr.push(item.alarm_level)
         })
-        let hostOptions = this.handleDataDeduplicate(hostOptionsFilterArr)
+        let instanceOptions = this.handleDataDeduplicate(instanceOptionsFilterArr)
         let alarmTypeOptions = this.handleDataDeduplicate(alarmOptionsFilterArr)
         let alarmLevelOptions = this.handleDataDeduplicate(alarmLevelOptionsFilterArr)
         this.setState(() => ({
-          hostOptionsFilter: hostOptions,
+          instanceOptionsFilter: instanceOptions,
           alarmOptionsFilter: alarmTypeOptions,
           alarmLevelOptionsFilter: alarmLevelOptions,
           loadingHistory: false,
@@ -135,26 +135,26 @@ export default class Alarms extends Component {
       return { columns: nextColumns };
     });
   };
-  // host
-  changeSelHostVal (value) {
+  // instance
+  changeSelInstanceVal (value) {
     this.setState({
-      host: value
+      instance: value
     })
   }
-  onSearchHost = (value) => {
+  onSearchInstance = (value) => {
     if (value) {
       this.setState({
-        host: value,
-        hostnewval: value
+        instance: value,
+        instancenewval: value
       })
     }
   };
-  onBlurSelectHost = () => {
-    const value = this.state.hostnewval
+  onBlurSelectInstance = () => {
+    const value = this.state.instancenewval
     if (value) {
-      this.changeSelHostVal(value)
+      this.changeSelInstanceVal(value)
       this.setState({
-        hostnewval: ''
+        instancenewval: ''
       })
     }
   }
@@ -207,7 +207,7 @@ export default class Alarms extends Component {
   }
   handleRefresh(){
     this.setState({
-      host: '',
+      instance: '',
       alarm_type: '',
       alarm_level: '',
       checkedGroup: true,
@@ -231,13 +231,13 @@ export default class Alarms extends Component {
         <Card title="History Alarms" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />} className="mb-20">
           <Row style={{ marginBottom: 20, width: '60%' }} justify="space-around">
             <Col>
-              <span>host: </span>
-              <Select value={this.state.host} onChange={(val) => { this.changeSelHostVal(val) }} showSearch allowClear
-                onSearch={(e) => { this.onSearchHost(e) }} onBlur={() => this.onBlurSelectHost()}
+              <span>instance: </span>
+              <Select value={this.state.instance} onChange={(val) => { this.changeSelInstanceVal(val) }} showSearch allowClear
+                onSearch={(e) => { this.onSearchInstance(e) }} onBlur={() => this.onBlurSelectInstance()}
                 optionFilterProp="children" filterOption={(input, option) =>
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 180 }} className="mb-20">
                 {
-                  this.state.hostOptionsFilter.map((item, index) => {
+                  this.state.instanceOptionsFilter.map((item, index) => {
                     return (
                       <Option value={item} key={index}>{item}</Option>
                     )

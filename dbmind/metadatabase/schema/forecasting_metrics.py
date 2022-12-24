@@ -20,9 +20,9 @@ class ForecastingMetrics(Base):
 
     rowid = Column(Integer, primary_key=True, autoincrement=True)
     metric_name = Column(String(64), nullable=False)
-    host = Column(CHAR(24), nullable=False)
+    instance = Column(CHAR(24), nullable=False)
     metric_value = Column(Numeric(16, 2), nullable=False)
     metric_time = Column(BigInteger, nullable=False)
     labels = Column(String, nullable=True)
 
-    idx_forecasting_metrics = Index("idx_forecasting_metrics", metric_name, host, metric_time)
+    idx_forecasting_metrics = Index("idx_forecasting_metrics", metric_name, instance, metric_time)

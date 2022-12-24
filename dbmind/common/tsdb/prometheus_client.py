@@ -15,10 +15,9 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 
 from dbmind.common.http.requests_utils import create_requests_session
-from dbmind.common.tsdb.tsdb_client import cast_duration_to_seconds
 from dbmind.common.utils import cached_property
 
-from .tsdb_client import TsdbClient
+from .tsdb_client import TsdbClient, cast_duration_to_seconds
 from ..exceptions import ApiClientException
 from ..types import Sequence
 from ..types.ssl import SSLContext
@@ -84,7 +83,11 @@ class PrometheusClient(TsdbClient):
         self.prometheus_host = urlparse(self.url).netloc
         self._all_metrics = None
 
-        self._session = create_requests_session(username, password, ssl_context)
+        self._session_args = (username, password, ssl_context)
+
+    def _get(self, url, **kwargs):
+        with create_requests_session(*self._session_args) as session:
+            return session.get(url=url, **kwargs)
 
     def check_connection(self, params: dict = None) -> bool:
         """
@@ -93,7 +96,7 @@ class PrometheusClient(TsdbClient):
             sent along with the API request.
         :returns: (bool) True if the endpoint can be reached, False if cannot be reached.
         """
-        response = self._session.get(
+        response = self._get(
             "{0}/".format(self.url),
             headers=self.headers,
             params=params
@@ -124,7 +127,7 @@ class PrometheusClient(TsdbClient):
 
         # using the query API to get raw data
         data = []
-        response = self._session.get(
+        response = self._get(
             "{0}/api/v1/query".format(self.url),
             params={**params, **{"query": query}},
             headers=self.headers,
@@ -186,7 +189,7 @@ class PrometheusClient(TsdbClient):
 
         if step is None:
             # using the query API to get raw data
-            response = self._session.get(
+            response = self._get(
                 "{0}/api/v1/query".format(self.url),
                 params={
                     **params,
@@ -199,7 +202,7 @@ class PrometheusClient(TsdbClient):
             )
         else:
             # using the query_range API to get raw data
-            response = self._session.get(
+            response = self._get(
                 "{0}/api/v1/query_range".format(self.url),
                 params={**params, **{"query": query, "start": start, "end": end, "step": step}},
                 headers=self.headers,
@@ -234,7 +237,7 @@ class PrometheusClient(TsdbClient):
         params = params or {}
         query = str(query)
         # using the query API to get raw data
-        response = self._session.get(
+        response = self._get(
             "{0}/api/v1/query".format(self.url),
             params={**params, **{"query": query}},
             headers=self.headers,
@@ -272,7 +275,7 @@ class PrometheusClient(TsdbClient):
         params = params or {}
         query = str(query)
         # using the query_range API to get raw data
-        response = self._session.get(
+        response = self._get(
             "{0}/api/v1/query_range".format(self.url),
             params={**params, **{"query": query, "start": start, "end": end, "step": step}},
             headers=self.headers,
@@ -293,7 +296,7 @@ class PrometheusClient(TsdbClient):
 
     @cached_property
     def scrape_interval(self):
-        response = self._session.get(
+        response = self._get(
             "{0}/api/v1/label/interval/values".format(self.url),
             headers=self.headers
         ).json()
@@ -303,7 +306,7 @@ class PrometheusClient(TsdbClient):
 
     @cached_property
     def all_metrics(self):
-        response = self._session.get(
+        response = self._get(
             "{0}/api/v1/label/__name__/values".format(self.url),
             headers=self.headers
         ).json()

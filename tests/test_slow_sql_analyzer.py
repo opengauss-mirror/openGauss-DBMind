@@ -18,12 +18,10 @@ import pytest
 
 from dbmind.app import monitoring
 from dbmind.app.diagnosis.query.slow_sql import analyzer
-from dbmind.app.diagnosis.query.slow_sql import query_feature
 from dbmind.app.diagnosis.query.slow_sql import query_info_source
-from dbmind.app.diagnosis.query.slow_sql.analyzer import SlowSQLAnalyzer
 from dbmind.app.diagnosis.query.slow_sql.featurelib import load_feature_lib, get_feature_mapper
 from dbmind.app.diagnosis.query.slow_sql.significance_detection import average_base, ks_base, sum_base
-from dbmind.common.types.slow_query import SlowQuery
+from dbmind.app.diagnosis.query.slow_sql.slow_query import SlowQuery
 
 big_current_data = [10, 10, 10, 10, 10]
 big_history_data = [1, 1, 1, 1, 1]
@@ -319,7 +317,7 @@ def test_load_feature_lib():
 
 def test_get_feature_mapper():
     feature_mapping = get_feature_mapper()
-    assert len(feature_mapping) == 32
+    assert len(feature_mapping) == 34
 
 
 def test_vector_distance():
@@ -330,7 +328,7 @@ def test_vector_distance():
     feature_instance2 = np.array(
         [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     distance = analyzer._vector_distance(feature_instance1, features[0], 1, weight_matrix)
-    assert round(distance, 4) == 0.8019
+    assert round(distance, 4) == 0.871
     try:
         _ = analyzer._vector_distance(feature_instance2, features[0], 1, weight_matrix)
     except ValueError as execinfo:

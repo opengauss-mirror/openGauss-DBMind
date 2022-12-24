@@ -17,10 +17,11 @@ from ..business_db import get_session
 from ..schema import RegularInspection
 
 
-def insert_regular_inspection(inspection_type, start, end, report=None, conclusion=None):
+def insert_regular_inspection(instance, inspection_type, start, end, report=None, conclusion=None):
     with get_session() as session:
         session.add(
             RegularInspection(
+                instance=instance,
                 inspection_type=inspection_type,
                 start=start,
                 end=end,
@@ -40,11 +41,13 @@ def count_metric_regular_inspections():
         return result.count()
 
 
-def select_metric_regular_inspections(inspection_type, limit=None):
+def select_metric_regular_inspections(inspection_type, limit=None, instance=None):
     with get_session() as session:
         result = session.query(RegularInspection)
         if inspection_type:
             result = result.filter(RegularInspection.inspection_type == inspection_type)
+        if instance is not None:
+            result = result.filter(RegularInspection.instance == instance)
         if limit is None:
             result = result.order_by(desc(RegularInspection.id))
         else:

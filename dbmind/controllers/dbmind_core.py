@@ -21,11 +21,85 @@ from pydantic import BaseModel
 from dbmind.common.http import request_mapping, OAuth2
 from dbmind.common.http import standardized_api_output
 from dbmind.service import web
+from dbmind import global_vars
 
-# authorization
-token_url = '/api/token'
-oauth2 = OAuth2.get_instance(token_url, web.check_credential, ttl=600)
-request_mapping(token_url, methods=['POST'], api=True)(oauth2.login_handler)
+latest_version = 'v1'
+api_prefix = '/%s/api' % latest_version
+
+
+class DBMindOauth2(OAuth2):
+    token_url = '/api/token'
+
+    def __init__(self):
+        super().__init__(pwd_checker=self._password_checker)
+
+        # add the controller rule
+        request_mapping(
+            DBMindOauth2.token_url, methods=['POST'], api=True
+        )(self.login_handler)
+
+    @staticmethod
+    def get_dbmind_oauth_instance():
+        oauth = OAuth2.get_instance(
+            token_url=DBMindOauth2.token_url,
+            pwd_checker=DBMindOauth2._password_checker,
+        )
+        oauth.__instance__ = DBMindOauth2()
+
+        return oauth.__instance__
+
+    @staticmethod
+    def _password_checker(username, password, scopes):
+        # the parameter scopes here indicate the corresponding
+        # instance address if there are more than one clusters
+        # are recorded into the TSDB.
+        return web.check_credential(username, password, scopes)
+
+    def before_hook(self, *args, **kwargs):
+        super().before_hook(*args, **kwargs)
+        if self.scopes:
+            global_vars.agent_proxy.switch_context(self.scopes)
+        else:
+            # If not specified and there is only one RPC, use it.
+            agent_list = global_vars.agent_proxy.get_all_agents()
+            if len(agent_list) != 1:
+                return
+            global_vars.agent_proxy.switch_context(list(agent_list.keys())[0])
+        instances = global_vars.agent_proxy.current_cluster_instances()
+        ip_list = [i.split(':')[0] for i in instances]
+        params = {
+            web.ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST: instances,
+            web.ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST: ip_list,
+            web.ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT:
+                global_vars.agent_proxy.current_agent_addr(),
+            web.ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX:
+                '|'.join(map(lambda s: s + ':?.*', ip_list))
+        }
+        web.set_access_context(
+            **params
+        )
+
+    def after_hook(self, *args, **kwargs):
+        super().after_hook(*args, **kwargs)
+        global_vars.agent_proxy.switch_context(None)  # clear the RPC state
+        params = {
+            web.ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST: None,
+            web.ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST: None,
+            web.ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT: None,
+            web.ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX: None
+        }
+        web.set_access_context(
+            **params
+        )
+
+
+oauth2 = DBMindOauth2.get_dbmind_oauth_instance()
+
+
+@request_mapping('/api/list/agent', methods=['GET'], api=True)
+@standardized_api_output
+def get_all_agents():
+    return web.get_all_agents()
 
 
 @request_mapping('/api/status/running', methods=['GET'], api=True)
@@ -56,11 +130,11 @@ def get_node_status():
     return web.get_cluster_node_status()
 
 
-@request_mapping('/api/status/host', methods=['GET'], api=True)
+@request_mapping('/api/status/instance', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_host_status():
-    return web.get_host_status()
+def get_instance_status():
+    return web.get_instance_status()
 
 
 @request_mapping('/api/summary/cluster', methods=['GET'], api=True)
@@ -102,26 +176,21 @@ def workload_forecasting_get_metric_sequence(name, start: int = None, end: int =
 @oauth2.token_authentication()
 @standardized_api_output
 def workload_forecasting_forecast(name: str, start: int = None, end: int = None, step: int = None):
-    if start is None and end is None:
-        r = web.get_forecast_sequence_info(name)['rows']
-        if len(r) > 0:
-            rv = web.get_stored_forecast_sequence(name, start_at=int(time.time() * 1000), limit=500)
-            return rv
     return web.get_metric_forecast_sequence(name, start, end, step)
 
 
 @request_mapping('/api/alarm/history', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_history_alarms(host: str = None, alarm_type: str = None, alarm_level: str = None, group: bool = False):
-    return web.get_history_alarms(host, alarm_type, alarm_level, group)
+def get_history_alarms(instance: str = None, alarm_type: str = None, alarm_level: str = None, group: bool = False):
+    return web.get_history_alarms(instance, alarm_type, alarm_level, group)
 
 
 @request_mapping('/api/alarm/future', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_future_alarms(metric_name: str = None, host: str = None, start: int = None, group: bool = False):
-    return web.get_future_alarms(metric_name, host, start, group)
+def get_future_alarms(metric_name: str = None, instance: str = None, start: int = None, group: bool = False):
+    return web.get_future_alarms(metric_name, instance, start, group)
 
 
 @request_mapping('/api/alarm/healing', methods=['GET'], api=True)
@@ -214,8 +283,8 @@ def get_security_summary():
 @request_mapping('/api/summary/security', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_security_summary(host: str = None):
-    return web.get_security_alarms(host)
+def get_security_summary(instance: str = None):
+    return web.get_security_alarms(instance)
 
 
 @request_mapping('/api/summary/log', methods=['GET'], api=True)
@@ -232,7 +301,7 @@ def get_log_information():
     timestamp = int(time.time()) - len(lines) * 10
     for i, line in enumerate(lines):
         lines[i] = datetime.datetime.fromtimestamp(timestamp + i * 10).strftime('%Y-%m-%d %H:%M:%S.%f') + \
-            ' ' + line.strip()
+                   ' ' + line.strip()
     return '\n'.join(lines)
 
 
@@ -323,13 +392,11 @@ def diagnosis_slow_sql(item: SlowSQLItem):
     schema = item.schemaname if len(item.schemaname) else 'public'
     start_time = item.start_time if len(item.start_time) else None
     end_time = item.end_time if len(item.end_time) else None
-    wdr = item.wdr if len(item.wdr) else None
     return web.toolkit_slow_sql_rca(sql,
-                                    database=database,
+                                    dbname=database,
                                     schema=schema,
                                     start_time=start_time,
-                                    end_time=end_time,
-                                    wdr=wdr)
+                                    end_time=end_time)
 
 
 @request_mapping('/api/summary/metric_statistic', methods=['GET'], api=True)

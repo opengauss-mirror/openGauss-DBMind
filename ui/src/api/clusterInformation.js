@@ -10,9 +10,9 @@ export const getAlertInterface = () => {
   return get('/status/alert');
 };
 
-// -------Host
-export const getHostListInterface = () => {
-  return get('/status/host');
+// -------Instance
+export const getInstanceListInterface = () => {
+  return get('/status/instance');
 };
 
 // -------Statistics

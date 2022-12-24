@@ -14,7 +14,7 @@ import logging
 from threading import Lock
 
 from dbmind.common.rpc import RPCServer, RPCFunctionRegister
-from .opengauss_driver import Driver
+from dbmind.common.opengauss_driver import Driver
 
 _rpc_register = RPCFunctionRegister()
 _rpc_service = _rpc_register.register()

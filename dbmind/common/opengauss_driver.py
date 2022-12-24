@@ -22,8 +22,7 @@ import psycopg2.extensions
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 
-from dbmind.common.utils import dbmind_assert
-from dbmind.common.utils.exporter import warn_logging_and_terminal
+from dbmind.common.utils import dbmind_assert, write_to_terminal
 
 _psycopg2_kwargs = dict(
     options="-c session_timeout=15 -c search_path=public",
@@ -235,23 +234,31 @@ class DriverBundle:
             self, url,
             include_db_list=None,
             exclude_db_list=None,
-            each_db_max_connections=None
+            each_db_max_connections=None,
+            log_to_terminal=True
     ):
         self.main_driver = Driver()
         self.main_driver.initialize(url, each_db_max_connections)  # If cannot access, raise a ConnectionError.
         self._bundle = {self.main_driver.dbname: self.main_driver}
         if self.main_dbname != DriverBundle.__main_db_name__:
-            warn_logging_and_terminal(
+            msg = (
                 'The default connection database of the exporter is not postgres, '
                 'so it is possible that some database metric information '
                 'cannot be collected, such as slow SQL queries.'
             )
+            logging.warning(msg)
+            if log_to_terminal:
+                write_to_terminal(msg)
+
         if not self.is_monitor_admin():
-            warn_logging_and_terminal(
+            msg = (
                 'The current user does not have the MonitorAdmin permission, '
                 'which will cause many metrics to fail to obtain. '
                 'Please consider granting this permission to the connecting user.'
             )
+            logging.warning(msg)
+            if log_to_terminal:
+                write_to_terminal(msg)
 
         for dbname in self._discover_databases(include_db_list, exclude_db_list):
             if dbname in self._bundle:
@@ -260,8 +267,8 @@ class DriverBundle:
             try:
                 driver = Driver()
                 driver.initialize(self._splice_url_for_other_db(dbname), each_db_max_connections)
-
-                self._bundle[dbname] = driver  # Ensure that each driver can access corresponding database.
+                # Ensure that each driver can access corresponding database.
+                self._bundle[dbname] = driver
             except ConnectionError:
                 logging.warning(
                     'Cannot connect to the database %s by using the given user.', dbname

@@ -20,7 +20,7 @@ class HealingRecords(Base):
     __tablename__ = "tb_healing_records"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    host = Column(CHAR(64), nullable=False)
+    instance = Column(CHAR(64), nullable=False)
     trigger_events = Column(String(1024), nullable=True)
     trigger_root_causes = Column(String(1024), nullable=True)
     action = Column(String(64), nullable=True)

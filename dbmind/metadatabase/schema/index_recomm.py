@@ -19,7 +19,7 @@ class IndexRecommendation(Base):
     __tablename__ = "tb_index_recommendation"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    host = Column(String(24), nullable=False)
+    instance = Column(String(24), nullable=False)
     db_name = Column(String(64), nullable=False)
     schema_name = Column(String(32), nullable=False)
     tb_name = Column(String(64), nullable=False)

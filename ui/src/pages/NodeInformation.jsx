@@ -3,7 +3,7 @@ import {Tabs} from 'antd';
 import {CheckOutlined, DesktopOutlined, PieChartOutlined} from '@ant-design/icons';
 import '../assets/css/common.css';
 import Node from '../components/NodeInformation/Node';
-import Host from '../components/NodeInformation/Host';
+import Instance from '../components/NodeInformation/Instance';
 import Statistic from '../components/NodeInformation/Statistics';
 
 const { TabPane } = Tabs;
@@ -31,12 +31,12 @@ export default class Cluster extends Component {
             tab={
               <span>
                 <DesktopOutlined />
-                Host
+                Instance
               </span>
             }
             key="2"
           >
-            <Host />
+            <Instance />
           </TabPane>
           <TabPane
             tab={

@@ -1,11 +1,11 @@
 import React, { Component } from 'react';
 import { Card, message, Progress, Table } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { getHostListInterface } from '../../api/clusterInformation';
+import { getInstanceListInterface } from '../../api/clusterInformation';
 import { formatTableTime, formatTableTitle } from '../../utils/function';
 import ResizeableTitle from '../common/ResizeableTitle';
 
-export default class Host extends Component {
+export default class Instance extends Component {
   constructor() {
     super()
     this.state = {
@@ -23,9 +23,9 @@ export default class Host extends Component {
       cell: ResizeableTitle,
     },
   };
-  async getHostList () {
+  async getInstanceList () {
     this.setState({ loading: true })
-    const { success, data, msg } = await getHostListInterface()
+    const { success, data, msg } = await getInstanceListInterface()
     if (success) {
       if(JSON.stringify(data) !== '{}'){
       let arr = []
@@ -83,7 +83,7 @@ export default class Host extends Component {
     });
   };
   componentDidMount () {
-    this.getHostList()
+    this.getInstanceList()
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -95,7 +95,7 @@ export default class Host extends Component {
     }))
     return (
       <div>
-        <Card title="Node Information" extra={<ReloadOutlined className="more_link" onClick={() => { this.getHostList() }} />} style={{ height: 800 }}>
+        <Card title="Node Information" extra={<ReloadOutlined className="more_link" onClick={() => { this.getInstanceList() }} />} style={{ height: 800 }}>
           <Table bordered loading={this.state.loading} components={this.components} columns={columns} dataSource={this.state.data} rowKey={record => record.ip} pagination={this.state.pagination} scroll={{ x: '100%' }} />
         </Card>
       </div>

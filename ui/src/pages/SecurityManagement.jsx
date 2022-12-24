@@ -19,7 +19,7 @@ export default class SecurityManagement extends Component {
       SearchForm: '',
       loading: false,
       selValue: '',
-      hostnewname: '',
+      instancenewname: '',
       optionsFilter: [],
     }
   }
@@ -39,7 +39,7 @@ export default class SecurityManagement extends Component {
   }
   async getDetectedRisk () {
     let params = {
-      host: this.state.selValue === '' ? null : this.state.selValue
+      instance: this.state.selValue === '' ? null : this.state.selValue
     }
     this.setState({
       loading: true
@@ -73,14 +73,14 @@ export default class SecurityManagement extends Component {
         });
         let optionsArr = []
         res.forEach((item) => {
-          optionsArr.push(item.host.replace(/(\s*$)/g, ''))
+          optionsArr.push(item.instance.replace(/(\s*$)/g, ''))
         })
-        let hostOptions = this.handleDataDeduplicate(optionsArr)
+        let instanceOptions = this.handleDataDeduplicate(optionsArr)
         this.setState(() => ({
           loading: false,
           dataSource: res,
           columns: tableHeader,
-          optionsFilter: hostOptions,
+          optionsFilter: instanceOptions,
           futurePagination: {
             total: res.length,
             defaultCurrent: 1
@@ -103,7 +103,7 @@ export default class SecurityManagement extends Component {
       message.error(msg)
     }
   }
-  changeSelHostVal (value) {
+  changeSelInstanceVal (value) {
     this.setState({
       selValue: value
     })
@@ -125,15 +125,15 @@ export default class SecurityManagement extends Component {
     if (value) {
       this.setState({
         selValue: value,
-        hostnewname: value
+        instancenewname: value
       })
     }
   };
   onBlurSelect = () => {
-    const value = this.state.hostnewname
+    const value = this.state.instancenewname
     if (value) {
-      this.changeSelHostVal(value)
-      this.setState({hostnewname: ''})
+      this.changeSelInstanceVal(value)
+      this.setState({instancenewname: ''})
     }
   }
   handleRefresh(){
@@ -159,8 +159,8 @@ export default class SecurityManagement extends Component {
         <Card title="Detected Risks" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />} style={{ minHeight: 860 }}>
           <Row style={{ marginBottom: 10, width: '20%' }} justify="space-around">
             <Col>
-              <span>host: </span>
-              <Select value={this.state.selValue} onChange={(val) => { this.changeSelHostVal(val) }} showSearch allowClear
+              <span>instance: </span>
+              <Select value={this.state.selValue} onChange={(val) => { this.changeSelInstanceVal(val) }} showSearch allowClear
                 optionFilterProp="children" onSearch={(e) => { this.onSearch(e) }} onBlur={() => this.onBlurSelect()}
                 filterOption={(input, option) =>
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 180 }} className="mb-20">

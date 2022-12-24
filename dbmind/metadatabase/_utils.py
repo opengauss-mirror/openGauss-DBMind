@@ -44,5 +44,5 @@ def create_dsn(
         database = parse.quote(database)
         dsn = '{}://{}:{}@{}:{}/{}'.format(db_type, username, password, host, port, database)
     if db_type == 'postgresql':
-        dsn = dsn + '?options=-csearch_path%3Dpublic'  # only use the fixed schema
+        dsn = dsn + '?options=-csearch_path%3D{}'.format(schema)  # only use the fixed schema
     return dsn

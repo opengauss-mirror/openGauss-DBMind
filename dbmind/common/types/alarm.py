@@ -10,7 +10,6 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from time import time
 from typing import Optional, Iterable, Union
 
 from .enums import ALARM_LEVEL, ALARM_TYPES
@@ -19,14 +18,14 @@ from .root_cause import RootCause
 
 class Alarm:
     def __init__(self,
-                 host: Optional[str] = None,
+                 instance: Optional[str] = None,
                  alarm_content: str = None,
                  alarm_type: ALARM_TYPES = ALARM_TYPES.SYSTEM,
                  metric_name: str = None, start_timestamp=None, end_timestamp=None,
                  alarm_level: ALARM_LEVEL = ALARM_LEVEL.ERROR,
                  alarm_cause: Optional[Union[RootCause, Iterable[RootCause]]] = None,
                  extra=None, anomaly_type=None):
-        self.host = host
+        self.instance = instance
         self.alarm_content = alarm_content
         self.alarm_type = alarm_type
         self.metric_name = metric_name

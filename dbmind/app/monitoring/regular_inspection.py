@@ -100,9 +100,8 @@ class Inspection:
                     related_metric='statement_responsetime_percentile_p95', label='')
     ]
 
-    def __init__(self, host, port, start, end):
-        self.host = host
-        self.port = port
+    def __init__(self, instance, start, end):
+        self.instance = instance
         self.start = start
         self.end = end
         self.statistic_data = {}
@@ -116,9 +115,10 @@ class Inspection:
         for metric in Inspection._metric_list:
             if metric.category not in ('system', 'database'):
                 continue
-            server = self.host
+            # system level metric doesn't need a port
+            server = self.instance.split(':')[0]
             if metric.category == 'database':
-                server = "%s:%s" % (self.host, self.port)
+                server = self.instance
             if metric.fetch_method == 'one':
                 sequence = dai.get_metric_sequence(metric.related_metric, self.start, self.end).from_server(
                     server).fetchone()
@@ -135,7 +135,7 @@ class Inspection:
                                                           'the 95th percentage': the_95th_val}
 
     def alarm(self):
-        result = dao.alarms.select_history_alarm(host=self.host,
+        result = dao.alarms.select_history_alarm(instance=self.instance,
                                                  start_occurrence_time=dai.datetime_to_timestamp(self.start),
                                                  end_occurrence_time=dai.datetime_to_timestamp(self.end),
                                                  group=True)
@@ -183,6 +183,7 @@ class Inspection:
 
     def conclusion(self):
         RELATED_ALARM_THRESHOLD = 0.2
+
         alarm_content_statistic = sorted(self.alarm_content_statistic.items(), key=lambda x: x[1], reverse=True)
         alarm_count = sum(self.alarm_content_statistic.values())
         system_resource_related, security_related, performance_related = [], [], []
@@ -287,15 +288,16 @@ class Inspection:
         return report
 
 
-def update_detection_param(host, port, start, end):
+def update_detection_param(instance, start, end):
     for param, metric in _param_metric_mapper.items():
         if metric.category not in ('system', 'database'):
             continue
         upper = 0
         original_value = get_param(param)
-        server = host
         if metric.category == 'database':
-            server = "%s:%s" % (host, port)
+            server = instance
+        else:
+            server = instance.split(':')[0]
         if metric.fetch_method == 'one':
             sequence = dai.get_metric_sequence(metric.related_metric, start, end).from_server(
                 server).fetchone()

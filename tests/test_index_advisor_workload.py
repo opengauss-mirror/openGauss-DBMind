@@ -23,16 +23,20 @@ import shlex
 
 import dbmind.components.index_advisor.utils
 from dbmind.components.index_advisor.index_advisor_workload import IndexAdvisor
-from dbmind.components.index_advisor.sql_output_parser import parse_table_sql_results, get_checked_indexes, \
-    parse_single_advisor_results, parse_existing_indexes_results, parse_explain_plan, ExistingIndex, IndexItemFactory
-from dbmind.components.index_advisor.sql_generator import get_existing_index_sql, get_index_check_sqls, \
-    get_single_advisor_sql, get_workload_cost_sqls
+from dbmind.components.index_advisor.sql_output_parser import (parse_table_sql_results, get_checked_indexes,
+                                                               parse_single_advisor_results,
+                                                               parse_existing_indexes_results, parse_explain_plan,
+                                                               ExistingIndex, IndexItemFactory)
+from dbmind.components.index_advisor.sql_generator import (get_existing_index_sql, get_index_check_sqls,
+                                                           get_single_advisor_sql, get_workload_cost_sqls)
 from dbmind.components.index_advisor import index_advisor_workload
-from dbmind.components.index_advisor.index_advisor_workload import generate_sorted_atomic_config, \
-    add_more_column_index, filter_redundant_indexes_with_same_type, generate_atomic_config_containing_same_columns, \
-    recalculate_cost_for_opt_indexes
-from dbmind.components.index_advisor.utils import WorkLoad, QueryItem, flatten, UniqueList, \
-    replace_comma_with_dollar, replace_function_comma
+from dbmind.components.index_advisor.index_advisor_workload import (generate_sorted_atomic_config,
+                                                                    add_more_column_index,
+                                                                    filter_redundant_indexes_with_same_type,
+                                                                    generate_atomic_config_containing_same_columns,
+                                                                    recalculate_cost_for_opt_indexes)
+from dbmind.components.index_advisor.utils import (WorkLoad, QueryItem, flatten, UniqueList,
+                                                   replace_comma_with_dollar, replace_function_comma)
 from dbmind.components.index_advisor import mcts
 
 
@@ -444,9 +448,9 @@ class SqlOutPutParserTester(unittest.TestCase):
         self.assertEqual(([8.27], [['temptable_int1_idx']]), parse_explain_plan(results, 1)[:2])
         results = [('SET',), ('SET',), ('SET',), ('PREPARE',),
                    (
-                   '                                       QUERY PLAN                                         ',),
+                       '                                       QUERY PLAN                                         ',),
                    (
-                   'Index Scan using <625283>btree_other_temptable_int2 on temptable  (cost=0.00..8.27 rows=1 width=8)',),
+                       'Index Scan using <625283>btree_other_temptable_int2 on temptable  (cost=0.00..8.27 rows=1 width=8)',),
                    ('Index Cond: (int2 = 10)',), ('(2 rows)',), ('',), ('DEALLOCATE',), ('total time: 1  ms',)]
         self.assertEqual(([8.27], [['<625283>btree_other_temptable_int2']]), parse_explain_plan(results, 1)[:2])
 
@@ -558,13 +562,13 @@ class SqlGeneratorTester(unittest.TestCase):
     def test_existed_index_sql(self):
         schema = 'public'
         tables = ['table1', 'table2']
-        expected = "SELECT c.relname AS tablename, i.relname AS indexname, pg_catalog.pg_get_indexdef(i.oid) " \
-                   "AS indexdef, p.contype AS pkey from pg_index x JOIN pg_class c ON c.oid = x.indrelid JOIN " \
-                   "pg_class i ON i.oid = x.indexrelid LEFT JOIN pg_namespace n ON n.oid = c.relnamespace " \
-                   "LEFT JOIN pg_constraint p ON (i.oid = p.conindid AND p.contype = 'p') WHERE (c.relkind = " \
-                   "ANY (ARRAY['r'::\"char\", 'm'::\"char\"])) AND (i.relkind = ANY (ARRAY['i'::\"char\", " \
-                   "'I'::\"char\"])) " \ 
-                   "AND n.nspname = 'public' AND c.relname in ('table1','table2') order by c.relname;"
+        expected = ("SELECT c.relname AS tablename, i.relname AS indexname, pg_catalog.pg_get_indexdef(i.oid) "
+                    "AS indexdef, p.contype AS pkey from pg_index x JOIN pg_class c ON c.oid = x.indrelid JOIN "
+                    "pg_class i ON i.oid = x.indexrelid LEFT JOIN pg_namespace n ON n.oid = c.relnamespace "
+                    "LEFT JOIN pg_constraint p ON (i.oid = p.conindid AND p.contype = 'p') WHERE (c.relkind = "
+                    "ANY (ARRAY['r'::\"char\", 'm'::\"char\"])) AND (i.relkind = ANY (ARRAY['i'::\"char\", "
+                    "'I'::\"char\"])) "
+                    "AND n.nspname = 'public' AND c.relname in ('table1','table2') order by c.relname;")
         self.assertEqual(get_existing_index_sql(schema, tables), expected)
 
     def test_workload_cost_sqls(self):
@@ -625,6 +629,7 @@ class IndexAdvisorTester(unittest.TestCase):
                                   {'cnt': 3, 'samples': ["select * from student_range_part1 where "
                                                          "student_range_part1.stu_id = '12' and "
                                                          "student_range_part1.stu_name='b__1' and credit=1"]},
+
                               'select * from student_range_part where stu_id@@@':
                                   {'cnt': 1, 'samples': [
                                       "select * from student_range_part where stu_id='w_1'"]},
@@ -640,8 +645,8 @@ class IndexAdvisorTester(unittest.TestCase):
         with patch('dbmind.components.index_advisor.index_advisor_workload.open',
                    mock_open(read_data=Case.sql_content)) as m:
             queries = index_advisor_workload.compress_workload('test')
-        workloadCount = 7
-        self.assertEqual(int(sum(query.get_frequency() for query in queries)), workloadCount)
+        workload_count = 7
+        self.assertEqual(int(sum(query.get_frequency() for query in queries)), workload_count)
 
     def test_generate_sorted_atomic_config(self):
         queryitem1 = index_advisor_workload.QueryItem('test', 0)
@@ -810,7 +815,7 @@ class IndexAdvisorTester(unittest.TestCase):
         self.assertEqual(workload.get_workload_used_indexes(None), origin_used_indexes)
         self.assertEqual(workload.get_workload_used_indexes((index1, index2, index3, index4)),
                          [[used_index1_name], [used_index2_name]])
-        self.assertEqual(workload.get_used_index_names(), set(['index1']))
+        self.assertEqual(workload.get_used_index_names(), {'index1'})
         recalculate_cost_for_opt_indexes(workload, indexes)
         self.assertEqual(index1.get_positive_queries()[0].__str__(), 'statement: select * from a where col1=1 '
                                                                      'frequency: 1 index_list: '

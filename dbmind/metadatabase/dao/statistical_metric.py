@@ -15,12 +15,12 @@ from ..business_db import get_session
 from ..schema import StatisticalMetric
 
 
-def insert_record(metric_name, host, date, avg_val, min_val=0, max_val=0, the_95_quantile=0):
+def insert_record(metric_name, instance, date, avg_val, min_val=0, max_val=0, the_95_quantile=0):
     with get_session() as session:
         session.add(
             StatisticalMetric(
                 metric_name=metric_name,
-                host=host,
+                instance=instance,
                 date=date,
                 avg=avg_val,
                 min=min_val,
@@ -40,17 +40,17 @@ def count_records():
         return result.count()
 
 
-def select_metric_statistic_records(host=None, metric_name=None):
+def select_metric_statistic_records(instance=None, metric_name=None):
     with get_session() as session:
         result = session.query(StatisticalMetric)
-        if host is not None:
-            result = result.filter(StatisticalMetric.host == host)
+        if instance is not None:
+            result = result.filter(StatisticalMetric.instance == instance)
         if metric_name is not None:
             result = result.filter(StatisticalMetric.metric_name == metric_name)
         return result
 
 
-def select_metric_statistic_avg_records(host=None, metric_name=None, only_avg=None, only_max=None):
+def select_metric_statistic_avg_records(instance=None, metric_name=None, only_avg=None, only_max=None):
     with get_session() as session:
         if only_avg is not None:
             result = session.query(StatisticalMetric.avg)
@@ -58,8 +58,8 @@ def select_metric_statistic_avg_records(host=None, metric_name=None, only_avg=No
             result = session.query(StatisticalMetric.max)
         else:
             result = session.query(StatisticalMetric)
-        if host is not None:
-            result = result.filter(StatisticalMetric.host == host)
+        if instance is not None:
+            result = result.filter(StatisticalMetric.instance == instance)
         if metric_name is not None:
             result = result.filter(StatisticalMetric.metric_name == metric_name)
         return result

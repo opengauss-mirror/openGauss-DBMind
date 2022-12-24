@@ -67,11 +67,11 @@ class HealingAction:
         events = set()
         root_causes = set()
         for alarm in self._alarms:
-            hosts.add(alarm.host)
+            hosts.add(alarm.instance)
             events.add(alarm.alarm_content)
             for cause in alarm.alarm_cause:
                 root_causes.add(cause.title)
-        result.host = ' '.join(hosts)
+        result.instance = ' '.join(hosts)
         result.trigger_events = '\n'.join(events)
         result.trigger_root_causes = '\n'.join(root_causes)
         result.called_method = self._callback.__qualname__
@@ -81,7 +81,7 @@ class HealingAction:
 
 class HealingResult:
     def __init__(self, success, detail, action):
-        self.host = ''
+        self.instance = ''
         self.trigger_events = ''
         self.trigger_root_causes = ''
         self.action = action

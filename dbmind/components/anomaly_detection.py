@@ -20,13 +20,10 @@ import numpy as np
 from prettytable import PrettyTable
 from scipy import interpolate
 
-from dbmind import constants
 from dbmind import global_vars
 from dbmind.app.monitoring.generic_detection import AnomalyDetections
-from dbmind.cmd.config_utils import DynamicConfig, load_sys_configs
-from dbmind.common import utils
+from dbmind.cmd.edbmind import init_tsdb_with_config, init_global_configs
 from dbmind.common.algorithm.stat_utils import sequence_interpolate
-from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.utils.checking import date_type, path_type
 from dbmind.common.utils.cli import (
     raise_fatal_and_exit, RED_FMT, GREEN_FMT
@@ -234,21 +231,8 @@ def main(argv):
 
     # Initialize
     os.chdir(args.conf)
-    global_vars.metric_map = utils.read_simple_config_file(constants.METRIC_MAP_CONFIG)
-    global_vars.configs = load_sys_configs(constants.CONFILE_NAME)
-    global_vars.dynamic_configs = DynamicConfig
-
-    TsdbClientFactory.set_client_info(
-        global_vars.configs.get('TSDB', 'name'),
-        global_vars.configs.get('TSDB', 'host'),
-        global_vars.configs.get('TSDB', 'port'),
-        global_vars.configs.get('TSDB', 'username'),
-        global_vars.configs.get('TSDB', 'password'),
-        global_vars.configs.get('TSDB', 'ssl_certfile'),
-        global_vars.configs.get('TSDB', 'ssl_keyfile'),
-        global_vars.configs.get('TSDB', 'ssl_keyfile_password'),
-        global_vars.configs.get('TSDB', 'ssl_ca_file')
-    )
+    init_global_configs(args.conf)
+    init_tsdb_with_config()
 
     metric = args.metric
     start_time = args.start_time

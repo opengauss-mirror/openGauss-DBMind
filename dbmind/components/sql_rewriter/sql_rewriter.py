@@ -10,44 +10,34 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
-import re
 import argparse
 import getpass
 import logging
+import re
 import sys
 from copy import deepcopy
+from functools import partial
 
 import sqlparse
+from mo_sql_parsing import parse, format
+from prettytable import PrettyTable
+from sql_metadata.compat import get_query_tables
 from sqlparse.sql import Parenthesis, IdentifierList, Values
 from sqlparse.tokens import Punctuation, Whitespace
-from prettytable import PrettyTable
-from mo_sql_parsing import parse, format
 
+from dbmind import global_vars
+from dbmind.common.parser.sql_parsing import get_generate_prepare_sqls_function
 from dbmind.common.utils.checking import CheckWordValid, path_type, positive_int_type
 from dbmind.common.utils.cli import read_input_from_pipe
 from dbmind.constants import __version__
-
-try:
-    from utils import get_table_names
-    from executor import Executor
-    from rules import AlwaysTrue, DistinctStar, OrderbyConst, Star2Columns, UnionAll, Delete2Truncate, \
-        Or2In, In2Exists, \
-        OrderbyConstColumns, \
-        ImplicitConversion, \
-        SelfJoin, Having2Where, \
-        Group2Hash
-    from rules import Rule
-except ImportError:
-    from .utils import get_table_names
-    from .executor import Executor
-    from .rules import AlwaysTrue, DistinctStar, OrderbyConst, Star2Columns, UnionAll, Delete2Truncate, \
-        Or2In, In2Exists,\
-        OrderbyConstColumns, \
-        ImplicitConversion, \
-        SelfJoin, Having2Where, \
-        Group2Hash
-    from .rules import Rule
+from .executor import Executor
+from .rules import (AlwaysTrue, DistinctStar, OrderbyConst, Star2Columns, UnionAll, Delete2Truncate,
+                    Or2In, In2Exists,
+                    OrderbyConstColumns,
+                    ImplicitConversion,
+                    SelfJoin, Group2Hash)
+from .rules import Rule
+from .utils import get_table_names
 
 
 def get_all_involved_tables(sql, table_names=None):
@@ -231,6 +221,57 @@ def canbe_parsed(sql):
     return True
 
 
+def rewrite_sql_api(database, sqls, rewritten_flags=None, if_format=True, driver=None):
+    rewritten_sqls = []
+    get_prepare_sqls = get_generate_prepare_sqls_function()
+    if rewritten_flags is None:
+        rewritten_flags = []
+    if driver is not None:
+        executor = partial(driver.query, force_connection_db=database)
+    else:
+        executor = partial(global_vars.agent_rpc_client.call, funcname='query_in_database', database=database)
+    schemas_results = executor(stmt='select distinct(table_schema) from information_schema.tables;', return_tuples=True)
+    schemas = ','.join([res[0] for res in schemas_results]) if schemas_results else 'public'
+    for _sql in sqls.split(';'):
+        if not _sql.strip():
+            continue
+        sql = _sql + ';'
+        formatted_sql = sqlparse.format(sql, keyword_case='lower', identifier_case='lower', strip_comments=True)
+        prepare_sqls = get_prepare_sqls(formatted_sql)
+        sql_checking_stmt = f'set current_schema={schemas};{";".join(prepare_sqls)}'
+        checking_results = executor(stmt=sql_checking_stmt, return_tuples=False, fetch_all=True)
+        if not checking_results:
+            rewritten_sqls.append(sql)
+            rewritten_flags.append(False)
+            continue
+        table_columns = dict()
+        table_exists_primary = dict()
+        table_notnull_columns = dict()
+        involved_tables = get_query_tables(formatted_sql)
+        tableinfo = TableInfo()
+        for table_name in involved_tables:
+            search_table_stmt = "select column_name, ordinal_position " \
+                                "from information_schema.columns where table_name='%s';" % table_name
+            results = sorted(executor(stmt=search_table_stmt, return_tuples=True), key=lambda x: x[1])
+            table_columns[table_name] = [res[0] for res in results]
+            exists_primary_stmt = "SELECT count(*)  FROM information_schema.table_constraints WHERE " \
+                                  "constraint_type in ('PRIMARY KEY', 'UNIQUE') AND table_name = '%s'" % table_name
+            table_exists_primary[table_name] = \
+                executor(stmt=exists_primary_stmt, return_tuples=True)[0][0]
+            notnull_columns_stmt = f"SELECT attname from pg_attribute where attrelid=(select oid from pg_class " \
+                                   f"where relname='{table_name}') and attnotnull=true"
+            table_notnull_columns[table_name] = [_tuple[0] for _tuple in
+                                                 executor(stmt=notnull_columns_stmt, return_tuples=True)]
+        tableinfo.table_columns = table_columns
+        tableinfo.table_exists_primary = table_exists_primary
+        tableinfo.table_notnull_columns = table_notnull_columns
+        rewritten_flag, output_sql = SQLRewriter().rewrite(formatted_sql, tableinfo, if_format)
+        rewritten_flags.append(rewritten_flag)
+        rewritten_sqls.append(output_sql)
+    return '\n'.join(rewritten_sqls)
+
+
+
 def main(argv):
     arg_parser = argparse.ArgumentParser(
         description='SQL Rewriter')
@@ -278,7 +319,7 @@ def main(argv):
         else:
             res, rewritten_sql = SQLRewriter().rewrite(formatted_sql, tableinfo)
         if not executor.syntax_check(rewritten_sql) or not res:
-            output_table.add_row([sql, '']) 
+            output_table.add_row([sql, ''])
         else:
             output_table.add_row([sql, rewritten_sql])
     print(output_table)

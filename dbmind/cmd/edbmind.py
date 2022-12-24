@@ -28,6 +28,7 @@ from dbmind.cmd.config_utils import (
     load_sys_configs,
     DynamicConfig
 )
+from dbmind.service.utils import AgentProxy
 from dbmind.common import platform
 from dbmind.common import utils
 from dbmind.common.daemon import Daemon, read_dbmind_pid_file
@@ -35,7 +36,6 @@ from dbmind.common.dispatcher import TimedTaskManager
 from dbmind.common.dispatcher import get_worker_instance
 from dbmind.common.exceptions import SetupError
 from dbmind.common.http import HttpService
-from dbmind.common.rpc import RPCClient
 from dbmind.common.tsdb import TsdbClientFactory
 
 # Support input() function in using backspace.
@@ -55,6 +55,17 @@ def _check_confpath(confpath):
     if os.path.exists(confile_path):
         return True
     return False
+
+
+def _split(s, delimiter=','):
+    if not s:
+        return []
+    rv = []
+    for t in s.split(delimiter):
+        stripped = t.strip()
+        if stripped:
+            rv.append(stripped)
+    return rv
 
 
 def _process_clean(force=False):
@@ -95,6 +106,161 @@ def signal_handler(signum, frame):
         _process_clean(force=True)
 
 
+def init_rpc_with_config(tsdb=None):
+    master_url = _split(global_vars.configs.get('AGENT', 'master_url'))
+    ssl_certfile = _split(global_vars.configs.get('AGENT', 'ssl_certfile'))
+    ssl_keyfile = _split(global_vars.configs.get('AGENT', 'ssl_keyfile'))
+    ssl_keyfile_password = _split(global_vars.configs.get('AGENT', 'ssl_keyfile_password'))
+    ssl_ca_file = _split(global_vars.configs.get('AGENT', 'ssl_ca_file'))
+    agent_username = _split(global_vars.configs.get('AGENT', 'username'))
+    agent_pwd = _split(global_vars.configs.get('AGENT', 'password'))
+
+    # -- check for agent configurations below --
+    def is_the_same_length(*args):
+        idx = 1
+        while idx < len(args):
+            if len(args[idx]) != len(args[idx - 1]):
+                return False
+            idx += 1
+        return True
+
+    error_msg = ("The agent ssl configuration is incorrect, "
+                 "keep the number of setting elements of "
+                 "these configurations the same.")
+    if not is_the_same_length(
+            ssl_certfile, ssl_keyfile, ssl_keyfile_password,
+            ssl_ca_file
+    ):
+        utils.raise_fatal_and_exit(
+            error_msg, use_logging=False
+        )
+    if not is_the_same_length(
+            agent_username, agent_pwd
+    ):
+        utils.raise_fatal_and_exit(
+            error_msg, use_logging=False
+        )
+    # If master url doesn't set, we don't need to do the
+    # subsequent checks.
+    if len(master_url) > 0 and not is_the_same_length(
+            master_url, ssl_certfile
+    ) and len(ssl_certfile) > 1:
+        utils.raise_fatal_and_exit(
+            error_msg, use_logging=False
+        )
+    if len(master_url) > 0 and not is_the_same_length(
+            master_url, agent_username
+    ) and len(ssl_certfile) > 1:
+        utils.raise_fatal_and_exit(
+            error_msg, use_logging=False
+        )
+    # -- finish checking --
+    # If user doesn't set any urls, we can
+    # try to scan and discover the urls by TSDB metrics.
+    # But auto-discover has a restriction, which is
+    # user should set a username. Otherwise, we can't
+    # connect to the agent with any credentials.
+    # Meanwhile, the username should be one element.
+    if tsdb and len(master_url) == 0 and len(agent_username) == 1:
+        try:
+            sequences = tsdb.get_current_metric_value(
+                'opengauss_exporter_fixed_info'
+            )
+            for s in sequences:
+                labels = s.labels
+                # fixed key name, refer to openGauss exporter component
+                rpc = labels['rpc'] == 'True'
+                primary = labels['primary'] == 'True'
+                # Currently, we only use the master instance.
+                if not (rpc and primary):
+                    continue
+
+                url = labels['url']
+                # It is similar to username, only one element can be used.
+                if url.startswith('https') and len(ssl_certfile) != 1:
+                    continue
+
+                # override the following scenario
+                if '0.0.0.0' in url:
+                    host = labels['instance'].split(':')[0]
+                    url = url.replace('0.0.0.0', host)
+                master_url.append(url)
+        except Exception as e:
+            logging.warning(
+                'Cannot extract agent url from TSDB.', exc_info=e
+            )
+    global_vars.agent_proxy = AgentProxy()
+
+    def try_to_get_the_element(l, idx):
+        if len(l) == 0:
+            return None
+        if len(l) >= idx:
+            return l[0]  # default to return the first one
+        return l[idx]
+
+    for i, url in enumerate(master_url):
+        pwd = try_to_get_the_element(agent_pwd, i)
+        global_vars.agent_proxy.add_agent(
+            url=url,
+            username=try_to_get_the_element(agent_username, i),
+            password=pwd,
+            ssl_certfile=try_to_get_the_element(ssl_certfile, i),
+            ssl_keyfile=try_to_get_the_element(ssl_keyfile, i),
+            ssl_key_password=try_to_get_the_element(ssl_keyfile_password, i),
+            ca_file=try_to_get_the_element(ssl_ca_file, i)
+        )
+
+    return global_vars.agent_proxy
+
+
+def init_logger_with_config():
+    log_directory = global_vars.configs.get('LOG', 'log_directory', fallback='logs')
+    log_directory = os.path.realpath(log_directory)
+    os.makedirs(log_directory, exist_ok=True)
+    max_bytes = global_vars.configs.getint('LOG', 'maxbytes')
+    backup_count = global_vars.configs.getint('LOG', 'backupcount')
+    logging_handler = utils.MultiProcessingRFHandler(filename=os.path.join(log_directory, constants.LOGFILE_NAME),
+                                                     maxBytes=max_bytes,
+                                                     backupCount=backup_count)
+    logging_handler.setFormatter(
+        logging.Formatter("[%(asctime)s %(levelname)s][%(process)d-%(thread)d][%(name)s]: %(message)s")
+    )
+    logger = logging.getLogger()
+    logger.name = 'DBMind'
+    logger.addHandler(logging_handler)
+    logger.setLevel(global_vars.configs.get('LOG', 'level').upper())
+    return logging_handler
+
+
+def init_global_configs(confpath):
+    global_vars.confpath = confpath
+    global_vars.configs = load_sys_configs(constants.CONFILE_NAME)
+    global_vars.dynamic_configs = DynamicConfig
+    global_vars.metric_map = utils.read_simple_config_file(
+        constants.METRIC_MAP_CONFIG
+    )
+    global_vars.metric_value_range_map = utils.read_simple_config_file(constants.METRIC_VALUE_RANGE_CONFIG)
+    global_vars.must_filter_labels = utils.read_simple_config_file(
+        constants.MUST_FILTER_LABEL_CONFIG
+    )
+
+
+def init_tsdb_with_config():
+    # Set the information for TSDB.
+    TsdbClientFactory.set_client_info(
+        global_vars.configs.get('TSDB', 'name'),
+        global_vars.configs.get('TSDB', 'host'),
+        global_vars.configs.get('TSDB', 'port'),
+        global_vars.configs.get('TSDB', 'username'),
+        global_vars.configs.get('TSDB', 'password'),
+        global_vars.configs.get('TSDB', 'ssl_certfile'),
+        global_vars.configs.get('TSDB', 'ssl_keyfile'),
+        global_vars.configs.get('TSDB', 'ssl_keyfile_password'),
+        global_vars.configs.get('TSDB', 'ssl_ca_file')
+    )
+    return TsdbClientFactory.get_tsdb_client()
+
+
 class DBMindMain(Daemon):
     def __init__(self, confpath):
         if not _check_confpath(confpath):
@@ -127,33 +293,10 @@ class DBMindMain(Daemon):
 
         utils.cli.set_proc_title('DBMind [Master Process]')
         # Set global variables.
-        global_vars.confpath = self.confpath
-        global_vars.configs = load_sys_configs(constants.CONFILE_NAME)
-        global_vars.dynamic_configs = DynamicConfig
-        global_vars.metric_map = utils.read_simple_config_file(
-            constants.METRIC_MAP_CONFIG
-        )
-        global_vars.metric_value_range_map = utils.read_simple_config_file(constants.METRIC_VALUE_RANGE_CONFIG)
-        global_vars.must_filter_labels = utils.read_simple_config_file(
-            constants.MUST_FILTER_LABEL_CONFIG
-        )
+        init_global_configs(self.confpath)
 
         # Set logger.
-        log_directory = global_vars.configs.get('LOG', 'log_directory', fallback='logs')
-        log_directory = os.path.realpath(log_directory)
-        os.makedirs(log_directory, exist_ok=True)
-        max_bytes = global_vars.configs.getint('LOG', 'maxbytes')
-        backup_count = global_vars.configs.getint('LOG', 'backupcount')
-        logging_handler = utils.MultiProcessingRFHandler(filename=os.path.join(log_directory, constants.LOGFILE_NAME),
-                                                         maxBytes=max_bytes,
-                                                         backupCount=backup_count)
-        logging_handler.setFormatter(
-            logging.Formatter("[%(asctime)s %(levelname)s][%(process)d-%(thread)d][%(name)s]: %(message)s")
-        )
-        logger = logging.getLogger()
-        logger.name = 'DBMind'
-        logger.addHandler(logging_handler)
-        logger.setLevel(global_vars.configs.get('LOG', 'level').upper())
+        logging_handler = init_logger_with_config()
 
         logging.info('DBMind is starting.')
 
@@ -164,19 +307,6 @@ class DBMindMain(Daemon):
                             'through the proxy server, which may cause some network connectivity issues too.'
                             ' You need to make sure that the action is what you expect.')
 
-        # Set the information for TSDB.
-        TsdbClientFactory.set_client_info(
-            global_vars.configs.get('TSDB', 'name'),
-            global_vars.configs.get('TSDB', 'host'),
-            global_vars.configs.get('TSDB', 'port'),
-            global_vars.configs.get('TSDB', 'username'),
-            global_vars.configs.get('TSDB', 'password'),
-            global_vars.configs.get('TSDB', 'ssl_certfile'),
-            global_vars.configs.get('TSDB', 'ssl_keyfile'),
-            global_vars.configs.get('TSDB', 'ssl_keyfile_password'),
-            global_vars.configs.get('TSDB', 'ssl_ca_file')
-        )
-
         # Register signal handler.
         if not platform.WIN32:
             signal.signal(signal.SIGHUP, signal_handler)
@@ -185,28 +315,25 @@ class DBMindMain(Daemon):
             signal.signal(signal.SIGQUIT, signal_handler)
         signal.signal(signal.SIGINT, signal_handler)
 
-        # Initialize RPC components.
-        master_url = global_vars.configs.get('AGENT', 'master_url')
-        ssl_certfile = global_vars.configs.get('AGENT', 'ssl_certfile')
-        ssl_keyfile = global_vars.configs.get('AGENT', 'ssl_keyfile')
-        ssl_keyfile_password = global_vars.configs.get('AGENT', 'ssl_keyfile_password')
-        ssl_ca_file = global_vars.configs.get('AGENT', 'ssl_ca_file')
-        agent_username = global_vars.configs.get('AGENT', 'username')
-        agent_pwd = global_vars.configs.get('AGENT', 'password')
+        # Initialize TSDB.
+        tsdb = init_tsdb_with_config()
 
-        if agent_pwd.strip() != '':
-            logging_handler.add_sensitive_word(agent_pwd)
+        # Initialize RPC agent.
+        init_rpc_with_config(tsdb)
+        for p in _split(global_vars.configs.get('AGENT', 'password')):
+            logging_handler.add_sensitive_word(p)
 
-        global_vars.agent_rpc_client = RPCClient(
-            master_url,
-            username=agent_username,
-            pwd=agent_pwd,
-            ssl_cert=ssl_certfile,
-            ssl_key=ssl_keyfile,
-            ssl_key_password=ssl_keyfile_password,
-            ca_file=ssl_ca_file
-        )
         # Create executor pool.
+        # Notice: we have to initialize the process pool
+        # as early as possible because sub-processes were
+        # forked from the main process, meanwhile copying
+        # all states. These states may include timed tasks,
+        # HTTP response buffers,  and other strange variables.
+        # This copying behavior can cause many unexpected
+        # and hard-to-debug errors. For example, the
+        # sub-process raises 'cannot parse JSON' while getting
+        # an HTTP response and parsing it, which is caused
+        # the sub-process to copy a partial HTTP buffer.
         local_workers = global_vars.configs.getint('WORKER', 'process_num', fallback=-1)
         global_vars.worker = self.worker = get_worker_instance('local', local_workers)
 

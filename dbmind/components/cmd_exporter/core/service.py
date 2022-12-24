@@ -41,7 +41,7 @@ FROM_INSTANCE_KEY = 'from_instance'
 _thread_pool_executor = None
 _registry = CollectorRegistry()
 
-global_labels = {}
+global_labels = {FROM_INSTANCE_KEY: ''}
 
 query_instances = list()
 

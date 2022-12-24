@@ -10,25 +10,3 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-import logging
-
-from dbmind.common.platform import LINUX
-from dbmind.common.types.root_cause import RootCause
-from .slow_sql.analyzer import SlowSQLAnalyzer
-
-if LINUX:
-    from dbmind.common.dispatcher.task_worker import get_mp_sync_manager
-
-    shared_sql_buffer = get_mp_sync_manager().list()
-else:
-    shared_sql_buffer = None
-_analyzer = SlowSQLAnalyzer(buffer=shared_sql_buffer)
-
-
-def diagnose_query(query_context):
-    try:
-        _analyzer.run(query_context)
-    except Exception as e:
-        query_context.slow_sql_instance.add_cause(RootCause.get('EXISTING_EXCEPTION'))
-        logging.exception(e)
-    return query_context.slow_sql_instance

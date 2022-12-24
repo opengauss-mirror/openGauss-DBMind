@@ -13,12 +13,13 @@
 import datetime
 
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.common.types import Alarm, ALARM_TYPES, ALARM_LEVEL, SlowQuery
+from dbmind.common.types import Alarm, ALARM_TYPES, ALARM_LEVEL
 from dbmind.common.types import RootCause
 from dbmind.common.types import Sequence
+from dbmind.app.diagnosis.query.slow_sql import SlowQuery
 from dbmind.metadatabase import create_metadatabase_schema
 from dbmind.service import dai
-from dbmind.service.utils import DISTINGUISHING_INSTANCE_LABEL
+from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
 from dbmind.service.utils import SequenceUtils
 
 create_metadatabase_schema()
@@ -67,7 +68,7 @@ def test_save_xxx():
     dai.save_forecast_sequence(host, metric_name, sequence)
 
     future_alarm = Alarm(
-        host=host,
+        instance=host,
         alarm_content="disk occupied will exceed percentage threshold",
         alarm_type=ALARM_TYPES.SYSTEM,
         metric_name=metric_name,
@@ -77,7 +78,7 @@ def test_save_xxx():
     dai.save_future_alarms([future_alarm, future_alarm, future_alarm])
 
     history_alarm = Alarm(
-        host=host,
+        instance=host,
         metric_name=metric_name,
         alarm_content='found anomaly on %s' % metric_name,
         alarm_type=ALARM_TYPES.SYSTEM,

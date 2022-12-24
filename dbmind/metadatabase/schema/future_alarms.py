@@ -20,7 +20,7 @@ class FutureAlarms(Base):
     __tablename__ = "tb_future_alarms"
 
     future_alarm_id = Column(Integer, primary_key=True, autoincrement=True)
-    host = Column(CHAR(24), nullable=False)
+    instance = Column(CHAR(24), nullable=False)
     metric_name = Column(String(64), nullable=False)
     alarm_type = Column(String(16), nullable=False)
     alarm_level = Column(String(16))
@@ -30,4 +30,4 @@ class FutureAlarms(Base):
     suggestion = Column(String(1024))
     extra_info = Column(JSON(none_as_null=True))
 
-    idx_future_alarms = Index("idx_future_alarms", metric_name, host, start_at)
+    idx_future_alarms = Index("idx_future_alarms", metric_name, instance, start_at)

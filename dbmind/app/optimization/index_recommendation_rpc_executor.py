@@ -19,7 +19,6 @@ from dbmind.components.index_advisor.executors.common import BaseExecutor
 
 
 class RpcExecutor(BaseExecutor):
-
     def execute_sqls(self, sqls) -> List[Tuple[Any]]:
         results = []
         sqls = ['set current_schema = %s' % self.get_schema()] + sqls
@@ -27,11 +26,11 @@ class RpcExecutor(BaseExecutor):
         if self.driver is not None:
             sql_results = self.driver.query(';'.join(sqls), return_tuples=True, fetch_all=True)
         else:
-            sql_results = global_vars.agent_rpc_client.call('query_in_database',
-                                                            ';'.join(sqls),
-                                                            self.dbname,
-                                                            return_tuples=True,
-                                                            fetch_all=True)
+            sql_results = global_vars.agent_proxy.call('query_in_database',
+                                                       ';'.join(sqls),
+                                                       self.dbname,
+                                                       return_tuples=True,
+                                                       fetch_all=True)
         for sql, sql_res in zip(sqls[1:], sql_results[1:]):
             sql_type = sql.upper().strip().split()[0]
             if sql_type == 'EXPLAIN':

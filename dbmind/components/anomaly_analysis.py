@@ -24,18 +24,17 @@ from datetime import datetime
 
 from scipy.interpolate import interp1d
 
-from dbmind import constants
 from dbmind import global_vars
-from dbmind.cmd.config_utils import DynamicConfig, load_sys_configs
-from dbmind.common import utils
 from dbmind.common.algorithm.correlation import max_cross_correlation
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.utils.checking import (
     check_ip_valid, check_port_valid, date_type, path_type
 )
 from dbmind.common.utils.cli import write_to_terminal
+from dbmind.cmd.edbmind import init_global_configs, init_tsdb_with_config
 from dbmind.service import dai
-from dbmind.service.utils import SequenceUtils, DISTINGUISHING_INSTANCE_LABEL
+from dbmind.service.utils import SequenceUtils
+from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
 
 LEAST_WINDOW = int(7.2e3) * 1000
 LOOK_BACK = 0
@@ -60,6 +59,8 @@ def get_sequences(arg):
             raise ValueError(f"Invalid host: {host}.")
     elif global_vars.configs.get('TSDB', 'name') == "influxdb":
         host_like = {"dbname": host}
+    else:
+        raise
 
     seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).filter_like(**host_like).fetchall()
     step = dai.get_metric_sequence(metric, start_datetime, end_datetime).step / 1000
@@ -170,20 +171,10 @@ def main(argv):
     host = args.host
 
     os.chdir(args.conf)
-    global_vars.metric_map = utils.read_simple_config_file(constants.METRIC_MAP_CONFIG)
-    global_vars.configs = load_sys_configs(constants.CONFILE_NAME)
-    global_vars.dynamic_configs = DynamicConfig
-    TsdbClientFactory.set_client_info(
-        global_vars.configs.get('TSDB', 'name'),
-        global_vars.configs.get('TSDB', 'host'),
-        global_vars.configs.get('TSDB', 'port'),
-        global_vars.configs.get('TSDB', 'username'),
-        global_vars.configs.get('TSDB', 'password'),
-        global_vars.configs.get('TSDB', 'ssl_certfile'),
-        global_vars.configs.get('TSDB', 'ssl_keyfile'),
-        global_vars.configs.get('TSDB', 'ssl_keyfile_password'),
-        global_vars.configs.get('TSDB', 'ssl_ca_file')
-    )
+
+    init_global_configs(args.conf)
+    init_tsdb_with_config()
+
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
 

@@ -286,7 +286,9 @@ gaussdb_cpu_usage:
   name: gaussdb_cpu_usage
   desc: used CPU usage only for GaussDB
   promql: "
-    irate(pg_cpu_load_total_cpu[3m])
+    label_replace(
+      irate(pg_cpu_load_total_cpu[3m]),
+      'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
     - name: from_job
@@ -888,7 +890,7 @@ os_process_fds_rate:
   ttl: 10
 
 pg_database_all_size:
-  desc: Total database size.
+  desc: Total database size, only for index recommendation.
   promql: |
     sum(pg_database_size_bytes) by (job, from_instance)
   metrics:

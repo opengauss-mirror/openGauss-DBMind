@@ -16,10 +16,7 @@ from collections import defaultdict
 from copy import deepcopy
 from itertools import groupby
 
-try:
-    from utils import get_table_names, get_columns
-except ImportError:
-    from .utils import get_table_names, get_columns
+from .utils import get_table_names, get_columns
 
 OPERATOR = {
     'gt': op_module.gt,

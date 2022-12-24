@@ -19,7 +19,7 @@ class StatisticalMetric(Base):
     __tablename__ = "tb_stat_one_month"
     id = Column(Integer, primary_key=True, autoincrement=True)
     metric_name = Column(String(64), nullable=False)
-    host = Column(String(24), nullable=False)
+    instance = Column(String(24), nullable=False)
     avg = Column(Float)
     min = Column(Float)
     max = Column(Float)

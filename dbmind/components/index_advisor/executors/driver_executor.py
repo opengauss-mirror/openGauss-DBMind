@@ -10,11 +10,14 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import sys
 from typing import List
 import logging
 from contextlib import contextmanager
 
 import psycopg2
+
+sys.path.append('..')
 
 from .common import BaseExecutor
 

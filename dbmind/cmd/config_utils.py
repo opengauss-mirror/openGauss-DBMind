@@ -10,9 +10,9 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import configparser
 import logging
 import os
-import configparser
 from configparser import ConfigParser
 from configparser import NoSectionError, NoOptionError
 
@@ -22,7 +22,8 @@ from dbmind.common import security
 from dbmind.common.exceptions import InvalidCredentialException, ConfigSettingError
 from dbmind.common.rpc import ping_rpc_url
 from dbmind.common.utils.checking import check_ip_valid, check_port_valid
-from dbmind.common.utils.cli import write_to_terminal, raise_fatal_and_exit
+from dbmind.common.utils.cli import write_to_terminal
+from dbmind.common.utils.base import ExceptionCatcher
 from dbmind.metadatabase.dao.dynamic_config import dynamic_config_get, dynamic_config_set, dynamic_configs_list
 
 DBMIND_CONF_HEADER = """\
@@ -86,15 +87,25 @@ def check_config_validity(section, option, value, silent=False):
         if value.strip() == '' or value == NULL_TYPE:
             return True, None
 
+    if config_item == 'AGENT-username' or config_item == 'AGENT-password':
+        if value.strip() == '':
+            return False, 'Not set Agent-username or Agent-password'
+
     if config_item == 'AGENT-master_url':
         if value.strip() == '':
-            return False, 'Invalid AGENT-master URL'
-        success = ping_rpc_url(value)
-        if not success:
             write_to_terminal(
-                'WARNING: Failed to ping this RPC url.',
+                'WARNING: Without explicitly setting agent configurations, '
+                'the automatic detection mechanism is used.',
                 color='yellow'
             )
+        else:
+            for url in value.split(','):
+                success = ping_rpc_url(url.strip())
+                if not success:
+                    write_to_terminal(
+                        'WARNING: Failed to test the RPC url %s.' % url,
+                        color='yellow'
+                    )
 
     # normal inspection process:
     if 'port' in option:
@@ -181,10 +192,10 @@ def load_sys_configs(confile):
                 if value.startswith(ENCRYPTED_SIGNAL):
                     real_value = value[len(ENCRYPTED_SIGNAL):]
                 else:
-                    raise configparser.InterpolationSyntaxError(
+                    raise ExceptionCatcher.DontIgnoreThisError(configparser.InterpolationSyntaxError(
                         section, option, 'DBMind only supports encrypted password. '
                                          'Please set %s-%s and initialize the configuration file.' % (section, option),
-                    )
+                    ))
 
                 try:
                     value = security.decrypt(s1, s2, iv, real_value)

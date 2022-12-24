@@ -62,10 +62,13 @@ def create_requests_session(
         session.mount('https://', https_adaptor)
 
         f = functools.partial(session.request,
+                              headers={
+                                  'User-Agent': 'Mozilla/5.0 (Windows NT 6.0; WOW64; rv:24.0) Gecko/20100101 '
+                                                'Firefox/24.0'},
                               timeout=timeout,
                               verify=ssl_context.ssl_ca_file,
                               cert=(ssl_context.ssl_certfile, ssl_context.ssl_keyfile))
-        session.request = f  # monkey path
+        session.request = f  # monkey patch
     else:
         session.mount('https://', HTTPAdapter(max_retries=retries))
     return session

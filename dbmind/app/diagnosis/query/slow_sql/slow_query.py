@@ -10,11 +10,8 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from dbmind.common.parser import sql_parsing
 from dbmind.common.algorithm import basic
-from dbmind.common.utils import dbmind_assert
-
-from .root_cause import RootCause
+from dbmind.common.types.root_cause import RootCause
 
 
 class SlowQuery:
@@ -96,7 +93,7 @@ class SlowQuery:
         return 'Found slow query'
 
     @property
-    def host(self):
+    def instance(self):
         return '%s:%s' % (self.db_host, self.db_port)
 
     def mark_replicated(self):
