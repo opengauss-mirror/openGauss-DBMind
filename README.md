@@ -14,6 +14,17 @@ DBMind的特点：
 - 提供丰富的对接模式，可以很容易地与现有管理系统进行对接，支持RESTful API、Python SDK、命令行、Prometheus协议等模式；
 - 支持端到端全流程的数据库自治运维能力，包括慢SQL根因分析、workload索引推荐、多指标关联挖掘、故障自修复、异常检测与根因分析等功能；
 
+DBMind支持的主要能力：
+- 索引推荐
+- 异常检测与分析
+- 多指标关联分析
+- 慢SQL根因分析
+- 时序预测
+- 参数调优与推荐
+- SQL改写与优化
+- 故障自动修复
+
+
 ![DBMind架构图](docs/dbmind.png)
 
 ## 开始使用DBMind
@@ -217,7 +228,7 @@ docker run -it \
     dbmind/opengauss_dbmind 
 ```
 
-上面的例子是一主二备节点的部署形态，他们的IP地址分别是`192.16.1.100`、`192.16.1.101`以及`192.16.1.102`，数据库的端口号都是6789. 上面我们使用了三个用户，为了方便演示，它们的密码都设置为`DBMind@123`。其中`dbmind_monitor`负责从openGauss数据库中抓取指标监控，需要具备 `monitor admin`权限；`dbmind_sys` 至少需要具备 `monitor admin`权限，以便可以获取数据库的即时状态，如果具备`sysadmin`权限，则可以完成一些数据库变更动作，如慢SQL查杀；`dbmind_metadb` 只是负责数据保存，具备指定数据库的使用权限即可；同时，这里也进行了端口和目录的映射。
+上面的例子是一主二备节点的部署形态，他们的IP地址分别是`192.168.1.100`、`192.168.1.101`以及`192.168.1.102`，数据库的端口号都是6789. 上面我们使用了三个用户，为了方便演示，它们的密码都设置为`DBMind@123`。其中`dbmind_monitor`负责从openGauss数据库中抓取指标监控，需要具备 `monitor admin`权限；`dbmind_sys` 至少需要具备 `monitor admin`权限，以便可以获取数据库的即时状态，如果具备`sysadmin`权限，则可以完成一些数据库变更动作，如慢SQL查杀；`dbmind_metadb` 只是负责数据保存，具备指定数据库的使用权限即可；同时，这里也进行了端口和目录的映射。
 
 如果希望使用命令行的形式运行DBMind，则可以直接在该docker镜像内调用 `gs_dbmind` 命令即可，Python运行时和第三方依赖等都已经打包在docker镜像中了，无需再次安装。例如，希望使用DBMind的参数调优组件提供的功能，则可以执行下述命令：
 ```
@@ -258,8 +269,8 @@ In order to run DBMind, the following components should be configured and runnin
 At least Python 3.7.
 
 #### Third-party Dependencies
-Use `pip install` to install the python dependencies.
-Type the `pip install` command with dependencies according to the environment you are running:
+Use `pip3 install` to install the python dependencies.
+Type the `pip3 install` command with dependencies according to the environment you are running:
 ```
 pip install -r requirements-aarch64.txt | requirements-x86.txt
 ```
@@ -325,19 +336,25 @@ DBMind service is a memory-resident backend service. Therefore, users should con
 Service usages:
 
     $ gs_dbmind service --help
-    usage:  service [-h] -c DIRECTORY [--only-run {...}] [--interactive | --initialize] {setup,start,stop}
+    usage:  service [-h] -c DIRECTORY [--only-run {slow_query_diagnosis,forecast,anomaly_detection,alarm_log_diagnosis,index_recommendation,knob_recommendation}] [--dry-run] [-f]
+                    [--interactive | --initialize]
+                    {setup,start,stop,restart}
     
     positional arguments:
-      {setup,start,stop}    perform an action for service
+      {setup,start,stop,restart}
+                            perform an action for service
     
     optional arguments:
       -h, --help            show this help message and exit
       -c DIRECTORY, --conf DIRECTORY
                             set the directory of configuration files
-      --only-run {slow_query_diagnosis,forecast}
+      --only-run {slow_query_diagnosis,forecast,anomaly_detection,alarm_log_diagnosis,index_recommendation,knob_recommendation}
                             explicitly set a certain task running in the backend
+      --dry-run             run the backend task(s) once. the task to run can be specified by the --only-run argument
+      -f, --force           force to stop the process and cancel all in-progress tasks
       --interactive         configure and initialize with interactive mode
       --initialize          initialize and check configurations after configuring.
+
 
 
 #### Configure
