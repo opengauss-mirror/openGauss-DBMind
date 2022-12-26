@@ -309,6 +309,14 @@ def stat_group_by_instance(to_agg_tbl):
     }
 
 
+def format_date_key(obj, old_date_key):
+    new_date = obj[old_date_key]
+    if obj[old_date_key].find('.') >= 0 and obj[old_date_key].find('+00:00') >= 0:
+        new_date = datetime.datetime.strptime(obj[old_date_key], "%Y-%m-%d %H:%M:%S.%f+00:00").strftime(
+            '%Y-%m-%d %H:%M:%S')
+    return new_date
+
+
 def get_running_status():
     buffer_pool = stat_group_by_instance(stat_buffer_hit())
     index = stat_group_by_instance(stat_idx_hit())
@@ -429,19 +437,31 @@ def get_cluster_summary():
     }
 
 
-def toolkit_recommend_knobs_by_metrics():
+def toolkit_recommend_knobs_by_metrics(metric_pagesize, metric_current,
+                                       warning_pagesize, warning_current,
+                                       knob_pagesize, knob_current):
+    metric_offset = max(0, (metric_current - 1) * metric_pagesize)
+    metric_limit = metric_pagesize
+    warning_offset = max(0, (warning_current - 1) * warning_pagesize)
+    warning_limit = warning_pagesize
+    knob_offset = max(0, (knob_current - 1) * knob_pagesize)
+    knob_limit = knob_pagesize
     return {
         "metric_snapshot": sqlalchemy_query_jsonify(
             dao.knob_recommendation.select_metric_snapshot(
-                get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
-            field_names=('instance', 'metric', 'value')),
+                instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
+                offset=metric_offset, limit=metric_limit),
+            field_names=('host', 'metric', 'value')),
         "warnings": sqlalchemy_query_jsonify(
             dao.knob_recommendation.select_warnings(
-                get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
-            field_names=('instance', 'level', 'comment')),
+                instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
+                offset=warning_offset, limit=warning_limit),
+            field_names=('host', 'level', 'comment')),
         "details": sqlalchemy_query_jsonify(
-            dao.knob_recommendation.select_details(get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
-            field_names=('instance', 'name', 'current', 'recommend', 'min', 'max'))
+            dao.knob_recommendation.select_details(
+                instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
+                offset=knob_offset, limit=knob_limit),
+            field_names=('host', 'name', 'current', 'recommend', 'min', 'max'))
     }
 
 
@@ -458,10 +478,12 @@ def get_db_schema_table_count():
     return len(db_set), len(schema_set), len(table_set)
 
 
-def get_latest_indexes_stat():
+def get_latest_indexes_stat(pagesize, current):
+    offset = max(0, (current - 1) * pagesize)
+    limit = pagesize
     latest_indexes_stat = defaultdict(int)
     latest_recommendation_stat = dao.index_recommendation.get_latest_recommendation_stat(
-        get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT))
+        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT), offset=offset, limit=limit)
     for res in latest_recommendation_stat:
         latest_indexes_stat['suggestions'] += res.recommend_index_count
         latest_indexes_stat['redundant_indexes'] += res.redundant_index_count
@@ -507,10 +529,16 @@ def get_index_change():
             'invalid_indexes': invalid_indexes_change}
 
 
-def get_index_details():
+def get_index_details(advised_pagesize, advised_current, positive_pagesize, positive_current):
     advised_indexes = dict()
+    advised_indexes_offset = max(0, (advised_current - 1) * advised_pagesize)
+    advised_indexes_limit = advised_pagesize
+    advised_indexes_detail_offset = max(0, (positive_current - 1) * positive_pagesize)
+    advised_indexes_detail_limit = positive_pagesize
     _advised_indexes = dao.index_recommendation.get_advised_index(
-        get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT))
+        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
+        offset=advised_indexes_offset,
+        limit=advised_indexes_limit)
     advised_indexes['header'] = ['schema', 'database', 'table', 'advised_indexes', 'number_of_indexes', 'select',
                                  'update',
                                  'delete', 'insert', 'workload_improvement_rate']
@@ -533,8 +561,9 @@ def get_index_details():
                               'number_of_sql_statement']
     positive_sql['rows'] = []
     for positive_sql_result in dao.index_recommendation.get_advised_index_details(
-            get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
-    ):
+            instance=ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT,
+            offset=advised_indexes_detail_offset,
+            limit=advised_indexes_detail_limit):
         row = [positive_sql_result[2].schema_name, positive_sql_result[2].db_name,
                positive_sql_result[2].tb_name, positive_sql_result[1].template,
                positive_sql_result[0].stmt,
@@ -544,28 +573,31 @@ def get_index_details():
     return {'advised_indexes': advised_indexes, 'positive_sql': positive_sql}
 
 
-def get_existing_indexes():
+def get_existing_indexes(pagesize, current):
+    offset = max(0, (current - 1) * pagesize)
+    limit = pagesize
     filenames = ['db_name', 'tb_name', 'columns', 'index_stmt']
     return sqlalchemy_query_jsonify(dao.index_recommendation.get_existing_indexes(
-        get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
-    ), filenames)
+        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT), offset=offset, limit=limit),
+        filenames)
 
 
-def get_index_advisor_summary():
+def get_index_advisor_summary(advised_pagesize, advised_current, positive_pagesize, positive_current,
+                              latest_indexes_pagesize, latest_indexes_current, existing_pagesize, existing_current):
     db_count, schema_count, table_count = get_db_schema_table_count()
     index_advisor_summary = {'db': db_count,
                              'schema': schema_count,
                              'table': table_count}
-    latest_indexes_stat = get_latest_indexes_stat()
+    latest_indexes_stat = get_latest_indexes_stat(latest_indexes_pagesize, latest_indexes_current)
     index_advisor_summary.update(latest_indexes_stat)
     index_advisor_summary.update(get_index_change())
-    index_details = get_index_details()
+    index_details = get_index_details(advised_pagesize, advised_current, positive_pagesize, positive_current)
     index_advisor_summary.update(index_details)
     index_advisor_summary.update(
         {'improvement_rate': 100 * float(
             latest_indexes_stat['positive_sql_count'] / latest_indexes_stat['stmt_count']) if latest_indexes_stat[
             'stmt_count'] else 0})
-    index_advisor_summary.update({'existing_indexes': get_existing_indexes()})
+    index_advisor_summary.update({'existing_indexes': get_existing_indexes(existing_pagesize, existing_current)})
     return index_advisor_summary
 
 
@@ -614,6 +646,9 @@ def psycopg2_dict_jsonify(realdict, field_names=None):
     if not field_names:
         rv['header'] = list(realdict[0].keys())
     for obj in realdict:
+        old_date_key = 'last_updated'
+        if old_date_key in obj.keys():
+            obj[old_date_key] = format_date_key(obj, old_date_key)
         row = []
         for field in rv['header']:
             row.append(obj[field])
@@ -662,27 +697,40 @@ def _sqlalchemy_query_records_logic(query_function, instances, **kwargs):
     return r1
 
 
-def get_history_alarms(instance=None, alarm_type=None, alarm_level=None, group: bool = False):
+def get_history_alarms(pagesize=None, current=None, instance=None, alarm_type=None,
+                       alarm_level=None, group: bool = False):
     if instance is not None:
         instances = [instance]
     else:
         instances = None
+    offset = max(0, (current - 1) * pagesize)
+    limit = pagesize
     return _sqlalchemy_query_records_logic(
         query_function=dao.alarms.select_history_alarm,
         instances=instances,
-        alarm_type=alarm_type, alarm_level=alarm_level, group=group
+        alarm_type=alarm_type, alarm_level=alarm_level, group=group, offset=offset, limit=limit
     )
 
 
-def get_future_alarms(metric_name=None, instance=None, start_at=None, group: bool = False):
+def get_history_alarms_count(instance=None, alarm_type=None, alarm_level=None, group=False):
+    return dao.alarms.count_history_alarms(instance, alarm_type, alarm_level, group=group)
+
+
+def get_future_alarms_count(metric_name=None, instance=None, start_at=None):
+    return dao.alarms.count_future_alarms(metric_name, instance, start_at)
+
+
+def get_future_alarms(pagesize=None, current=None, metric_name=None, instance=None, start_at=None, group: bool = False):
     if instance is not None:
         instances = [instance]
     else:
         instances = None
+    offset = max(0, (current - 1) * pagesize)
+    limit = pagesize
     return _sqlalchemy_query_records_logic(
         query_function=dao.alarms.select_future_alarm,
         instances=instances,
-        metric_name=metric_name, start_at=start_at, group=group
+        metric_name=metric_name, start_at=start_at, group=group, offset=offset, limit=limit
     )
 
 
@@ -690,31 +738,49 @@ def get_security_alarms(instance=None):
     return get_history_alarms(instance, alarm_type=ALARM_TYPES.SECURITY)
 
 
-def get_healing_info(action=None, success=None, min_occurrence=None):
+def get_healing_info(pagesize=None, current=None, action=None, success=None, min_occurrence=None):
+    offset = max(0, (current - 1) * pagesize)
+    limit = pagesize
     return _sqlalchemy_query_records_logic(
         query_function=dao.healing_records.select_healing_records,
         instances=None,
-        action=action, success=success, min_occurrence=min_occurrence
+        action=action, success=success, min_occurrence=min_occurrence, offset=offset, limit=limit
     )
 
 
-def get_slow_queries(query=None, start_time=None, end_time=None, limit=None, group: bool = False):
+def get_healing_info_count(action=None, success=None, min_occurrence=None):
+    return dao.healing_records.count_healing_records(action, success, min_occurrence)
+
+
+def get_slow_queries(pagesize=None, current=None, query=None, start_time=None, end_time=None, group: bool = False):
+    offset = max(0, (current - 1) * pagesize)
+    limit = pagesize
     return _sqlalchemy_query_jsonify_for_multiple_instances(
         query_function=dao.slow_queries.select_slow_queries,
         instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST),
-        target_list=(), query=query, start_time=start_time, end_time=end_time, limit=limit, group=group
+        target_list=(), query=query, start_time=start_time, end_time=end_time, offset=offset, limit=limit, group=group
     )
 
 
-def get_killed_slow_queries(query=None, start_time=None, end_time=None, limit=None):
+def get_slow_queries_count(instance=None, distinct=False):
+    return dao.slow_queries.count_slow_queries(instance=instance, distinct=distinct)
+
+
+def get_killed_slow_queries(pagesize=None, current=None, query=None, start_time=None, end_time=None):
+    offset = max(0, (current - 1) * pagesize)
+    limit = pagesize
     return _sqlalchemy_query_jsonify_for_multiple_instances(
         query_function=dao.slow_queries.select_killed_slow_queries,
         instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST),
-        query=query, start_time=start_time, end_time=end_time, limit=limit
+        query=query, start_time=start_time, end_time=end_time, offset=offset, limit=limit
     )
 
 
-def get_slow_query_summary():
+def get_killed_slow_queries_count(query=None, start_time=None, end_time=None, instance=None):
+    return dao.slow_queries.count_killed_slow_queries(query, start_time, end_time, instance)
+
+
+def get_slow_query_summary(pagesize=None, current=None):
     # Maybe multiple nodes, but we don't need to care.
     # Because that is an abnormal scenario.
     threshold = get_metric_value('pg_settings_setting') \
@@ -749,7 +815,7 @@ def get_slow_query_summary():
             dao.slow_queries.slow_query_template(
                 instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
             ['template_id', 'count', 'query']),
-        'table_of_slow_query': get_slow_queries(limit=20)
+        'table_of_slow_query': get_slow_queries(pagesize, current)
     }
 
 

@@ -40,17 +40,22 @@ def count_records():
         return result.count()
 
 
-def select_metric_statistic_records(instance=None, metric_name=None):
+def select_metric_statistic_records(instance=None, metric_name=None, offset=None, limit=None):
     with get_session() as session:
         result = session.query(StatisticalMetric)
         if instance is not None:
             result = result.filter(StatisticalMetric.instance == instance)
         if metric_name is not None:
             result = result.filter(StatisticalMetric.metric_name == metric_name)
+        if offset is not None:
+            result = result.offset(offset)
+        if limit is not None:
+            result = result.limit(limit)
         return result
 
 
-def select_metric_statistic_avg_records(instance=None, metric_name=None, only_avg=None, only_max=None):
+def select_metric_statistic_avg_records(instance=None, metric_name=None, only_avg=None, only_max=None,
+                                        offset=None, limit=None):
     with get_session() as session:
         if only_avg is not None:
             result = session.query(StatisticalMetric.avg)
@@ -62,4 +67,8 @@ def select_metric_statistic_avg_records(instance=None, metric_name=None, only_av
             result = result.filter(StatisticalMetric.instance == instance)
         if metric_name is not None:
             result = result.filter(StatisticalMetric.metric_name == metric_name)
+        if offset is not None:
+            result = result.offset(offset)
+        if limit is not None:
+            result = result.limit(limit)
         return result

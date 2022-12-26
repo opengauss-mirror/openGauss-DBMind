@@ -182,38 +182,41 @@ def workload_forecasting_forecast(name: str, start: int = None, end: int = None,
 @request_mapping('/api/alarm/history', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_history_alarms(instance: str = None, alarm_type: str = None, alarm_level: str = None, group: bool = False):
-    return web.get_history_alarms(instance, alarm_type, alarm_level, group)
+def get_history_alarms(pagesize: int = None, current: int = None,
+                       instance: str = None, alarm_type: str = None, alarm_level: str = None, group: bool = False):
+    return web.get_history_alarms(pagesize, current, instance, alarm_type, alarm_level, group)
 
 
 @request_mapping('/api/alarm/future', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_future_alarms(metric_name: str = None, instance: str = None, start: int = None, group: bool = False):
-    return web.get_future_alarms(metric_name, instance, start, group)
+def get_future_alarms(pagesize: int = None, current: int = None,
+                      metric_name: str = None, instance: str = None, start: int = None, group: bool = False):
+    return web.get_future_alarms(pagesize, current, metric_name, instance, start, group)
 
 
 @request_mapping('/api/alarm/healing', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_healing_info_for_alarms(action: str = None, success: bool = None, min_occurrence: int = None):
-    return web.get_healing_info(action, success, min_occurrence)
+def get_healing_info_for_alarms(pagesize: int = None, current: int = None,
+                                action: str = None, success: bool = None, min_occurrence: int = None):
+    return web.get_healing_info(pagesize, current, action, success, min_occurrence)
 
 
 @request_mapping('/api/query/slow/recent', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_recent_slow_queries(
-        query: str = None, start: int = None, end: int = None, limit: int = None, group: bool = False
-):
-    return web.get_slow_queries(query, start, end, limit, group)
+def get_recent_slow_queries(pagesize: int = None, current: int = None, query: str = None,
+                            start: int = None, end: int = None, group: bool = False):
+    return web.get_slow_queries(pagesize, current, query, start, end, group)
 
 
 @request_mapping('/api/query/slow/killed', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_killed_slow_queries(query: str = None, start: int = None, end: int = None, limit: int = None):
-    return web.get_killed_slow_queries(query, start, end, limit)
+def get_killed_slow_queries(pagesize: int = None, current: int = None, query: str = None,
+                            start: int = None, end: int = None):
+    return web.get_killed_slow_queries(pagesize, current, query, start, end)
 
 
 @request_mapping('/api/query/top', methods=['GET'], api=True)
@@ -227,7 +230,7 @@ def get_top_queries():
 @request_mapping('/api/query/active', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_active_queries():
+def get_active_queries(pagesize: int = None, current: int = None):
     username, password = oauth2.credential
     return web.get_active_query(username, password)
 
@@ -250,22 +253,32 @@ def get_db_list():
 @request_mapping('/api/summary/index_advisor', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_index_advisor_summary():
-    return web.get_index_advisor_summary()
+def get_index_advisor_summary(latest_indexes_pagesize: int = None, latest_indexes_current: int = None,
+                              existing_pagesize: int = None, existing_current: int = None):
+    latest_indexes_pagesize = latest_indexes_pagesize if latest_indexes_pagesize else 0
+    latest_indexes_current = latest_indexes_current if latest_indexes_current else 0
+    existing_pagesize = existing_pagesize if existing_pagesize else 10
+    existing_current = existing_current if existing_current else 0
+    return web.get_index_advisor_summary(latest_indexes_pagesize, latest_indexes_current,
+                                         existing_pagesize, existing_current)
 
 
 @request_mapping('/api/summary/knob_tuning', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_knob_tuning_summary():
-    return web.toolkit_recommend_knobs_by_metrics()
+def get_knob_tuning_summary(metric_pagesize: int = None, metric_current: int = None,
+                            warning_pagesize: int = None, warning_current: int = None,
+                            konb_pagesize: int = None, knob_current: int = None):
+    return web.toolkit_recommend_knobs_by_metrics(metric_pagesize, metric_current,
+                                                  warning_pagesize, warning_current,
+                                                  konb_pagesize, knob_current)
 
 
 @request_mapping('/api/summary/slow_query', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_slow_query_summary():
-    return web.get_slow_query_summary()
+def get_slow_query_summary(pagesize: int = None, current: int = None):
+    return web.get_slow_query_summary(pagesize, current)
 
 
 @request_mapping('/api/summary/slow_query/projection', methods=['GET'], api=True)

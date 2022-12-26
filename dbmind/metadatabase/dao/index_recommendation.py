@@ -46,61 +46,88 @@ def insert_recommendation_stat(instance, db_name, stmt_count, positive_stmt_coun
         ))
 
 
-def get_latest_recommendation_stat(instance=None):
+def get_latest_recommendation_stat(instance=None, offset=None, limit=None):
     with get_session() as session:
         if instance is not None:
-            return session.query(IndexRecommendationStats).filter(
+            result = session.query(IndexRecommendationStats).filter(
                 IndexRecommendationStats.occurrence_time == func.max(
                     IndexRecommendationStats.occurrence_time).select(),
                 IndexRecommendationStats.instance == instance
             )
-        return session.query(IndexRecommendationStats).filter(
-            IndexRecommendationStats.occurrence_time == func.max(
-                IndexRecommendationStats.occurrence_time).select())
-
-
-def get_recommendation_stat(instance=None):
-    with get_session() as session:
-        if instance is not None:
-            return session.query(IndexRecommendationStats).filter(
-                IndexRecommendationStats.instance == instance
+        else:
+            result = session.query(IndexRecommendationStats).filter(
+                IndexRecommendationStats.occurrence_time == func.max(
+                    IndexRecommendationStats.occurrence_time).select()
             )
-        return session.query(IndexRecommendationStats)
+        if offset:
+            result = result.offset(offset)
+        if limit:
+            result = result.limit(offset)
+        return result
 
 
-def get_advised_index(instance=None):
+def get_recommendation_stat(instance=None, offset=None, limit=None):
     with get_session() as session:
+        result = session.query(IndexRecommendationStats)
         if instance is not None:
-            return session.query(IndexRecommendation).filter(
-                IndexRecommendation.index_type == 1, IndexRecommendation.instance == instance
-            )
-        return session.query(IndexRecommendation).filter(IndexRecommendation.index_type == 1)
+            result = result.filter(IndexRecommendationStats.instance == instance)
+        if offset:
+            result = result.offset(offset)
+        if limit:
+            result = result.limit(limit)
+    return result
 
 
-def get_advised_index_details(instance=None):
+def get_advised_index(instance=None, offset=None, limit=None):
     with get_session() as session:
+        result = session.query(IndexRecommendation).filter(IndexRecommendation.index_type == 1)
         if instance is not None:
-            return session.query(IndexRecommendationStmtDetails, IndexRecommendationStmtTemplates,
-                                 IndexRecommendation).filter(
-                IndexRecommendationStmtDetails.template_id == IndexRecommendationStmtTemplates.id).filter(
-                IndexRecommendationStmtDetails.index_id == IndexRecommendation.id).filter(
-                IndexRecommendationStmtDetails.correlation_type == 0,
-                IndexRecommendationStmtDetails.instance == instance
-            )
-        return session.query(IndexRecommendationStmtDetails, IndexRecommendationStmtTemplates,
-                             IndexRecommendation).filter(
+            result = result.filter(IndexRecommendation.instance == instance)
+        if offset is not None:
+            result = result.offset(offset)
+        if limit is not None:
+            result = result.limit(limit)
+    return result
+
+
+def count_advised_index(instance=None):
+    return get_advised_index(instance=instance).count()
+
+
+def get_advised_index_details(instance=None, offset=None, limit=None):
+    with get_session() as session:
+        result = session.query(IndexRecommendationStmtDetails, IndexRecommendationStmtTemplates,
+                               IndexRecommendation).filter(
             IndexRecommendationStmtDetails.template_id == IndexRecommendationStmtTemplates.id).filter(
             IndexRecommendationStmtDetails.index_id == IndexRecommendation.id).filter(
             IndexRecommendationStmtDetails.correlation_type == 0)
+        if instance is not None:
+            result = result.filter(IndexRecommendationStmtDetails.instance == instance)
+        if offset is not None:
+            result = result.offset(offset)
+        if limit is not None:
+            result = result.limit(limit)
+        return result
 
 
-def get_existing_indexes(instance=None):
+def count_advised_index_detail(instance=None):
+    return get_advised_index_details(instance=instance).count()
+
+
+def get_existing_indexes(instance=None, offset=None, limit=None):
     with get_session() as session:
-        if instance is None:
-            return session.query(ExistingIndexes)
-        return session.query(ExistingIndexes).filter(
-            ExistingIndexes.instance == instance
-        )
+        result = session.query(ExistingIndexes)
+        if instance is not None:
+            result = result.filter(ExistingIndexes.instance == instance)
+        if offset:
+            result = result.offset(offset)
+        if limit:
+            result = result.limit(limit)
+        return result
+
+
+def count_existing_indexes(instance=None):
+    return get_existing_indexes(instance=instance).count()
 
 
 def insert_existing_index(instance, db_name, tb_name, columns, index_stmt):
