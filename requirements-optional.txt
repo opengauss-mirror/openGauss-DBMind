@@ -1,6 +1,6 @@
 ## X-Tuner ##
 bayesian-optimization
-
-tensorflow >= 2.1.0
+protobuf==3.20.* # for tensorflow
+tensorflow ~=2.3.0
 keras-rl2~=1.0.4
 gensim==3.8.3
