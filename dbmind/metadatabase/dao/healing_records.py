@@ -41,7 +41,7 @@ def insert_healing_record(
         )
 
 
-def select_healing_records(action=None, instance=None, success=None, min_occurrence=None, offset=None, limit=None):
+def select_healing_records(instance=None, action=None, success=None, min_occurrence=None, offset=None, limit=None):
     with get_session() as session:
         result = session.query(HealingRecords)
         if action is not None:
@@ -55,15 +55,15 @@ def select_healing_records(action=None, instance=None, success=None, min_occurre
                 HealingRecords.occurrence_at >= min_occurrence
             )
         result = result.order_by(HealingRecords.occurrence_at)
-        if offset:
+        if offset is not None:
             result = result.offset(offset)
-        if limit:
+        if limit is not None:
             result = result.limit(limit)
         return result
 
 
-def count_healing_records(action=None, success=None, min_occurrence=None):
-    return select_healing_records(action, success, min_occurrence).count()
+def count_healing_records(instance=None, action=None, success=None, min_occurrence=None):
+    return select_healing_records(instance, action, success, min_occurrence).count()
 
 
 def delete_timeout_healing_records(oldest_occurrence_time):

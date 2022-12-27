@@ -90,7 +90,7 @@ def select_forecasting_metric(
 ):
     with get_session() as session:
         result = session.query(ForecastingMetrics)
-        if metric_name:
+        if metric_name is not None:
             result = result.filter(
                 ForecastingMetrics.metric_name == metric_name
             )
@@ -98,15 +98,15 @@ def select_forecasting_metric(
             result = result.filter(
                 ForecastingMetrics.instance == instance
             )
-        if min_metric_time:
+        if min_metric_time is not None:
             result = result.filter(
                 min_metric_time <= ForecastingMetrics.metric_time
             )
-        if max_metric_time:
+        if max_metric_time is not None:
             result = result.filter(
                 ForecastingMetrics.metric_time <= max_metric_time
             )
-        if node_id:
+        if node_id is not None:
             result = result.filter(
                 ForecastingMetrics.node_id == node_id
             )
@@ -117,7 +117,7 @@ def select_forecasting_metric(
 def count_forecasting_metric(metric_name=None, instance=None, node_id=None):
     with get_session() as session:
         result = session.query(ForecastingMetrics)
-        if metric_name:
+        if metric_name is not None:
             result = result.filter(
                 ForecastingMetrics.metric_name == metric_name
             )
@@ -125,7 +125,7 @@ def count_forecasting_metric(metric_name=None, instance=None, node_id=None):
             result = result.filter(
                 ForecastingMetrics.instance == instance
             )
-        if node_id:
+        if node_id is not None:
             result = result.filter(
                 ForecastingMetrics.node_id == node_id
             )

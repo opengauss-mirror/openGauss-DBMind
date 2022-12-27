@@ -59,9 +59,9 @@ def get_latest_recommendation_stat(instance=None, offset=None, limit=None):
                 IndexRecommendationStats.occurrence_time == func.max(
                     IndexRecommendationStats.occurrence_time).select()
             )
-        if offset:
+        if offset is not None:
             result = result.offset(offset)
-        if limit:
+        if limit is not None:
             result = result.limit(offset)
         return result
 
@@ -71,9 +71,9 @@ def get_recommendation_stat(instance=None, offset=None, limit=None):
         result = session.query(IndexRecommendationStats)
         if instance is not None:
             result = result.filter(IndexRecommendationStats.instance == instance)
-        if offset:
+        if offset is not None:
             result = result.offset(offset)
-        if limit:
+        if limit is not None:
             result = result.limit(limit)
     return result
 
@@ -119,9 +119,9 @@ def get_existing_indexes(instance=None, offset=None, limit=None):
         result = session.query(ExistingIndexes)
         if instance is not None:
             result = result.filter(ExistingIndexes.instance == instance)
-        if offset:
+        if offset is not None:
             result = result.offset(offset)
-        if limit:
+        if limit is not None:
             result = result.limit(limit)
         return result
 

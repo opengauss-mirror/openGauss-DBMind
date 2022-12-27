@@ -110,8 +110,8 @@ def select_slow_query_id_by_hashcode(hashcode1, hashcode2):
         return result
 
 
-def select_slow_queries(target_list=(), query=None, start_time=None, end_time=None, offset=None,
-                        limit=50, group: bool = False, instance=None):
+def select_slow_queries(instance=None, target_list=(), query=None, start_time=None, end_time=None, offset=None,
+                        limit=None, group: bool = False):
     with get_session() as session:
         if group:
             tb_journal = session.query(
@@ -199,7 +199,7 @@ def select_slow_queries(target_list=(), query=None, start_time=None, end_time=No
         return result
 
 
-def count_slow_queries(distinct=False, instance=None):
+def count_slow_queries(instance=None, distinct=False, query=None, start_time=None, end_time=None, group: bool = False):
     with get_session() as session:
         if distinct:
             result = session.query(SlowQueries.slow_query_id)
@@ -208,13 +208,7 @@ def count_slow_queries(distinct=False, instance=None):
                     SlowQueries.instance == instance
                 )
             return result.count()
-
-        result = session.query(SlowQueriesJournal.slow_query_id)
-        if instance is not None:
-            result = result.filter(
-                SlowQueriesJournal.instance == instance
-            )
-        return result.count()
+        return select_slow_queries(instance=instance, query=query, start_time=start_time, end_time=end_time, group=group).count()
 
 
 def group_by_dbname(instance=None):
@@ -448,7 +442,7 @@ def insert_killed_slow_queries(instance, db_name, query, killed, username, elaps
         )
 
 
-def select_killed_slow_queries(query=None, start_time=None, end_time=None, offset=None, limit=None, instance=None):
+def select_killed_slow_queries(instance=None, query=None, start_time=None, end_time=None, offset=None, limit=None):
     with get_session() as session:
         result = session.query(SlowQueriesKilled)
         if query is not None:
@@ -476,8 +470,8 @@ def select_killed_slow_queries(query=None, start_time=None, end_time=None, offse
         return result
 
 
-def count_killed_slow_queries(query=None, start_time=None, end_time=None, instance=None):
-    return select_killed_slow_queries(query, start_time, end_time, instance=instance).count()
+def count_killed_slow_queries(instance=None, query=None, start_time=None, end_time=None):
+    return select_killed_slow_queries(instance, query, start_time, end_time).count()
 
 
 def delete_killed_slow_queries(retention_start_time):

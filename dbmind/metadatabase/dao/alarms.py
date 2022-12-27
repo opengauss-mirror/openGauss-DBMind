@@ -62,25 +62,25 @@ def select_history_alarm(instance=None, alarm_type=None, alarm_level=None, alarm
             result = session.query(HistoryAlarms)
         if instance is not None:
             result = result.filter(HistoryAlarms.instance == instance)
-        if alarm_type:
+        if alarm_type is not None:
             result = result.filter(HistoryAlarms.alarm_type == alarm_type)
-        if alarm_level:
+        if alarm_level is not None:
             result = result.filter(HistoryAlarms.alarm_level == alarm_level)
-        if alarm_content:
+        if alarm_content is not None:
             result = result.filter(HistoryAlarms.alarm_content == alarm_content)
         if start_occurrence_time is not None:
             result = result.filter(HistoryAlarms.start_at >= start_occurrence_time)
         if end_occurrence_time is not None:
             result = result.filter(HistoryAlarms.end_at <= end_occurrence_time)
         if group:
-            result = result.group_by(
-                HistoryAlarms.host,
+            return result.group_by(
+                HistoryAlarms.instance,
                 HistoryAlarms.alarm_content
             )
         result = result.order_by(desc(HistoryAlarms.start_at))
-        if offset:
+        if offset is not None:
             result = result.offset(offset)
-        if limit:
+        if limit is not None:
             result = result.limit(limit)
         return result
 
@@ -151,13 +151,12 @@ def get_batch_insert_future_alarms_functions():
     return _Inner()
 
 
-def select_future_alarm(metric_name=None, instance=None, start_at=None, offset=None, limit=None, group: bool = False):
+def select_future_alarm(instance=None, metric_name=None, start_at=None, offset=None, limit=None, group: bool = False):
     with get_session() as session:
         if group:
             result = session.query(
                 FutureAlarms.instance,
                 FutureAlarms.alarm_content,
-                FutureAlarms.suggestion,
                 func.count(FutureAlarms.alarm_content)
             )
         else:
@@ -170,7 +169,7 @@ def select_future_alarm(metric_name=None, instance=None, start_at=None, offset=N
             result = result.filter(FutureAlarms.start_at >= start_at)
 
         if group:
-            result = result.group_by(FutureAlarms.alarm_content, FutureAlarms.instance, FutureAlarms.suggestion)
+            return result.group_by(FutureAlarms.alarm_content, FutureAlarms.instance)
         result = result.order_by(desc(FutureAlarms.start_at))
         if offset is not None:
             result = result.offset(offset)
@@ -179,8 +178,8 @@ def select_future_alarm(metric_name=None, instance=None, start_at=None, offset=N
         return result
 
 
-def count_future_alarms(metric_name=None, instance=None, start_at=None):
-    return select_future_alarm(metric_name, instance, start_at).count()
+def count_future_alarms(instance=None, metric_name=None, start_at=None, group=False):
+    return select_future_alarm(instance=instance, metric_name=metric_name, start_at=start_at, group=group).count()
 
 
 def truncate_future_alarm():

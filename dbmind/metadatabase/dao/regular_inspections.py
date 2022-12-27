@@ -35,14 +35,14 @@ def truncate_metric_regular_inspections():
     truncate_table(RegularInspection.__tablename__)
 
 
-def count_metric_regular_inspections(inspection_type=None, instance=None):
+def count_metric_regular_inspections(instance=None, inspection_type=None):
     return select_metric_regular_inspections(inspection_type, instance=instance).count()
 
 
-def select_metric_regular_inspections(inspection_type, offset=None, limit=None, instance=None):
+def select_metric_regular_inspections(instance=None, inspection_type=None, offset=None, limit=None):
     with get_session() as session:
         result = session.query(RegularInspection)
-        if inspection_type:
+        if inspection_type is not None:
             result = result.filter(RegularInspection.inspection_type == inspection_type)
         if instance is not None:
             result = result.filter(RegularInspection.instance == instance)

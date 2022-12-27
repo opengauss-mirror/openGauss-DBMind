@@ -34,10 +34,8 @@ def truncate():
     truncate_table(StatisticalMetric.__tablename__)
 
 
-def count_records():
-    with get_session() as session:
-        result = session.query(StatisticalMetric)
-        return result.count()
+def count_records(instance=None, metric_name=None):
+    return select_metric_statistic_avg_records(instance, metric_name).count()    
 
 
 def select_metric_statistic_records(instance=None, metric_name=None, offset=None, limit=None):

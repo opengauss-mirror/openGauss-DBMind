@@ -114,9 +114,9 @@ def select_warnings(instance=None, offset=None, limit=None):
         result = session.query(KnobRecommendationWarnings)
         if instance is not None:
             result = result.filter(KnobRecommendationWarnings.instance == instance)
-        if offset:
+        if offset is not None:
             result = result.offset(offset)
-        if limit:
+        if limit is not None:
             result = result.limit(limit)
         return result
 
