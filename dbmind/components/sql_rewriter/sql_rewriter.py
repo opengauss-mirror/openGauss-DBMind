@@ -229,7 +229,7 @@ def rewrite_sql_api(database, sqls, rewritten_flags=None, if_format=True, driver
     if driver is not None:
         executor = partial(driver.query, force_connection_db=database)
     else:
-        executor = partial(global_vars.agent_rpc_client.call, funcname='query_in_database', database=database)
+        executor = partial(global_vars.agent_proxy.call, funcname='query_in_database', database=database)
     schemas_results = executor(stmt='select distinct(table_schema) from information_schema.tables;', return_tuples=True)
     schemas = ','.join([res[0] for res in schemas_results]) if schemas_results else 'public'
     for _sql in sqls.split(';'):
