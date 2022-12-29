@@ -452,7 +452,7 @@ def get_target_generator(exporters):
     return generate
 
 
-def deploy(configs, online=False, lite=False):
+def deploy(configs, online=False, lite=None):
     """
     To deploy prometheus and exporters to the locations which are given in the config file.
     For once the prometheus and reprocessing exporter will be deployed at the same location.
@@ -503,7 +503,7 @@ def deploy(configs, online=False, lite=False):
             upload_list = list()
             dbmind_permission = list()
             sftp.remote_executor([f"chmod +w -R {remote_dir}"])
-            if not lite:
+            if lite is None:
                 upload_preparation(DBMIND_PATH, remote_dir)
 
             upload_preparation(os.path.join(EXTRACT_PATH, software),
@@ -575,27 +575,54 @@ def deploy(configs, online=False, lite=False):
             print('Initiating Prometheus config file.')
             yaml.dump(new_yaml_obj, f)
 
-        sftp_upload(
-            configs.get(PROMETHEUS, 'host'),
-            configs.get(PROMETHEUS, 'host_username'),
-            PWD[PROMETHEUS],
-            configs.get(PROMETHEUS, 'ssh_port'),
-            configs.get(PROMETHEUS, 'path'),
-            configs.get(DOWNLOADING, "prometheus")
-        )
-        for host in exporters:
+        if lite is None or lite == 'all' or lite == 'prometheus':
             sftp_upload(
-                host,
-                configs.get(EXPORTERS, 'host_username'),
-                PWD[EXPORTERS],
-                configs.get(EXPORTERS, 'ssh_port'),
-                configs.get(EXPORTERS, 'path'),
-                configs.get(DOWNLOADING, "node_exporter")
+                configs.get(PROMETHEUS, 'host'),
+                configs.get(PROMETHEUS, 'host_username'),
+                PWD[PROMETHEUS],
+                configs.get(PROMETHEUS, 'ssh_port'),
+                configs.get(PROMETHEUS, 'path'),
+                configs.get(DOWNLOADING, "prometheus")
             )
+
+        if lite is None or lite == 'all' or lite == 'node_exporter':
+            for host in exporters:
+                sftp_upload(
+                    host,
+                    configs.get(EXPORTERS, 'host_username'),
+                    PWD[EXPORTERS],
+                    configs.get(EXPORTERS, 'ssh_port'),
+                    configs.get(EXPORTERS, 'path'),
+                    configs.get(DOWNLOADING, "node_exporter")
+                )
 
         print("You can run the Prometheus and exporters by using: 'gs_dbmind component deployment --run'.")
     else:
-        print('Deployment unfinished')
+        if lite == 'node_exporter':
+            node_exporter_path = '/tmp/node_exporter'
+            if os.path.exists(node_exporter_path):
+                local_dir = os.path.join(EXTRACT_PATH, configs.get(DOWNLOADING, "node_exporter"))
+                if not os.path.exists(local_dir):
+                    os.mkdir(local_dir)
+                cmd = 'cp {} {}'.format(node_exporter_path, local_dir)
+                os.system(cmd)
+                exporters = db_exporters_parsing(configs)
+                for target in exporters:
+                    sftp_upload(
+                        target,
+                        configs.get(EXPORTERS, 'host_username'),
+                        PWD[EXPORTERS],
+                        configs.get(EXPORTERS, 'ssh_port'),
+                        configs.get(EXPORTERS, 'path'),
+                        configs.get(DOWNLOADING, "node_exporter")
+                    )
+                print('node_exporter successfully deployed...')
+                print("You can run the node_exporter by using: 'gs_dbmind component deployment --run'.")
+            else:
+                print('node_exporter does not exist...')
+                print('Deployment unfinished')
+        else:
+            print('Deployment unfinished')
 
 
 def generate_tasks(configs):
@@ -980,8 +1007,10 @@ def main(argv):
                         help='Indicates the time in seconds to wait for response '
                              'from exporters when --check.')
     parser.add_argument('-v', '--version', action='version', version=__version__)
-    parser.add_argument('--lite', action='store_true',
-                        help='Only deploy Prometheus and node_exporter to the nodes locally.')
+    parser.add_argument('--lite', default=None, type=str,
+                        help='Only deploy Prometheus or node_exporter to the nodes locally. '
+                             'all for deploy Prometheus and node_exporter. '
+                             'prometheus for deploy Prometheus. node_exporter for deploy node_exporter.')
     args = vars(parser.parse_args(argv))
 
     if not (args['online'] or args['offline'] or args['run'] or args['check']):
@@ -992,6 +1021,11 @@ def main(argv):
             CONFIG_PATH = args['conf']
         else:
             print("{} doesn't exist.".format(args['conf']))
+            return
+
+    if args['lite'] is not None:
+        if args['lite'] != 'all' and args['lite'] != 'prometheus' and args['lite'] != 'node_exporter':
+            print("--lite must be all or prometheus, or node_exporter.")
             return
 
     configs = ConfigParser(inline_comment_prefixes=None)

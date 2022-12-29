@@ -1,5 +1,6 @@
 FROM prom/prometheus as prom
 FROM grafana/grafana as grafana
+FROM prom/node-exporter as node-exporter
 
 # build UI
 FROM node:16-alpine3.15 as js-builder
@@ -28,6 +29,7 @@ COPY --from=prom /bin/prometheus /bin/prometheus
 COPY --from=prom /etc/prometheus/prometheus.yml /etc/prometheus/prometheus.yml
 COPY --from=prom /usr/share/prometheus/console_libraries/ /usr/share/prometheus/console_libraries/
 COPY --from=prom /usr/share/prometheus/consoles/ /usr/share/prometheus/consoles/
+COPY --from=node-exporter /bin/node_exporter /tmp/node_exporter
 
 COPY --from=js-builder /ui/build /app/ui/build
 
