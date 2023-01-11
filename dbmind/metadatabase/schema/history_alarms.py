@@ -12,7 +12,7 @@
 # See the Mulan PSL v2 for more details.
 
 
-from sqlalchemy import Column, String, Integer, BigInteger, CHAR, JSON, Index
+from sqlalchemy import Column, String, Integer, BigInteger, CHAR, JSON, Index, TEXT
 
 from .. import Base
 
@@ -28,7 +28,7 @@ class HistoryAlarms(Base):
     start_at = Column(BigInteger, nullable=False)  # unix timestamp
     end_at = Column(BigInteger, nullable=False)  # unix timestamp
     alarm_content = Column(String(1024))
-    extra_info = Column(JSON(none_as_null=True))
+    extra_info = Column(TEXT)
     anomaly_type = Column(String(16), nullable=False)
 
     idx_history_alarms = Index("idx_history_alarms", alarm_type, instance, start_at, alarm_level)

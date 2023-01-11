@@ -11,7 +11,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from sqlalchemy import Column, String, Integer, BigInteger, CHAR, JSON, Index
+from sqlalchemy import Column, String, Integer, BigInteger, CHAR, JSON, Index, TEXT
 
 from .. import Base
 
@@ -27,7 +27,7 @@ class FutureAlarms(Base):
     start_at = Column(BigInteger)  # unix timestamp
     end_at = Column(BigInteger)
     alarm_content = Column(String(1024))
-    suggestion = Column(String(1024))
-    extra_info = Column(JSON(none_as_null=True))
+    extra_info = Column(TEXT)
 
     idx_future_alarms = Index("idx_future_alarms", metric_name, instance, start_at)
+

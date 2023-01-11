@@ -93,28 +93,49 @@ def batch_insert_knob_recommend_warnings(instance, warn, bad):
         session.bulk_save_objects(warning_list)
 
 
-def select_metric_snapshot(instance=None):
+def select_metric_snapshot(instance=None, offset=None, limit=None):
     with get_session() as session:
+        result = session.query(KnobRecommendationMetricSnapshot)
         if instance is not None:
-            return session.query(KnobRecommendationMetricSnapshot).filter(
-                KnobRecommendationMetricSnapshot.instance == instance
-            )
-        return session.query(KnobRecommendationMetricSnapshot)
+            result = result.filter(KnobRecommendationMetricSnapshot.instance == instance)
+        if offset is not None:
+            result = result.offset(offset)
+        if limit is not None:
+            result = result.limit(limit)
+        return result
 
 
-def select_warnings(instance=None):
+def count_metric_snapshot(instance=None):
+    return select_metric_snapshot(instance=instance).count()
+
+
+def select_warnings(instance=None, offset=None, limit=None):
     with get_session() as session:
+        result = session.query(KnobRecommendationWarnings)
         if instance is not None:
-            return session.query(KnobRecommendationWarnings).filter(
-                KnobRecommendationWarnings.instance == instance
-            )
-        return session.query(KnobRecommendationWarnings)
+            result = result.filter(KnobRecommendationWarnings.instance == instance)
+        if offset is not None:
+            result = result.offset(offset)
+        if limit is not None:
+            result = result.limit(limit)
+        return result
 
 
-def select_details(instance=None):
+def count_warnings(instance=None):
+    return select_warnings(instance=instance).count()
+
+
+def select_details(instance=None, offset=None, limit=None):
     with get_session() as session:
+        result = session.query(KnobRecommendationDetails)
         if instance is not None:
-            return session.query(KnobRecommendationDetails).filter(
-                KnobRecommendationDetails.instance == instance
-            )
-        return session.query(KnobRecommendationDetails)
+            result = result.filter(KnobRecommendationDetails.instance == instance)
+        if offset is not None:
+            result = result.offset(offset)
+        if limit is not None:
+            result = result.limit(limit)
+        return result
+
+
+def count_details(instance=None):
+    return select_details(instance=instance).count()
