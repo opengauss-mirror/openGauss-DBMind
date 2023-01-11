@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Tabs } from 'antd';
-import { EditOutlined, PieChartOutlined, SlidersOutlined } from '@ant-design/icons';
+import { EditOutlined, PieChartOutlined, SlidersOutlined, ReloadOutlined } from '@ant-design/icons';
 import '../assets/css/common.css';
 import DatabaseTuning from '../components/DatabaseOptimization/DatabaseTuning';
 import IndexTuning from '../components/DatabaseOptimization/IndexTuning';
@@ -11,12 +11,35 @@ const { TabPane } = Tabs;
 export default class DatabaseOptimization extends Component {
   constructor() {
     super()
-    this.state = {}
+    this.state = {
+      paneKey:'1',
+    }
+  }
+  handleOnClick(){
+    if(this.state.paneKey === '1'){
+      this.IndexTuning.handleRefresh();
+    } else if(this.state.paneKey === '3'){
+      this.SlowQueryAnalysis.handleRefresh();
+    }
+	}
+  onChangePane = (key) => {
+    this.setState({
+      paneKey: key,
+    });
+  };
+  createBarExtraContent = () => {
+    return (
+      (this.state.paneKey === '1' || this.state.paneKey === '3') &&
+      (<div style={{ padding: '0px 24px' }}>
+        {<ReloadOutlined className="more_link" onClick={() => { this.handleOnClick() }} />}
+      </div>)
+    );
   }
   render () {
     return (
-      <div className="contentWrap">
-        <Tabs tabBarGutter={0} type="card" size="small">
+      <div className="contentWrap" activeKey={this.state.numMo}>
+        <Tabs tabBarGutter={0} type="card" size="small" 
+        onChange={this.onChangePane} tabBarExtraContent={this.createBarExtraContent()}>
           <TabPane
             tab={
               <span>
@@ -26,7 +49,7 @@ export default class DatabaseOptimization extends Component {
             }
             key="1"
           >
-            <IndexTuning />
+            <IndexTuning onRef={ node => this.IndexTuning = node } />
           </TabPane>
           <TabPane
             tab={
@@ -48,7 +71,7 @@ export default class DatabaseOptimization extends Component {
             }
             key="3"
           >
-            <SlowQueryAnalysis />
+            <SlowQueryAnalysis  onRef={ node => this.SlowQueryAnalysis = node }/>
           </TabPane>
           <TabPane
             tab={

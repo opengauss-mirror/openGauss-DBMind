@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Router, Switch } from 'react-router-dom';
+import { Route, HashRouter as Router, Switch } from 'react-router-dom';
 import history from './utils/history';
 import LogIn from './pages/LogIn.jsx';
 import Main from './Main';

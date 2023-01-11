@@ -1,7 +1,7 @@
-import React, {Component} from 'react';
-import {Card, Input, message, Spin} from 'antd';
-import {ReloadOutlined} from '@ant-design/icons';
-import {getLogSummaryTnterface} from '../../api/autonormousMangemant';
+import React, { Component } from 'react';
+import { Card, Input, message, Spin } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
+import { getLogSummaryTnterface } from '../../api/autonormousMangemant';
 
 const { TextArea } = Input;
 

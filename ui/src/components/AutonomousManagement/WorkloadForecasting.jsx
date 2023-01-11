@@ -38,7 +38,8 @@ export default class WorkloadForecasting extends Component {
       yFlag: [],
       colorFlag: [],
       showType: 0,
-      newSelectValue: ''
+      newSelectValue: '',
+      isPressCtrl:false
     }
   }
   // 时间框
@@ -371,30 +372,65 @@ export default class WorkloadForecasting extends Component {
   handleInputChange = (e) => {
     this.setState({stepVal: e})
   }
-  isOnlyClickedOneIsUnSelected = (name, selected) => {
-    let unSelectedCount = 0
-    for (let item in selected) {
-      if (!Object.prototype.hasOwnProperty.call(selected,item)) {
-        continue
-      }
-      if (selected[item] === false) {
-        ++unSelectedCount
-      }
+  onEvents = () => {
+    return {
+      'legendselectchanged': this.onChartLegendselectChanged
     }
-    return unSelectedCount === 1 && selected[name] === false
   }
-  onlyEnableCurrentSelectedLegend = (name, selected) => {
-    let legend = []
-    for (let item in selected) {
-      if (!Object.prototype.hasOwnProperty.call(selected,item)) {
-        continue
-      }
-      legend.push({ 'name': item })
-      this.echartsElement.dispatchAction({
-        type: 'legendToggleSelect',
-        batch: legend
-      })
-    }
+  onChartLegendselectChanged = (obj) => {
+    let legendData = this.state.legendData;
+    const echarts_instance = this.echartsElement.getEchartsInstance();
+     	//点击之后所有被选中的图例
+       const selectedobj = Object.keys(obj.selected).filter(item => obj.selected[item])
+       //点击的图例是否在 所有被选中的图例 中，也就是判断当前点击是选中操作还是取消操作
+       const flag = (selectedobj.indexOf(obj.name) > -1)
+       //当是取消操作 && 取消前所有图例都是选中状态
+       //选中当前图例，取消选中剩余图例
+       if(this.state.isPressCtrl){
+        if (!flag && (selectedobj.length + 1 === legendData.length)) {
+          for (let i = 0; i < legendData.length; i++) {
+            // 显示当前legend 关闭非当前legend
+            if (obj.name === legendData[i]) {
+             echarts_instance.dispatchAction({
+                type: 'legendSelect',
+                name: legendData[i],
+              })
+            } else {
+             echarts_instance.dispatchAction({
+                type: 'legendUnSelect',
+                name: legendData[i],
+              })
+            }
+          }
+        }
+       } else {
+        if ((selectedobj.length + 1 === legendData.length) || selectedobj.length === 2) {
+          for (let i = 0; i < legendData.length; i++) {
+            // 显示当前legend 关闭非当前legend
+            if (obj.name === legendData[i]) {
+             echarts_instance.dispatchAction({
+                type: 'legendSelect',
+                name: legendData[i],
+              })
+            } else {
+             echarts_instance.dispatchAction({
+                type: 'legendUnSelect',
+                name: legendData[i],
+              })
+            }
+          }
+        }
+       }
+       //当是取消操作 && 取消后就没有图例是选中状态
+       //选中所有图例
+       if(!flag && !selectedobj.length ){
+         for (var i = 0; i < legendData.length; i++) {
+          echarts_instance.dispatchAction({
+               type: 'legendSelect',
+               name: legendData[i]
+           });
+         }
+       }
   }
   handleRefresh(){
     this.setState({
@@ -408,6 +444,20 @@ export default class WorkloadForecasting extends Component {
   }
   componentDidMount () {
     this.getSearchMetric()
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Control') {
+      this.setState({
+        isPressCtrl: true
+      })
+      }
+    });
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Control') {
+      this.setState({
+        isPressCtrl: false
+      })
+      }
+    });
   }
   render () {
     return (
@@ -453,6 +503,7 @@ export default class WorkloadForecasting extends Component {
                 ref={(e) => {
                   this.echartsElement = e
                 }}
+                onEvents={this.onEvents()}
                 option={this.getOption()}
                 style={{ minHeight: '100%' }}
                 lazyUpdate={true}

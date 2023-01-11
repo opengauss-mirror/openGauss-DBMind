@@ -16,19 +16,33 @@ export const getSearchMetricInterface = () => {
 export const getHistoryAlarmsInterface = (data) => {
   return get('/alarm/history', data);
 };
+export const getHistoryAlarmsInterfaceCount = (data) => {
+  return get('/alarm/history_count', data);
+};
+export const getRegularInspections = (data) => {
+  return get('/summary/correlation_result', data);
+};
 export const getFutureAlarmsInterface = (data) => {
   return get('/alarm/future', data);
+};
+export const getFutureAlarmsInterfaceCount = (data) => {
+  return get('/alarm/future_count', data);
 };
 export const getSelfHealingRecordsInterface = (data) => {
   return get('/alarm/healing', data);
 };
-
+export const getSelfHealingRecordsInterfaceCount = (data) => {
+  return get('/alarm/healing_count', data);
+};
 // ----Slow/Top Query
 export const getRecentSlowQueryInterface = (data) => {
   return get('/query/slow/recent', data);
 };
-export const getTopQueryInterface = () => {
-  return get('/query/top');
+export const getRecentSlowQueryInterfaceCount = (data) => {
+  return get('/query/slow/recent_count', data);
+};
+export const getTopQueryInterface = (data) => {
+  return get('/query/top', data);
 };
 export const getIntelligentSqlAnalysisInterface = (data) => {
   return post(`/toolkit/predict/query?database=${data.database}&sql=${data.sql}`)
@@ -39,7 +53,9 @@ export const getItemsListInterface = () => {
 export const getKillSlowQueryInterface = (data) => {
   return get('/query/slow/killed', data);
 };
-
+export const getKillSlowQueryInterfaceCount = (data) => {
+  return get('/query/slow/killed_count', data);
+};
 //---- Active SQL Statements
 export const getActiveSQLDataInterface = () => {
   return get('/query/active');

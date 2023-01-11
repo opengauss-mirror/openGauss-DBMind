@@ -1,5 +1,5 @@
-import React, {Component} from 'react';
-import {Card} from 'antd';
+import React, { Component } from 'react';
+import { Card } from 'antd';
 import ReactEcharts from 'echarts-for-react';
 
 export default class MeanFetchTimeChart extends Component {

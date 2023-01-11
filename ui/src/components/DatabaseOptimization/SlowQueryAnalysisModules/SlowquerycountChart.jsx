@@ -119,7 +119,7 @@ export default class SlowquerycountChart extends Component {
   render () {
     return (
       <div className="mb-20" >
-        <Card title="Slow Query Count" extra={<ReloadOutlined className="more_link" onClick={() => { this.props.handleRefresh() }} />}>
+        <Card title="Slow Query Count">
           {this.state.ifShow ? <ReactEcharts
             ref={(e) => {
               this.echartsElement = e

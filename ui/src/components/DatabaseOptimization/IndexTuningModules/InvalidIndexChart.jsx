@@ -1,5 +1,5 @@
-import React, {Component} from 'react';
-import {Card} from 'antd';
+import React, { Component } from 'react';
+import { Card } from 'antd';
 import * as echarts from 'echarts';
 import PropTypes from 'prop-types';
 

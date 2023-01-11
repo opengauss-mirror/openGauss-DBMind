@@ -1,8 +1,8 @@
-import React, {Component} from 'react';
-import {Card, Table} from 'antd';
+import React, { Component } from 'react';
+import { Card, Table, message } from 'antd';
 import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import {formatTableTitle} from '../../../utils/function';
+import { formatTableTitle } from '../../../utils/function';
 
 export default class AdvisedIndexes extends Component {
   static propTypes={
@@ -25,7 +25,7 @@ export default class AdvisedIndexes extends Component {
       cell: ResizeableTitle,
     },
   };
-  handleTableData (header, rows) {
+  handleTableData (header, rows, total) {
     this.setState({loading: true})
     if (header.length > 0) {
       let historyColumObj = {}

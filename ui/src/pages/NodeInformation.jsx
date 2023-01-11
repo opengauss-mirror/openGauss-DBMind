@@ -1,9 +1,9 @@
-import React, {Component} from 'react';
-import {Tabs} from 'antd';
-import {CheckOutlined, DesktopOutlined, PieChartOutlined} from '@ant-design/icons';
+import React, { Component } from 'react';
+import { Tabs } from 'antd';
+import { CheckOutlined, DesktopOutlined, PieChartOutlined } from '@ant-design/icons';
 import '../assets/css/common.css';
 import Node from '../components/NodeInformation/Node';
-import Instance from '../components/NodeInformation/Instance';
+import Host from '../components/NodeInformation/Host';
 import Statistic from '../components/NodeInformation/Statistics';
 
 const { TabPane } = Tabs;
@@ -31,12 +31,12 @@ export default class Cluster extends Component {
             tab={
               <span>
                 <DesktopOutlined />
-                Instance
+                Host
               </span>
             }
             key="2"
           >
-            <Instance />
+            <Host />
           </TabPane>
           <TabPane
             tab={

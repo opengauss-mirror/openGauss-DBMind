@@ -1,5 +1,5 @@
 import React from 'react';
-import {Resizable} from 'react-resizable';
+import { Resizable } from 'react-resizable';
 
 const ResizeableTitle = props => {
   const { onResize, width, ...restProps } = props;

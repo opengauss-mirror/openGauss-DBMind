@@ -13,5 +13,5 @@ export const getQueryTuningInterface = (data) => {
   return post(`/toolkit/advise/query?database=${data.database}&sql=${data.sql}&use_rewrite=${data.use_rewrite}&use_hinter=${data.use_hinter}&use_materialized=${data.use_materialized}`);
 };
 export const getIntelligentSqlAnalysisInterface = (data) => {
-  return post('/toolkit/slow_sql_rca?', data)
+  return post('/toolkit/slow_sql_rca', data)
 };

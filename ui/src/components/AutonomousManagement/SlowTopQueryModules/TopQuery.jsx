@@ -11,10 +11,9 @@ export default class SlowTopQuery extends Component {
     this.state = {
       dataSource1: [],
       columns: [],
-      pagination1: {
-        total: 0,
-        defaultCurrent: 1
-      },
+      pageSize: 10,
+      current: 1,
+      total: 0,
       loadingTop: false,
     }
   }
@@ -23,9 +22,9 @@ export default class SlowTopQuery extends Component {
       cell: ResizeableTitle,
     },
   };
-  async getTopQuery () {
+  async getTopQuery (params) {
     this.setState({ loadingTop: true })
-    const { success, data, msg } = await getTopQueryInterface()
+    const { success, data, msg } = await getTopQueryInterface(params)
     if (success) {
       if (data.header.length > 0) {
         let historyColumObj = {}
@@ -60,10 +59,9 @@ export default class SlowTopQuery extends Component {
           loadingTop: false,
           dataSource1: res,
           columns: tableHeader,
-          pagination1: {
-            total: res.length,
-            defaultCurrent: 1
-          }
+          pageSize: this.state.pageSize,
+          current: this.state.current,
+          total: res.length
         }))
       } else {
         this.setState({
@@ -81,6 +79,29 @@ export default class SlowTopQuery extends Component {
       message.error(msg)
     }
   }
+  // 回调函数，切换下一页
+  changePage(current,pageSize){
+    let params = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.setState({
+      current: current,
+    });
+    this.getTopQuery(params);
+  }
+    // 回调函数,每页显示多少条
+    changePageSize(pageSize,current){
+    // 将当前改变的每页条数存到state中
+    this.setState({
+      pageSize: pageSize
+    });
+    let params = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.getTopQuery(params);
+  }
   handleResize = index => (e, { size }) => {
     this.setState(({ columns }) => {
       const nextColumns = [...columns];
@@ -91,8 +112,16 @@ export default class SlowTopQuery extends Component {
       return { columns: nextColumns };
     });
   };
+  handleRefresh(){
+    this.setState({
+      pageSize: 10,
+      current: 1,
+    },()=>{
+      this.getTopQuery({current: 1,pagesize: 10})
+    })
+  }
   componentDidMount () {
-    this.getTopQuery()
+    this.getTopQuery({current: 1,pagesize: 10})
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -102,10 +131,20 @@ export default class SlowTopQuery extends Component {
         onResize: this.handleResize(index)
       })
     }))
+    const paginationProps = {
+      showSizeChanger: true,
+      showQuickJumper: true,
+      showTotal: () => `Total ${this.state.total} items`,
+      pageSize: this.state.pageSize,
+      current: this.state.current,
+      total: this.state.total,
+      onShowSizeChange: (current,pageSize) => this.changePageSize(pageSize,current),
+      onChange: (current,pageSize) => this.changePage(current,pageSize)
+    };
     return (
       <div>
-        <Card title="Top Query" extra={<ReloadOutlined className="more_link" onClick={() => { this.getTopQuery() }} />}>
-          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource1} rowKey={record => record.key} pagination={this.state.pagination1} loading={this.state.loadingTop} scroll={{ x: '100%'}} />
+        <Card title="Top Query" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />}>
+          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource1} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loadingTop} scroll={{ x: '100%'}} />
         </Card>
       </div>
     )

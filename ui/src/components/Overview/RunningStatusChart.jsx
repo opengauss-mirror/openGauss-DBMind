@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Card, message, Empty, Spin } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';import ReactEcharts from 'echarts-for-react';
-import {getRunningStatusInterface} from '../../api/overview';
+import { getRunningStatusInterface } from '../../api/overview';
 
 export default class RunningStatusChart extends Component {
   constructor() {

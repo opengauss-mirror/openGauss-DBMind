@@ -11,7 +11,7 @@
 }
 .loginwrap{
     position: relative;
-    width: 1000px;
+    width: 1100px;
     background: #808a94;
     border-radius: 10px;
     height: 100px;
@@ -40,6 +40,14 @@
 .LogInTwoBtn{
     border-radius: 10px;
 }
+.LogInTwoBtn .ant-select-selector{
+    border-radius: 10px !important;
+}
 .ant-form-item-with-help .ant-form-item-explain{
     height: 0 !important;
+}
+.ant-select-single:not(.ant-select-customize-input) .ant-select-selector {
+    height: 40px !important;
+    line-height: 40px !important;
+    padding: 4px 11px !important;
 }

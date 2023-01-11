@@ -12,7 +12,7 @@ import MeanFetchTimeChart from './SlowQueryAnalysisModules/MeanFetchTimeChart';
 import StatisticsChart from './SlowQueryAnalysisModules/StatisticsChart';
 import SlowQueryTable from './SlowQueryAnalysisModules/SlowQueryTable';
 import TableofSlowQueryTable from './SlowQueryAnalysisModules/TableofSlowQueryTable';
-import { getSlowQueryAnalysisInterface } from '../../api/databaseOptimaztion';
+import { getSlowQueryAnalysisInterface, getSlowQueryRecentCount} from '../../api/databaseOptimaztion';
 import { FileSearchOutlined, FundOutlined, MonitorOutlined } from '@ant-design/icons';
 const iconimg = [<FileSearchOutlined key="1"/>, <MonitorOutlined key="2"/>, <FundOutlined key="3"/>, <FileSearchOutlined key="4"/>, <MonitorOutlined key="5"/>, <FundOutlined key="6"/>]
 export default class SlowQueryAnalysis extends Component {
@@ -35,9 +35,10 @@ export default class SlowQueryAnalysis extends Component {
       tableOfSlowQuery: {}
     }
   }
-  async getSlowQueryAnalysis () {
-    const { success, data, msg } = await getSlowQueryAnalysisInterface()
+  async getSlowQueryAnalysis (params) {
+    const { success, data, msg } = await getSlowQueryAnalysisInterface(params)
     if (success) {
+      this.getSlowQueryRecentCount();
       let toplistArr = []
       this.setState({
         showflag: false,
@@ -72,13 +73,26 @@ export default class SlowQueryAnalysis extends Component {
       message.error(msg)
     }
   }
-  goFresh () {
+  async getSlowQueryRecentCount () {
+    const { success, data, msg } = await getSlowQueryRecentCount()
+    if (success) {
+      let dataObj = this.state.tableOfSlowQuery;
+      dataObj['total'] = data;
+      this.setState(() => ({
+        tableOfSlowQuery: dataObj
+      }))
+    } else {
+      message.error(msg)
+    }
+  }
+  handleRefresh () {
     this.setState({showflag: true}, () => {
-      this.getSlowQueryAnalysis(false)
+      this.getSlowQueryAnalysis({current: 1,pagesize: 10})
     })
   }
   componentDidMount () {
-    this.getSlowQueryAnalysis(false)
+    this.props.onRef && this.props.onRef(this);
+    this.getSlowQueryAnalysis({current: 1,pagesize: 10})
   }
   render () {
     return (
@@ -95,7 +109,7 @@ export default class SlowQueryAnalysis extends Component {
                 </Col>
                 <Col className="gutter-row" span={12}>
                   <div className="cardShow">
-                    <SlowquerycountChart slowQueryCount={this.state.slowQueryCount} handleRefresh={() => this.goFresh()} />
+                    <SlowquerycountChart slowQueryCount={this.state.slowQueryCount} />
                   </div>
                 </Col>
                 <Col className="gutter-row" span={6}>

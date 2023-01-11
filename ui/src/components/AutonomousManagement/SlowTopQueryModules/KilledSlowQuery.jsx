@@ -3,7 +3,7 @@ import { Button, Card, Col, DatePicker, Form, Input, InputNumber, message, Row, 
 import moment from 'moment';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import { getKillSlowQueryInterface } from '../../../api/autonormousMangemant';
+import { getKillSlowQueryInterface, getKillSlowQueryInterfaceCount} from '../../../api/autonormousMangemant';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 
 const { RangePicker } = DatePicker;
@@ -13,10 +13,9 @@ export default class SlowTopQuery extends Component {
     this.state = {
       dataSource2: [],
       columns: [],
-      pagination2: {
-        total: 0,
-        defaultCurrent: 1
-      },
+      pageSize: 10,
+      current: 1,
+      total: 0,
       loadingKill: false,
       startTime: '',
       endTime: '',
@@ -36,8 +35,12 @@ export default class SlowTopQuery extends Component {
       end: this.state.endTime ? this.state.endTime : null,
       query: values.query ? encodeURIComponent(values.query) : null,
       limit: values.limit === '' ? null : values.limit,
+      current: this.state.current,
+      pagesize:this.state.pageSize
     }
-    this.getKillSlowQuery(paramVal)
+    this.getKillSlowQuery(paramVal).then(() => {
+      this.getKillSlowQueryCount(values)
+    })
   }
   async getKillSlowQuery (params) {
     this.setState({loadingKill: true})
@@ -79,10 +82,8 @@ export default class SlowTopQuery extends Component {
           loadingKill: false,
           dataSource2: res,
           columns: tableHeader,
-          pagination2: {
-            total: res.length,
-            defaultCurrent: 1
-          }
+          pageSize: this.state.pageSize,
+          current: this.state.current
         }))
       } else {
         this.setState({
@@ -97,6 +98,22 @@ export default class SlowTopQuery extends Component {
         dataSource2: [],
         columns: [],
       })
+      message.error(msg)
+    }
+  }
+  async getKillSlowQueryCount (values) {
+    let params = {
+      start: this.state.startTime ? this.state.startTime : null,
+      end: this.state.endTime ? this.state.endTime : null,
+      query: (values && values.query) ? encodeURIComponent(values.query) : null,
+      limit: (values && values.limit) ? values.limit : null
+    }
+    const { success, data, msg } = await getKillSlowQueryInterfaceCount(params)
+    if (success) {
+      this.setState(() => ({
+        total: data
+      }))
+    } else {
       message.error(msg)
     }
   }
@@ -116,6 +133,29 @@ export default class SlowTopQuery extends Component {
   onChangeCheckbox (e) {
     this.setState({checkedGroup: e.target.checked})
   }
+  // 回调函数，切换下一页
+  changePage(current,pageSize){
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.setState({
+      current: current,
+    });
+    this.getKillSlowQuery(pageParams);
+  }
+    // 回调函数,每页显示多少条
+  changePageSize(pageSize,current){
+    // 将当前改变的每页条数存到state中
+    this.setState({
+      pageSize: pageSize
+    });
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.getKillSlowQuery(pageParams);
+  }
   handleResize = index => (e, { size }) => {
     this.setState(({ columns }) => {
       const nextColumns = [...columns];
@@ -127,11 +167,20 @@ export default class SlowTopQuery extends Component {
     });
   }
   handleRefresh(){
-    this.killFormRef.resetFields()
-    this.getKillSlowQuery()
+    this.setState({
+      pageSize: 10,
+      current: 1,
+    },()=>{
+      this.killFormRef.resetFields()
+      this.getKillSlowQuery({current: 1,pagesize: 10}).then(() => {
+        this.getKillSlowQueryCount()
+      })
+    })
   }
   componentDidMount () {
-    this.getKillSlowQuery()
+    this.getKillSlowQuery({current: 1,pagesize: 10}).then(() => {
+      this.getKillSlowQueryCount()
+    })
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -141,6 +190,16 @@ export default class SlowTopQuery extends Component {
         onResize: this.handleResize(index)
       })
     }))
+    const paginationProps = {
+      showSizeChanger: true,
+      showQuickJumper: true,
+      showTotal: () => `Total ${this.state.total} items`,
+      pageSize: this.state.pageSize,
+      current: this.state.current,
+      total: this.state.total,
+      onShowSizeChange: (current,pageSize) => this.changePageSize(pageSize,current),
+      onChange: (current,pageSize) => this.changePage(current,pageSize)
+    };
     return (
       <div>
         <Card title="Killed Slow Query" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />} className="mb-20" style={{ marginBottom: 20 }}>
@@ -154,7 +213,7 @@ export default class SlowTopQuery extends Component {
                 }}
               >
                 <Form.Item name="query" label="query">
-                  <Input placeholder="Input query" allowClear />
+                  <Input placeholder="Input query" allowClear={true} />
                 </Form.Item>
                 <Form.Item name="time" label="time">
                   <RangePicker
@@ -177,7 +236,7 @@ export default class SlowTopQuery extends Component {
               </Form>
             </Col>
           </Row>
-          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource2} rowKey={record => record.key} pagination={this.state.pagination2} loading={this.state.loadingKill} scroll={{ x: '100%' }} />
+          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource2} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loadingKill} scroll={{ x: '100%' }} />
         </Card>
       </div>
     )

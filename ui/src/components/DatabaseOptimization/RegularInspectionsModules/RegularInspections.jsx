@@ -44,7 +44,7 @@ export default class RegularInspection extends React.PureComponent {
         })
       } else {
         this.setState({
-          showFlag: 1,
+          showFlag: 0,
           startTime: '',
           endTime: '',
           reportVal: '',

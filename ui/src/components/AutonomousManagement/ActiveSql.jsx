@@ -1,4 +1,4 @@
-import React, {Component} from 'react';
+import React, { Component } from 'react';
 import ActiveSQLStatements from './ActiveSQLStatementsModules/ActiveSQLStatements';
 import LockingQuery from './ActiveSQLStatementsModules/LockingQuery';
 

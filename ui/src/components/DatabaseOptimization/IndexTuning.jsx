@@ -9,7 +9,7 @@ import RedundantIndexesChangeChart from './IndexTuningModules/RedundantIndexesCh
 import AdvisedIndexes from './IndexTuningModules/AdvisedIndexes';
 import PositiveSql from './IndexTuningModules/PositiveSql';
 import ExistingIndexes from './IndexTuningModules/ExistingIndexes';
-import { getIndexTuningInterface } from '../../api/databaseOptimaztion';
+import { getIndexTuningInterface, getPositiveSqlCount, getExistingIndexesCount } from '../../api/databaseOptimaztion';
 import {
   ApartmentOutlined,
   BorderOuterOutlined,
@@ -37,9 +37,11 @@ export default class IndexTuning extends Component {
       existing_indexes: {},
     }
   }
-  async getIndexTuning () {
-    const { success, data, msg } = await getIndexTuningInterface()
+  async getIndexTuning (params) {
+    const { success, data, msg } = await getIndexTuningInterface(params)
     if (success) {
+      this.getPositiveSqlCount();
+      this.getExistingIndexesCount();
       let topListData = []
       let InvalidIndexArr = []
       this.setState({showflag: false},
@@ -84,8 +86,46 @@ export default class IndexTuning extends Component {
       message.error(msg)
     }
   }
+  async getPositiveSqlCount () {
+    const { success, data, msg } = await getPositiveSqlCount()
+    if (success) {
+      let dataObj = this.state.positiveSQL;
+      dataObj['total'] = data;
+      this.setState(() => ({
+        positiveSQL: dataObj
+      }))
+    } else {
+      message.error(msg)
+    }
+  }
+  async getExistingIndexesCount () {
+    const { success, data, msg } = await getExistingIndexesCount()
+    if (success) {
+      let dataObj = this.state.existing_indexes;
+      dataObj['total'] = data;
+      this.setState(() => ({
+        existing_indexes: dataObj
+      }))
+    } else {
+      message.error(msg)
+    }
+  }
   componentDidMount () {
-    this.getIndexTuning()
+    this.props.onRef && this.props.onRef(this);
+    this.getIndexTuning({
+      positive_current: 1,
+      positive_pagesize: 10,
+      existing_current: 1,
+      existing_pagesize: 10})
+  }
+  handleRefresh () {
+    this.setState({showflag: true}, () => {
+      this.getIndexTuning({
+        positive_current: 1,
+        positive_pagesize: 10,
+        existing_current: 1,
+        existing_pagesize: 10})
+    })
   }
   componentWillUnmount = () => {
       this.setState = () => {return}

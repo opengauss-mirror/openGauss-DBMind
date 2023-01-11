@@ -1,5 +1,5 @@
-import React, {Component} from 'react';
-import {Col, Row, Space} from 'antd';
+import React, { Component } from 'react';
+import { Col, Row, Space } from 'antd';
 import PropTypes from 'prop-types';
 import StatisticsForDatabaseChart from './StatisticsForDatabaseChart';
 import StatisticsForSchemaChart from './StatisticsForSchemaChart';

@@ -49,7 +49,11 @@
 .menu_top .top .userInfo2 .info .infoName{
   margin-right: 10px;
 }
-
-
+.changeInstance .ant-select-arrow{
+  color: #c0bcbc;
+}
+.changeInstance .ant-select-selection-item{
+  color: #c0bcbc;
+}
 
 

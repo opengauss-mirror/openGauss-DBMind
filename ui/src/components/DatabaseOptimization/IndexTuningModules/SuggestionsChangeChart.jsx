@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Card, Empty } from 'antd';
+import { ReloadOutlined } from '@ant-design/icons';
 import ReactEcharts from 'echarts-for-react';
 import PropTypes from 'prop-types';
 import { formatTimestamp } from '../../../utils/function';

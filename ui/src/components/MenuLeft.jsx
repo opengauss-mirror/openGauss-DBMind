@@ -1,8 +1,8 @@
-import React, {Component} from 'react';
+import React, { Component } from 'react';
 import 'antd/dist/antd.css';
 import '../assets/css/main/index.css';
-import {Layout, Menu} from 'antd';
-import { withRouter} from 'react-router-dom';
+import { Layout, Menu } from 'antd';
+import { withRouter } from 'react-router-dom';
 import menuList from '../router/menu.js';
 
 const { Sider } = Layout;

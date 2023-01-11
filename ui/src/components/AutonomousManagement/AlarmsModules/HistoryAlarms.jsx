@@ -1,10 +1,10 @@
 import React, { Component } from 'react';
-import { Button, Card, Checkbox, Col, message, Row, Select, Table } from 'antd';
+import { Button, Card, Checkbox, Col, message, Row, Select, Table, Modal} from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import { getHistoryAlarmsInterface } from '../../../api/autonormousMangemant';
-import { formatTableTime, formatTableTitle, formatTimestamp } from '../../../utils/function';
-
+import MetricChart from './MetricChart';
+import { getHistoryAlarmsInterface, getHistoryAlarmsInterfaceCount } from '../../../api/autonormousMangemant';
+import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 const { Option } = Select;
 export default class Alarms extends Component {
   constructor() {
@@ -12,21 +12,24 @@ export default class Alarms extends Component {
     this.state = {
       dataSource: [],
       columns: [],
-      pagination: {
-        total: 0,
-        defaultCurrent: 1
-      },
+      pageSize: 10,
+      current: 1,
+      total: 0,
       loadingHistory: false,
-      instanceOptionsFilter: [],
+      hostOptionsFilter: [],
       alarmOptionsFilter: [],
       alarmLevelOptionsFilter: [],
-      instance: '',
-      instancenewval: '',
+      host: '',
+      hostnewval: '',
       alarm_type: '',
       typenewval: '',
       alarm_level: '',
       levelnewval: '',
       checkedGroup: true,
+      isModalVisible: false,
+      metric_name: '',
+      start_time: '',
+      end_time: ''
     }
   }
   components = {
@@ -34,29 +37,30 @@ export default class Alarms extends Component {
       cell: ResizeableTitle,
     },
   };
-  async getHistoryAlarms () {
+  async getHistoryAlarms (pageParams) {
     let params = {
-      instance: this.state.instance === '' ? null : this.state.instance,
+      instance: this.state.host === '' ? null : this.state.host,
       alarm_type: this.state.alarm_type === '' ? null : this.state.alarm_type,
       alarm_level: this.state.alarm_level === '' ? null : this.state.alarm_level,
-      group: this.state.checkedGroup
+      group: this.state.checkedGroup,
+      current: pageParams ? pageParams.current : this.state.current,
+      pagesize:pageParams ? pageParams.pagesize : this.state.pageSize
     }
     this.setState({ loadingHistory: true });
     const { success, data, msg } = await getHistoryAlarmsInterface(params)
     if (success) {
       if (data.header.length > 0) {
         let historyColumObj = {}
+        let operationColumObj = {}
         let tableHeader = []
-        let instanceOptionsFilterArr = []
+        let hostOptionsFilterArr = []
         let alarmOptionsFilterArr = []
         let alarmLevelOptionsFilterArr = []
+        if(data.header.length > 9){
+          data.header.push('operation')
+        }
         data.header.forEach((item) => {
-          historyColumObj = {
-            title: formatTableTitle(item),
-            dataIndex: item,
-            width: 180,
-            key: item,
-            ellipsis: true,
+          operationColumObj = {
             sorter: (a, b) => {
               let aVal = a[item]
               let bVal = b[item]
@@ -64,6 +68,23 @@ export default class Alarms extends Component {
                 d = isFinite(bVal);
               return (c !== d && d - c) || (c && d ? aVal - bVal : aVal.localeCompare(bVal));
             }
+          }
+          historyColumObj = {
+            title: formatTableTitle(item),
+            dataIndex: item,
+            width: 180,
+            key: item,
+            ellipsis: true,
+            align:item === 'operation' ? 'center' : 'left',
+            fixed:item === 'operation' ? 'right' : 'false',
+            render: (row, record) => {
+              if(item === 'operation'){
+                return <Button type="primary" disabled={(record.anomaly_type === "THRESHOLD" || record.anomaly_type === "GRADIENT")} onClick={() => this.isModal(row, record)}>analyze</Button>
+              } else {
+                return row
+              }
+            },
+            ...(item !== 'operation' ? operationColumObj: '')
           }
           tableHeader.push(historyColumObj)
         })
@@ -73,32 +94,54 @@ export default class Alarms extends Component {
           for (let i = 0; i < data.header.length; i++) {
             tabledata[data.header[i]] = item[i]
             tabledata['key'] = index
-            if (data.header[i] && data.header[i] === 'occurrence_at') {
+            if (data.header[i] && (data.header[i] === 'start_at' || data.header[i] === 'end_at')) {
               tabledata[data.header[i]] = formatTimestamp(item[i] + '')
+            }
+            if (data.header[i] && data.header[i] === 'alarm_level') {
+                switch (item[i]) {
+                  case 50:
+                      tabledata[data.header[i]] = "CRITICAL"
+                      break;
+                  case 40:
+                      tabledata[data.header[i]] = "ERROR"
+                      break;
+                  case 30:
+                      tabledata[data.header[i]] = "WARNING"
+                      break;
+                  case 20:
+                      tabledata[data.header[i]] = "INFO"
+                      break;
+                  case 10:
+                      tabledata[data.header[i]] = "DEBUG"
+                      break;
+                  case 0:
+                      tabledata[data.header[i]] = "NOTSET"
+                      break;
+                  default:
+                      tabledata[data.header[i]] = item[i]
+                      break;
+              }
             }
           }
           res.push(tabledata)
         });
-        formatTableTime(res)
         res.forEach((item) => {
-          instanceOptionsFilterArr.push(item.instance.replace(/(\s*$)/g, ''))
+          hostOptionsFilterArr.push(item.instance.replace(/(\s*$)/g, ''))
           alarmOptionsFilterArr.push(item.alarm_type)
           alarmLevelOptionsFilterArr.push(item.alarm_level)
         })
-        let instanceOptions = this.handleDataDeduplicate(instanceOptionsFilterArr)
+        let hostOptions = this.handleDataDeduplicate(hostOptionsFilterArr)
         let alarmTypeOptions = this.handleDataDeduplicate(alarmOptionsFilterArr)
-        let alarmLevelOptions = this.handleDataDeduplicate(alarmLevelOptionsFilterArr)
+        let alarmLevelOptions = this.handleDataConversion(this.handleDataDeduplicate(alarmLevelOptionsFilterArr))
         this.setState(() => ({
-          instanceOptionsFilter: instanceOptions,
+          hostOptionsFilter: hostOptions,
           alarmOptionsFilter: alarmTypeOptions,
           alarmLevelOptionsFilter: alarmLevelOptions,
           loadingHistory: false,
           dataSource: res,
           columns: tableHeader,
-          pagination: {
-            total: res.length,
-            defaultCurrent: 1
-          }
+          pageSize: this.state.pageSize,
+          current: this.state.current
         }))
       } else {
         this.setState({
@@ -116,6 +159,31 @@ export default class Alarms extends Component {
       message.error(msg)
     }
   }
+  async getHistoryAlarmsCount () {
+    let params = {
+      instance: this.state.host === '' ? null : this.state.host,
+      alarm_type: this.state.alarm_type === '' ? null : this.state.alarm_type,
+      alarm_level: this.state.alarm_level === '' ? null : this.state.alarm_level,
+      group: this.state.checkedGroup
+    }
+    const { success, data, msg } = await getHistoryAlarmsInterfaceCount(params)
+    if (success) {
+      this.setState(() => ({
+        total: data
+      }))
+    } else {
+      message.error(msg)
+    }
+  }
+  handleCancel = () => {
+    this.setState({
+      isModalVisible: false,
+      metric_name: '',
+      host: '',
+      start_time: '',
+      end_time: ''
+    })
+  }
   handleDataDeduplicate = (value) => {
     let newArr = []
     for (let i = 0; i < value.length; i++) {
@@ -124,6 +192,67 @@ export default class Alarms extends Component {
       }
     }
     return newArr
+  }
+  handleDataConversion = (value) => {
+    let newArr = []
+    for (let i = 0; i < value.length; i++) {
+      switch (value[i]) {
+        case "CRITICAL":
+          newArr.push({key:value[i],value:50})
+            break;
+        case "ERROR":
+          newArr.push({key:value[i],value:40})
+            break;
+        case "WARNING":
+          newArr.push({key:value[i],value:30})
+            break;
+        case "INFO":
+          newArr.push({key:value[i],value:20})
+            break;
+        case "DEBUG":
+          newArr.push({key:value[i],value:10})
+            break;
+        case "NOTSET":
+          newArr.push({key:value[i],value:0})
+            break;
+        default:
+          newArr.push({key:value[i],value:value[i]})
+            break;
+    }
+    }
+    return newArr
+  }
+  isModal(row, record) {
+    this.setState({
+      metric_name: record.metric_name,
+      host:record.instance.replace(/(\s*$)/g, ''),
+      start_time:new Date(record.start_at).getTime(),
+      end_time:new Date(record.end_at).getTime(),
+      isModalVisible: true
+    })
+  }
+  // 回调函数，切换下一页
+  changePage(current,pageSize){
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.setState({
+      current: current,
+    });
+    this.getHistoryAlarms(pageParams);
+  }
+    // 回调函数,每页显示多少条
+  changePageSize(pageSize,current){
+    // 将当前改变的每页条数存到state中
+    this.setState({
+      pageSize: pageSize
+    });
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.getHistoryAlarms(pageParams);
   }
   handleResize = index => (e, { size }) => {
     this.setState(({ columns }) => {
@@ -135,26 +264,26 @@ export default class Alarms extends Component {
       return { columns: nextColumns };
     });
   };
-  // instance
-  changeSelInstanceVal (value) {
+  // host
+  changeSelHostVal (value) {
     this.setState({
-      instance: value
+      host: value
     })
   }
-  onSearchInstance = (value) => {
+  onSearchHost = (value) => {
     if (value) {
       this.setState({
-        instance: value,
-        instancenewval: value
+        host: value,
+        hostnewval: value
       })
     }
   };
-  onBlurSelectInstance = () => {
-    const value = this.state.instancenewval
+  onBlurSelectHost = () => {
+    const value = this.state.hostnewval
     if (value) {
-      this.changeSelInstanceVal(value)
+      this.changeSelHostVal(value)
       this.setState({
-        instancenewval: ''
+        hostnewval: ''
       })
     }
   }
@@ -203,20 +332,28 @@ export default class Alarms extends Component {
     this.setState({checkedGroup: e.target.checked})
   }
   handleSearch () {
-    this.getHistoryAlarms()
+    this.getHistoryAlarms().then(() => {
+      this.getHistoryAlarmsCount()
+    })
   }
   handleRefresh(){
     this.setState({
-      instance: '',
+      host: '',
       alarm_type: '',
       alarm_level: '',
       checkedGroup: true,
+      pageSize: 10,
+      current: 1
     },()=>{
-      this.getHistoryAlarms()
+      this.getHistoryAlarms().then(() => {
+        this.getHistoryAlarmsCount()
+      })
     })
   }
   componentDidMount () {
-    this.getHistoryAlarms()
+    this.getHistoryAlarms().then(() => {
+      this.getHistoryAlarmsCount()
+    })
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -226,18 +363,28 @@ export default class Alarms extends Component {
         onResize: this.handleResize(index)
       })
     }))
+    const paginationProps = {
+      showSizeChanger: true,
+      showQuickJumper: true,
+      showTotal: () => `Total ${this.state.total} items`,
+      pageSize: this.state.pageSize,
+      current: this.state.current,
+      total: this.state.total,
+      onShowSizeChange: (current,pageSize) => this.changePageSize(pageSize,current),
+      onChange: (current,pageSize) => this.changePage(current,pageSize)
+    };
     return (
       <div className="mb-20">
         <Card title="History Alarms" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />} className="mb-20">
           <Row style={{ marginBottom: 20, width: '60%' }} justify="space-around">
             <Col>
-              <span>instance: </span>
-              <Select value={this.state.instance} onChange={(val) => { this.changeSelInstanceVal(val) }} showSearch allowClear
-                onSearch={(e) => { this.onSearchInstance(e) }} onBlur={() => this.onBlurSelectInstance()}
+              <span>host: </span>
+              <Select value={this.state.host} onChange={(val) => { this.changeSelHostVal(val) }} showSearch allowClear={true}
+                onSearch={(e) => { this.onSearchHost(e) }} onBlur={() => this.onBlurSelectHost()}
                 optionFilterProp="children" filterOption={(input, option) =>
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 180 }} className="mb-20">
                 {
-                  this.state.instanceOptionsFilter.map((item, index) => {
+                  this.state.hostOptionsFilter.map((item, index) => {
                     return (
                       <Option value={item} key={index}>{item}</Option>
                     )
@@ -247,7 +394,7 @@ export default class Alarms extends Component {
             </Col>
             <Col>
               <span>alarm type: </span>
-              <Select value={this.state.alarm_type} onChange={(val) => { this.changeSelTypeVal(val) }} showSearch allowClear
+              <Select value={this.state.alarm_type} onChange={(val) => { this.changeSelTypeVal(val) }} showSearch allowClear={true}
                 onSearch={(e) => { this.onSearchType(e) }} onBlur={() => this.onBlurTypeSelect()}
                 optionFilterProp="children" filterOption={(input, option) =>
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 180 }} className="mb-20">
@@ -262,14 +409,14 @@ export default class Alarms extends Component {
             </Col>
             <Col>
               <span>alarm level: </span>
-              <Select value={this.state.alarm_level} onChange={(val) => { this.changeSelLevelVal(val) }} showSearch allowClear
+              <Select value={this.state.alarm_level} onChange={(val) => { this.changeSelLevelVal(val) }} showSearch allowClear={true}
                 onSearch={(e) => { this.onSearchLevel(e) }} onBlur={() => this.onBlurLevelSelect()}
                 optionFilterProp="children" filterOption={(input, option) =>
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 180 }} className="mb-20">
                 {
                   this.state.alarmLevelOptionsFilter.map((item, index) => {
                     return (
-                      <Option value={item} key={index}>{item}</Option>
+                      <Option value={item.value} key={index}>{item.key}</Option>
                     )
                   })
                 }
@@ -280,8 +427,12 @@ export default class Alarms extends Component {
               <Button type="primary" onClick={() => this.handleSearch()}>Search</Button>
             </Col>
           </Row>
-          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={this.state.pagination} loading={this.state.loadingHistory} scroll={{ x: '100%' }} />
+          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loadingHistory} scroll={{ x: '100%' }} />
         </Card>
+        <Modal title="Abnormal Root Cause Analysis" style={{maxWidth: "80vw"}} bodyStyle={{overflowY: "auto",height: "80vh", background: '#f1f1f1'}} width="80vw" okButtonProps={{ style: { display: 'none' } }} 
+         destroyOnClose='true' visible={this.state.isModalVisible} maskClosable = {false} centered='true' onCancel={() => this.handleCancel()}>
+          <MetricChart metric_name={this.state.metric_name} host={this.state.host} start_time={this.state.start_time} end_time={this.state.end_time}/>
+        </Modal>
       </div>
     )
   }

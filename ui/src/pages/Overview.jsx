@@ -12,7 +12,6 @@ import SystemDiskChart from '../components/Overview/SystemDiskChart';
 import SystemCpuChart from '../components/Overview/SystemCpuChart';
 
 const endTime = (new Date()).getTime();
-// const startTime = endTime - 24 * 60 * 60 * 1000//前一天
 const startTime = endTime - 60 * 60 * 1000//前一个小时
 export default class Overview1 extends Component {
   constructor(props) {

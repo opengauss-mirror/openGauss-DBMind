@@ -3,7 +3,7 @@ import { Card, Row, Col, DatePicker, Table, Button, message, Select } from 'antd
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTime, formatTableTitle, formatTimestamp } from '../../../utils/function';
-import { getSelfHealingRecordsInterface } from '../../../api/autonormousMangemant';
+import { getSelfHealingRecordsInterface, getSelfHealingRecordsInterfaceCount} from '../../../api/autonormousMangemant';
 
 const { Option } = Select;
 export default class SelfhealingRecordsTable extends Component {
@@ -12,10 +12,9 @@ export default class SelfhealingRecordsTable extends Component {
     this.state = {
       dataSource: [],
       columns: [],
-      pagination: {
-        total: 0,
-        defaultCurrent: 1
-      },
+      pageSize: 10,
+      current: 1,
+      total: 0,
       loading: false,
       actionOptionsFilter: [],
       successOptionsFilter: [{
@@ -46,11 +45,13 @@ export default class SelfhealingRecordsTable extends Component {
     }
     return newArr
   }
-  async getSelfHealingRecordsData () {
+  async getSelfHealingRecordsData (pageParams) {
     let params = {
       action: this.state.action === '' ? null : this.state.action,
       success: this.state.success === '' ? null : this.state.success,
       min_occurrence: this.state.min_occurrence === '' ? null : this.state.min_occurrence,
+      current: pageParams ? pageParams.current : this.state.current,
+      pagesize:pageParams ? pageParams.pagesize : this.state.pageSize
     }
     this.setState({ loading: true });
     const { success, data, msg } = await getSelfHealingRecordsInterface(params)
@@ -98,10 +99,8 @@ export default class SelfhealingRecordsTable extends Component {
           loading: false,
           dataSource: res,
           columns: tableHeader,
-          pagination: {
-            total: res.length,
-            defaultCurrent: 1
-          }
+          pageSize: this.state.pageSize,
+          current: this.state.current
         }))
       } else {
         this.setState({
@@ -112,6 +111,22 @@ export default class SelfhealingRecordsTable extends Component {
       }
     } else {
       this.setState({loading: false})
+      message.error(msg)
+    }
+  }
+  async getSelfHealingRecordsDataCount () {
+    let params = {
+      action: this.state.action === '' ? null : this.state.action,
+      success: this.state.success === '' ? null : this.state.success,
+      min_occurrence: this.state.min_occurrence === '' ? null : this.state.min_occurrence,
+      instance:null
+    }
+    const { success, data, msg } = await getSelfHealingRecordsInterfaceCount(params)
+    if (success) {
+      this.setState(() => ({
+        total: data
+      }))
+    } else {
       message.error(msg)
     }
   }
@@ -148,6 +163,29 @@ export default class SelfhealingRecordsTable extends Component {
       this.setState({ min_occurrence: ''})
     }
   }
+  // 回调函数，切换下一页
+  changePage(current,pageSize){
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.setState({
+      current: current,
+    });
+    this.getSelfHealingRecordsData(pageParams);
+  }
+    // 回调函数,每页显示多少条
+  changePageSize(pageSize,current){
+    // 将当前改变的每页条数存到state中
+    this.setState({
+      pageSize: pageSize
+    });
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.getSelfHealingRecordsData(pageParams);
+  }
   handleResize = index => (e, { size }) => {
     this.setState(({ columns }) => {
       const nextColumns = [...columns];
@@ -159,7 +197,9 @@ export default class SelfhealingRecordsTable extends Component {
     });
   };
   handleSearch () {
-    this.getSelfHealingRecordsData()
+    this.getSelfHealingRecordsData().then(() => {
+      this.getSelfHealingRecordsDataCount()
+    })
   }
   handleRefresh(){
     this.setState({
@@ -168,12 +208,19 @@ export default class SelfhealingRecordsTable extends Component {
       min_occurrence: '',
       timekey:new Date(),
       group: true,
+      pageSize: 10,
+      current: 1,
     },()=>{
-      this.getSelfHealingRecordsData()
+      this.getSelfHealingRecordsData().then(() => {
+        this.getSelfHealingRecordsDataCount()
+      })
     })
   }
   componentDidMount () {
-    this.getSelfHealingRecordsData()
+    this.getSelfHealingRecordsData().then(() => {
+      this.getSelfHealingRecordsDataCount()
+    })
+    
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -183,13 +230,23 @@ export default class SelfhealingRecordsTable extends Component {
         onResize: this.handleResize(index)
       })
     }))
+    const paginationProps = {
+      showSizeChanger: true,
+      showQuickJumper: true,
+      showTotal: () => `Total ${this.state.total} items`,
+      pageSize: this.state.pageSize,
+      current: this.state.current,
+      total: this.state.total,
+      onShowSizeChange: (current,pageSize) => this.changePageSize(pageSize,current),
+      onChange: (current,pageSize) => this.changePage(current,pageSize)
+    };
     return (
       <div>
         <Card title="Self-healing Records" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />} className="mb-20">
           <Row style={{ marginBottom: 20 }}>
             <Col span={4}>
               <span>action: </span>
-              <Select value={this.state.action} name="action" onChange={(ev) => { this.changeSelActionVal(ev) }} onSearch={(e) => { this.onSearch(e) }} onBlur={() => this.onBlurSelect()} showSearch allowClear
+              <Select value={this.state.action} name="action" onChange={(ev) => { this.changeSelActionVal(ev) }} onSearch={(e) => { this.onSearch(e) }} onBlur={() => this.onBlurSelect()} showSearch allowClear={true}
                 optionFilterProp="children" filterOption={(input, option) =>
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 180 }} className="mb-20">
                 {
@@ -203,7 +260,7 @@ export default class SelfhealingRecordsTable extends Component {
             </Col>
             <Col span={4}>
               <span>success: </span>
-              <Select value={this.state.success} name="success" onChange={(val) => { this.changeSelSuccessVal(val) }} allowClear
+              <Select value={this.state.success} name="success" onChange={(val) => { this.changeSelSuccessVal(val) }} allowClear={true}
                 style={{ width: 180 }} className="mb-20">
                 {
                   this.state.successOptionsFilter.map((item) => {
@@ -222,7 +279,7 @@ export default class SelfhealingRecordsTable extends Component {
               <Button type="primary" onClick={() => this.handleSearch()}>Search</Button>
             </Col>
           </Row>
-          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={this.state.pagination} loading={this.state.loading} scroll={{ x: '100%' }} />
+          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loading} scroll={{ x: '100%' }} />
         </Card>
       </div>
     )

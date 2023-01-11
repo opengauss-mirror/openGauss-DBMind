@@ -3,7 +3,7 @@ import { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, mess
 import moment from 'moment';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import { getRecentSlowQueryInterface } from '../../../api/autonormousMangemant';
+import { getRecentSlowQueryInterface, getRecentSlowQueryInterfaceCount} from '../../../api/autonormousMangemant';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 
 const { RangePicker } = DatePicker;
@@ -13,10 +13,9 @@ export default class SlowTopQuery extends Component {
     this.state = {
       dataSource: [],
       columns: [],
-      pagination: {
-        total: 0,
-        defaultCurrent: 1
-      },
+      pageSize: 10,
+      current: 1,
+      total: 0,
       recentSearchForm: {
         query: '',
         end: '',
@@ -27,6 +26,10 @@ export default class SlowTopQuery extends Component {
       startTime: '',
       endTime: '',
       checkedGroup: true,
+      pageParams:{
+        current:1,
+        pagesize:10
+      }
     }
   }
   components = {
@@ -43,14 +46,18 @@ export default class SlowTopQuery extends Component {
       end: this.state.endTime,
       query: encodeURIComponent(newData.query),
       limit: newData.limit,
-      group: newData.group
+      group: newData.group,
+      current: this.state.current,
+      pagesize:this.state.pageSize
     }
     for (let item in paramsVal) {
       if (paramsVal[item] === '') {
         paramsVal[item] = null
       }
     }
-    this.getRecentSlowQuery(paramsVal)
+    this.getRecentSlowQuery(paramsVal).then(() => {
+      this.getRecentSlowQueryCount(values)
+    })
   }
   async getRecentSlowQuery (params) {
     let paramData = {
@@ -58,7 +65,9 @@ export default class SlowTopQuery extends Component {
       end: params.end ? params.end : null,
       query: params.query ? params.query : null,
       limit: params.limit ? params.limit : null,
-      group: params.group
+      group: params.group,
+      current: params.current ? params.current : this.state.current,
+      pagesize:params.pagesize ? params.pagesize : this.state.pageSize
     }
     this.setState({ loadingRecent: true })
     const { success, data, msg } = await getRecentSlowQueryInterface(paramData)
@@ -99,10 +108,8 @@ export default class SlowTopQuery extends Component {
           loadingRecent: false,
           dataSource: res,
           columns: tableHeader,
-          pagination: {
-            total: res.length,
-            defaultCurrent: 1
-          }
+          pageSize: this.state.pageSize,
+          current: this.state.current
         }))
       } else {
         this.setState({
@@ -120,6 +127,26 @@ export default class SlowTopQuery extends Component {
       message.error(msg)
     }
   }
+  async getRecentSlowQueryCount (params) {
+    let newData = Object.assign(this.recentFormRef.getFieldsValue(), {
+      group: this.state.checkedGroup,
+    })
+    let paramData = {
+      start: (params && params.start) ? params.start : null,
+      end: (params && params.end) ? params.end : null,
+      query: (params && params.query) ? params.query : null,
+      limit: (params && params.limit) ? params.limit : null,
+      group: newData.group
+    }
+    const { success, data, msg } = await getRecentSlowQueryInterfaceCount(paramData)
+    if (success) {
+      this.setState(() => ({
+        total: data
+      }))
+    } else {
+      message.error(msg)
+    }
+  }
   // 时间框
   onChangeTimes = (dates, dateStrings) => {
     this.setState(() => ({
@@ -129,6 +156,45 @@ export default class SlowTopQuery extends Component {
   }
   onChangeCheckbox (e) {
     this.setState({checkedGroup: e.target.checked})
+  }
+  // 回调函数，切换下一页
+  changePage(current,pageSize){
+    let newData = Object.assign(this.recentFormRef.getFieldsValue(), {
+      group: this.state.checkedGroup,
+    })
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+      start: this.state.startTime,
+      end: this.state.endTime,
+      query: encodeURIComponent(newData.query),
+      limit: newData.limit,
+      group: newData.group,
+    };
+    this.setState({
+      current: current,
+    });
+    this.getRecentSlowQuery(pageParams);
+  }
+    // 回调函数,每页显示多少条
+  changePageSize(pageSize,current){
+    let newData = Object.assign(this.recentFormRef.getFieldsValue(), {
+      group: this.state.checkedGroup,
+    })
+    // 将当前改变的每页条数存到state中
+    this.setState({
+      pageSize: pageSize
+    });
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+      start: this.state.startTime,
+      end: this.state.endTime,
+      query: encodeURIComponent(newData.query),
+      limit: newData.limit,
+      group: newData.group
+    };
+    this.getRecentSlowQuery(pageParams);
   }
   handleResize = index => (e, { size }) => {
     this.setState(({ columns }) => {
@@ -141,13 +207,23 @@ export default class SlowTopQuery extends Component {
     });
   }
   handleRefresh(){
-    this.setState({checkedGroup: true,},()=>{
+    this.setState({checkedGroup: true,pageSize: 10,
+      current: 1,},()=>{
       this.recentFormRef.resetFields()
-      this.getRecentSlowQuery(this.state.recentSearchForm)
+      this.getRecentSlowQuery({
+        current: 1,
+        pagesize: 10,
+        ...this.state.recentSearchForm
+      }
+      ).then(() => {
+        this.getRecentSlowQueryCount()
+      })
     }) 
   }
   componentDidMount () {
-    this.getRecentSlowQuery(this.state.recentSearchForm)
+    this.getRecentSlowQuery(this.state.recentSearchForm).then(() => {
+      this.getRecentSlowQueryCount()
+    })
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -157,6 +233,16 @@ export default class SlowTopQuery extends Component {
         onResize: this.handleResize(index)
       })
     }))
+    const paginationProps = {
+      showSizeChanger: true,
+      showQuickJumper: true,
+      showTotal: () => `Total ${this.state.total} items`,
+      pageSize: this.state.pageSize,
+      current: this.state.current,
+      total: this.state.total,
+      onShowSizeChange: (current,pageSize) => this.changePageSize(pageSize,current),
+      onChange: (current,pageSize) => this.changePage(current,pageSize)
+    };
     return (
       <div>
         <Card title="Recent Slow Query" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />} className="mb-20">
@@ -171,7 +257,7 @@ export default class SlowTopQuery extends Component {
                 }}
               >
                 <Form.Item name="query" label="query">
-                  <Input placeholder="Input query" allowClear />
+                  <Input placeholder="Input query" allowClear={true} />
                 </Form.Item>
                 <Form.Item name="time" label="time">
                   <RangePicker
@@ -197,7 +283,7 @@ export default class SlowTopQuery extends Component {
               </Form>
             </Col>
           </Row>
-          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={this.state.pagination} loading={this.state.loadingRecent} scroll={{ x: '100%' }} />
+          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loadingRecent} scroll={{ x: '100%' }} />
         </Card>
       </div>
     )

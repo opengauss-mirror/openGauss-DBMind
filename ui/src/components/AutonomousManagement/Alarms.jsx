@@ -1,4 +1,4 @@
-import React, {Component} from 'react';
+import React, { Component } from 'react';
 import SelfhealingRecordsTable from './AlarmsModules/SelfhealingRecordsTable';
 import HistoryAlarms from './AlarmsModules/HistoryAlarms';
 import FutureAlarms from './AlarmsModules/FutureAlarms';

@@ -1,5 +1,5 @@
-import React, {Component} from 'react';
-import {Card, Table} from 'antd';
+import React, { Component } from 'react';
+import { Card, Table } from 'antd';
 import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
 

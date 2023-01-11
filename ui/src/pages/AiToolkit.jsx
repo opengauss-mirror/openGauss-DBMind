@@ -1,11 +1,11 @@
-import React, {Component} from 'react';
+import React, { Component } from 'react';
 import IndexAdvisor from '../components/AiTookit/IndexAdvisor.jsx';
 import QueryTuning from '../components/AiTookit/QueryTuning.jsx';
 import Inteligent from '../components/AiTookit/InteligentSqlAnalysis';
-import {AreaChartOutlined, BarChartOutlined, BarsOutlined} from '@ant-design/icons';
+import { AreaChartOutlined, BarChartOutlined, BarsOutlined } from '@ant-design/icons';
 import '../assets/css/common.css'
 import '../assets/css/main/aiToolkit.css';
-import {Tabs} from 'antd';
+import { Tabs } from 'antd';
 
 const { TabPane } = Tabs;
 

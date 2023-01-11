@@ -1,8 +1,9 @@
-import React, {Component} from 'react';
-import {Card, Table} from 'antd';
+import React, { Component } from 'react';
+import { Card, Table, message } from 'antd';
 import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import {formatTableTitle} from '../../../utils/function';
+import { formatTableTitle } from '../../../utils/function';
+import { getPositiveSql } from '../../../api/databaseOptimaztion'
 
 export default class PositiveSql extends Component {
   static propTypes={
@@ -13,10 +14,9 @@ export default class PositiveSql extends Component {
     this.state = {
       dataSource: [],
       columns: [],
-      pagination: {
-        total: 0,
-        defaultCurrent: 1
-      },
+      pageSize: 10,
+      current: 1,
+      total: 0,
       loading: false
     }
   }
@@ -25,7 +25,7 @@ export default class PositiveSql extends Component {
       cell: ResizeableTitle,
     },
   };
-  handleTableData (header, rows) {
+  handleTableData (header, rows, total) {
     this.setState({loading: true})
     if (header.length > 0) {
       let historyColumObj = {}
@@ -53,12 +53,42 @@ export default class PositiveSql extends Component {
         loading: false,
         dataSource: res,
         columns: tableHeader,
-        pagination: {
-          total: res.length,
-          defaultCurrent: 1
-        }
+        pageSize: this.state.pageSize,
+        current: this.state.current,
+        total: total
       }))
     }
+  }
+  async getPositiveSql (params) {
+    const { success, data, msg } = await getPositiveSql(params)
+    if (success) {
+      this.handleTableData(data.header, data.rows, this.state.total);
+    } else {
+      message.error(msg)
+    }
+  }
+  // 回调函数，切换下一页
+  changePage(current,pageSize){
+    let params = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.setState({
+      current: current,
+    });
+    this.getPositiveSql(params);
+  }
+    // 回调函数,每页显示多少条
+  changePageSize(pageSize,current){
+    // 将当前改变的每页条数存到state中
+    this.setState({
+      pageSize: pageSize
+    });
+    let params = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.getPositiveSql(params);
   }
   handleResize = index => (e, { size }) => {
     this.setState(({ columns }) => {
@@ -71,7 +101,7 @@ export default class PositiveSql extends Component {
     });
   };
   UNSAFE_componentWillReceiveProps (nextProps) {
-    this.handleTableData(nextProps.positiveSQL.header, nextProps.positiveSQL.rows)
+    this.handleTableData(nextProps.positiveSQL.header, nextProps.positiveSQL.rows, nextProps.positiveSQL.total)
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -81,10 +111,20 @@ export default class PositiveSql extends Component {
         onResize: this.handleResize(index)
       })
     }))
+    const paginationProps = {
+      showSizeChanger: true,
+      showQuickJumper: true,
+      showTotal: () => `Total ${this.state.total} items`,
+      pageSize: this.state.pageSize,
+      current: this.state.current,
+      total: this.state.total,
+      onShowSizeChange: (current,pageSize) => this.changePageSize(pageSize,current),
+      onChange: (current,pageSize) => this.changePage(current,pageSize)
+    };
     return (
       <div className="mb-20">
         <Card title="Positive SQL" className="mb-20">
-          <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={this.state.pagination} loading={this.state.loading} scroll={{ x: '100%'}}/>
+          <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
         </Card>
       </div>
     )

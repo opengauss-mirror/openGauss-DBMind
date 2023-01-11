@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { Button, Card, Checkbox, Col, DatePicker, message, Row, Select, Table } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import { getFutureAlarmsInterface, getSearchMetricInterface } from '../../../api/autonormousMangemant';
+import { getFutureAlarmsInterface, getFutureAlarmsInterfaceCount, getSearchMetricInterface } from '../../../api/autonormousMangemant';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 
 const { Option } = Select;
@@ -12,20 +12,19 @@ export default class Alarms extends Component {
     this.state = {
       futureTableSource: [],
       columns: [],
-      futurePagination: {
-        total: 0,
-        defaultCurrent: 1
-      },
+      pageSize: 10,
+      current: 1,
+      total: 0,
       metric_name: '',
       metricnewname: '',
-      instance: '',
-      instancenewname: '',
+      host: '',
+      hostnewname: '',
       start: '',
       group: true,
       options: [],
       loadingFuture: false,
-      instanceOptionsFilter: [],
-      futerInstanceOptionFilter: [],
+      hostOptionsFilter: [],
+      futerHostOptionFilter: [],
       timekey:''
     }
   }
@@ -43,12 +42,14 @@ export default class Alarms extends Component {
       message.error(msg)
     }
   }
-  async getFutureAlarms () {
+  async getFutureAlarms (pageParams) {
     let params = {
       metric_name: this.state.metric_name === '' ? null : this.state.metric_name,
-      instance: this.state.instance === '' ? null : this.state.instance,
+      instance: this.state.host === '' ? null : this.state.host,
       start: this.state.start === '' ? null : this.state.start,
       group: this.state.group,
+      current: pageParams ? pageParams.current : this.state.current,
+      pagesize:pageParams ? pageParams.pagesize : this.state.pageSize
     }
     this.setState({ loadingFuture: true });
     const { success, data, msg } = await getFutureAlarmsInterface(params)
@@ -56,7 +57,7 @@ export default class Alarms extends Component {
       if (data.header.length > 0) {
         let historyColumObj = {}
         let tableHeader = []
-        let instanceOptionsFilterArr = []
+        let hostOptionsFilterArr = []
         data.header.forEach(item => {
           historyColumObj = {
             title: formatTableTitle(item),
@@ -87,18 +88,16 @@ export default class Alarms extends Component {
           res.push(tabledata)
         });
         res.forEach((item) => {
-          instanceOptionsFilterArr.push(item.instance.replace(/(\s*$)/g, ''))
+          hostOptionsFilterArr.push(item.instance.replace(/(\s*$)/g, ''))
         })
-        let instanceOptions = this.handleDataDeduplicate(instanceOptionsFilterArr)
+        let hostOptions = this.handleDataDeduplicate(hostOptionsFilterArr)
         this.setState(() => ({
-          futerInstanceOptionFilter: instanceOptions,
+          futerHostOptionFilter: hostOptions,
           loadingFuture: false,
           futureTableSource: res,
           columns: tableHeader,
-          futurePagination: {
-            total: res.length,
-            defaultCurrent: 1
-          }
+          pageSize: this.state.pageSize,
+          current: this.state.current
         }))
       } else {
         this.setState({
@@ -116,6 +115,22 @@ export default class Alarms extends Component {
       message.error(msg)
     }
   }
+  async getFutureAlarmsCount () {
+    let params = {
+      metric_name: this.state.metric_name === '' ? null : this.state.metric_name,
+      instance: this.state.host === '' ? null : this.state.host,
+      start: this.state.start === '' ? null : this.state.start,
+      group: this.state.group
+    }
+    const { success, data, msg } = await getFutureAlarmsInterfaceCount(params)
+    if (success) {
+      this.setState(() => ({
+        total: data
+      }))
+    } else {
+      message.error(msg)
+    }
+  }
   handleDataDeduplicate = (value) => {
     let newArr = []
     for (let i = 0; i < value.length; i++) {
@@ -126,6 +141,29 @@ export default class Alarms extends Component {
     return newArr
   }
   onSearch () { }
+  // 回调函数，切换下一页
+  changePage(current,pageSize){
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.setState({
+      current: current,
+    });
+    this.getFutureAlarms(pageParams);
+  }
+    // 回调函数,每页显示多少条
+  changePageSize(pageSize,current){
+    // 将当前改变的每页条数存到state中
+    this.setState({
+      pageSize: pageSize
+    });
+    let pageParams = {
+      current: current,
+      pagesize: pageSize,
+    };
+    this.getFutureAlarms(pageParams);
+  }
   handleResize = index => (e, { size }) => {
     this.setState(({ columns }) => {
       const nextColumns = [...columns];
@@ -157,23 +195,23 @@ export default class Alarms extends Component {
       })
     }
   }
-  // instance
+  // host
   onChange2 (e) {
-    this.setState({instance: e})
+    this.setState({host: e})
   }
   onSearch2 = (value) => {
     if (value) {
       this.setState({
-        instance: value,
-        instancenewname: value
+        host: value,
+        hostnewname: value
       })
     }
   };
   onBlurSelect2 = () => {
-    const value = this.state.instancenewname
+    const value = this.state.hostnewname
     if (value) {
       this.onChange2(value)
-      this.setState({instancenewname: ''})
+      this.setState({hostnewname: ''})
     }
   }
   // start
@@ -193,22 +231,30 @@ export default class Alarms extends Component {
     })
   }
   handleSearch () {
-    this.getFutureAlarms()
+    this.getFutureAlarms().then(() => {
+      this.getFutureAlarmsCount()
+    })
   }
   handleRefresh(){
     this.setState({
       metric_name: '',
-      instance: '',
+      host: '',
       start: '',
       timekey:new Date(),
       group: true,
+      pageSize: 10,
+      current: 1,
     },()=>{
-      this.getFutureAlarms()
+      this.getFutureAlarms().then(() => {
+        this.getFutureAlarmsCount()
+      })
     })
   }
   componentDidMount () {
     this.getSearchMetric()
-    this.getFutureAlarms()
+    this.getFutureAlarms().then(() => {
+      this.getFutureAlarmsCount()
+    })
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -218,13 +264,23 @@ export default class Alarms extends Component {
         onResize: this.handleResize(index)
       })
     }))
+    const paginationProps = {
+      showSizeChanger: true,
+      showQuickJumper: true,
+      showTotal: () => `Total ${this.state.total} items`,
+      pageSize: this.state.pageSize,
+      current: this.state.current,
+      total: this.state.total,
+      onShowSizeChange: (current,pageSize) => this.changePageSize(pageSize,current),
+      onChange: (current,pageSize) => this.changePage(current,pageSize)
+    };
     return (
       <div>
         <Card title="Future Alarms" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />}>
           <Row style={{ marginBottom: 20, width: '60%' }} justify="space-around">
             <Col>
               <span>metric name: </span>
-              <Select placeholder="search metric" value={this.state.metric_name} showSearch allowClear onChange={(ev) => { this.onChange1(ev) }}
+              <Select placeholder="search metric" value={this.state.metric_name} showSearch allowClear={true} onChange={(ev) => { this.onChange1(ev) }}
                 onSearch={(e) => { this.onSearch1(e) }} onBlur={() => this.onBlurSelect1()}
                 optionFilterProp="children" filterOption={(input, option) =>
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
@@ -239,13 +295,13 @@ export default class Alarms extends Component {
               </Select>
             </Col>
             <Col>
-              <span>instance: </span>
-              <Select showSearch allowClear value={this.state.instance} onChange={(ev) => { this.onChange2(ev) }}
+              <span>host: </span>
+              <Select showSearch allowClear={true} value={this.state.host} onChange={(ev) => { this.onChange2(ev) }}
                 onSearch={(e) => { this.onSearch2(e) }} onBlur={() => this.onBlurSelect2()} optionFilterProp="children" filterOption={(input, option) =>
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
                 } style={{ width: 200 }}>
                 {
-                  this.state.futerInstanceOptionFilter.map((item, index) => {
+                  this.state.futerHostOptionFilter.map((item, index) => {
                     return (
                       <Option value={item} key={index}>{item}</Option>
                     )
@@ -265,7 +321,7 @@ export default class Alarms extends Component {
               <Button type="primary" onClick={() => this.handleSearch()}>Search</Button>
             </Col>
           </Row>
-          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.futureTableSource} rowKey={record => record.key} pagination={this.state.futurePagination} loading={this.state.loadingFuture} scroll={{ x: '100%' }} />
+          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.futureTableSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loadingFuture} scroll={{ x: '100%' }} />
         </Card>
       </div>
     )

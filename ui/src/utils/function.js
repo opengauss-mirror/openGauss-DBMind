@@ -32,8 +32,6 @@ const formatTableTitle = function (title) {
 const formatSecond = function (second) {
   const days = Math.floor(second / 86400);
   const hours = Math.floor((second % 86400) / 3600);
-  // const minutes = Math.floor(((second % 86400) % 3600) / 60);
-  // const seconds = Math.floor(((second % 86400) % 3600) % 60);
   return days + 'd' + hours + 'h';
 }
 // 4.表格时间戳转换

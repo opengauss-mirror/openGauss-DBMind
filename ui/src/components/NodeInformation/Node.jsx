@@ -1,5 +1,5 @@
-import React, {Component} from 'react';
-import {Col, Row} from 'antd';
+import React, { Component } from 'react';
+import { Col, Row } from 'antd';
 import OpengaussExporters from './NodeModules/OpengaussExporters';
 import Alert from './NodeModules/Alert';
 import Instances from './NodeModules/Instance';
