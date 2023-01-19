@@ -36,19 +36,27 @@ def truncate_metric_regular_inspections():
 
 
 def count_metric_regular_inspections(instance=None, inspection_type=None):
-    return select_metric_regular_inspections(inspection_type, instance=instance).count()
+    return select_metric_regular_inspections(instance=instance, inspection_type=inspection_type).count()
 
 
-def select_metric_regular_inspections(instance=None, inspection_type=None, offset=None, limit=None):
+def select_metric_regular_inspections(instance=None, inspection_type=None, offset=None, start=None, end=None, limit=None):
     with get_session() as session:
-        result = session.query(RegularInspection)
+        result = session.query(RegularInspection.instance, 
+                               RegularInspection.report, 
+                               RegularInspection.start, 
+                               RegularInspection.end)
         if inspection_type is not None:
             result = result.filter(RegularInspection.inspection_type == inspection_type)
         if instance is not None:
             result = result.filter(RegularInspection.instance == instance)
+        if start is not None:
+            result = result.filter(RegularInspection.start >= start)
+        if end is not None:
+            result = result.filter(RegularInspection.end <= end)
         result = result.order_by(desc(RegularInspection.id))
         if offset is not None:
             result = result.offset(offset)
         if limit is not None:
             result = result.limit(limit)
         return result
+

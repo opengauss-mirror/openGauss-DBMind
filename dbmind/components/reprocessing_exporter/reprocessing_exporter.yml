@@ -1256,3 +1256,40 @@ gaussdb_state_time:
   ttl: 10
   timeout: 9
 
+
+gaussdb_active_connection:
+  desc: sum of active connection
+  promql: |
+    sum (pg_stat_activity_count{state='active'}) by (job, from_instance) 
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 10
+  timeout: 5
+
+
+gaussdb_total_connection:
+  desc: sum of total connection
+  promql: |
+    sum (pg_stat_activity_count) by (job, from_instance) 
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 10
+  timeout: 5
+
+

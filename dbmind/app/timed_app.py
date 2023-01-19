@@ -83,6 +83,7 @@ updating_statistic_interval = 600
 updating_param_interval = 10 * 60
 daily_inspection_interval = 24 * 60 * 60
 weekly_inspection_interval = 7 * daily_inspection_interval
+monthly_inspection_interval = 30 * daily_inspection_interval
 
 templates = defaultdict(dict)
 
@@ -494,31 +495,59 @@ def update_statistical_metrics():
 
 @timer(seconds=daily_inspection_interval)
 def daily_inspection():
-    logging.info('Starting to inspect.')
-    try:
-        results = []
-        end = datetime.now()
-        start = end - timedelta(seconds=daily_inspection_interval)
-        for instance, rpc in global_vars.agent_proxy:
-            regular_inspector = regular_inspection.Inspection(
-                instance=instance, start=start, end=end)
-            report = regular_inspector.inspect()
-            conclusion = regular_inspector.conclusion()
-            results.append({'inspection_type': 'daily check',
-                            'start': int(start.timestamp() * 1000),
-                            'end': int(end.timestamp()) * 1000,
-                            'report': report,
-                            'conclusion': conclusion})
-            dai.save_regular_inspection_results(instance, results)
-        global_vars.self_driving_records.put(
-            {
-                'catalog': 'diagnosis',
-                'msg': 'Updated daily inspection report.',
-                'time': int(time.time() * 1000)
-            }
-        )
-    except Exception as e:
-        logging.error(e, exc_info=True)
+    results = []
+    end = datetime.now()
+    start = end - timedelta(seconds=daily_inspection_interval)
+    for instance, rpc in global_vars.agent_proxy:
+        inspector = regular_inspection.DailyInspection(instance, start, end) 
+        report = inspector()
+        results.append({'instance': instance,
+                        'inspection_type': 'daily_check',
+                        'start': int(start.timestamp() * 1000),
+                        'end': int(end.timestamp()) * 1000,
+                        'report': report,
+                        'conclusion': ''}) 
+    dai.save_regular_inspection_results(results) 
+    global_vars.self_driving_records.put(
+        {
+            'catalog': 'diagnosis',
+            'msg': 'Updated daily inspection report.',
+            'time': int(time.time() * 1000)
+        }
+    )
+
+@timer(seconds=weekly_inspection_interval)
+def weekly_inspection():
+    results = []
+    end = datetime.now()
+    start = end - timedelta(seconds=weekly_inspection_interval)
+    for instance, rpc in global_vars.agent_proxy:
+        inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=7)
+        report = inspector()
+        results.append({'instance': instance,
+                        'inspection_type': 'weekly_check',
+                        'start': int(start.timestamp() * 1000),
+                        'end': int(end.timestamp()) * 1000,
+                        'report': report,
+                        'conclusion': ''})
+    dai.save_regular_inspection_results(results)
+
+
+@timer(seconds=monthly_inspection_interval)
+def monthly_inspection():
+    results = []
+    end = datetime.now()
+    start = end - timedelta(seconds=monthly_inspection_interval)
+    for instance, rpc in global_vars.agent_proxy:
+        inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=30)
+        report = inspector()
+        results.append({'instance': instance,
+                        'inspection_type': 'monthly_check',
+                        'start': int(start.timestamp() * 1000),
+                        'end': int(end.timestamp()) * 1000,
+                        'report': report,
+                        'conclusion': ''})
+    dai.save_regular_inspection_results(results)
 
 
 @timer(seconds=updating_param_interval)

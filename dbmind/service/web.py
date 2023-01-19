@@ -1158,14 +1158,14 @@ def get_metric_statistic_count(instance, metric_name):
 def get_regular_inspections(inspection_type):
     return sqlalchemy_query_jsonify(dao.regular_inspections.select_metric_regular_inspections(
         instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT), 
-        inspection_type='daily check', limit=1),
+        inspection_type=inspection_type, limit=1),
         field_names=['instance', 'report', 'start', 'end'])
 
 
 def get_regular_inspections_count(inspection_type):
     return dao.regular_inspections.count_metric_regular_inspections(
         instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
-        inspection_type='daily check')
+        inspection_type=inspection_type)
 
 
 def get_correlation_result(metric_name, host, start_time, end_time, corr_threshold=0.3, topk=10):

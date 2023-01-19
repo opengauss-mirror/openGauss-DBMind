@@ -49,8 +49,8 @@ def get_batch_insert_history_alarms_functions():
 
 
 def select_history_alarm(instance=None, alarm_type=None, alarm_level=None, alarm_content=None,
-                         start_occurrence_time=None,
-                         end_occurrence_time=None, offset=None, limit=None, group: bool = False):
+                         start_at=None,
+                         end_at=None, offset=None, limit=None, group: bool = False):
     with get_session() as session:
         if group:
             result = session.query(
@@ -68,10 +68,10 @@ def select_history_alarm(instance=None, alarm_type=None, alarm_level=None, alarm
             result = result.filter(HistoryAlarms.alarm_level == alarm_level)
         if alarm_content is not None:
             result = result.filter(HistoryAlarms.alarm_content == alarm_content)
-        if start_occurrence_time is not None:
-            result = result.filter(HistoryAlarms.start_at >= start_occurrence_time)
-        if end_occurrence_time is not None:
-            result = result.filter(HistoryAlarms.end_at <= end_occurrence_time)
+        if start_at is not None:
+            result = result.filter(HistoryAlarms.start_at >= start_at)
+        if end_at is not None:
+            result = result.filter(HistoryAlarms.end_at <= end_at)
         if group:
             return result.group_by(
                 HistoryAlarms.instance,
@@ -151,7 +151,7 @@ def get_batch_insert_future_alarms_functions():
     return _Inner()
 
 
-def select_future_alarm(instance=None, metric_name=None, start_at=None, offset=None, limit=None, group: bool = False):
+def select_future_alarm(instance=None, metric_name=None, start_at=None, end_at=None, offset=None, limit=None, group: bool = False):
     with get_session() as session:
         if group:
             result = session.query(
@@ -167,6 +167,8 @@ def select_future_alarm(instance=None, metric_name=None, start_at=None, offset=N
             result = result.filter(FutureAlarms.instance == instance)
         if start_at is not None:
             result = result.filter(FutureAlarms.start_at >= start_at)
+        if end_at is not None:
+            result = result.filter(FutureAlarms.end_at <= end_at)
 
         if group:
             return result.group_by(FutureAlarms.alarm_content, FutureAlarms.instance)
