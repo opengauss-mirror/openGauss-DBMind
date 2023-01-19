@@ -177,6 +177,8 @@ class AgentProxy:
         return rpc.call(funcname, *args, **kwargs)
 
     def __iter__(self):
+        self._try_to_finalize()
+
         return iter(self._agents.items())
 
     def context(self, instance_address):

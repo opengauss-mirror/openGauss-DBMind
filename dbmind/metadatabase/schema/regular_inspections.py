@@ -10,7 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from sqlalchemy import Column, String, Integer, BigInteger, Index, TEXT
+from sqlalchemy import Column, String, Integer, BigInteger, Index, TEXT, JSON
 
 from .. import Base
 
@@ -20,7 +20,7 @@ class RegularInspection(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     instance = Column(String(24), nullable=False)
     inspection_type = Column(String(64), nullable=False)
-    report = Column(TEXT)
+    report = Column(JSON)
     conclusion = Column(TEXT)
     start = Column(BigInteger, nullable=False)
     end = Column(BigInteger, nullable=False)

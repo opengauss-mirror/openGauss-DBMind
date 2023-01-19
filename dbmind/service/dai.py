@@ -554,7 +554,7 @@ def save_statistical_metric_records(results):
         dao.statistical_metric.insert_record(**row)
 
 
-def save_regular_inspection_results(instance, results):
+def save_regular_inspection_results(results):
     for row in results:
         logging.debug('[REGULAR INSPECTION] %s', str(row))
-        dao.regular_inspections.insert_regular_inspection(instance=instance, **row)
+        dao.regular_inspections.insert_regular_inspection(**row)
