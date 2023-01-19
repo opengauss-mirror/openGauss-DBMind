@@ -228,7 +228,6 @@ def main(argv):
                         help='set a anomaly detector of the metric'
                              f'{tuple(ANOMALY_DETECTORS.keys())}')
     args = parser.parse_args(argv)
-
     # Initialize
     os.chdir(args.conf)
     init_global_configs(args.conf)

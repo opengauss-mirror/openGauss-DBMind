@@ -12,10 +12,20 @@
 # See the Mulan PSL v2 for more details.
 
 import multiprocessing
+import os
 import random
+from configparser import ConfigParser
+from unittest import mock
 
+from dbmind.common import utils
 from dbmind.common.algorithm import anomaly_detection
+from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
 from dbmind.common.types import Sequence
+from dbmind.components import anomaly_detection as ad_interface
+from dbmind.components.anomaly_detection import main as ad_main
+from dbmind.service import dai
+
+from .conftest import mock_get_metric_sequence
 
 cpus = multiprocessing.cpu_count()
 pool = multiprocessing.Pool(cpus)
@@ -527,3 +537,33 @@ def test_iqr_detector():
     sequence = Sequence([1, 2, 3, 4, 5, 6], [1, 1, 12, 2, 2, 2])
     anomalies = detector.fit_predict(sequence)
     assert anomalies.values == (False, False, True, False, False, False)
+
+
+def mock_configs(*args):
+    configs = ConfigParser()
+    configs.add_section("TSDB")
+    configs.set('TSDB', 'name', 'prometheus'),
+    configs.set('TSDB', 'host', 'xx.xx.xx.100'),
+    configs.set('TSDB', 'port', '1234'),
+    configs.set('TSDB', 'username', 'aaa'),
+    configs.set('TSDB', 'password', 'bbb'),
+    configs.set('TSDB', 'ssl_certfile', ''),
+    configs.set('TSDB', 'ssl_keyfile', ''),
+    configs.set('TSDB', 'ssl_keyfile_password', ''),
+    configs.set('TSDB', 'ssl_ca_file', '')
+    return configs
+
+
+def test_detection_interface(monkeypatch):
+    monkeypatch.setattr(os, 'chdir', mock.MagicMock())
+    monkeypatch.setattr(utils, 'read_simple_config_file', lambda x: dict())
+    monkeypatch.setattr(ad_interface, 'load_sys_configs', mock_configs)
+    monkeypatch.setattr(TsdbClientFactory, 'set_client_info', mock.MagicMock())
+    monkeypatch.setattr(dai, 'get_metric_sequence', mock_get_metric_sequence)
+    args = ['--conf', '/', '--metric', 'os_cpu_usage', '--start-time', '1673942700000',
+            '--end-time', '1673942730000', '--host', 'xx.xx.xx.100:1234']
+    ad_main(['--action', 'overview'] + args)
+    ad_main(['--action', 'plot'] + args + ['--anomaly', 'level_shift'])
+    ad_main(['--action', 'plot'] + args + ['--anomaly', 'seasonal'])
+    ad_main(['--action', 'plot'] + args + ['--anomaly', 'spike'])
+    ad_main(['--action', 'plot'] + args + ['--anomaly', 'volatile_shift'])
