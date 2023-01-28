@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Tabs } from 'antd';
-import { EditOutlined, PieChartOutlined, SlidersOutlined, ReloadOutlined } from '@ant-design/icons';
+import { EditOutlined, PieChartOutlined, SlidersOutlined, ReloadOutlined} from '@ant-design/icons';
 import '../assets/css/common.css';
 import DatabaseTuning from '../components/DatabaseOptimization/DatabaseTuning';
 import IndexTuning from '../components/DatabaseOptimization/IndexTuning';
@@ -20,6 +20,8 @@ export default class DatabaseOptimization extends Component {
       this.IndexTuning.handleRefresh();
     } else if(this.state.paneKey === '3'){
       this.SlowQueryAnalysis.handleRefresh();
+    } else if(this.state.paneKey === '4'){
+      this.RegularInspections.handleRefresh();
     }
 	}
   onChangePane = (key) => {
@@ -29,7 +31,7 @@ export default class DatabaseOptimization extends Component {
   };
   createBarExtraContent = () => {
     return (
-      (this.state.paneKey === '1' || this.state.paneKey === '3') &&
+      (this.state.paneKey === '1' || this.state.paneKey === '3'|| this.state.paneKey === '4') &&
       (<div style={{ padding: '0px 24px' }}>
         {<ReloadOutlined className="more_link" onClick={() => { this.handleOnClick() }} />}
       </div>)
@@ -82,7 +84,7 @@ export default class DatabaseOptimization extends Component {
             }
             key="4"
           >
-            <RegularInspections />
+            <RegularInspections onRef={ node => this.RegularInspections = node }/>
           </TabPane>
         </Tabs>
       </div>
