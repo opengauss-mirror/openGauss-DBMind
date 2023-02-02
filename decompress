@@ -61,7 +61,7 @@ esac
 
 
 echo "Installed successfully."
-+echo \
+echo \
 +"==================================================
 +If Python is not installed in your system,
 + we suggest you download *miniconda* from

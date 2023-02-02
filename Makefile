@@ -44,6 +44,7 @@ tox:
 	$(PYTHON) -m tox
 
 test:
+	$(PTYHON) -m pip install pytest
 	$(PYTHON) -m pytest tests
 
 coverage:
@@ -62,9 +63,9 @@ clean:
 	rm -rf dbmind-installer*.sh
 	rm -rf payload.tar*
 
-package: clean ui dbmind 3rd 
+package: clean ui dbmind 3rd test
 	@echo "Full packaging..."
-	tar --exclude='ui' --exclude='tests' --exclude='Makefile' --exclude='decompress' --exclude='tox.ini' -cf payload.tar *
+	tar --exclude='ui' --exclude='tests' --exclude='Makefile' --exclude='decompress' --exclude='tox.ini' --exclude='node-*' --exclude='miniconda.sh' -cf payload.tar *
 	tar --append --file=payload.tar ui/build
 	gzip payload.tar
 	cat decompress payload.tar.gz > $(installer_name)
@@ -73,7 +74,7 @@ package: clean ui dbmind 3rd
 
 package_without_3rd: clean ui dbmind 
 	@echo "Packaging without third-party dependencies..."
-	tar --exclude='ui' --exclude='tests' --exclude='Makefile' --exclude='decompress' --exclude='tox.ini' -cf payload.tar *
+	tar --exclude='ui' --exclude='tests' --exclude='Makefile' --exclude='decompress' --exclude='tox.ini' --exclude='node-*' --exclude='miniconda.sh' -cf payload.tar *
 	tar --append --file=payload.tar ui/build
 	gzip payload.tar
 	cat decompress payload.tar.gz > $(installer_name_without_3rd)

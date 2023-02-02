@@ -30,4 +30,4 @@ class IndexRecommendationStats(Base):
     positive_stmt_count = Column(Integer)
     table_count = Column(Integer)
     stmt_source = Column(String(24), nullable=False)
-    occurrence_time = Column(BigInteger, default=int(time.time() * 1000))
+    occurrence_time = Column(BigInteger)

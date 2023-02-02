@@ -1,8 +1,8 @@
 ## For DBMind-core ##
-cryptography==2.5  # for paramiko on openEuler
-paramiko==2.7.2
-numpy==1.16.5  # for openEuler aarch64
-scipy==1.6.0
+cryptography
+paramiko>=2.7.2
+numpy
+scipy
 requests
 sql-metadata
 sqlparse
