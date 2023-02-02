@@ -18,6 +18,7 @@ from collections import defaultdict
 import psycopg2
 import requests
 
+from dbmind.common.opengauss_driver import DriverBundle
 from dbmind.common.rpc import RPCClient
 from dbmind.common.tsdb.prometheus_client import PrometheusClient
 from dbmind.common.types.sequence import Sequence
@@ -88,8 +89,8 @@ def test_http_and_rpc_service(monkeypatch, rpc_client_testing):
 
     monkeypatch.setattr(psycopg2, 'connect', mock_psycopg2_connect)
     monkeypatch.setattr(psycopg2.extensions, 'parse_dsn', lambda arg: defaultdict(lambda: 'aaa'))
-    monkeypatch.setattr(opengauss_exporter.core.opengauss_driver.DriverBundle, 'is_monitor_admin', lambda s: True)
-    monkeypatch.setattr(opengauss_exporter.core.opengauss_driver.DriverBundle, 'is_standby', lambda s: False)
+    monkeypatch.setattr(DriverBundle, 'is_monitor_admin', lambda s: True)
+    monkeypatch.setattr(DriverBundle, 'is_standby', lambda s: False)
 
     exporter = OpenGaussExporterMain(
         og_parse_argv(['--url', 'postgresql://a:b@127.0.0.1:1234/testdb', '--disable-https',

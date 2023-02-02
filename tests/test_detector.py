@@ -21,7 +21,7 @@ from dbmind.common import utils
 from dbmind.common.algorithm import anomaly_detection
 from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
 from dbmind.common.types import Sequence
-from dbmind.components import anomaly_detection as ad_interface
+from dbmind.cmd import edbmind
 from dbmind.components.anomaly_detection import main as ad_main
 from dbmind.service import dai
 
@@ -557,7 +557,7 @@ def mock_configs(*args):
 def test_detection_interface(monkeypatch):
     monkeypatch.setattr(os, 'chdir', mock.MagicMock())
     monkeypatch.setattr(utils, 'read_simple_config_file', lambda x: dict())
-    monkeypatch.setattr(ad_interface, 'load_sys_configs', mock_configs)
+    monkeypatch.setattr(edbmind, 'load_sys_configs', mock_configs)
     monkeypatch.setattr(TsdbClientFactory, 'set_client_info', mock.MagicMock())
     monkeypatch.setattr(dai, 'get_metric_sequence', mock_get_metric_sequence)
     args = ['--conf', '/', '--metric', 'os_cpu_usage', '--start-time', '1673942700000',

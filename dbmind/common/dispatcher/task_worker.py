@@ -124,7 +124,8 @@ class _ProcessPoolExecutor(ProcessPoolExecutor):
         # Added cancel_futures into shutdown() method in version 3.9.
         # Hence, we have to force to kill all sub-processes explicitly.
         logging.debug('Terminate workerProcesses: cancel_futures: %s, backends: %s.',
-                      cancel_futures, list(self._processes.keys()))
+                      cancel_futures,
+                      list(self._processes.keys()) if self._processes else None)
         if cancel_futures and len(self._processes) > 0:
             for pid in self._processes.keys():
                 try:

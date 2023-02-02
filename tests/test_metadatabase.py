@@ -10,6 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import os
 
 import pytest
@@ -51,7 +52,7 @@ def initialize_metadb():
 
 
 def test_slow_queries():
-    start_time = 0
+    start_time = time.time() * 1000
     insert_slow_query('127.0.0.1:1234', 'schema', 'db0', 'query0', 10, 10, root_cause='a')
     insert_slow_query('127.0.0.1:1234', 'schema', 'db0', 'query1', 11, 11, root_cause='b')
     insert_slow_query('127.0.0.1:1234', 'schema', 'db0', 'query1', 11, 12, root_cause='c')
@@ -60,23 +61,29 @@ def test_slow_queries():
         result = select_slow_query_id_by_hashcode(*hash_pair)
         s_id = list(result)[0][0]
         assert s_id == i + 1
-        insert_slow_query_journal(s_id, start_time, duration_time=1, instance='127.0.0.1:1234')
-        insert_slow_query_journal(s_id, start_time + 1, duration_time=2, instance='127.0.0.1:1234')
+        insert_slow_query_journal(s_id, start_time, duration_time=1000, instance='127.0.0.1:1234')
+        insert_slow_query_journal(s_id, start_time + 1000, duration_time=2000, instance='127.0.0.1:1234')
 
     count = 0
-    for query in select_slow_queries(('query', 'db_name', 'schema_name', 'start_at')):
+    for query in select_slow_queries(instance='127.0.0.1:1234',
+                                     target_list=('query', 'db_name', 'schema_name', 'insert_at')):
         count += 1
         assert query.schema_name == 'schema'
         assert query.db_name == 'db0'
-        assert query.start_at <= start_time + 3 + 1
+        assert query.insert_at <= start_time + 3000 + 1000
     assert count == count_slow_queries()
 
     field_names = ('query', 'db_name', 'root_cause')
-    result = select_slow_queries(field_names, start_time=start_time, end_time=start_time + 1)
+    result = select_slow_queries(instance='127.0.0.1:1234',
+                                 target_list=field_names,
+                                 start_time=start_time,
+                                 end_time=start_time + 1000)
     assert result.count() == count
 
-    result = list(select_slow_queries((), start_time=start_time, end_time=start_time + 1))
-    assert result[0]['start_at'] > start_time
+    result = list(select_slow_queries(target_list=('insert_at',),
+                                      start_time=start_time,
+                                      end_time=start_time + 1000))
+    assert result[0]['insert_at'] // 1000 == start_time // 1000
 
     truncate_slow_queries()
     assert count_slow_queries() == 0
@@ -121,28 +128,30 @@ def test_history_alarms():
 
     get_batch_insert_history_alarms_functions().add(instance='127.0.0.1',
                                                     alarm_type='system',
-                                                    occurrence_at=int(time.time() * 1000),
+                                                    start_at=int(time.time() * 1000),
                                                     end_at=int(time.time() * 1000) + 3000,
+                                                    metric_name='os_cpu_usage',
                                                     alarm_level='info',
                                                     alarm_content='CPU exceeds.',
-                                                    root_cause='Large workload.',
-                                                    suggestion='Upgrade hardware.',
-                                                    extra_info=dict(node_id=1, msg='test')
+                                                    extra_info="{'node_id': 1, 'msg': 'test'}",
+                                                    anomaly_type="a"
                                                     ).commit()
     get_batch_insert_history_alarms_functions().add(instance='127.0.0.1',
                                                     alarm_type='log',
-                                                    alarm_level='error',
-                                                    occurrence_at=int(time.time() * 1000),
+                                                    start_at=int(time.time() * 1000),
                                                     end_at=int(time.time() * 1000) + 3000,
-                                                    extra_info=dict(node_id=1, msg='test')
+                                                    metric_name='os_cpu_usage',
+                                                    alarm_level='error',
+                                                    extra_info="{'node_id': 1, 'msg': 'test'}",
+                                                    anomaly_type="b"
                                                     ).commit()
     assert count_history_alarms() == 2
     last_occurrence_time = float('inf')
     alarm_ids = list()
     for alarm in select_history_alarm():
-        assert alarm.occurrence_at < last_occurrence_time  # due to descend
-        assert alarm.extra_info['msg'] == 'test' and alarm.extra_info['node_id'] == 1
-        last_occurrence_time = alarm.occurrence_at
+        assert alarm.start_at < last_occurrence_time  # due to descend
+        assert alarm.extra_info == "{'node_id': 1, 'msg': 'test'}"
+        last_occurrence_time = alarm.start_at
         alarm_ids.append(alarm.history_alarm_id)
 
     delete_timeout_history_alarms(oldest_occurrence_time=int(time.time() * 1000))

@@ -368,10 +368,14 @@ def multiple_cmd_exec(cmdline, **communicate_kwargs):
     for index, cmd in enumerate(cmds):
         # Try to render a simple scenario
         # which contains $ and refer to and environment variable.
-        dollar_index = cmd.index('$') if cmd.count('$') > 0 else -1
-        if 0 < dollar_index < len(cmd) - 1 and cmd[dollar_index - 1] != '\\':
-            cmd.pop(dollar_index)
-            cmd[dollar_index] = env.get(cmd[dollar_index], '')
+        dollar_index = -1
+        for i, word in enumerate(cmd):
+            if '$' in word:
+                dollar_index = i
+                break
+
+        if 0 < dollar_index < len(cmd) and cmd[dollar_index - 1] != '\\':
+            cmd[dollar_index] = env.get(cmd[dollar_index][1:], '')
 
         # Handle specific commands.
         if cmd[0] == 'cd':
