@@ -22,6 +22,7 @@ CONFILE_NAME = 'dbmind.conf'  # the name of configuration file
 PIDFILE_NAME = 'dbmind.pid'
 LOGFILE_NAME = 'dbmind.log'
 SLOW_SQL_RCA_LOG_NAME = 'slow_sql_diagnosis.log'
+MEMORY_CHECKER_LOG_NAME = 'memory_checker.log'
 METRIC_MAP_CONFIG = 'metric_map.conf'
 METRIC_VALUE_RANGE_CONFIG = "metric_value_range.conf"
 MUST_FILTER_LABEL_CONFIG = 'filter_label.conf'

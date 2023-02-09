@@ -1005,7 +1005,53 @@ pg_state_memory:
   status: disable
   ttl: 600
   timeout: 30
-  
+
+
+pg_session_memory_detail:
+  name: pg_session_memory_detail
+  desc: context detail of session memory
+  query:
+    - name: pg_session_memory_detail
+      sql: |-
+        select contextname, sum(totalsize) / 1024 / 1024 as totalsize from pg_catalog.gs_session_memory_detail 
+        group by contextname order by totalsize desc limit 10;
+      version: '>=0.0.0'
+      timeout: 1
+      status: enable
+  metrics:
+    - name: contextname
+      description: name of memorycontext
+      usage: LABEL
+    - name: totalsize
+      description: total size of memorycontext
+      usage: GAUGE
+  status: enable
+  ttl: 5
+  timeout: 1
+
+
+pg_shared_memory_detail:
+  name: pg_shared_memory_detail
+  desc: context detail of shared memory
+  query:
+    - name: pg_shared_memory_detail
+      sql: |-
+        select contextname, sum(totalsize) / 1024 / 1024 as totalsize from pg_catalog.gs_shared_memory_detail
+        group by contextname order by totalsize desc limit 10;
+      version: '>=0.0.0'
+      timeout: 1
+      status: enable
+  metrics:
+    - name: contextname
+      description: name of memorycontext
+      usage: LABEL
+    - name: totalsize
+      description: total size of memorycontext
+      usage: GAUGE
+  status: enable
+  ttl: 5
+  timeout: 1
+
 
 pg_cpu_load:
   name: pg_cpu_load
@@ -1413,4 +1459,3 @@ pg_time:
   status: enable
   ttl: 10
   timeout: 1
-  
