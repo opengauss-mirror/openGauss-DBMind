@@ -20,6 +20,7 @@
 import json
 import logging
 from datetime import timedelta, datetime
+import time
 
 from dbmind import global_vars
 from dbmind.app.diagnosis.query.slow_sql import SlowQuery
@@ -430,6 +431,7 @@ def save_index_recomm(index_infos):
 
 
 def _save_index_recomm(detail_info):
+    now = int(time.time() * 1000)
     db_name = detail_info.get('db_name')
     instance = detail_info.get('instance')
     positive_stmt_count = detail_info.get('positive_stmt_count', 0)
@@ -502,7 +504,9 @@ def _save_index_recomm(detail_info):
                                                         table_count=table_count, rec_index_count=recommend_index_count,
                                                         redundant_index_count=redundant_index_count,
                                                         invalid_index_count=invalid_index_count,
-                                                        stmt_source=detail_info['stmt_source'])
+                                                        stmt_source=detail_info['stmt_source'],
+                                                        time=now
+                                                        )
     return None
 
 

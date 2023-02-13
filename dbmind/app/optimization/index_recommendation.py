@@ -133,7 +133,7 @@ def do_index_recomm(templatization_args, instance, db_name, schemas, database_te
     if (not global_vars.agent_proxy.switch_context(instance)
             or not is_rpc_available(db_name)):
         return
-    executor = RpcExecutor(db_name, None, None, None, None, '"$user",pubic,' + schemas)
+    executor = RpcExecutor(db_name, None, None, None, None, '"$user",public,' + schemas)
     database_templates, source = get_queries(database_templates, instance, db_name, schemas, optimization_interval,
                                              templatization_args)
 
