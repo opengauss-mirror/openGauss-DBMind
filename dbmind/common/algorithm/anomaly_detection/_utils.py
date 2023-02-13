@@ -66,6 +66,7 @@ def pick_out_anomalies(sequence, anomalies, ignore_head=True, ignore_tail=True):
 def remove_edge_effect(s: Sequence, window):
     values = list(s.values)
     length = len(values)
+    window = 1 if length < window else window
     left_idx = window - 1 - (window - 1) // 2
     right_idx = length - 1 - (window - 1) // 2
     for i in range(0, left_idx):  # padding left

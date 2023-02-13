@@ -102,14 +102,18 @@ TsdbClientFactory.set_client_info(
 
 
 def clean_up():
-    global_vars.worker.terminate(True)
+    global_vars.worker.terminate(False)
     try:
         if os.path.exists(metadatabase_name):
             os.unlink(metadatabase_name)
-        for logfile in glob.glob('*log'):
-            os.unlink(logfile)
     except Exception:
         pass
+
+    for logfile in glob.glob('*log'):
+        try:
+            os.unlink(logfile)
+        except Exception:
+            pass
 
 
 def mock_get_current_metric_value(metric_name, label_config=None, *args, **kwargs):

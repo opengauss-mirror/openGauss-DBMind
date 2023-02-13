@@ -18,6 +18,7 @@ from dbmind.common.types import Sequence
 
 def double_padding(values, window):
     """remove the side effect"""
+    window = 1 if len(values) < window else window
     left_idx = window - 1 - (window - 1) // 2
     right_idx = len(values) - 1 - (window - 1) // 2
     values[:left_idx] = values[left_idx]  # padding left
