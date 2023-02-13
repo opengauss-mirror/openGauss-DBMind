@@ -61,6 +61,7 @@ esac
 
 
 echo "Installed successfully."
+if [[ ! -d "${inst}/python" ]]; then
 echo \
 +"==================================================
 +If Python is not installed in your system,
@@ -77,6 +78,7 @@ echo \
 +
 +===================================================
 +"
+fi
 exit 0
 
 __ARCHIVE_BELOW__
