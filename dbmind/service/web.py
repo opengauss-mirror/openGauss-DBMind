@@ -32,7 +32,8 @@ from dbmind.components.sql_rewriter.sql_rewriter import rewrite_sql_api
 from dbmind.metadatabase import dao
 from dbmind.service.utils import SequenceUtils
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.components.anomaly_analysis import single_process_correlation_calculation, multi_process_correlation_calculation
+from dbmind.components.anomaly_analysis import single_process_correlation_calculation
+from dbmind.components.memory_check import memory_check
 from . import dai
 
 _access_context = threading.local()
@@ -1181,3 +1182,6 @@ def get_correlation_result(metric_name, host, start_time, end_time, corr_thresho
     correlation_result = single_process_correlation_calculation(metric_name, sequence_args, corr_threshold=corr_threshold, topk=topk)
     return correlation_result
 
+
+def check_memory_context(start_time, end_time):
+    return memory_check(start_time, end_time)

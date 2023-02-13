@@ -556,3 +556,9 @@ def get_regular_inspections_count(inspection_type: str = None):
 def get_correlation_result(metric_name: str = None, host: str = None, start_time: str = None, end_time: str = None):
     return web.get_correlation_result(metric_name, host, start_time, end_time)
 
+
+@request_mapping('/api/toolkit/memory_check', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def memory_check(start_time: int = 0, end_time: int = 0):
+    return web.check_memory_context(start_time, end_time)

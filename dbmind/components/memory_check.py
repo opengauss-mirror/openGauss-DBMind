@@ -382,8 +382,8 @@ class MemoryChecker:
                 }
 
 
-def check(start_time, end_time, driver, data_source):
-    if data_source == 'tsdb':
+def memory_check(start_time, end_time, driver=None, data_source='TSDB'):
+    if data_source == 'TSDB':
         instance = global_vars.agent_proxy.current_agent_addr()
         memory_detail = GetMemoryDetailFromTSDB(instance, start_time, end_time)
     else:
@@ -417,9 +417,9 @@ def main(argv):
     parser.add_argument('--url', metavar='DSN of database',
                         help="set database dsn('postgres://user@host:port/dbname' or "
                              "'user=user dbname=dbname host=host port=port') "
-                             "when tsdb is not available. Note: don't contain password in DSN. Using in diagnosis.")
-    parser.add_argument('--data-source', choices=('tsdb', 'driver'), metavar='data source of SLOW-SQL-RCA',
-                        default='tsdb',
+                             "when tsdb is not available. Note: don't contain password in DSN for this diagnosis.")
+    parser.add_argument('--data-source', choices=('TSDB', 'DRIVER'), metavar='data source of SLOW-SQL-RCA',
+                        default='TSDB',
                         help='set database dsn when tsdb is not available. Using in diagnosis.')
     args = parser.parse_args(argv)
     # add dummy fields
@@ -435,26 +435,26 @@ def main(argv):
     if args.action == 'check':
         if args.data_source == 'driver':
             if args.url is None:
-                parser.exit(1, "Quiting due to lack of URL.\n")
+                parser.exit(1, "Quitting due to lack of URL.\n")
             try:
                 parsed_dsn = parse_dsn(args.url)
                 if 'password' in parsed_dsn:
-                    parser.exit(1, "Quiting due to security considerations.\n")
+                    parser.exit(1, "Quitting due to security considerations.\n")
                 password = getpass('Please input the password for URL:')
                 parsed_dsn['password'] = password
                 args.url = ' '.join(['{}={}'.format(k, v) for (k, v) in parsed_dsn.items()])
             except Exception:
-                parser.exit(1, "Quiting due to wrong URL format.\n")
+                parser.exit(1, "Quitting due to wrong URL format.\n")
             args.driver, message = try_to_get_driver(args.url)
             if not args.driver:
                 parser.exit(1, message)
-        elif args.data_source == 'tsdb':
+        elif args.data_source == 'TSDB':
             success, message = try_to_initialize_rpc_and_tsdb()
             if not success:
                 parser.exit(1, message)
     try:
         if args.action == 'check':
-            result = check(args.start_time, args.end_time, args.driver, args.data_source)
+            result = memory_check(args.start_time, args.end_time, driver=args.driver, data_source=args.data_source)
             format_pretty_table(start_time=args.start_time, end_time=args.end_time, result=result)
     except Exception as e:
         write_to_terminal('An error occurred probably due to database operations, '
