@@ -87,7 +87,7 @@ export default class TotalConnertionsChart extends Component {
     };
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
-    if (JSON.stringify(nextProps.totalLineChart.data.total_connection) !== '{}') {
+    if (JSON.stringify(nextProps.totalLineChart.data) !== '{}') {
       let colors = ['#5470c6', '#91cc75', '#fac858', '#007acc' ], legendData = []
           // 处理X轴
           let formatTimeData = [];

@@ -87,7 +87,7 @@ export default class ActiveConnertionsChart extends Component {
     };
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
-    if (JSON.stringify(nextProps.activeLineChart.data.active_connection) !== '{}') {
+    if (JSON.stringify(nextProps.activeLineChart.data) !== '{}') {
       let colors = ['#5470c6', '#91cc75', '#fac858', '#007acc' ], legendData = []
           // 处理X轴
           let formatTimeData = [];
