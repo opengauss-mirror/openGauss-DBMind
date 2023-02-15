@@ -58,10 +58,17 @@ ui:
 	@echo "Starting to compile UI components..."
 	cd ui && npm install && npm run build
 
+bins:
+	@echo "Starting to generate bins for individual calls"
+	$(PYTHON) -m pip install pyinstaller
+	pyinstaller dbmind/components/index_advisor/index_advisor_workload.py --onefile --paths dbmind/components/index_advisor --clean --distpath output -n index_advisor 
+	
+
 clean:
 	find . -type d -name '__pycache__' -exec rm -rf {} +
 	rm -rf dbmind-installer*.sh
 	rm -rf payload.tar*
+	rm -rf build *.spec
 
 package: clean ui dbmind 3rd test
 	@echo "Full packaging..."
