@@ -34,6 +34,8 @@ from dbmind.service.utils import SequenceUtils
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.components.anomaly_analysis import single_process_correlation_calculation
 from dbmind.components.memory_check import memory_check
+from dbmind.common.utils import dbmind_assert
+
 from . import dai
 
 _access_context = threading.local()
@@ -782,20 +784,21 @@ def _sqlalchemy_query_union_records_logic(query_function, instances, **kwargs):
     only_with_port = kwargs.pop('only_with_port', False)
     offset = kwargs.pop('offset', None)
     limit = kwargs.pop('limit', None)
-    r = None
     field_names = None
     if instances is None or len(instances) != 1:
         if only_with_port:
             instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
         else:
-            instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST) + get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
-        for instance in instances:
-            if r is None:
-                r = query_function(instance, **kwargs)
-                field_names = r.statement.columns.keys()
-            else:
-                r = r.union_all(query_function(instance, **kwargs))
+            instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST) + get_access_context(
+                ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
+        # Notice: the following `query_function` allows to receive a list or tuple
+        # then use using clause for predicate, which all have adapted for this function.
+        r = query_function(instance=instances, **kwargs)
+        field_names = r.statement.columns.keys()
     else:
+        dbmind_assert(len(instances) == 1,
+                      'Found code bug: the variable instances cannot '
+                      'have zero or one more elements.')
         instance = instances[0]
         r = query_function(instance, **kwargs)
     if r is not None:

@@ -49,7 +49,10 @@ def select_healing_records(instance=None, action=None, success=None, min_occurre
         if success is not None:
             result = result.filter(HealingRecords.success == success)
         if instance is not None:
-            result = result.filter(HealingRecords.instance == instance)
+            if type(instance) in (tuple, list):
+                result = result.filter(HealingRecords.instance.in_(instance))
+            else:
+                result = result.filter(HealingRecords.instance == instance)
         if min_occurrence is not None:
             result = result.filter(
                 HealingRecords.occurrence_at >= min_occurrence

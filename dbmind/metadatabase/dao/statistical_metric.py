@@ -42,7 +42,10 @@ def select_metric_statistic_records(instance=None, metric_name=None, offset=None
     with get_session() as session:
         result = session.query(StatisticalMetric)
         if instance is not None:
-            result = result.filter(StatisticalMetric.instance == instance)
+            if type(instance) in (tuple, list):
+                result = result.filter(StatisticalMetric.instance.in_(instance))
+            else:
+                result = result.filter(StatisticalMetric.instance == instance)
         if metric_name is not None:
             result = result.filter(StatisticalMetric.metric_name == metric_name)
         if offset is not None:

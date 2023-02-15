@@ -128,9 +128,10 @@ def select_slow_queries(instance=None, target_list=(), query=None, start_time=No
                 tb_journal.c.count
             )
             if instance is not None:
-                result = result.filter(
-                    SlowQueries.instance == instance
-                )
+                if type(instance) in (tuple, list):
+                    result = result.filter(SlowQueries.instance.in_(instance))
+                else:
+                    result = result.filter(SlowQueries.instance == instance)
 
             result = result.join(
                 tb_journal, and_(
@@ -178,9 +179,10 @@ def select_slow_queries(instance=None, target_list=(), query=None, start_time=No
                     SlowQueries.query.like('%{}%'.format(query))
                 )
             if instance is not None:
-                result = result.filter(
-                    SlowQueries.instance == instance
-                )
+                if type(instance) in (tuple, list):
+                    result = result.filter(SlowQueries.instance.in_(instance))
+                else:
+                    result = result.filter(SlowQueries.instance == instance)
             if start_time is not None:
                 result = result.filter(
                     SlowQueriesJournal.start_at >= start_time
@@ -458,9 +460,10 @@ def select_killed_slow_queries(instance=None, query=None, start_time=None, end_t
                 SlowQueriesKilled.killed_time <= end_time
             )
         if instance is not None:
-            result = result.filter(
-                SlowQueriesKilled.instance == instance
-            )
+            if type(instance) in (tuple, list):
+                result = result.filter(SlowQueriesKilled.instance.in_(instance))
+            else:
+                result = result.filter(SlowQueriesKilled.instance == instance)
         result = result.order_by(SlowQueriesKilled.killed_time)
         if offset is not None:
             result = result.offset(offset)

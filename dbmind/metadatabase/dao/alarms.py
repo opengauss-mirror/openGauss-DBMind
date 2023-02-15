@@ -61,7 +61,10 @@ def select_history_alarm(instance=None, alarm_type=None, alarm_level=None, alarm
         else:
             result = session.query(HistoryAlarms)
         if instance is not None:
-            result = result.filter(HistoryAlarms.instance == instance)
+            if type(instance) in (tuple, list):
+                result = result.filter(HistoryAlarms.instance.in_(instance))
+            else:
+                result = result.filter(HistoryAlarms.instance == instance)
         if alarm_type is not None:
             result = result.filter(HistoryAlarms.alarm_type == alarm_type)
         if alarm_level is not None:
@@ -164,7 +167,10 @@ def select_future_alarm(instance=None, metric_name=None, start_at=None, end_at=N
         if metric_name is not None:
             result = result.filter(FutureAlarms.metric_name == metric_name)
         if instance is not None:
-            result = result.filter(FutureAlarms.instance == instance)
+            if type(instance) in (tuple, list):
+                result = result.filter(FutureAlarms.instance.in_(instance))
+            else:
+                result = result.filter(FutureAlarms.instance == instance)
         if start_at is not None:
             result = result.filter(FutureAlarms.start_at >= start_at)
         if end_at is not None:

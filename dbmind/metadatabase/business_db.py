@@ -39,9 +39,9 @@ def update_session_clz_from_configs():
     dsn = create_dsn(db_type, database, host, port, username, password)
     postgres_dsn = create_dsn(db_type, 'postgres', host, port, username, password)
     if db_type == 'sqlite':
-        engine = create_engine(dsn, pool_pre_ping=True, encoding='utf-8')
+        engine = create_engine(dsn, pool_pre_ping=True, pool_size=10, max_overflow=20)
     else:
-        engine = create_engine(dsn, pool_pre_ping=True, encoding='utf-8',
+        engine = create_engine(dsn, pool_pre_ping=True,
                                pool_size=10, max_overflow=20, pool_recycle=25,
                                connect_args={'connect_timeout': 20, 'application_name': 'DBMind-Service'})
 
