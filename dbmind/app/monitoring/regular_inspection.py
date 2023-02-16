@@ -516,7 +516,6 @@ class MultipleDaysInspection:
                 instance_connection[metric]['min'].append(value['min'])
                 instance_connection[metric]['avg'].append(value['avg'])
                 instance_connection[metric]['the_95th'].append(value['the_95th'])
-        instance_connection['timestamps'] = self._history_start_time
         return {'timestamps': self._history_start_time, 'data': instance_connection}
 
     @property
