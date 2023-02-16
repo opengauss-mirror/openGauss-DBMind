@@ -11,15 +11,13 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import logging
-
 import threading
 
 from dbmind import global_vars
-from dbmind.common.types import Sequence
-from dbmind.common.rpc.client import RPCClient, DEFAULT_URI
-from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.http.requests_utils import create_requests_session
-from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
+from dbmind.common.rpc.client import RPCClient, DEFAULT_URI
+from dbmind.common.types import Sequence
+from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL, EXPORTER_INSTANCE_LABEL
 
 
 class SequenceUtils:
@@ -34,7 +32,7 @@ class SequenceUtils:
 
     @staticmethod
     def exporter_address(s: Sequence):
-        return s.labels.get('instance')
+        return s.labels.get(EXPORTER_INSTANCE_LABEL)
 
     @staticmethod
     def exporter_ip(s: Sequence):

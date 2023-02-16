@@ -52,3 +52,4 @@ TIMED_TASK_NAMES = (
 # distinguish different instance addresses through this one.
 # Actually, this is a risky action for us, currently.
 DISTINGUISHING_INSTANCE_LABEL = 'from_instance'
+EXPORTER_INSTANCE_LABEL = 'instance'

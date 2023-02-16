@@ -33,7 +33,7 @@ def initialize_metadb():
     os.path.exists(DYNAMIC_CONFIG) and os.remove(DYNAMIC_CONFIG)
 
     engine = create_engine('sqlite:///' + dbname)
-    session_maker = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session_maker = sessionmaker(autoflush=False, bind=engine)
 
     business_db.session_clz.update(
         engine=engine,

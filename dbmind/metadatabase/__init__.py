@@ -59,11 +59,11 @@ def create_dynamic_config_schema():
     from .dao.dynamic_config import table_mapper
 
     load_all_schema_models()
-    engine = create_engine(create_dsn('sqlite', DYNAMIC_CONFIG), encoding='utf-8')
+    engine = create_engine(create_dsn('sqlite', DYNAMIC_CONFIG))
     DynamicConfig.metadata.create_all(engine)
 
     # Batch insert default values into config tables.
-    with sessionmaker(engine, autocommit=True, autoflush=True)() as session:
+    with sessionmaker(engine, autoflush=True)() as session:
         for table_name, table in table_mapper.items():
             try:
                 session.bulk_save_objects(table.default_values())

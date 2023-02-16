@@ -33,7 +33,8 @@ from dbmind.common.types import Sequence
 from dbmind.common.utils import dbmind_assert
 from dbmind.metadatabase import dao
 from dbmind.service.utils import SequenceUtils
-from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
+from dbmind.constants import (DISTINGUISHING_INSTANCE_LABEL,
+                              EXPORTER_INSTANCE_LABEL)
 
 if LINUX:
     mp_shared_buffer = get_mp_sync_manager().defaultdict(dict)
@@ -69,11 +70,12 @@ class LazyFetcher:
         return self
 
     def from_server(self, host):
+        label_name = _get_data_source_flag(self.metric_name)
         dbmind_assert(
-            DISTINGUISHING_INSTANCE_LABEL not in self.labels_like,
+            label_name not in self.labels_like,
             comment="labels and labels_like have duplicated key."
         )
-        self.labels[DISTINGUISHING_INSTANCE_LABEL] = host
+        self.labels[label_name] = host
         return self
 
     def filter_like(self, **kwargs):
@@ -85,11 +87,12 @@ class LazyFetcher:
         return self
 
     def from_server_like(self, host_like):
+        label_name = _get_data_source_flag(self.metric_name)
         dbmind_assert(
-            DISTINGUISHING_INSTANCE_LABEL not in self.labels,
+            label_name not in self.labels,
             comment="labels and labels_like have duplicated key."
         )
-        self.labels_like[DISTINGUISHING_INSTANCE_LABEL] = host_like
+        self.labels_like[label_name] = host_like
         return self
 
     def _fetch_sequence(self, start_time=None, end_time=None, step=None):
@@ -137,7 +140,7 @@ class LazyFetcher:
             )
         except Exception as e:
             logging.error('SequenceBufferPool crashed.', exc_info=e)
-            return self._fetch_sequence(start_time, end_time, step)
+            buffered = self._fetch_sequence(start_time, end_time, step)
 
         dbmind_assert(buffered is not None)
         return buffered
@@ -169,6 +172,25 @@ def _map_metric(metric_name, to_internal_name=True):
         )
         return metric_name
     return global_vars.metric_map.get(metric_name, metric_name).strip()
+
+
+def _get_data_source_flag(metric_name):
+    """Use this function to determine which
+    label can indicate the metric's source.
+
+    For example, the metric `node_dmi_info` comes from
+    node exporter and this metric uses the label `instance`
+    to indicate where the metric comes from and this label name
+    is also Prometheus default. But another
+    metric `gaussdb_blks_hit_ratio` uses `from_instance` to
+    indicate the same meaning.
+
+    Therefore, this function defines some rules to tell
+    a caller what label name is suitable to indicate source.
+    """
+    if metric_name.strip().startswith('node_'):
+        return EXPORTER_INSTANCE_LABEL
+    return DISTINGUISHING_INSTANCE_LABEL
 
 
 def estimate_appropriate_step_ms(start_time, end_time):
