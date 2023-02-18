@@ -184,7 +184,7 @@ def test_future_alarms():
 
 def test_dynamic_config_db():
     create_dynamic_config_schema()
-    assert dynamic_config_get('slow_sql_threshold', 'index_number_threshold')
+    assert dynamic_config_get('slow_sql_threshold', 'index_number_threshold') is None
     dynamic_config_set('slow_sql_threshold', 'index_number_threshold', 1)
     assert dynamic_config_get('slow_sql_threshold', 'index_number_threshold') == '1'
 

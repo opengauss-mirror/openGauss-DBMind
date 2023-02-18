@@ -8,7 +8,7 @@ sqlparse
 fastapi
 uvicorn
 python-multipart
-sqlalchemy
+sqlalchemy==1.4.44
 psycopg2-binary
 pycryptodome
 ## For components ##

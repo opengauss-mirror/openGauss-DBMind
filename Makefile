@@ -44,7 +44,7 @@ tox:
 	$(PYTHON) -m tox
 
 test:
-	$(PTYHON) -m pip install pytest
+	$(PYTHON) -m pip install pytest
 	$(PYTHON) -m pytest tests
 
 coverage:
