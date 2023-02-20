@@ -14,6 +14,7 @@ import contextlib
 
 from sqlalchemy.engine import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import SingletonThreadPool
 
 from dbmind import global_vars
 from ._utils import create_dsn
@@ -39,7 +40,7 @@ def update_session_clz_from_configs():
     dsn = create_dsn(db_type, database, host, port, username, password)
     postgres_dsn = create_dsn(db_type, 'postgres', host, port, username, password)
     if db_type == 'sqlite':
-        engine = create_engine(dsn, pool_pre_ping=True, pool_size=10, max_overflow=20)
+        engine = create_engine(dsn, pool_pre_ping=True, poolclass=SingletonThreadPool)
     else:
         engine = create_engine(dsn, pool_pre_ping=True,
                                pool_size=10, max_overflow=20, pool_recycle=25,

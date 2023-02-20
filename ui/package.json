@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@ant-design/icons": "5.0.1",
     "antd": "^4.16.11",
     "axios": "^0.24.0",
     "echarts": "^5.1.2",

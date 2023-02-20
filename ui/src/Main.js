@@ -1,5 +1,5 @@
 import React from 'react';
-import { Redirect, Switch } from 'react-router';
+import { Redirect, Switch } from 'react-router-dom';
 import { Route } from 'react-router-dom';
 import { Layout } from 'antd';
 import HeaderTop from './components/Header.jsx';
