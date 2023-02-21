@@ -12,6 +12,6 @@
 # See the Mulan PSL v2 for more details.
 
 from .task_scheduler import TimedTaskManager
-from .task_scheduler import timer
+from .task_scheduler import customized_timer
 from .task_worker import ProcessWorker
 from .task_worker import get_worker_instance

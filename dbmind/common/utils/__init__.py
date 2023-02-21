@@ -19,6 +19,7 @@ from .base import (dbmind_assert,
                    read_simple_config_file,
                    MultiProcessingRFHandler,
                    cast_to_int_or_float,
-                   ExceptionCatcher
+                   ExceptionCatcher,
+                   split
                    )
 from dbmind.common.utils.cli import write_to_terminal, raise_fatal_and_exit

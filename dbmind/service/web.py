@@ -23,7 +23,7 @@ import time
 from collections import defaultdict
 from itertools import groupby
 
-from dbmind import global_vars
+from dbmind import global_vars, constants
 from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.types import ALARM_TYPES
 from dbmind.common.types import Sequence
@@ -35,8 +35,9 @@ from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.components.anomaly_analysis import single_process_correlation_calculation
 from dbmind.components.memory_check import memory_check
 from dbmind.common.utils import dbmind_assert
-
+from dbmind.common.dispatcher import TimedTaskManager
 from . import dai
+
 
 _access_context = threading.local()
 
@@ -1188,3 +1189,46 @@ def get_correlation_result(metric_name, host, start_time, end_time, corr_thresho
 
 def check_memory_context(start_time, end_time):
     return memory_check(start_time, end_time)
+
+
+def start_timed_task(timed_task, seconds=None):
+    if timed_task not in global_vars.timed_task:
+        return {'state': 'failed', 'detail': f"The timed-task '{timed_task}' does not exist"}
+    if TimedTaskManager.check(timed_task):
+        return {'state': 'success', 'detail': f"The timed-task '{timed_task}' has already started"}
+    else:
+        func = global_vars.timed_task[timed_task]['object']
+        seconds = constants.TIMED_TASK_DEFAULT_INTERVAL if seconds is None else seconds
+        TimedTaskManager.apply(func, seconds)
+        TimedTaskManager.start(timed_task)
+        return {'state': 'success', 'detail': f"The timed-task '{timed_task}' started successfully"}
+
+
+def stop_timed_task(timed_task):
+    if timed_task not in global_vars.timed_task:
+        return {'state': 'fail', 'detail': f"The timed-task '{timed_task}' does not exist"}
+    if not TimedTaskManager.check(timed_task):
+        return {'state': 'fail', 'detail': f"The timed-task '{timed_task}' is not started"}
+    TimedTaskManager.stop(timed_task)
+    return {'state': 'success', 'detail': f"The timed-task '{timed_task}' stopped successfully"}
+
+
+def reset_timed_task_interval(timed_task, seconds):
+    if timed_task not in global_vars.timed_task:
+        return {'state': 'fail', 'detail': f"The timed-task '{timed_task}' does not exist"}
+    if not TimedTaskManager.check(timed_task):
+        return {'state': 'fail', 'detail': f"The timed-task '{timed_task}' is not started"}
+    TimedTaskManager.reset_interval(timed_task, seconds)
+    return {'state': 'success', 'detail': f"The interval of timed-task '{timed_task}' has been modified successfully"}
+
+
+def get_timed_task_status():
+    detail = {}
+    for timed_task, _ in global_vars.timed_task.items():
+        detail[timed_task] = {}
+        if TimedTaskManager.check(timed_task):
+            detail[timed_task]['status'] = TimedTaskManager.is_alive(timed_task)
+            detail[timed_task]['interval'] = TimedTaskManager.get_interval(timed_task)
+        else:
+            detail[timed_task]['status'] = 'not start'
+    return detail

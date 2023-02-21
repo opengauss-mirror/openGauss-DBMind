@@ -57,17 +57,6 @@ def _check_confpath(confpath):
     return False
 
 
-def _split(s, delimiter=','):
-    if not s:
-        return []
-    rv = []
-    for t in s.split(delimiter):
-        stripped = t.strip()
-        if stripped:
-            rv.append(stripped)
-    return rv
-
-
 def _process_clean(force=False):
     # Wait for workers starting.
     while global_vars.worker is None:
@@ -83,6 +72,15 @@ def signal_handler(signum, frame):
     if signum == signal.SIGINT or signum == signal.SIGHUP:
         utils.cli.write_to_terminal('Reloading parameters.', color='green')
         global_vars.configs = load_sys_configs(constants.CONFILE_NAME)
+        specified_timed_tasks = global_vars.configs.get('TIMED_TASK', 'TASK')
+        TimedTaskManager.specified_timed_task = utils.split(specified_timed_tasks)
+        if constants.DISCARD_EXPIRED_RESULTS not in TimedTaskManager.specified_timed_task:
+            # 'DISCARD_EXPIRED_RESULTS' does not support user modification. Therefore,
+            # if it is found that the task does not exist in the specified_timed_tasks,
+            # it will be forcibly added to global_vars.backend_timed_task.
+            TimedTaskManager.specified_timed_task.append(constants.DISCARD_EXPIRED_RESULTS)
+        # refresh timed-tasks
+        TimedTaskManager.flush()
     elif signum == signal.SIGUSR2:
         # used for debugging
         with open('traceback.stack', 'w+') as f:
@@ -107,13 +105,13 @@ def signal_handler(signum, frame):
 
 
 def init_rpc_with_config(tsdb=None):
-    master_url = _split(global_vars.configs.get('AGENT', 'master_url'))
-    ssl_certfile = _split(global_vars.configs.get('AGENT', 'ssl_certfile'))
-    ssl_keyfile = _split(global_vars.configs.get('AGENT', 'ssl_keyfile'))
-    ssl_keyfile_password = _split(global_vars.configs.get('AGENT', 'ssl_keyfile_password'))
-    ssl_ca_file = _split(global_vars.configs.get('AGENT', 'ssl_ca_file'))
-    agent_username = _split(global_vars.configs.get('AGENT', 'username'))
-    agent_pwd = _split(global_vars.configs.get('AGENT', 'password'))
+    master_url = utils.split(global_vars.configs.get('AGENT', 'master_url'))
+    ssl_certfile = utils.split(global_vars.configs.get('AGENT', 'ssl_certfile'))
+    ssl_keyfile = utils.split(global_vars.configs.get('AGENT', 'ssl_keyfile'))
+    ssl_keyfile_password = utils.split(global_vars.configs.get('AGENT', 'ssl_keyfile_password'))
+    ssl_ca_file = utils.split(global_vars.configs.get('AGENT', 'ssl_ca_file'))
+    agent_username = utils.split(global_vars.configs.get('AGENT', 'username'))
+    agent_pwd = utils.split(global_vars.configs.get('AGENT', 'password'))
 
     # -- check for agent configurations below --
     def is_the_same_length(*args):
@@ -320,7 +318,7 @@ class DBMindMain(Daemon):
 
         # Initialize RPC agent.
         init_rpc_with_config(tsdb)
-        for p in _split(global_vars.configs.get('AGENT', 'password')):
+        for p in utils.split(global_vars.configs.get('AGENT', 'password')):
             logging_handler.add_sensitive_word(p)
 
         # Create executor pool.

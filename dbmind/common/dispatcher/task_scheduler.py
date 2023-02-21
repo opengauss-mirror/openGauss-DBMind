@@ -14,7 +14,9 @@
 import logging
 from threading import Thread, Event
 
-ONE_DAY = 86400  # 24 * 60 * 60 seconds
+from dbmind import global_vars, constants
+
+minimal_timed_task_interval = 30
 
 
 class RepeatedTimer(Thread):
@@ -45,6 +47,14 @@ class RepeatedTimer(Thread):
     def cancel(self):
         self._finished.set()
 
+    @property
+    def interval(self):
+        return self._interval
+
+    @interval.setter
+    def interval(self, seconds):
+        self._interval = seconds
+
     def __hash__(self):
         return hash((self._interval, self._function))
 
@@ -64,20 +74,80 @@ class RepeatedTimer(Thread):
 class _TimedTaskManager:
     def __init__(self):
         self.task_table = dict()
-        self.timers = set()
+        self.timers = dict()
+        self.specified_timed_task = []
 
     def apply(self, func, seconds):
+        if func.__name__ not in self.timers:
+            self.timers[func.__name__] = RepeatedTimer(seconds, func)
+            logging.info('Applied timed-task %s.', func.__name__)
+        logging.info("The timed-task %s has been already started.", func.__name__)
         self.task_table[func] = seconds
-        self.timers.add(RepeatedTimer(seconds, func))
 
-    def start(self):
-        for t in self.timers:
-            logging.info('Applied timed task %s.', t)
+    def start(self, timed_task=None):
+        if timed_task is not None:
+            timed_tasks = {timed_task: self.timers.get(timed_task)}
+        else:
+            timed_tasks = self.timers
+        for timed_task, t in timed_tasks.items():
+            # the task has been applied but not started
             t.start()
+            logging.info("Start timed-task '%s'.", timed_task)
 
-    def stop(self):
-        for t in self.timers:
+    def stop(self, timed_task=None):
+        if timed_task is not None:
+            timed_tasks = {timed_task: self.timers.get(timed_task)}
+        else:
+            timed_tasks = self.timers
+        for timed_task, t in timed_tasks.items():
+            # first stop the task
             t.cancel()
+            # remove from timer list
+            self.timers.pop(timed_task)
+            logging.info("The time-task '%s' has been stopped.", timed_task)
+
+    def flush(self):
+        # flush the timed_task which including:
+        #  1). stop illegal timed-task.
+        #  2). start the user-specified timed-task
+        illegal_timed_task = set(self.timers.keys()) - set(self.specified_timed_task)
+        for timed_task in illegal_timed_task:
+            self.stop(timed_task)
+        for timed_task in self.specified_timed_task:
+            if timed_task not in global_vars.timed_task:
+                logging.error("Timed-task '%s' not existed.", timed_task)
+            else:
+                func = global_vars.timed_task[timed_task]['object']
+                seconds = global_vars.configs.getint('TIMED_TASK', f'{timed_task}_interval',
+                                                     fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                if not self.check(timed_task):
+                    self.apply(func, seconds)
+                    self.start(timed_task)
+                else:
+                    self.reset_interval(timed_task, seconds)
+
+    def check(self, timed_task=None):
+        # check if task has been started
+        return True if timed_task in self.timers else False
+
+    def is_alive(self, timed_task):
+        # determine whether the timed-task is alive
+        if timed_task not in self.timers:
+            return False
+        t = self.timers[timed_task]
+        return t.is_alive()
+
+    def reset_interval(self, timed_task, seconds):
+        # avoid task blocking caused by user interval setting too small, currently supported minimum interval is 30s
+        seconds = minimal_timed_task_interval if seconds < minimal_timed_task_interval else seconds
+        t = self.timers.get(timed_task)
+        t.interval = seconds
+        # update running interval
+        global_vars.timed_task[timed_task]['seconds'] = seconds
+
+    def get_interval(self, timed_task):
+        t = self.timers.get(timed_task)
+        return t.interval
 
     def run_once(self):
         for f in self.task_table:
@@ -95,5 +165,14 @@ def timer(seconds):
     def inner(func):
         TimedTaskManager.apply(func, seconds)
         return func
+
+    return inner
+
+
+def customized_timer(seconds):
+    def inner(func):
+        global_vars.timed_task[func.__name__] = {'object': func, 'seconds': seconds}
+        if func.__name__ in global_vars.default_timed_task:
+            TimedTaskManager.apply(func, seconds)
 
     return inner
