@@ -90,29 +90,26 @@ def group_sequences_together(sequences_list, metrics):
     return res
 
 
-def get_param(name: str):
-    value = global_vars.dynamic_configs.get('detection_params', name)
+def get_dynamic_param(category, name):
+    value = global_vars.dynamic_configs.get(category, name)
     if value is None:
-        from dbmind.metadatabase.schema import config_detection_params
-        value = config_detection_params.DetectionParams.__default__.get(name)
-        logging.warning(
-            'Cannot get the detection parameter %s. '
-            'DBMind used a default value %s as an alternative. '
-            'Please check and update the dynamic configuration.',
-            name, value
-        )
-    return cast_to_int_or_float(value)
+        from dbmind.metadatabase.schema import config_dynamic_params
+        params = config_dynamic_params.DynamicParams.__default__.get(category)
+        for _name, _value, _annotation in params:
+            if _name == name:
+                value = _value
+                logging.warning(
+                    'Cannot get the %s parameter %s. '
+                    'DBMind used a default value %s as an alternative. '
+                    'Please check and update the dynamic configuration.',
+                    category, name, value)
+                break
+    return value
+
+
+def get_param(name: str):
+    return cast_to_int_or_float(get_dynamic_param('detection_params', name))
 
 
 def get_threshold(name: str) -> [float, int]:
-    value = global_vars.dynamic_configs.get('slow_sql_threshold', name)
-    if value is None:
-        from dbmind.metadatabase.schema import config_slow_sql_threshold
-        value = config_slow_sql_threshold.SlowSQLThreshold.__default__.get(name)
-        logging.warning(
-            'Cannot get the slow query parameter %s. '
-            'DBMind used a default value %s as an alternative. '
-            'Please check and update the dynamic configuration.',
-            name, value
-        )
-    return cast_to_int_or_float(value)
+    return cast_to_int_or_float(get_dynamic_param('slow_sql_threshold', name))

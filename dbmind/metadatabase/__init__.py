@@ -56,17 +56,17 @@ def create_dynamic_config_schema():
     from sqlalchemy.orm import sessionmaker
     from dbmind.constants import DYNAMIC_CONFIG
     from ._utils import create_dsn
-    from .dao.dynamic_config import table_mapper
+    from .dao.dynamic_config import table
 
     load_all_schema_models()
     engine = create_engine(create_dsn('sqlite', DYNAMIC_CONFIG))
     DynamicConfig.metadata.create_all(engine)
 
     # Batch insert default values into config tables.
-    with sessionmaker(engine, autoflush=True)() as session:
-        for table_name, table in table_mapper.items():
-            try:
-                session.bulk_save_objects(table.default_values())
-            except sqlalchemy.exc.IntegrityError:
-                # May be duplicate, ignore it.
-                pass
+    with sessionmaker(engine, autocommit=True, autoflush=True)() as session:
+        try:
+            session.bulk_save_objects(table.default_values())
+        except sqlalchemy.exc.IntegrityError:
+            # May be duplicate, ignore it.
+            pass
+

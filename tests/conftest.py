@@ -25,6 +25,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from dbmind import global_vars
+from dbmind.constants import DYNAMIC_CONFIG
+from dbmind.metadatabase import create_dynamic_config_schema
 from dbmind.cmd.config_utils import DynamicConfig
 from dbmind.cmd.edbmind import get_worker_instance
 from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
@@ -39,46 +41,9 @@ configs.add_section('TSDB')
 configs.set('TSDB', 'name', 'prometheus')
 configs.set('TSDB', 'host', prom_host)
 configs.set('TSDB', 'port', prom_port)
-configs.add_section('SELF-MONITORING')
-configs.add_section('SELF-OPTIMIZATION')
 configs.add_section('SELF-DIAGNOSIS')
 configs.add_section('SELF-HEALING')
-configs.set(
-    'SELF-MONITORING', 'detection_interval', '600'
-)
-configs.set(
-    'SELF-MONITORING', 'last_detection_time', '600'
-)
-configs.set(
-    'SELF-MONITORING', 'forecasting_future_time', '86400'
-)
-configs.set(
-    'SELF-MONITORING', 'golden_kpi', 'os_cpu_usage, os_mem_usage'
-)
-configs.set(
-    'SELF-MONITORING', 'result_storage_retention', '600'
-)
-configs.set(
-    'SELF-OPTIMIZATION', 'max_index_storage', '100'
-)
-configs.set(
-    'SELF-OPTIMIZATION', 'max_reserved_period', '100'
-)
-configs.set(
-    'SELF-OPTIMIZATION', 'max_template_num', '10'
-)
-configs.set(
-    'SELF-OPTIMIZATION', 'optimization_interval', '86400'
-)
-configs.set(
-    'SELF-OPTIMIZATION', 'kill_slow_query', 'true'
-)
-configs.set(
-    'SELF-DIAGNOSIS', 'diagnosis_time_window', '300'
-)
-configs.set(
-    'SELF-HEALING', 'enable_self_healing', 'False'
-)
+
 configs.add_section('METADATABASE')
 configs.set('METADATABASE', 'dbtype', 'sqlite')
 configs.set('METADATABASE', 'host', '')
@@ -86,6 +51,38 @@ configs.set('METADATABASE', 'port', '')
 configs.set('METADATABASE', 'username', '')
 configs.set('METADATABASE', 'password', '')
 configs.set('METADATABASE', 'database', metadatabase_name)
+configs.set('SELF-DIAGNOSIS', 'diagnosis_time_window', '300')
+configs.set('SELF-HEALING', 'enable_self_healing', 'False')
+
+create_dynamic_config_schema()
+DynamicConfig.set(
+    'self_monitoring', 'detection_interval', '600'
+)
+DynamicConfig.set(
+    'self_monitoring', 'last_detection_time', '600'
+)
+DynamicConfig.set(
+    'self_monitoring', 'forecasting_future_time', '86400'
+)
+
+DynamicConfig.set(
+    'self_monitoring', 'result_storage_retention', '600'
+)
+DynamicConfig.set(
+    'self_optimization', 'max_index_storage', '100'
+)
+DynamicConfig.set(
+    'self_optimization', 'max_reserved_period', '100'
+)
+DynamicConfig.set(
+    'self_optimization', 'max_template_num', '10'
+)
+DynamicConfig.set(
+    'self_optimization', 'optimization_interval', '86400'
+)
+DynamicConfig.set(
+    'self_optimization', 'kill_slow_query', 'true'
+)
 
 global_vars.must_filter_labels = {}
 if os.path.exists(metadatabase_name):
@@ -106,6 +103,12 @@ def clean_up():
     try:
         if os.path.exists(metadatabase_name):
             os.unlink(metadatabase_name)
+    except Exception:
+        pass
+
+    try:
+        if os.path.exists(DYNAMIC_CONFIG):
+            os.unlink(DYNAMIC_CONFIG)
     except Exception:
         pass
 

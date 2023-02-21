@@ -107,11 +107,11 @@ def is_rpc_available(db_name):
 
 def rpc_index_advise(executor, templates):
     # only single threads can be used
-    index_advisor_workload.MAX_INDEX_NUM = global_vars.configs.getint(
-        'SELF-OPTIMIZATION', 'max_index_num', fallback=10
+    index_advisor_workload.MAX_INDEX_NUM = global_vars.dynamic_configs.get_int_or_float(
+        'self_optimization', 'max_index_num'
     )
-    index_advisor_workload.MAX_INDEX_STORAGE = global_vars.configs.getint(
-        'SELF-OPTIMIZATION', 'max_index_storage', fallback=100
+    index_advisor_workload.MAX_INDEX_STORAGE = global_vars.dynamic_configs.get_int_or_float(
+        'self_optimization', 'max_index_storage'
     )
 
     index_advisor_workload.get_workload_costs = index_advisor_workload.get_plan_cost

@@ -146,8 +146,8 @@ class SlowSQLAnalyzer:
             sql_hashcode = slow_sql_instance.hash_query(use_root_cause=True)
             diagnosed_flag_tuple = (slow_sql_instance.start_at,) + sql_hashcode
 
-            retention_seconds = global_vars.configs.getint(
-                'SELF-MONITORING', 'result_storage_retention', fallback=0)
+            retention_seconds = global_vars.dynamic_configs.get_int_or_float('self_monitoring',
+                                                                             'result_storage_retention')
             min_retention_time = time.time() - retention_seconds
             # Evict expired records.
             i = 0

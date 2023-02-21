@@ -191,9 +191,3 @@ def test_dynamic_config_db():
     dynamic_config_set('slow_sql_threshold', 'no_this_name', 1)
     assert dynamic_config_get('slow_sql_threshold', 'no_this_name') == '1'
 
-    try:
-        dynamic_config_set('no_this_table', 'no_this_name', 1)
-    except ValueError:
-        pass
-    else:
-        assert False

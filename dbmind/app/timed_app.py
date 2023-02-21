@@ -37,43 +37,38 @@ from dbmind.app.optimization import (need_recommend_index,
 from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.dispatcher import timer
 from dbmind.common.types.sequence import EMPTY_SEQUENCE
-from dbmind.common.utils import cast_to_int_or_float
 from dbmind.service import dai
 
-index_template_args = TemplateArgs(
-    global_vars.configs.getint(
-        'SELF-OPTIMIZATION', 'max_reserved_period', fallback=100
-    ),
-    global_vars.configs.getint(
-        'SELF-OPTIMIZATION', 'max_template_num', fallback=5000
-    )
-)
+index_template_args = TemplateArgs(global_vars.dynamic_configs.get_int_or_float('self_optimization',
+                                                                                'max_reserved_period'),
+                                   global_vars.dynamic_configs.get_int_or_float('self_optimization', 'max_template_num')
+                                   )
 alarms_need_to_repair = []
 alarms_repair_flag = False
 alarms_repair_condition = threading.Condition()
 
-detection_interval = global_vars.configs.getint(
-    'SELF-MONITORING', 'detection_interval', fallback=600
+detection_interval = global_vars.dynamic_configs.get_int_or_float(
+    'self_monitoring', 'detection_interval'
 )
 
-last_detection_minutes = global_vars.configs.getint(
-    'SELF-MONITORING', 'last_detection_time', fallback=600
+last_detection_minutes = global_vars.dynamic_configs.get_int_or_float(
+    'self_monitoring', 'last_detection_time',
 ) / 60
 
-how_long_to_forecast_minutes = global_vars.configs.getint(
-    'SELF-MONITORING', 'forecasting_future_time', fallback=3600
+how_long_to_forecast_minutes = global_vars.dynamic_configs.get_int_or_float(
+    'self_monitoring', 'forecasting_future_time',
 ) / 60
 
-result_storage_retention = global_vars.configs.getint(
-    'SELF-MONITORING', 'result_storage_retention', fallback=604800
+result_storage_retention = global_vars.dynamic_configs.get_int_or_float(
+    'self_monitoring', 'result_storage_retention',
 )
 
-optimization_interval = global_vars.configs.getint(
-    'SELF-OPTIMIZATION', 'optimization_interval', fallback=86400
+optimization_interval = global_vars.dynamic_configs.get_int_or_float(
+    'self_optimization', 'optimization_interval'
 )
 
-kill_slow_query = global_vars.configs.getboolean(
-    'SELF-OPTIMIZATION', 'kill_slow_query', fallback=False
+kill_slow_query = global_vars.dynamic_configs.get_int_or_float(
+    'self_optimization', 'kill_slow_query'
 )
 
 enable_self_healing = False
@@ -90,7 +85,7 @@ templates = defaultdict(dict)
 """The Four Golden Signals:
 https://sre.google/sre-book/monitoring-distributed-systems/#xref_monitoring_golden-signals
 """
-golden_kpi = set(map(str.strip, global_vars.configs.get('SELF-MONITORING', 'golden_kpi').split(',')))
+golden_kpi = set(map(str.strip, global_vars.dynamic_configs.get('self_monitoring', 'golden_kpi').split(',')))
 golden_kpi |= MUST_BE_DETECTED_METRICS.BUILTIN_GOLDEN_KPI
 
 wrapped_golden_kpi = set((kpi,) for kpi in golden_kpi)
@@ -303,9 +298,8 @@ def slow_query_killer():
     if not kill_slow_query:
         return
 
-    max_elapsed_time = cast_to_int_or_float(
-        global_vars.dynamic_configs.get('slow_sql_threshold', 'max_elapsed_time')
-    )
+    max_elapsed_time = global_vars.dynamic_configs.get_int_or_float('slow_sql_threshold', 'max_elapsed_time')
+
     if max_elapsed_time is None or max_elapsed_time < 0:
         logging.warning("Can not actively kill slow SQL, because the "
                         "configuration value 'max_elapsed_time' is invalid.")
@@ -499,15 +493,15 @@ def daily_inspection():
     end = datetime.now()
     start = end - timedelta(seconds=daily_inspection_interval)
     for instance, rpc in global_vars.agent_proxy:
-        inspector = regular_inspection.DailyInspection(instance, start, end) 
+        inspector = regular_inspection.DailyInspection(instance, start, end)
         report = inspector()
         results.append({'instance': instance,
                         'inspection_type': 'daily_check',
                         'start': int(start.timestamp() * 1000),
                         'end': int(end.timestamp()) * 1000,
                         'report': report,
-                        'conclusion': ''}) 
-    dai.save_regular_inspection_results(results) 
+                        'conclusion': ''})
+    dai.save_regular_inspection_results(results)
     global_vars.self_driving_records.put(
         {
             'catalog': 'diagnosis',
@@ -515,6 +509,7 @@ def daily_inspection():
             'time': int(time.time() * 1000)
         }
     )
+
 
 @timer(seconds=weekly_inspection_interval)
 def weekly_inspection():

@@ -21,18 +21,23 @@ Base = declarative_base()
 # To record dynamic config not likes static text-based file.
 # The dynamic config can be modified by user frequently and fresh immediately.
 class DynamicConfigCommon:
+    category = Column(String, primary_key=True)
     name = Column(String, primary_key=True)
     value = Column(String, nullable=False)
+    annotation = Column(String, nullable=True)
 
     @classmethod
     def default_values(cls):
         default = getattr(cls, '__default__', {})
         rows = []
-        for name, value in default.items():
-            obj = cls()
-            obj.name = name
-            obj.value = value
-            rows.append(obj)
+        for category, params in default.items():
+            for name, value, annotation in params:
+                obj = cls()
+                obj.category = category
+                obj.name = name
+                obj.value = value
+                obj.annotation = annotation
+                rows.append(obj)
         return rows
 
 

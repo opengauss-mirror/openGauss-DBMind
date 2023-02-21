@@ -24,6 +24,7 @@ from dbmind.common.rpc import ping_rpc_url
 from dbmind.common.utils.checking import check_ip_valid, check_port_valid
 from dbmind.common.utils.cli import write_to_terminal
 from dbmind.common.utils.base import ExceptionCatcher
+from dbmind.common.utils import cast_to_int_or_float
 from dbmind.metadatabase.dao.dynamic_config import dynamic_config_get, dynamic_config_set, dynamic_configs_list
 
 DBMIND_CONF_HEADER = """\
@@ -276,6 +277,11 @@ class DynamicConfig:
     @staticmethod
     def get(*args, **kwargs):
         return dynamic_config_get(*args, **kwargs)
+
+    @staticmethod
+    def get_int_or_float(*args, **kwargs):
+        value = dynamic_config_get(*args, **kwargs)
+        return cast_to_int_or_float(value)
 
     @staticmethod
     def set(*args, **kwargs):
