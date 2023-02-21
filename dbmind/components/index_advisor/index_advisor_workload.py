@@ -1279,7 +1279,7 @@ def check_parameter(args):
     MAX_INDEX_STORAGE = args.max_index_storage
     MAX_INDEX_COLUMN_NUM = args.max_index_columns
     # Check if the password contains illegal characters.
-    is_legal = re.search(r'^[A-Za-z0-9~!@#%^*\-_=+?,.]+$', args.W)
+    is_legal = re.search(r'^[A-Za-z0-9~!@#$%^&*()-_=+\|\[{}\];:,<.>/?]+$', args.W)
     if not is_legal:
         raise ValueError("The password contains illegal characters.")
 
