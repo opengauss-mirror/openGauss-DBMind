@@ -562,3 +562,31 @@ def get_correlation_result(metric_name: str = None, host: str = None, start_time
 @standardized_api_output
 def memory_check(start_time: int = 0, end_time: int = 0):
     return web.check_memory_context(start_time, end_time)
+
+
+@request_mapping('/api/app/start_timed_task', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def start_timed_app(funcname: str = None):
+    return web.start_timed_task(funcname)
+
+
+@request_mapping('/api/app/stop_timed_task', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def start_timed_app(funcname: str = None):
+    return web.stop_timed_task(funcname)
+
+
+@request_mapping('/api/app/reset_interval', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def reset_interval(funcname: str = None, seconds: int = 24 * 60 * 60):
+    return web.reset_timed_task_interval(funcname, seconds)
+
+
+@request_mapping('/api/app/get_timed_task_status', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_timed_task_status():
+    return web.get_timed_task_status()

@@ -62,7 +62,7 @@ def dynamic_config_set(category, name, value):
             )
 
 
-def dynamic_config_get(category, name):
+def dynamic_config_get(category, name, fallback=None):
     with get_session() as session:
         try:
             result = tuple(session.query(table).filter(table.category == category, table.name == name))
@@ -71,9 +71,9 @@ def dynamic_config_get(category, name):
             # Return a none value instead of raising an
             # error directly because we have a fault-tolerant mechanism
             # later, giving the fault-tolerant mechanism a chance to try.
-            return None
+            return fallback
         if len(result) == 0:
-            return None
+            return fallback
         return result[0].value
 
 

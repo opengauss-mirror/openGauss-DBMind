@@ -63,22 +63,10 @@ CONFIG_OPTIONS = {
 }
 
 # Used by check_config_validity().
-POSITIVE_INTEGER_CONFIG = ['SELF-MONITORING-detection_interval',
-                           'SELF-MONITORING-last_detection_time',
-                           'SELF-MONITORING-forecasting_future_time',
-                           'SELF-MONITORING-result_storage_retention',
-                           'SELF-OPTIMIZATION-optimization_interval',
-                           'SELF-OPTIMIZATION-max_reserved_period',
-                           'SELF-OPTIMIZATION-max_index_num',
-                           'SELF-OPTIMIZATION-max_index_storage',
-                           'SELF-OPTIMIZATION-max_template_num',
-                           'LOG-maxbytes',
-                           'LOG-backupcount']
+POSITIVE_INTEGER_CONFIG = ['LOG-maxbytes', 'LOG-backupcount']
 
 # Used by check_config_validity().
-BOOLEAN_CONFIG = [
-    'SELF-OPTIMIZATION-kill_slow_query'
-]
+BOOLEAN_CONFIG = []
 
 
 def check_config_validity(section, option, value, silent=False):

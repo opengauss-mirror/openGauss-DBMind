@@ -29,7 +29,7 @@ from . import setup
 
 
 def build_parser():
-    actions = ['setup', 'start', 'stop', 'restart']
+    actions = ['setup', 'start', 'stop', 'restart', 'reload']
     # Create the top-level parser to parse the common action.
     parser = argparse.ArgumentParser(
         description=__description__
@@ -47,7 +47,7 @@ def build_parser():
     # This type should not be path_type because path_type will validate if the path exists.
     parser_service.add_argument('-c', '--conf', type=os.path.realpath, metavar='DIRECTORY', required=True,
                                 help='set the directory of configuration files')
-    parser_service.add_argument('--only-run', choices=constants.TIMED_TASK_NAMES,
+    parser_service.add_argument('--only-run', choices=constants.DEFAULT_TASK_NAMES,
                                 help='explicitly set a certain task running in the backend')
     parser_service.add_argument('--dry-run', action='store_true',
                                 help='run the backend task(s) once. '
@@ -98,9 +98,9 @@ class DBMindRun:
         def start():
             # Determine which task runs in the backend.
             if args.only_run is None:
-                global_vars.backend_timed_task.extend(constants.TIMED_TASK_NAMES)
+                global_vars.default_timed_task.extend(constants.DEFAULT_TASK_NAMES)
             else:
-                global_vars.backend_timed_task.append(args.only_run)
+                global_vars.default_timed_task.append(args.only_run)
             global_vars.is_dry_run_mode = args.dry_run
             edbmind.DBMindMain(args.conf).start()
 

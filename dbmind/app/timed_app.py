@@ -11,22 +11,13 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import logging
-import threading
 import time
 from collections import defaultdict
 from datetime import timedelta, datetime
 
-import numpy as np
-
-from dbmind.service.utils import SequenceUtils
-from dbmind import constants
-from dbmind import global_vars
-from dbmind.app.diagnosis.entry import diagnose_for_alarm_logs, diagnose_query
+from dbmind import global_vars, constants
+from dbmind.app.diagnosis.entry import diagnose_query
 from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
-from dbmind.app.healing import (get_repair_toolkit,
-                                get_correspondence_repair_methods,
-                                HealingAction,
-                                get_action_name)
 from dbmind.app.monitoring import detect_future, MUST_BE_DETECTED_METRICS
 from dbmind.app.monitoring import detect_history, group_sequences_together, regular_inspection
 from dbmind.app.optimization import (need_recommend_index,
@@ -35,271 +26,184 @@ from dbmind.app.optimization import (need_recommend_index,
                                      TemplateArgs,
                                      get_database_schemas)
 from dbmind.common.algorithm.forecasting import quickly_forecast
-from dbmind.common.dispatcher import timer
+from dbmind.common.dispatcher import customized_timer
 from dbmind.common.types.sequence import EMPTY_SEQUENCE
+from dbmind.common.utils import cast_to_int_or_float
 from dbmind.service import dai
+from dbmind.service.utils import SequenceUtils
 
-index_template_args = TemplateArgs(global_vars.dynamic_configs.get_int_or_float('self_optimization',
-                                                                                'max_reserved_period'),
-                                   global_vars.dynamic_configs.get_int_or_float('self_optimization', 'max_template_num')
-                                   )
-alarms_need_to_repair = []
-alarms_repair_flag = False
-alarms_repair_condition = threading.Condition()
 
-detection_interval = global_vars.dynamic_configs.get_int_or_float(
-    'self_monitoring', 'detection_interval'
+index_template_args = TemplateArgs(
+    global_vars.configs.getint(
+        'SELF-OPTIMIZATION', 'max_reserved_period', fallback=100
+    ),
+    global_vars.configs.getint(
+        'SELF-OPTIMIZATION', 'max_template_num', fallback=5000
+    )
 )
+# get interval of TIMED-TASK
+slow_sql_diagnosis_interval = global_vars.configs.getint('TIMED_TASK', 'slow_sql_diagnosis_interval',
+                                                         fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+index_recommend_interval = global_vars.configs.getint('TIMED_TASK', 'index_recommend_interval',
+                                                      fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+knob_recommend_interval = global_vars.configs.getint('TIMED_TASK', 'knob_recommend_interval',
+                                                     fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+self_monitoring_interval = global_vars.configs.getint('TIMED_TASK', 'self_monitoring_interval',
+                                                      fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+slow_query_killer_interval = global_vars.configs.getint('TIMED_TASK', 'slow_query_killer_interval',
+                                                        fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+forecast_kpi_interval = global_vars.configs.getint('TIMED_TASK', 'forecast_kpi_interval',
+                                                   fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+discard_expired_results_interval = global_vars.configs.getint('TIMED_TASK', 'discard_expired_results_interval',
+                                                              fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+update_detection_param_interval = global_vars.configs.getint('TIMED_TASK', 'update_detection_param_interval',
+                                                             fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+one_day = 24 * 60 * 60  # unit is second
+one_week = 7 * one_day  # unit is second
+one_month = 30 * one_day  # unit is second
 
 last_detection_minutes = global_vars.dynamic_configs.get_int_or_float(
-    'self_monitoring', 'last_detection_time',
-) / 60
-
+    'self_monitoring', 'last_detection_time', fallback=600) / 60
 how_long_to_forecast_minutes = global_vars.dynamic_configs.get_int_or_float(
-    'self_monitoring', 'forecasting_future_time',
+    'self_monitoring', 'forecasting_future_time', fallback=3600
 ) / 60
-
 result_storage_retention = global_vars.dynamic_configs.get_int_or_float(
-    'self_monitoring', 'result_storage_retention',
+    'self_monitoring', 'result_storage_retention', fallback=604800
 )
-
 optimization_interval = global_vars.dynamic_configs.get_int_or_float(
-    'self_optimization', 'optimization_interval'
+    'self_monitoring', 'optimization_interval', fallback=86400
 )
-
-kill_slow_query = global_vars.dynamic_configs.get_int_or_float(
-    'self_optimization', 'kill_slow_query'
-)
-
-enable_self_healing = False
-
-# unit: second
-updating_statistic_interval = 600
-updating_param_interval = 10 * 60
-daily_inspection_interval = 24 * 60 * 60
-weekly_inspection_interval = 7 * daily_inspection_interval
-monthly_inspection_interval = 30 * daily_inspection_interval
-
 templates = defaultdict(dict)
 
 """The Four Golden Signals:
 https://sre.google/sre-book/monitoring-distributed-systems/#xref_monitoring_golden-signals
 """
-golden_kpi = set(map(str.strip, global_vars.dynamic_configs.get('self_monitoring', 'golden_kpi').split(',')))
+golden_kpi = {'os_cpu_usage', 'os_mem_usage', 'os_disk_usage', 'gaussdb_qps_by_instance'}
 golden_kpi |= MUST_BE_DETECTED_METRICS.BUILTIN_GOLDEN_KPI
 
 wrapped_golden_kpi = set((kpi,) for kpi in golden_kpi)
 to_be_detected_metrics_for_history = wrapped_golden_kpi | MUST_BE_DETECTED_METRICS.HISTORY
 to_be_detected_metrics_for_future = wrapped_golden_kpi | MUST_BE_DETECTED_METRICS.future()
-need_updated_metrics = set(golden_kpi) | {'os_process_fds_rate'}
 
 
-@timer(detection_interval)
-def self_monitoring_and_diagnosis():
-    global alarms_repair_flag
+@customized_timer(self_monitoring_interval)
+def self_monitoring():
+    history_alarms = list()
+    end = datetime.now()
+    start = end - timedelta(minutes=last_detection_minutes)
+    for metrics in to_be_detected_metrics_for_history:
+        sequences_list = []
+        for metric in metrics:
+            latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
+            logging.debug('The length of latest_sequences is %d and metric name is %s.',
+                          len(latest_sequences), metric)
 
-    # Should not monitor while repairing.
-    with alarms_repair_condition:
-        history_alarms = list()
-        # diagnose for time-series data
-        if constants.ANOMALY_DETECTION_NAME in global_vars.backend_timed_task:
-            end = datetime.now()
-            start = end - timedelta(minutes=last_detection_minutes)
+            sequences_list.append(latest_sequences)
 
-            for metrics in to_be_detected_metrics_for_history:
-                sequences_list = []
-                for metric in metrics:
-                    latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
-                    logging.debug('The length of latest_sequences is %d and metric name is %s.',
-                                  len(latest_sequences), metric)
+        group_list = group_sequences_together(sequences_list, metrics)
 
-                    sequences_list.append(latest_sequences)
+        alarms = global_vars.worker.parallel_execute(
+            detect_history, ((sequences,) for sequences in group_list)
+        ) or []
 
-                group_list = group_sequences_together(sequences_list, metrics)
-
-                alarms = global_vars.worker.parallel_execute(
-                    detect_history, ((sequences,) for sequences in group_list)
-                ) or []
-
-                logging.debug('The length of detected alarms is %d.', len(alarms))
-                history_alarms.extend(alarms)
-
-            global_vars.self_driving_records.put(
-                {
-                    'catalog': 'monitoring',
-                    'msg': 'Completed anomaly detection for KPIs and found %d anomalies.' % len(history_alarms),
-                    'time': int(time.time() * 1000)
-                }
-            )
-
-        # diagnose for logs
-        if constants.ALARM_LOG_DIAGNOSIS_NAME in global_vars.backend_timed_task:
-            alarm_log_collection = dai.get_all_last_monitoring_alarm_logs(last_detection_minutes)
-            history_alarms.extend(
-                global_vars.worker.parallel_execute(
-                    diagnose_for_alarm_logs, alarm_log_collection
-                ) or []
-            )
-            logging.debug('The length of alarm_log_collection is %d.', len(alarm_log_collection))
-            global_vars.self_driving_records.put(
-                {
-                    'catalog': 'monitoring',
-                    'msg': 'Completed detection for database logs and found %d anomalies.'
-                           % len(alarm_log_collection),
-                    'time': int(time.time() * 1000)
-                }
-            )
-
-        # save history alarms
-        for alarms in history_alarms:
-            if not alarms:
-                continue
-            dai.save_history_alarms(alarms)
-            alarms_need_to_repair.extend(alarms)
-
-        # diagnose for slow queries
-        if constants.SLOW_QUERY_DIAGNOSIS_NAME in global_vars.backend_timed_task:
-            slow_query_collection = dai.get_all_slow_queries(last_detection_minutes)
-            logging.debug('The length of slow_query_collection is %d.', len(slow_query_collection))
-            global_vars.self_driving_records.put(
-                {
-                    'catalog': 'monitoring',
-                    'msg': 'Completed detection for slow queries and diagnosed %d slow queries.'
-                           % len(slow_query_collection),
-                    'time': int(time.time() * 1000)
-                }
-            )
-            query_contexts = []
-            for slow_query in slow_query_collection:
-                try:
-                    with global_vars.agent_proxy.context(slow_query.instance):
-                        query_contexts.append(
-                            (QueryContextFromTSDBAndRPC(slow_query),)
-                        )
-                except global_vars.agent_proxy.RPCAddressError as e:
-                    logging.warning(
-                        'Cannot diagnose slow queries because %s.', e
-                    )
-            slow_queries = global_vars.worker.parallel_execute(
-                diagnose_query, query_contexts
-            ) or []
-            dai.save_slow_queries(slow_queries)
-            alarms_need_to_repair.extend(slow_queries)
-
-        alarms_repair_flag = True
-        alarms_repair_condition.notify_all()
+        logging.debug('The length of detected alarms is %d.', len(alarms))
+        history_alarms.extend(alarms)
+    # save history alarms
+    for alarms in history_alarms:
+        if not alarms:
+            continue
+        dai.save_history_alarms(alarms)
+    global_vars.self_driving_records.put(
+        {
+            'catalog': 'monitoring',
+            'msg': 'Completed anomaly detection for KPIs and found %d anomalies.' % len(history_alarms),
+            'time': int(time.time() * 1000)
+        }
+    )
 
 
-@timer(optimization_interval)
-def self_optimization():
-    if constants.KNOB_OPTIMIZATION_NAME in global_vars.backend_timed_task:
-        recommend_knobs_result = recommend_knobs()
-        dai.save_knob_recomm(recommend_knobs_result)
-        global_vars.self_driving_records.put(
-            {
-                'catalog': 'optimization',
-                'msg': 'Completed knob recommendation.',
-                'time': int(time.time() * 1000)
-            }
-        )
-
-    if (constants.INDEX_OPTIMIZATION_NAME in global_vars.backend_timed_task
-            and need_recommend_index()):
-        database_schemas = get_database_schemas()
-
-        args_collection = []
-        for address in database_schemas:
-            for db_name in database_schemas[address]:
-                schema_names = database_schemas[address][db_name]
-                args_collection.append(
-                    (index_template_args, address, db_name,
-                     schema_names, templates[db_name], optimization_interval)
+@customized_timer(slow_sql_diagnosis_interval)
+def slow_sql_diagnosis():
+    slow_query_collection = dai.get_all_slow_queries(last_detection_minutes)
+    logging.debug('The length of slow_query_collection is %d.', len(slow_query_collection))
+    global_vars.self_driving_records.put(
+        {
+            'catalog': 'monitoring',
+            'msg': 'Completed detection for slow queries and diagnosed %d slow queries.'
+                   % len(slow_query_collection),
+            'time': int(time.time() * 1000)
+        }
+    )
+    query_contexts = []
+    for slow_query in slow_query_collection:
+        try:
+            with global_vars.agent_proxy.context(slow_query.instance):
+                query_contexts.append(
+                    (QueryContextFromTSDBAndRPC(slow_query),)
                 )
-        results = global_vars.worker.parallel_execute(
-            do_index_recomm, args_collection
-        )
-        index_infos = []
-        for result in results:
-            if result is None:
-                continue
-            index_info, database_templates = result
-            if index_info and database_templates:
-                index_infos.append(index_info)
-                templates.update(database_templates)
-        dai.save_index_recomm(index_infos)
-        global_vars.self_driving_records.put(
-            {
-                'catalog': 'optimization',
-                'msg': 'Completed index recommendation and generated report.',
-                'time': int(time.time() * 1000)
-            }
-        )
+        except global_vars.agent_proxy.RPCAddressError as e:
+            logging.warning(
+                'Cannot diagnose slow queries because %s.', e
+            )
+    slow_queries = global_vars.worker.parallel_execute(
+        diagnose_query, query_contexts
+    ) or []
+    dai.save_slow_queries(slow_queries)
 
 
-@timer(detection_interval)
-def self_healing():
-    global alarms_repair_flag
-
-    if not enable_self_healing:
+@customized_timer(index_recommend_interval)
+def index_recommend():
+    if not need_recommend_index():
         return
+    database_schemas = get_database_schemas()
 
-    with alarms_repair_condition:
-        alarms_repair_condition.wait_for(predicate=lambda: alarms_repair_flag)
-
-        toolkit_impl = 'om'
-        toolkit = get_repair_toolkit(toolkit_impl)
-        actions = {}
-        for alarm in alarms_need_to_repair:
-            # Alarm's type is Alarm or SlowQuery. They both
-            # have alarm_cause field.
-            if alarm is None:
-                continue
-            for cause in alarm.alarm_cause:
-                methods = get_correspondence_repair_methods(cause.title)
-                if not methods:
-                    continue
-
-                for method in methods:
-                    if method not in actions:
-                        func = getattr(toolkit, method)
-                        actions[method] = HealingAction(
-                            action_name=get_action_name(func),
-                            callback=func
-                        )
-                    actions[method].attach_alarm(alarm)
-        nb_success = 0
-        nb_failure = 0
-        for method_name in actions:
-            action = actions[method_name]
-            logging.info('Starting to repair the found problem(s) by using %s.', method_name)
-            action.perform()
-            result = action.result
-            if result.success:
-                nb_success += 1
-            else:
-                nb_failure += 1
-            dai.save_healing_record(result)
-
-        global_vars.self_driving_records.put(
-            {
-                'catalog': 'healing',
-                'msg': 'Auto fix %d alarm(s) by performing %d action(s) including %d success(es) and %d failure(s).' % (
-                    len(alarms_need_to_repair), len(actions), nb_success, nb_failure
-                ),
-                'time': int(time.time() * 1000)
-            }
-        )
-        alarms_need_to_repair.clear()
-        alarms_repair_flag = False
+    args_collection = []
+    for address in database_schemas:
+        for db_name in database_schemas[address]:
+            schema_names = database_schemas[address][db_name]
+            args_collection.append(
+                (index_template_args, address, db_name,
+                 schema_names, templates[db_name], optimization_interval)
+            )
+    results = global_vars.worker.parallel_execute(
+        do_index_recomm, args_collection
+    )
+    index_infos = []
+    for result in results:
+        if result is None:
+            continue
+        index_info, database_templates = result
+        if index_info and database_templates:
+            index_infos.append(index_info)
+            templates.update(database_templates)
+    dai.save_index_recomm(index_infos)
+    global_vars.self_driving_records.put(
+        {
+            'catalog': 'optimization',
+            'msg': 'Completed index recommendation and generated report.',
+            'time': int(time.time() * 1000)
+        }
+    )
 
 
-@timer(seconds=10)
+@customized_timer(knob_recommend_interval)
+def knob_recommend():
+    recommend_knobs_result = recommend_knobs()
+    dai.save_knob_recomm(recommend_knobs_result)
+    global_vars.self_driving_records.put(
+        {
+            'catalog': 'optimization',
+            'msg': 'Completed knob recommendation.',
+            'time': int(time.time() * 1000)
+        }
+    )
+
+
+@customized_timer(seconds=slow_query_killer_interval)
 def slow_query_killer():
-    if not kill_slow_query:
-        return
-
-    max_elapsed_time = global_vars.dynamic_configs.get_int_or_float('slow_sql_threshold', 'max_elapsed_time')
-
+    max_elapsed_time = cast_to_int_or_float(
+        global_vars.dynamic_configs.get('slow_sql_threshold', 'max_elapsed_time')
+    )
     if max_elapsed_time is None or max_elapsed_time < 0:
         logging.warning("Can not actively kill slow SQL, because the "
                         "configuration value 'max_elapsed_time' is invalid.")
@@ -331,10 +235,8 @@ def slow_query_killer():
             )
 
 
-@timer(how_long_to_forecast_minutes * 60)
+@customized_timer(forecast_kpi_interval)
 def forecast_kpi():
-    if constants.FORECAST_NAME not in global_vars.backend_timed_task:
-        return
     # The general training length is at least three times the forecasting length.
     expansion_factor = 5
     enough_history_minutes = how_long_to_forecast_minutes * expansion_factor
@@ -406,7 +308,7 @@ def forecast_kpi():
         dai.save_future_alarms(alarm)
 
 
-@timer(max(result_storage_retention // 10, 60))
+@customized_timer(max(discard_expired_results_interval, 60))
 def discard_expired_results():
     """Periodic cleanup of not useful diagnostics or predictions"""
     logging.info('Starting to clean up older diagnostics and predictions.')
@@ -430,68 +332,11 @@ def discard_expired_results():
         )
 
 
-statistical_metrics = {}
-
-
-@timer(seconds=updating_statistic_interval)
-def update_statistical_metrics():
-    logging.info('Starting to save statistic value of key metrics.')
-    try:
-        end = datetime.now()
-        start = end - timedelta(seconds=updating_statistic_interval)  # Polish later: check more.
-        results = []
-        for metric in need_updated_metrics:
-            logging.info("updating statistic metric is %s.", metric)
-            latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
-            logging.debug('The length of latest_sequences is %d and metric name is %s.',
-                          len(latest_sequences), metric)
-            for sequence in latest_sequences:
-                if not sequence.values:
-                    continue
-                instance = SequenceUtils.from_server(sequence)
-                date = int(time.time() * 1000)
-                metric_name = metric
-                unique_metric_name = '%s-%s' % (metric, instance)
-                if 'mountpoint' in sequence.labels:
-                    unique_metric_name += sequence.labels['mountpoint']
-                    metric_name = '%s(%s)' % (metric_name, sequence.labels['mountpoint'])
-                if unique_metric_name not in statistical_metrics:
-                    statistical_metrics[unique_metric_name] = {'avg_val': {}}
-                prev_length = statistical_metrics[unique_metric_name]['avg_val'].get('length', 0)
-                prev_sum_value = statistical_metrics[unique_metric_name]['avg_val'].get('value', 0) * prev_length
-                avg_val = \
-                    round((prev_sum_value + sum(sequence.values)) / (prev_length + len(sequence.values)), 4)
-                statistical_metrics[unique_metric_name]['avg_val'] = {'value': avg_val,
-                                                                      'length': prev_length + len(
-                                                                          sequence.values)}
-                min_val = round(min(min(sequence.values), statistical_metrics[unique_metric_name].get('min_val', 0)), 4)
-                max_val = round(max(max(sequence.values), statistical_metrics[unique_metric_name].get('max_val', 0)), 4)
-                the_95_quantile = round(np.nanpercentile(sequence.values, 95), 4)
-                results.append({'metric_name': metric_name,
-                                'instance': instance,
-                                'date': date,
-                                'avg_val': avg_val,
-                                'min_val': min_val,
-                                'max_val': max_val,
-                                'the_95_quantile': the_95_quantile})
-        if results:
-            dai.save_statistical_metric_records(results)
-        global_vars.self_driving_records.put(
-            {
-                'catalog': 'monitoring',
-                'msg': 'Updated statistical metrics.',
-                'time': int(time.time() * 1000)
-            }
-        )
-    except Exception as e:
-        logging.error(e, exc_info=True)
-
-
-@timer(seconds=daily_inspection_interval)
+@customized_timer(seconds=one_day)
 def daily_inspection():
     results = []
     end = datetime.now()
-    start = end - timedelta(seconds=daily_inspection_interval)
+    start = end - timedelta(seconds=one_day)
     for instance, rpc in global_vars.agent_proxy:
         inspector = regular_inspection.DailyInspection(instance, start, end)
         report = inspector()
@@ -511,11 +356,11 @@ def daily_inspection():
     )
 
 
-@timer(seconds=weekly_inspection_interval)
+@customized_timer(seconds=one_week)
 def weekly_inspection():
     results = []
     end = datetime.now()
-    start = end - timedelta(seconds=weekly_inspection_interval)
+    start = end - timedelta(seconds=one_week)
     for instance, rpc in global_vars.agent_proxy:
         inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=7)
         report = inspector()
@@ -528,11 +373,11 @@ def weekly_inspection():
     dai.save_regular_inspection_results(results)
 
 
-@timer(seconds=monthly_inspection_interval)
+@customized_timer(seconds=one_month)
 def monthly_inspection():
     results = []
     end = datetime.now()
-    start = end - timedelta(seconds=monthly_inspection_interval)
+    start = end - timedelta(seconds=one_month)
     for instance, rpc in global_vars.agent_proxy:
         inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=30)
         report = inspector()
@@ -545,12 +390,12 @@ def monthly_inspection():
     dai.save_regular_inspection_results(results)
 
 
-@timer(seconds=updating_param_interval)
+@customized_timer(seconds=update_detection_param_interval)
 def update_detection_param():
     logging.info('Start to update detection params.')
     try:
         end = datetime.now()
-        start = end - timedelta(seconds=daily_inspection_interval)
+        start = end - timedelta(seconds=one_day)
         for instance, rpc in global_vars.agent_proxy:
             regular_inspection.update_detection_param(instance, start, end)
     except Exception as e:
