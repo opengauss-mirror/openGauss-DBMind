@@ -583,3 +583,10 @@ def start_timed_app(funcname: str = None):
 @standardized_api_output
 def reset_interval(funcname: str = None, seconds: int = 24 * 60 * 60):
     return web.reset_timed_task_interval(funcname, seconds)
+
+
+@request_mapping('/api/app/get_timed_task_status', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_timed_task_status():
+    return web.get_timed_task_status()

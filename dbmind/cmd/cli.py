@@ -29,7 +29,7 @@ from . import setup
 
 
 def build_parser():
-    actions = ['setup', 'start', 'stop', 'restart']
+    actions = ['setup', 'start', 'stop', 'restart', 'reload']
     # Create the top-level parser to parse the common action.
     parser = argparse.ArgumentParser(
         description=__description__

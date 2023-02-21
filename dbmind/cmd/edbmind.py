@@ -44,7 +44,7 @@ try:
 except ImportError:
     pass
 
-SKIP_LIST = ('COMMENT', 'LOG')
+SKIP_LIST = ('COMMENT', 'LOG', 'TIMED_TASK')
 
 _http_service = HttpService()
 dbmind_master_should_exit = False

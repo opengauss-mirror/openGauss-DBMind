@@ -38,7 +38,7 @@ DBMIND_UI_DIRECTORY = os.path.join(DBMIND_PATH, '../ui/build')
 # User should not stop the 'DISCARD_EXPIRED_RESULTS' to avoid excessive disk usage.
 DISCARD_EXPIRED_RESULTS = 'discard_expired_results'
 ANOMALY_DETECTION_NAME = 'self_monitoring'
-# If the user does not provide a task run interval, the following default values ​​will be used
+# If the user does not provide a task run interval, the following default values will be used.
 TIMED_TASK_DEFAULT_INTERVAL = 24 * 60 * 60
 DEFAULT_TASK_NAMES = (ANOMALY_DETECTION_NAME, DISCARD_EXPIRED_RESULTS)
 

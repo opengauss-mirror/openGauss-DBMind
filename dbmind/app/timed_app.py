@@ -43,33 +43,34 @@ index_template_args = TemplateArgs(
 )
 # get interval of TIMED-TASK
 slow_sql_diagnosis_interval = global_vars.configs.getint('TIMED_TASK', 'slow_sql_diagnosis_interval',
-                                                         feedback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                                                         fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 index_recommend_interval = global_vars.configs.getint('TIMED_TASK', 'index_recommend_interval',
-                                                      feedback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                                                      fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 knob_recommend_interval = global_vars.configs.getint('TIMED_TASK', 'knob_recommend_interval',
-                                                     feedback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                                                     fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 self_monitoring_interval = global_vars.configs.getint('TIMED_TASK', 'self_monitoring_interval',
-                                                      feedback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                                                      fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 slow_query_killer_interval = global_vars.configs.getint('TIMED_TASK', 'slow_query_killer_interval',
-                                                        feedback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                                                        fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 forecast_kpi_interval = global_vars.configs.getint('TIMED_TASK', 'forecast_kpi_interval',
-                                                   feedback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                                                   fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 discard_expired_results_interval = global_vars.configs.getint('TIMED_TASK', 'discard_expired_results_interval',
-                                                              feedback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                                                              fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 update_detection_param_interval = global_vars.configs.getint('TIMED_TASK', 'update_detection_param_interval',
-                                                             feedback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                                                             fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 one_day = 24 * 60 * 60  # unit is second
 one_week = 7 * one_day  # unit is second
 one_month = 30 * one_day  # unit is second
 
-last_detection_minutes = global_vars.dynamic_configs.get('self_monitoring', 'last_detection_time', fallback=600) / 60
-how_long_to_forecast_minutes = global_vars.dynamic_configs.get(
+last_detection_minutes = global_vars.dynamic_configs.get_int_or_float(
+    'self_monitoring', 'last_detection_time', fallback=600) / 60
+how_long_to_forecast_minutes = global_vars.dynamic_configs.get_int_or_float(
     'self_monitoring', 'forecasting_future_time', fallback=3600
 ) / 60
-result_storage_retention = global_vars.dynamic_configs.get(
+result_storage_retention = global_vars.dynamic_configs.get_int_or_float(
     'self_monitoring', 'result_storage_retention', fallback=604800
 )
-optimization_interval = global_vars.dynamic_configs.get(
+optimization_interval = global_vars.dynamic_configs.get_int_or_float(
     'self_monitoring', 'optimization_interval', fallback=86400
 )
 templates = defaultdict(dict)
