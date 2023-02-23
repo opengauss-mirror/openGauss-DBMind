@@ -20,6 +20,7 @@ from .base import (dbmind_assert,
                    MultiProcessingRFHandler,
                    cast_to_int_or_float,
                    ExceptionCatcher,
-                   split
+                   split,
+                   string_to_dict
                    )
 from dbmind.common.utils.cli import write_to_terminal, raise_fatal_and_exit

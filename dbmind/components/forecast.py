@@ -17,6 +17,7 @@ import os
 import sys
 import time
 import traceback
+from collections import defaultdict
 from datetime import datetime
 from math import inf
 
@@ -30,27 +31,17 @@ from dbmind.common.utils.cli import keep_inputting_until_correct
 from dbmind.common.utils.exporter import KVPairAction
 from dbmind.metadatabase.dao import forecasting_metrics
 from dbmind.service import dai
-from dbmind.service.utils import SequenceUtils
+from dbmind.app.diagnosis.query.slow_sql.query_info_source import is_sequence_valid
 
 
-def _get_sequences(metric, host, labels, start_datetime, end_datetime):
-    result = []
+def _get_sequences(metric, instance, labels, start_datetime, end_datetime):
     if labels is None:
         sequences = dai.get_metric_sequence(metric, start_datetime, end_datetime). \
-            from_server(host).fetchall()
+            from_server(instance).fetchall()
     else:
         sequences = dai.get_metric_sequence(metric, start_datetime, end_datetime). \
-            from_server(host).filter(**labels).fetchall()
-    for sequence in sequences:
-        name = metric
-        address = SequenceUtils.from_server(sequence).strip()
-        if labels is None:
-            name += str(sequence.labels)
-        else:
-            name += str(labels)
-        name += ' from ' + address
-        result.append((name, sequence))
-    return result
+            from_server(instance).filter(**labels).fetchall()
+    return sequences
 
 
 def _initialize_tsdb_param():
@@ -78,17 +69,17 @@ def _save_forecast_result(result, save_path):
     os.chmod(save_path, 0o600)
 
 
-def show(metric, host, start_time, end_time):
+def show(metric, instance, start_time, end_time):
     field_names = (
         'rowid', 'metric_name',
-        'host', 'metric_time',
+        'instance', 'metric_time',
         'metric_value'
     )
     output_table = PrettyTable()
     output_table.field_names = field_names
 
     result = forecasting_metrics.select_forecasting_metric(
-        metric_name=metric, instance=host,
+        metric_name=metric, instance=instance,
         min_metric_time=start_time, max_metric_time=end_time
     ).all()
     for row_ in result:
@@ -125,68 +116,79 @@ def clean(retention_days):
     write_to_terminal('Success to delete redundant results.')
 
 
-def early_warning(metric, host, start_time, end_time, warning_hours, labels=None,
-                  upper=None, lower=None, save_path=None):
-    output_table = PrettyTable()
-    output_table.field_names = ('name', 'warning information')
-    output_table.align = "l"
-    if not _initialize_tsdb_param():
-        logging.error("TSDB initialization failed.")
-        return
+def risk_analysis(sequence, upper, lower, warning_minutes):
+    current_timestamp = int(time.time() * 1000)
     upper = inf if upper is None else upper
     lower = -inf if lower is None else lower
-    warning_minutes = warning_hours * 60  # convert hours to minutes
+    if sequence.values[-1] >= upper:
+        return {'timestamps': None, 'values': None, 'risk': 'upper'}
+    if sequence.values[-1] <= lower:
+        return {'timestamps': None, 'values': None, 'risk': 'lower'}
+    forecast_sequence = quickly_forecast(sequence, warning_minutes)
+    if is_sequence_valid(forecast_sequence):
+        for timestamp, value in zip(forecast_sequence.timestamps, forecast_sequence.values):
+            if value >= upper or value <= lower:
+                flag = 'future upper' if value >= upper else 'future lower'
+                remaining_hours = round((timestamp - current_timestamp) / 1000 / 60 / 24, 4)
+                occur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(timestamp / 1000)))
+                return {'timestamps': forecast_sequence.timestamps,
+                        'values': forecast_sequence.values,
+                        'remaining_hours': remaining_hours,
+                        'occur_time': occur_time,
+                        'risk': flag}
+    else:
+        # unable to get valid data
+        return {'timestamps': None, 'values': None, 'risk': 'unknown'}
+    return {'timestamps': None, 'values': None, 'risk': 'normal'}
+
+
+def early_warning(metric, instance, start_time, end_time, warning_hours, upper=None, lower=None, labels=None):
+    # convert hours to minutes
+    warnings = defaultdict(list)
+    warning_minutes = warning_hours * 60
     if end_time is None:
         end_time = int(time.time() * 1000)
     if start_time is None:
-        # The default historical sequence is 3 times the length of the predicted sequence
+        # the default historical sequence is 3 times the length of the predicted sequence
         start_time = end_time - warning_minutes * 60 * 1000 * 3
     start_datetime = datetime.fromtimestamp(start_time / 1000)
     end_datetime = datetime.fromtimestamp(end_time / 1000)
-    sequences = _get_sequences(metric, host, labels, start_datetime, end_datetime)
-    rows = []
-    summary_sequence = []
-    for name, sequence in sequences:
-        if sequence.values[-1] >= upper:
-            warning_information = "metric has exceeded the warning value."
-            rows.append((name, warning_information))
-            continue
-        if sequence.values[-1] <= lower:
-            warning_information = "metric has been less than the warning value."
-            rows.append((name, warning_information))
-            continue
-        forecast_result = quickly_forecast(sequence, warning_minutes)
-        if save_path is not None:
-            summary_sequence.append((name, sequence.values + forecast_result.values,
-                                     sequence.timestamps + forecast_result.timestamps))
-        if not forecast_result.values:
-            continue
-        lower_flag, upper_flag = False, False
-        for val, timestamp in zip(forecast_result.values, forecast_result.timestamps):
-            if lower_flag and upper_flag:
-                break
-            if not upper_flag and val >= upper:
-                current_timestamp = int(time.time() * 1000)
-                remaining_hours = round((timestamp - current_timestamp) / 1000 / 60 / 24, 4)
-                string_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(timestamp / 1000)))
-                warning_information = "exceed the warning value %s at %s(remaining %s hours)." \
-                                      % (upper, string_time, remaining_hours)
-                rows.append((name, warning_information))
-                upper_flag = True
-            if not lower_flag and val <= lower:
-                current_timestamp = int(time.time() * 1000)
-                remaining_hours = round((timestamp - current_timestamp) / 1000 / 60 / 24, 4)
-                string_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(timestamp / 1000)))
-                warning_information = "lower than the warning value %s at %s(remaining %s hours)." \
-                                      % (upper, string_time, remaining_hours)
-                rows.append((name, warning_information))
-                lower_flag = True
-    if not rows:
-        rows.append((metric, 'No warning found.'))
-    output_table.add_rows(rows)
+    sequences = _get_sequences(metric, instance, labels, start_datetime, end_datetime)
+    for sequence in sequences:
+        risk_analysis_result = risk_analysis(sequence, upper, lower, warning_minutes)
+        if risk_analysis_result['risk'] == 'future upper':
+            abnormal_detail = "exceed the warning value %s at %s(remaining %s hours)." % \
+                              (upper, risk_analysis_result['occur_time'], risk_analysis_result['remaining_hours'])
+        elif risk_analysis_result['risk'] == 'lower upper':
+            abnormal_detail = "lower than the warning value %s at %s(remaining %s hours)." % \
+                              (upper, risk_analysis_result['occur_time'], risk_analysis_result['remaining_hours'])
+        elif risk_analysis_result['risk'] == 'normal':
+            abnormal_detail = 'No risk find.'
+
+        elif risk_analysis_result['risk'] == 'upper':
+            abnormal_detail = 'metric has exceeded the warning value'
+        elif risk_analysis_result['risk'] == 'lower':
+            abnormal_detail = 'metric has been less than the warning value.'
+        else:
+            abnormal_detail = 'Trend prediction failed, risk unknown.'
+        warnings[sequence.name].append({'labels': sequence.labels,
+                                        'abnormal_detail': abnormal_detail,
+                                        'values': sequence.values,
+                                        'timestamps': sequence.timestamps,
+                                        'forecast_values': risk_analysis_result['values'],
+                                        'forecast_timestamps': risk_analysis_result['timestamps']
+                                        })
+    return warnings
+
+
+def display_warnings(warnings):
+    output_table = PrettyTable()
+    output_table.field_names = ('name', 'label', 'warning information')
+    output_table.align = "l"
+    for name, details in warnings.items():
+        for detail in details:
+            output_table.add_row([name, str(detail['labels']), detail['abnormal_detail']])
     print(output_table)
-    if save_path is not None:
-        _save_forecast_result(summary_sequence, save_path=save_path)
 
 
 def main(argv):
@@ -196,8 +198,8 @@ def main(argv):
                         help='Set the directory of configuration files')
     parser.add_argument('--metric-name', metavar='METRIC_NAME',
                         help='Set a metric name you want to retrieve')
-    parser.add_argument('--host', metavar='HOST',
-                        help="Set a host you want to retrieve. IP only or IP with port.")
+    parser.add_argument('--instance', metavar='INSTANCE',
+                        help="Set a instance you want to retrieve. IP only or IP with port.")
     parser.add_argument('--labels', metavar='LABELS', action=KVPairAction,
                         help='A list of label (format is label=name) separated by comma(,). '
                              'Using in warning.')
@@ -224,7 +226,7 @@ def main(argv):
         parser.exit(1, 'Not found the directory %s.' % args.conf)
 
     if args.action == 'show':
-        if None in (args.metric_name, args.host, args.start_time, args.end_time):
+        if None in (args.metric_name, args.instance, args.start_time, args.end_time):
             write_to_terminal('There may be a lot of results because you did not use all filter conditions.',
                               color='red')
             inputted_char = keep_inputting_until_correct('Press [A] to agree, press [Q] to quit:', ('A', 'Q'))
@@ -247,12 +249,16 @@ def main(argv):
     init_global_configs(args.conf)
     try:
         if args.action == 'show':
-            show(args.metric_name, args.host, args.start_time, args.end_time)
+            show(args.metric_name, args.instance, args.start_time, args.end_time)
         elif args.action == 'clean':
             clean(args.retention_days)
         elif args.action == 'early-warning':
-            early_warning(args.metric_name, args.host, args.start_time, args.end_time, args.warning_hours,
-                          labels=args.labels, upper=args.upper, lower=args.lower, save_path=args.csv_dump_path)
+            if not _initialize_tsdb_param():
+                write_to_terminal("TSDB initialization failed.", color='red')
+                return 0
+            warnings = early_warning(args.metric_name, args.instance, args.start_time, args.end_time, args.warning_hours,
+                                     labels=args.labels, upper=args.upper, lower=args.lower)
+            display_warnings(warnings)
     except Exception as e:
         write_to_terminal('An error occurred probably due to database operations, '
                           'please check database configurations. For details:\n' +

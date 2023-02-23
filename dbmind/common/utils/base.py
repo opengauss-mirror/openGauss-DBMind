@@ -431,3 +431,15 @@ def split(s, delimiter=','):
         if stripped:
             rv.append(stripped)
     return rv
+
+
+def string_to_dict(values, delimiter=','):
+    # transfer string to dict: 'a=1,b=2,c=3' to {'a': 1, 'b': 2, 'c': 3}
+    d = {}
+    try:
+        for pair in values.split(delimiter):
+            name, value = pair.split('=')
+            d[name.strip()] = value.strip()
+    except Exception as e:
+        raise e
+    return d

@@ -296,7 +296,7 @@ gaussdb_cpu_usage:
       description: from job
       usage: LABEL
     - name: from_instance
-      label: instance
+      label: from_instance
       description: from instance
       usage: LABEL
   status: enable

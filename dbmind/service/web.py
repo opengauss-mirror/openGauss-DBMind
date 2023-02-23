@@ -34,8 +34,9 @@ from dbmind.service.utils import SequenceUtils
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.components.anomaly_analysis import single_process_correlation_calculation
 from dbmind.components.memory_check import memory_check
-from dbmind.common.utils import dbmind_assert
+from dbmind.common.utils import dbmind_assert, string_to_dict
 from dbmind.common.dispatcher import TimedTaskManager
+from dbmind.components.forecast import early_warning
 from . import dai
 
 
@@ -1232,3 +1233,11 @@ def get_timed_task_status():
         else:
             detail[timed_task]['status'] = 'not start'
     return detail
+
+
+def risk_analysis(metric, instance, warning_hours, upper, lower, labels):
+    end_time = int(time.time()) * 1000
+    start_time = end_time - warning_hours * 60 * 60 * 1000 * 3
+    labels = string_to_dict(labels, delimiter=',')
+    warnings = early_warning(metric, instance, start_time, end_time, warning_hours, upper, lower, labels)
+    return warnings
