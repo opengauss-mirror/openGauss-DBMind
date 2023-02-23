@@ -98,7 +98,7 @@ class _TimedTaskManager:
         if timed_task is not None:
             timed_tasks = {timed_task: self.timers.get(timed_task)}
         else:
-            timed_tasks = self.timers
+            timed_tasks = self.timers.copy()
         for timed_task, t in timed_tasks.items():
             # first stop the task
             t.cancel()
@@ -174,5 +174,6 @@ def customized_timer(seconds):
         global_vars.timed_task[func.__name__] = {'object': func, 'seconds': seconds}
         if func.__name__ in global_vars.default_timed_task:
             TimedTaskManager.apply(func, seconds)
+        return func
 
     return inner

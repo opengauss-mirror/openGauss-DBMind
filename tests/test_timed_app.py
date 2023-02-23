@@ -14,7 +14,7 @@ from dbmind.app import timed_app
 
 
 def test_self_monitoring():
-    timed_app.self_monitoring_and_diagnosis()
+    timed_app.self_monitoring()
 
 
 def test_forecast_kpi(capfd):

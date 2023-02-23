@@ -336,7 +336,6 @@ class DBMindMain(Daemon):
         global_vars.worker = self.worker = get_worker_instance('local', local_workers)
 
         # Start timed tasks.
-        global_vars.self_driving_records = utils.NaiveQueue(20)
         app.register_timed_app()
         if global_vars.is_dry_run_mode:
             TimedTaskManager.run_once()

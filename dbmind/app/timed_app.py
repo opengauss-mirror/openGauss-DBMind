@@ -28,10 +28,11 @@ from dbmind.app.optimization import (need_recommend_index,
 from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.dispatcher import customized_timer
 from dbmind.common.types.sequence import EMPTY_SEQUENCE
-from dbmind.common.utils import cast_to_int_or_float
+from dbmind.common.utils import cast_to_int_or_float, NaiveQueue
 from dbmind.service import dai
 from dbmind.service.utils import SequenceUtils
 
+global_vars.self_driving_records = NaiveQueue(20)
 
 index_template_args = TemplateArgs(
     global_vars.configs.getint(
