@@ -192,7 +192,7 @@ def init_rpc_with_config(tsdb=None):
     def try_to_get_the_element(l, idx):
         if len(l) == 0:
             return None
-        if len(l) >= idx:
+        if len(l) <= idx:
             return l[0]  # default to return the first one
         return l[idx]
 

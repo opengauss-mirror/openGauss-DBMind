@@ -81,7 +81,7 @@ def check_config_validity(section, option, value, silent=False):
             return False, 'Not set Agent-username or Agent-password'
 
     if config_item == 'AGENT-master_url':
-        if value.strip() == '':
+        if value.strip() in ('', NULL_TYPE):
             write_to_terminal(
                 'WARNING: Without explicitly setting agent configurations, '
                 'the automatic detection mechanism is used.',
