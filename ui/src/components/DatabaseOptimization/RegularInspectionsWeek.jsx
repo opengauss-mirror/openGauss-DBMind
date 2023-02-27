@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Col, Row, Card } from 'antd';
+import PropTypes from 'prop-types';
 import ActiveConnertionsChart from './RegularInspectionsModules/ActiveConnertionsChart';
 import TotalConnertionsChart from './RegularInspectionsModules/TotalConnertionsChart';
 import ResponseTimeLineChart from './RegularInspectionsModules/ResponseTimeLineChart';

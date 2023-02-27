@@ -727,6 +727,7 @@ class IndexAdvisorTester(unittest.TestCase):
                     'columns': 'ss_item_sk, ss_sold_date_sk', 'index_type': '',
                     'statement': 'CREATE INDEX idx_store_sales_ss_item_sk_ss_sold_date_sk on '
                                  'public.store_sales(ss_item_sk, ss_sold_date_sk);',
+                    'storage': 0,
                     'dmlCount': 9, 'selectRatio': 100.0,
                     'insertRatio': 0.0, 'deleteRatio': 0.0, 'updateRatio': 0.0}
         self.assertEqual(sql_info, expected)

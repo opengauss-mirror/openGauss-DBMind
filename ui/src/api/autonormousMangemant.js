@@ -11,6 +11,9 @@ export const getForecastChartInterface = (data) => {
 export const getSearchMetricInterface = () => {
   return get('/list/metric');
 };
+export const getForcastInterface = (data) => {
+  return get(`/toolkit/risk_analysis?instance_name=${data.instance_name}&metric_name=${data.metric_name}&filter_name=${data.labels}&warning_hours=${data.warning_hours}&upper=${data.upper}&lower=${data.lower}`);
+};
 
 // ----Alarms
 export const getHistoryAlarmsInterface = (data) => {

@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Card, Empty, Spin } from 'antd';
+import PropTypes from 'prop-types';
 import ReactEcharts from 'echarts-for-react';
 import { formatTimestamp } from '../../../utils/function';
 

@@ -22,4 +22,66 @@
 .errorinvalied .ant-form-item-explain-error{
   width: 200px;
 }
+.uploadcss .ant-upload-list{
+  display: inline-block;
+  margin: 0px 20px;
+}
+.uploadcss .ant-upload-list-item{
+  margin-top: 0px;
+}
+.analysis .ant-col{
+  margin-bottom: 20px;
+}
+.insertclass{
+  width:100px;
+  height: 22px;
+  float: right;
+  line-height: 22px;
+  padding: 6px 0px;
+}
+.insertclass span{
+  display: block;
+  height: 10px;
+  float: left;
+  margin-right: 1%;
+}
 
+.indexadvisor .ant-card-head{
+  min-height: 50px;
+  padding: 0px 20px;
+  border-bottom: 1px solid #dddddd;
+}
+.indexadvisor .ant-card-head-title{
+  padding: 10px 0px;
+}
+.indexadvisor .recommended .ant-card-body{
+  padding: 8px 20px;
+}
+.indexadvisor .backcolor{
+  margin-bottom: 10px;
+}
+.indexadvisor .backcolor .ant-card-body{
+  padding: 10px;
+}
+.indexadvisor .backcolor .ant-card-head-title{
+  padding: 1px 0px;
+}
+.indexadvisor .backcolor .ant-card-head{
+  background-color: #f6f6f6;
+  padding: 0px 14px;
+  min-height: 28px;
+  color: #393939;
+}
+.indexadvisor .backcolor .ant-table-tbody>tr>td,.ant-table-thead>tr>th,.ant-table tfoot>tr>td,.ant-table tfoot>tr>th{
+  padding: 1px 20px;
+}
+.indexadvisor .backcolor .ant-table thead>tr>th{
+  background-color: #F2F5FC;
+  color: #404B55;
+}
+.indexadvisor .backcolor .ant-table-thead>tr>th:not(:last-child):not(.ant-table-selection-column):not(.ant-table-row-expand-icon-cell):not([colspan]):before{
+  width: 0px;
+}
+.indexadvisor .backcolor .ant-btn{
+  padding: 0;
+}

@@ -431,8 +431,15 @@ def get_log_information():
 @request_mapping('/api/toolkit/advise/index', methods=['POST'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def advise_indexes(database: str, sqls: list):
-    return web.toolkit_index_advise(database, sqls)
+def advise_indexes(pagesize: int, current: int, database: str, max_index_num: int, max_index_storage: int, sqls: list):
+    return web.toolkit_index_advise(current, pagesize, database, sqls, max_index_num, max_index_storage)
+
+
+@request_mapping('/api/toolkit/advise/default/value', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def advise_indexes():
+    return web.toolkit_index_advise_default_value()
 
 
 @request_mapping('/api/toolkit/advise/query', methods=['POST'], api=True)

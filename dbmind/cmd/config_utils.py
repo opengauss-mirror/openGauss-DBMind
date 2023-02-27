@@ -210,6 +210,16 @@ def load_sys_configs(confile):
 
             return int(value)
 
+        @staticmethod
+        def getfloat(section, option, *args, **kwargs):
+            """Faked getfloat() for ConfigParser class."""
+            value = configs.get(section, option, *args, **kwargs)
+            valid, reason = check_config_validity(section, option, value, silent=True)
+            if not valid:
+                raise ConfigSettingError('DBMind failed to start due to %s.' % reason)
+
+            return float(value)
+
     return ConfigWrapper()
 
 

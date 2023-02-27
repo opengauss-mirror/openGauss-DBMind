@@ -1,14 +1,12 @@
 import React, { Component } from 'react'
 import { Tabs } from 'antd';
 import {
-    AreaChartOutlined,
     BarChartOutlined,
     PieChartOutlined,
     SnippetsOutlined,
     UnorderedListOutlined
 } from '@ant-design/icons';
 import '../assets/css/common.css';
-import WorkloadForecasting from '../components/AutonomousManagement/WorkloadForecasting';
 import Alarms from '../components/AutonomousManagement/Alarms';
 import SlowTopQuery from '../components/AutonomousManagement/SlowTopQuery';
 import ActiveSql from '../components/AutonomousManagement/ActiveSql';
@@ -28,22 +26,11 @@ export default class AutonormousManagement extends Component {
           <TabPane
             tab={
               <span>
-                <AreaChartOutlined />
-                Workload Forecasting
-              </span>
-            }
-            key="1"
-          >
-            <WorkloadForecasting />
-          </TabPane>
-          <TabPane
-            tab={
-              <span>
                 <UnorderedListOutlined />
                 Alarms
               </span>
             }
-            key="2"
+            key="1"
           >
             <Alarms />
           </TabPane>
@@ -54,7 +41,7 @@ export default class AutonormousManagement extends Component {
                 Slow/Top Query
               </span>
             }
-            key="3"
+            key="2"
           >
             <SlowTopQuery />
           </TabPane>
@@ -65,7 +52,7 @@ export default class AutonormousManagement extends Component {
                 Active SQL Statements
               </span>
             }
-            key="4"
+            key="3"
           >
             <ActiveSql />
           </TabPane>
@@ -76,7 +63,7 @@ export default class AutonormousManagement extends Component {
                 Summary Log
               </span>
             }
-            key="5"
+            key="4"
           >
             <SummaryLog />
           </TabPane>

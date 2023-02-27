@@ -16,6 +16,7 @@ import datetime
 import getpass
 import json
 import logging
+import math
 import os
 import sys
 import threading
@@ -23,10 +24,16 @@ import time
 from collections import defaultdict
 from itertools import groupby
 
+import sqlparse
+
 from dbmind import global_vars, constants
+from dbmind.app.optimization import get_database_schemas, TemplateArgs
+from dbmind.app.optimization.index_recommendation import rpc_index_advise
+from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
 from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.types import ALARM_TYPES
 from dbmind.common.types import Sequence
+from dbmind.components.extract_log import get_workload_template
 from dbmind.components.slow_query_diagnosis import analyze_slow_query_with_rpc
 from dbmind.components.sql_rewriter.sql_rewriter import rewrite_sql_api
 from dbmind.metadatabase import dao
@@ -1096,15 +1103,85 @@ def check_credential(username, password, scopes=None):
     return rpc.handshake(username, password, receive_exception=True)
 
 
-def toolkit_index_advise(database, sqls):
-    for i, sql in enumerate(sqls):
-        advise_stmt = sql.replace("'", "''").strip()
-        advise_stmt = "select * from gs_index_advise('%s')" % advise_stmt
-        sqls[i] = advise_stmt
+def toolkit_index_advise(current, pagesize, database, sqls, max_index_num, max_index_storage):
+    result = sqlparse.split(sqls[0])
+    database_schemas = get_database_schemas()
+    schema_names = []
+    for key1, val1 in database_schemas.items():
+        for key2, val2 in database_schemas[key1].items():
+            if key2 == database:
+                schema_names.append(val2)
+    database_templates = dict()
+    get_workload_template(database_templates, result, TemplateArgs(10, 5000))
+    executor = RpcExecutor(database, None, None, None, None, '"$user",public,' + ','.join(schema_names))
+    detail_info = rpc_index_advise(executor, database_templates, max_index_num, max_index_storage)
+    if detail_info is None:
+        return []
+    return index_advise_final_result(detail_info, current, pagesize)
 
-    stmt = ' union '.join(sqls) + ';'
-    res = global_vars.agent_proxy.current_rpc().call('query_in_database', stmt, database, return_tuples=False)
-    return psycopg2_dict_jsonify(res)
+
+def index_advise_final_result(detail_info, current, pagesize):
+    final_result = dict()
+    recommend_indexes = detail_info['recommendIndexes']
+    useless_indexes = detail_info['uselessIndexes']
+    useless_list = []
+    redundant_list = []
+    recommend_list = []
+    for element in useless_indexes:
+        if element['type'] == 3:
+            useless_list.append(element)
+        if element['type'] == 2:
+            redundant_list.append(element)
+    final_result['redundant_indexes'] = redundant_list
+    final_result['useless_indexes'] = useless_list
+    for item in recommend_indexes:
+        advise_index = dict()
+        advise_index['index'] = item['statement']
+        advise_index['improve_rate'] = item['workloadOptimized']
+        advise_index['index_size'] = str('%.2f' % float(item['storage'])) + "MB"
+        advise_index['select'] = '%.2f' % item['selectRatio']
+        advise_index['delete'] = '%.2f' % item['deleteRatio']
+        advise_index['update'] = '%.2f' % item['updateRatio']
+        advise_index['insert'] = '%.2f' % item['insertRatio']
+        detail_list = []
+        for detail in item['sqlDetails']:
+            detail_dict = dict()
+            if detail['correlationType'] == 1:
+                detail_dict['template'] = detail['sqlTemplate']
+                detail_dict['count'] = detail['sqlCount']
+                detail_dict['improve'] = round(float(detail['optimized']) / 100, 2)
+                detail_list.append(detail_dict)
+        advise_index['templates'] = detail_list
+        recommend_list.append(advise_index)
+    final_result['advise_indexes'] = pagination(recommend_list, current, pagesize)
+    final_result['total'] = len(recommend_list)
+    return final_result, dict()
+
+
+def pagination(data, page, size):
+    begin = (page - 1) * size
+    end = page * size
+    page_num = math.ceil(len(data) / size)
+    result = data[begin:end]
+    if result and page <= page_num:
+        return result
+    else:
+        result = data[begin:end]
+        return result
+
+
+def toolkit_index_advise_default_value():
+    opt_default_value = dict()
+    opt_default_value['max_index_num'] = global_vars.dynamic_configs.get_int_or_float(
+        'SELF-OPTIMIZATION', 'max_index_num', fallback=10
+    )
+    opt_default_value['max_index_storage'] = global_vars.dynamic_configs.get_int_or_float(
+        'SELF-OPTIMIZATION', 'max_index_storage', fallback=100
+    )
+    opt_default_value['min_improved_rate'] = global_vars.dynamic_configs.get_int_or_float(
+        'SELF-OPTIMIZATION', 'min_improved_rate', fallback=100
+    )
+    return opt_default_value
 
 
 def toolkit_rewrite_sql(database, sqls):

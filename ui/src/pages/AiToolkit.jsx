@@ -2,7 +2,8 @@ import React, { Component } from 'react';
 import IndexAdvisor from '../components/AiTookit/IndexAdvisor.jsx';
 import QueryTuning from '../components/AiTookit/QueryTuning.jsx';
 import Inteligent from '../components/AiTookit/InteligentSqlAnalysis';
-import { AreaChartOutlined, BarChartOutlined, BarsOutlined } from '@ant-design/icons';
+import RiskAnalysis from '../components/AiTookit/RiskAnalysis';
+import { AreaChartOutlined, BarChartOutlined, BarsOutlined, PieChartOutlined } from '@ant-design/icons';
 import '../assets/css/common.css'
 import '../assets/css/main/aiToolkit.css';
 import { Tabs } from 'antd';
@@ -48,6 +49,16 @@ export default class AlToolkit extends Component {
             }
             key="3">
             < Inteligent />
+          </TabPane>
+          <TabPane
+            tab={
+              <span>
+                <PieChartOutlined />
+                Risk Analysis
+              </span>
+            }
+            key="4">
+            <RiskAnalysis />
           </TabPane>
         </Tabs>
       </div>

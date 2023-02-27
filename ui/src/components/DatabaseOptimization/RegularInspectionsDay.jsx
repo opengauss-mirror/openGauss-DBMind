@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Col, Row, Select, Card } from 'antd';
+import PropTypes from 'prop-types';
 import InstanceResource from './RegularInspectionsModules/InstanceResource';
 import ActiveConnertions from './RegularInspectionsModules/ActiveConnertions';
 import TotalConnertions from './RegularInspectionsModules/TotalConnertions';

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ReloadOutlined } from '@ant-design/icons';
 import { Card, message, Table } from 'antd';
+import PropTypes from 'prop-types';
 import { getMetricStatisticInterface } from '../../../api/clusterInformation';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 export default class Statistics extends React.PureComponent {

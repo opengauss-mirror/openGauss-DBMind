@@ -395,6 +395,7 @@ class IndexAdvisor:
         sql_info['columns'] = index.get_columns()
         sql_info['index_type'] = index.get_index_type()
         sql_info['statement'] = statement
+        sql_info['storage'] = index.get_storage()
         sql_info['dmlCount'] = total_sql_num
         sql_info['selectRatio'] = 1
         sql_info['insertRatio'] = sql_info['deleteRatio'] = sql_info['updateRatio'] = 0
