@@ -390,14 +390,3 @@ def monthly_inspection():
                         'conclusion': ''})
     dai.save_regular_inspection_results(results)
 
-
-@customized_timer(seconds=update_detection_param_interval)
-def update_detection_param():
-    logging.info('Start to update detection params.')
-    try:
-        end = datetime.now()
-        start = end - timedelta(seconds=one_day)
-        for instance, rpc in global_vars.agent_proxy:
-            regular_inspection.update_detection_param(instance, start, end)
-    except Exception as e:
-        logging.error(e, exc_info=True)

@@ -10,23 +10,19 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-import logging
 import re
-from collections import namedtuple, defaultdict
+from datetime import datetime, timedelta
+from collections import defaultdict
 
 from dbmind import global_vars
-from dbmind.app.monitoring import get_param
 from dbmind.common.algorithm.data_statistic import get_statistic_data, box_plot
 from dbmind.metadatabase import dao
 from dbmind.service import dai
-from dbmind.service.web import get_access_context, ACCESS_CONTEXT_NAME
-from dbmind.service.web import _sqlalchemy_query_jsonify_for_multiple_instances as sqlalchemy_query_jsonify_for_multiple_instances
+from dbmind.service.web import _sqlalchemy_query_jsonify_for_multiple_instances as \
+    sqlalchemy_query_jsonify_for_multiple_instances
 from dbmind.app.diagnosis.query.slow_sql.query_info_source import is_sequence_valid
 
-CHANGE_THRESHOLD = 0.2
-DISK_DEVICE_PATTERN = re.compile(r"device: ([\w/-]+), mountpoint: ([\w/-]+)")
-METRIC_ATTR = namedtuple('METRIC_ATTR',
-                         ['name', 'category', 'fetch_method', 'related_metric', 'label'])
+ONE_DAY = 24 * 60
 
 
 def _get_root_cause(root_causes):
@@ -49,62 +45,16 @@ def _get_query_type(query):
         return 'OTHER'
 
 
-_param_metric_mapper = {'tps_threshold': METRIC_ATTR(name='qps', category='database', fetch_method='one',
-                                                     related_metric='gaussdb_qps_by_instance', label=''),
-                        'p80_threshold': METRIC_ATTR(name='p80', category='database', fetch_method='one',
-                                                     related_metric='statement_responsetime_percentile_p80',
-                                                     label=''),
-                        'io_capacity_threshold': METRIC_ATTR(name='io_capacity', category='system',
-                                                             fetch_method='one',
-                                                             related_metric='os_disk_iocapacity ',
-                                                             label=''),
-                        'io_delay_threshold': METRIC_ATTR(name='io_delay', category='system',
-                                                          fetch_method='all',
-                                                          related_metric='os_io_write_delay_time',
-                                                          label='device'),
-                        'iops_threshold': METRIC_ATTR(name='iops', category='system', fetch_method='one',
-                                                      related_metric='os_disk_iops',
-                                                      label=''),
-                        'replication_sent_diff_threshold': METRIC_ATTR(name='replication_sent_diff',
-                                                                       category='database',
-                                                                       fetch_method='all',
-                                                                       related_metric='pg_stat_replication_sent_diff',
-                                                                       label=''),
-                        'replication_replay_diff_threshold': METRIC_ATTR(
-                            name='replication_replay_diff',
-                            category='database', fetch_method='all',
-                            related_metric='pg_stat_replication_replay_diff',
-                            label=''),
-                        'data_file_wait_threshold': METRIC_ATTR(name='io_write_delay', category='database',
-                                                                fetch_method='one',
-                                                                related_metric='gaussdb_data_file_write_time',
-                                                                label='')}
-
-
-def update_detection_param(instance, start, end):
-    for param, metric in _param_metric_mapper.items():
-        if metric.category not in ('system', 'database'):
-            continue
-        upper = 0
-        original_value = get_param(param)
-        if metric.category == 'database':
-            server = instance
-        else:
-            server = instance.split(':')[0]
-        if metric.fetch_method == 'one':
-            sequence = dai.get_metric_sequence(metric.related_metric, start, end).from_server(
-                server).fetchone()
-            if sequence.values:
-                upper, _ = box_plot(sequence.values, n=3)
-        if metric.fetch_method == 'all':
-            sequences = dai.get_metric_sequence(metric.related_metric, start, end).from_server(
-                server).fetchall()
-            for sequence in sequences:
-                if sequence.values:
-                    upper = max(upper, box_plot(sequence.values, n=3)[0])
-        if original_value != 0 and upper != 0 and abs(original_value - upper) / original_value > CHANGE_THRESHOLD:
-            global_vars.dynamic_configs.set('detection_params', param, upper)
-            logging.info("Update detection parameter '%s' from %s to %s.", param, original_value, upper)
+def get_metric_statistic_threshold(instance, metric, latest_minutes=ONE_DAY, **kwargs):
+    # automatic calculation of parameter thresholds.
+    # note： it is used for unimportant metric.
+    end_time = datetime.now()
+    start_time = end_time - timedelta(minutes=latest_minutes)
+    sequence = dai.get_metric_sequence(metric, start_time, end_time).from_server(instance).filter(**kwargs).fetchone()
+    if not is_sequence_valid(sequence):
+        return
+    upper, lower = box_plot(sequence.values, n=1.5)
+    return upper, lower
 
 
 def get_sequence_value(s, func=None):
@@ -139,10 +89,14 @@ class DailyInspection:
 
     @property
     def dml(self):
-        select_sequence = dai.get_metric_sequence('pg_sql_count_select', self._start, self._end).from_server(self._agent_instance).fetchone()
-        update_sequence = dai.get_metric_sequence('pg_sql_count_update', self._start, self._end).from_server(self._agent_instance).fetchone()
-        insert_sequence = dai.get_metric_sequence('pg_sql_count_insert', self._start, self._end).from_server(self._agent_instance).fetchone()
-        delete_sequence = dai.get_metric_sequence('pg_sql_count_delete', self._start, self._end).from_server(self._agent_instance).fetchone()
+        select_sequence = dai.get_metric_sequence('pg_sql_count_select', self._start, self._end).\
+            from_server(self._agent_instance).fetchone()
+        update_sequence = dai.get_metric_sequence('pg_sql_count_update', self._start, self._end).\
+            from_server(self._agent_instance).fetchone()
+        insert_sequence = dai.get_metric_sequence('pg_sql_count_insert', self._start, self._end).\
+            from_server(self._agent_instance).fetchone()
+        delete_sequence = dai.get_metric_sequence('pg_sql_count_delete', self._start, self._end).\
+            from_server(self._agent_instance).fetchone()
         dml_distribution = {'select': get_sequence_value(select_sequence, max),
                             'delete': get_sequence_value(delete_sequence, max),
                             'update': get_sequence_value(update_sequence, max),
@@ -152,7 +106,8 @@ class DailyInspection:
     @property
     def performance(self):
         performance_detail = {}
-        tps_sequence = dai.get_metric_sequence('gaussdb_qps_by_instance', self._start, self._end).from_server(self._agent_instance).fetchone()
+        tps_sequence = dai.get_metric_sequence('gaussdb_qps_by_instance', self._start, self._end).\
+            from_server(self._agent_instance).fetchone()
         p95_sequence = dai.get_metric_sequence('statement_responsetime_percentile_p95',
                                            self._start, self._end).from_server(self._agent_instance).fetchone()
         if is_sequence_valid(tps_sequence):
@@ -166,7 +121,8 @@ class DailyInspection:
     @property
     def db_size(self):
         rv = {'header': ('dbname', 'max', 'min', 'is_continuous_increase'), 'rows': []}
-        sequences = dai.get_metric_sequence('pg_database_size_bytes', self._start, self._end).from_server(self._agent_instance).fetchall()
+        sequences = dai.get_metric_sequence('pg_database_size_bytes', self._start, self._end).\
+            from_server(self._agent_instance).fetchall()
         for sequence in sequences:
             if is_sequence_valid(sequence):
                 dbname = sequence.labels.get('datname', 'UNKNOWN')
@@ -178,13 +134,15 @@ class DailyInspection:
     @property
     def table_size(self):
         rv = {'header': ('dbname', 'schema', 'tablename', 'tablesize', 'indexsize'), 'rows': []}
-        sequences = dai.get_metric_sequence('pg_tables_size_relsize', self._start, self._end).from_server(self._agent_instance).fetchall()
+        sequences = dai.get_metric_sequence('pg_tables_size_relsize', self._start, self._end).\
+            from_server(self._agent_instance).fetchall()
         for sequence in sequences:
             if is_sequence_valid(sequence):
                 schema = sequence.labels.get('nspname', 'UNKNOWN')
                 relname = sequence.labels.get('relname', 'UNKNOWN')
                 datname = sequence.labels.get('datname', 'UNKNOWN')
-                indexsize_seq = dai.get_metric_sequence('pg_tables_size_indexsize', self._start, self._end).from_server(self._agent_instance).filter(nspname=schema, relname=relname).fetchone()
+                indexsize_seq = dai.get_metric_sequence('pg_tables_size_indexsize', self._start, self._end).\
+                    from_server(self._agent_instance).filter(nspname=schema, relname=relname).fetchone()
                 rv['rows'].append((datname, schema, relname, round(get_sequence_value(sequence, max) / 1024 / 1024, 2),
                                    round(get_sequence_value(indexsize_seq, max) / 1024 / 1024, 2)))
         return rv
@@ -238,7 +196,10 @@ class DailyInspection:
                     root_cause_distribution[str(root_cause)] = 0
                 root_cause_distribution[root_cause] += count
         for dbname, query_type_count in query_type_recorder.items():
-            query_type_distribution['rows'].append([dbname, query_type_count['select'], query_type_count['delete'], query_type_count['update'], query_type_count['insert']])
+            query_type_distribution['rows'].append([dbname, query_type_count['select'],
+                                                    query_type_count['delete'],
+                                                    query_type_count['update'],
+                                                    query_type_count['insert']])
         for dbname, template_detail in query_template_recorder.items():
             for template, count in template_detail.items():
                 query_templates['rows'].append([dbname, template, count])
@@ -249,8 +210,10 @@ class DailyInspection:
     @property
     def connection(self):
         active_connection, total_connection = {}, {}
-        active_conn_sequence = dai.get_metric_sequence('gaussdb_active_connection', self._start, self._end).from_server(self._agent_instance).fetchone()
-        total_conn_sequence = dai.get_metric_sequence('gaussdb_total_connection', self._start, self._end).from_server(self._agent_instance).fetchone()
+        active_conn_sequence = dai.get_metric_sequence('gaussdb_active_connection', self._start, self._end).\
+            from_server(self._agent_instance).fetchone()
+        total_conn_sequence = dai.get_metric_sequence('gaussdb_total_connection', self._start, self._end).\
+            from_server(self._agent_instance).fetchone()
         if is_sequence_valid(active_conn_sequence):
             avg_val, min_val, max_val, the_95th_val = get_statistic_data(active_conn_sequence.values)
             active_connection = {'max': max_val, 'min': min_val, 'avg': avg_val, 'the_95th': the_95th_val}
@@ -266,19 +229,21 @@ class DailyInspection:
         for instance in self._instances_with_port:
             host, _ = instance.split(':')
             host_like = host + "(:[0-9]{4,5}|)"
-            dynamic_memory_sequence = dai.get_metric_sequence('pg_total_memory_detail_mbytes', self._start, self._end).from_server(instance).filter(type='dynamic_used_memory').fetchone()
-            total_memory_sequence = dai.get_latest_metric_value('node_memory_MemTotal_bytes').filter_like(instance=host_like).fetchone()
+            dynamic_memory_sequence = dai.get_metric_sequence('pg_total_memory_detail_mbytes', self._start, self._end).\
+                from_server(instance).filter(type='dynamic_used_memory').fetchone()
+            total_memory_sequence = dai.get_latest_metric_value('node_memory_MemTotal_bytes').\
+                filter_like(instance=host_like).fetchone()
             if is_sequence_valid(total_memory_sequence) and is_sequence_valid(dynamic_memory_sequence): 
                 # transfer bytes to unit 'MB'
                 total_memory = get_sequence_value(total_memory_sequence) / 1024 / 1024
                 memory_rate = [round(item / total_memory, 2) for item in dynamic_memory_sequence.values]
                 avg_val, min_val, max_val, the_95th_val = get_statistic_data(dynamic_memory_sequence.values)
-                dynamic_used_memory[instance] = {'statistic': {'max': max_val, 'min': min_val, 'avg': avg_val, 'the_95th': the_95th_val},
+                dynamic_used_memory[instance] = {'statistic': {'max': max_val, 'min': min_val,
+                                                               'avg': avg_val, 'the_95th': the_95th_val},
                                                  'timestamps': dynamic_memory_sequence.timestamps,
                                                  'data': memory_rate}
         return dynamic_used_memory
     
-
     def __call__(self):
         return {'resource': self.resource,
                 'dml': self.dml,
@@ -290,7 +255,6 @@ class DailyInspection:
                 'connection': self.connection, 
                 'dynamic_memory': self.dynamic_memory, 
                 'performance': self.performance}
-               
 
 
 def _get_regular_inspection_report(instance, inspection_type, start, end, limit):
@@ -329,7 +293,8 @@ class MultipleDaysInspection:
         self._instances_with_port = all_agents.get(instance)
         self._instances_with_no_port = [i.split(':')[0] for i in self._instances_with_port]
         self._existing_data = True
-        self._history_report = _get_regular_inspection_report(instance, 'daily_check', self._start, self._end, self._history_inspection_limit)
+        self._history_report = _get_regular_inspection_report(instance, 'daily_check',
+                                                              self._start, self._end, self._history_inspection_limit)
         self._history_start_time = _get_time_from_rv(self._history_report, 'start')
 
     @property
@@ -416,7 +381,8 @@ class MultipleDaysInspection:
                 if key not in table_size_recorder:
                     table_size_recorder[key] = []
                 table_size_recorder[key].append((table_size, index_size, table_size + index_size))
-        table_size_recorder = sorted(table_size_recorder.items(), key=lambda item: abs(max(item[1][-1]) - min(item[1][-1])), reverse=True)
+        table_size_recorder = sorted(table_size_recorder.items(),
+                                     key=lambda item: abs(max(item[1][-1]) - min(item[1][-1])), reverse=True)
         del(table_size_recorder[topk_table:])
         table_size_recorder = dict(table_size_recorder)
         for key, value in table_size_recorder.items():
@@ -473,7 +439,8 @@ class MultipleDaysInspection:
                 query_type_distribution[dbname]['update'].append(row[update_index])
                 query_type_distribution[dbname]['delete'].append(row[delete_index])
                 query_type_distribution[dbname]['insert'].append(row[insert_index])
-                query_type_distribution[dbname]['sum'].append(row[select_index] + row[update_index] + row[delete_index] + row[insert_index])
+                query_type_distribution[dbname]['sum'].append(row[select_index] + row[update_index] +
+                                                              row[delete_index] + row[insert_index])
             for rca, count in slow_sql_rca['root_cause_distribution'].items():
                 if rca not in root_cause_distribution:
                     root_cause_distribution[rca] = 0
