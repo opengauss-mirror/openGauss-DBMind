@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { Card, message, Table } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import { getActiveSQLDataInterface } from '../../../api/autonormousMangemant';
+import { getActiveSQLDataInterface } from '../../../api/autonomousManagement';
 import { formatTableTime, formatTableTitle } from '../../../utils/function';
 
 export default class ActiveSql extends Component {

@@ -11,5 +11,5 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from .forcasting_algorithm import ForecastingFactory
-from .forcasting_algorithm import quickly_forecast
+from .forecasting_algorithm import ForecastingFactory
+from .forecasting_algorithm import quickly_forecast

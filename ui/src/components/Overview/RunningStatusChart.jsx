@@ -51,11 +51,11 @@ export default class RunningStatusChart extends Component {
     const { success, data, msg } = await getRunningStatusInterface()
     if (success) {
       if (JSON.stringify(data) !== '{}') {
-        let legengArr = []//legend
+        let legendArr = []//legend
         let indicatorData = []//indicator
         let dataArrFlag = []
         for (let item in data) {
-          legengArr.push(item)
+          legendArr.push(item)
           let itsArr = []
           for (let it in data[item]) {
             let itObj = {
@@ -114,7 +114,7 @@ export default class RunningStatusChart extends Component {
           showFlag: 0,
           chartData: finaData,
           indicatorData: indicatorData,
-          legendData: legengArr
+          legendData: legendArr
         }), () => {
           _this.getOption()
         })

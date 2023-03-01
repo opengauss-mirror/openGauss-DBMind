@@ -18,7 +18,7 @@ export default class Statistics extends React.PureComponent {
       },
       formData: {},
       RuntimeFormData: {},
-      visilbe: false,
+      visible: false,
       showFlag: 0,
     }
   }
@@ -28,7 +28,7 @@ export default class Statistics extends React.PureComponent {
       this.setState(() => ({
         formData: { ...data.cluster_summary },
         RuntimeFormData: data.runtime,
-        visilbe: true,
+        visible: true,
         showFlag: 0
       }))
     } else {
@@ -37,7 +37,7 @@ export default class Statistics extends React.PureComponent {
   }
   handleRefresh () {
     this.setState({
-      visilbe: false,
+      visible: false,
       showFlag: 2
     }, () => {
       this.getClusterSummary()

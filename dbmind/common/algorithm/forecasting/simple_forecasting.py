@@ -13,7 +13,7 @@
 
 from dbmind.common.types import Sequence
 from dbmind.common.algorithm.data_statistic import least_square
-from .forcasting_algorithm import ForecastingAlgorithm
+from .forecasting_algorithm import ForecastingAlgorithm
 
 
 class SimpleLinearFitting(ForecastingAlgorithm):

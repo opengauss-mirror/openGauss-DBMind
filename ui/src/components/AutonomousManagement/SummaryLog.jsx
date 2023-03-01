@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Card, Input, message, Spin } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import { getLogSummaryTnterface } from '../../api/autonormousMangemant';
+import { getLogSummaryInterface } from '../../api/autonomousManagement';
 
 const { TextArea } = Input;
 
@@ -15,7 +15,7 @@ export default class LogInformation extends Component {
   }
   async getLogSummary () {
     this.setState({loadingFlag: 1 })
-    const { success, data, msg } = await getLogSummaryTnterface()
+    const { success, data, msg } = await getLogSummaryInterface()
     if (success) {
       this.setState({
         summaryLogTextareaVal: data,

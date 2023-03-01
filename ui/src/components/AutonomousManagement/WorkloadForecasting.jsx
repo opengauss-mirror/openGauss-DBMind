@@ -6,8 +6,8 @@ import ReactEcharts from 'echarts-for-react';
 import {
   getForecastChartInterface,
   getSearchMetricInterface,
-  getWorkloadForcastInterface
-} from '../../api/autonormousMangemant'
+  getWorkloadForecastInterface
+} from '../../api/autonomousManagement'
 import { formatTimestamp } from '../../utils/function'
 
 const { RangePicker } = DatePicker;
@@ -57,14 +57,14 @@ export default class WorkloadForecasting extends Component {
         options: data,
         metricName: data[0]
       }), () => {
-        this.getWorkloadForcast()
+        this.getWorkloadForecast()
       })
     } else {
       message.error(msg)
     }
   }
   // 查询图表
-  async getWorkloadForcast () {
+  async getWorkloadForecast () {
     let params = {
       name: this.state.metricName,
       time: {
@@ -77,7 +77,7 @@ export default class WorkloadForecasting extends Component {
       showFlag: false,
       showType: 0
     })
-    const { success, data, msg } = await getWorkloadForcastInterface(params)
+    const { success, data, msg } = await getWorkloadForecastInterface(params)
     if (success) {
       if (data.length > 0) {
         // 处理X轴
@@ -142,7 +142,7 @@ export default class WorkloadForecasting extends Component {
     if (!this.state.metricName) {
       message.warning('Please choose metric name')
     } else {
-      this.getWorkloadForcast()
+      this.getWorkloadForecast()
     }
   }
   filter = (inputValue, path) => {

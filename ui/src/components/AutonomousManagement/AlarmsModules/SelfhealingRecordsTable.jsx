@@ -3,7 +3,7 @@ import { Card, Row, Col, DatePicker, Table, Button, message, Select } from 'antd
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTime, formatTableTitle, formatTimestamp } from '../../../utils/function';
-import { getSelfHealingRecordsInterface, getSelfHealingRecordsInterfaceCount} from '../../../api/autonormousMangemant';
+import { getSelfHealingRecordsInterface, getSelfHealingRecordsInterfaceCount} from '../../../api/autonomousManagement';
 
 const { Option } = Select;
 export default class SelfhealingRecordsTable extends Component {

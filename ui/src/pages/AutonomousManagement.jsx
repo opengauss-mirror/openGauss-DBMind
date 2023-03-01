@@ -14,7 +14,7 @@ import SummaryLog from '../components/AutonomousManagement/SummaryLog';
 
 const { TabPane } = Tabs;
 
-export default class AutonormousManagement extends Component {
+export default class AutonomousManagement extends Component {
   constructor() {
     super()
     this.state = {}

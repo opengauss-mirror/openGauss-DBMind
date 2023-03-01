@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { Table, Card, message, Empty, Spin } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons'; 
 import ReactEcharts from 'echarts-for-react';
-import { getRegularInspections } from '../../../api/autonormousMangemant';
+import { getRegularInspections } from '../../../api/autonomousManagement';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 
 const columnsTable = ['name','address','corr','delay'];

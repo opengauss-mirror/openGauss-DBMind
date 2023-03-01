@@ -3,7 +3,7 @@ import { Button, Card, Checkbox, Col, message, Row, Select, Table, Modal} from '
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import MetricChart from './MetricChart';
-import { getHistoryAlarmsInterface, getHistoryAlarmsInterfaceCount } from '../../../api/autonormousMangemant';
+import { getHistoryAlarmsInterface, getHistoryAlarmsInterfaceCount } from '../../../api/autonomousManagement';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 const { Option } = Select;
 export default class Alarms extends Component {

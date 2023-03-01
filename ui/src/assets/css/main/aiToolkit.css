@@ -19,7 +19,7 @@
 .ant-form-horizontal .ant-form-item-label{
   width: 120px!important;
 }
-.errorinvalied .ant-form-item-explain-error{
+.errorinvalid .ant-form-item-explain-error{
   width: 200px;
 }
 .uploadcss .ant-upload-list{

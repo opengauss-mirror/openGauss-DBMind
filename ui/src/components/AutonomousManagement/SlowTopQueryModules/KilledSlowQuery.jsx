@@ -3,7 +3,7 @@ import { Button, Card, Col, DatePicker, Form, Input, InputNumber, message, Row, 
 import moment from 'moment';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import { getKillSlowQueryInterface, getKillSlowQueryInterfaceCount} from '../../../api/autonormousMangemant';
+import { getKillSlowQueryInterface, getKillSlowQueryInterfaceCount} from '../../../api/autonomousManagement';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 
 const { RangePicker } = DatePicker;

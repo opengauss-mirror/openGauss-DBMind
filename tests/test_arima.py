@@ -15,7 +15,7 @@ import warnings
 
 import numpy as np
 
-from dbmind.common.algorithm.forecasting.forcasting_algorithm import quickly_forecast, \
+from dbmind.common.algorithm.forecasting.forecasting_algorithm import quickly_forecast, \
     sequence_interpolate
 from dbmind.common.algorithm.stat_utils import trim_head_and_tail_nan
 from dbmind.common.types.sequence import Sequence

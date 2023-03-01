@@ -3,7 +3,7 @@ import { Card, Table } from 'antd';
 import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTimestamp } from '../../../utils/function';
-import { getSlowQueryRecent } from '../../../api/databaseOptimaztion'
+import { getSlowQueryRecent } from '../../../api/databaseOptimization'
 
 export default class TableofSlowQueryTable extends Component {
   static propTypes={

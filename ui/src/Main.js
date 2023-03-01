@@ -6,7 +6,7 @@ import HeaderTop from './components/Header.jsx';
 import MenuLeft from './components/MenuLeft.jsx';
 import Overview from './pages/Overview';
 import NodeInformation from './pages/NodeInformation.jsx';
-import AutonormousManagement from './pages/AutonomousManagement.jsx';
+import AutonomousManagement from './pages/AutonomousManagement.jsx';
 import DatabaseOptimization from './pages/DatabaseOptimization';
 import SecurityManagement from './pages/SecurityManagement';
 import AiToolkit from './pages/AiToolkit.jsx';
@@ -36,7 +36,7 @@ class Main extends React.Component {
               <Switch>
                 <Route path="/overview" component={Overview}></Route>
                 <Route path="/nodeinfor" component={NodeInformation}></Route>
-                <Route path="/autonomousmanagement" component={AutonormousManagement}></Route>
+                <Route path="/autonomousmanagement" component={AutonomousManagement}></Route>
                 <Route path="/databaseoptimization" component={DatabaseOptimization}></Route>
                 <Route path="/securitymanagement" component={SecurityManagement}></Route>
                 <Route path="/dbmind-settings" component={DbmindSettings}></Route>

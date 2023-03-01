@@ -9,7 +9,7 @@ import RedundantIndexesChangeChart from './IndexTuningModules/RedundantIndexesCh
 import AdvisedIndexes from './IndexTuningModules/AdvisedIndexes';
 import PositiveSql from './IndexTuningModules/PositiveSql';
 import ExistingIndexes from './IndexTuningModules/ExistingIndexes';
-import { getIndexTuningInterface, getPositiveSqlCount, getExistingIndexesCount } from '../../api/databaseOptimaztion';
+import { getIndexTuningInterface, getPositiveSqlCount, getExistingIndexesCount } from '../../api/databaseOptimization';
 import {
   ApartmentOutlined,
   BorderOuterOutlined,

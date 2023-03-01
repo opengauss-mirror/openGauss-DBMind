@@ -32,7 +32,7 @@ from ..forecasting_utils import (
     ma_inv_trans_params,
     is_invertible,
 )
-from ..forcasting_algorithm import ForecastingAlgorithm
+from ..forecasting_algorithm import ForecastingAlgorithm
 
 from dbmind.common.utils import dbmind_assert
 

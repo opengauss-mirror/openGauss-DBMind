@@ -2,8 +2,8 @@ import React, { Component } from 'react';
 import { Col, Row, Select, Card } from 'antd';
 import PropTypes from 'prop-types';
 import InstanceResource from './RegularInspectionsModules/InstanceResource';
-import ActiveConnertions from './RegularInspectionsModules/ActiveConnertions';
-import TotalConnertions from './RegularInspectionsModules/TotalConnertions';
+import ActiveConnections from './RegularInspectionsModules/ActiveConnections';
+import TotalConnections from './RegularInspectionsModules/TotalConnections';
 import Tps from './RegularInspectionsModules/Tps';
 import ResponseTime from './RegularInspectionsModules/ResponseTime';
 import Dml from './RegularInspectionsModules/Dml';
@@ -24,8 +24,8 @@ export default class RegularInspectionsDay extends Component {
     super(props)
     this.state = {
       instanceResource: '',
-      activeConnertions: '',
-      totalConnertions: '',
+      activeConnections: '',
+      totalConnections: '',
       tpsData: '',
       responseTime: '',
       dmlData: '',
@@ -42,8 +42,8 @@ export default class RegularInspectionsDay extends Component {
     if (data) {
         this.setState({
           instanceResource: data.rows[0][1].resource,
-          activeConnertions: data.rows[0][1].connection.active_connection,
-          totalConnertions: data.rows[0][1].connection.total_connection,
+          activeConnections: data.rows[0][1].connection.active_connection,
+          totalConnections: data.rows[0][1].connection.total_connection,
           tpsData: data.rows[0][1].performance.tps,
           responseTime: data.rows[0][1].performance.p95,
           dmlData: data.rows[0][1].dml,
@@ -75,16 +75,16 @@ export default class RegularInspectionsDay extends Component {
                 </Col>
                 <Col className="gutter-row" span={12}>
                   <div className="cardShow">
-                  <Card title="Total Connertions" style={{ textAlign: 'center' }}>
+                  <Card title="Total Connections" style={{ textAlign: 'center' }}>
                   <Row gutter={16}>
                     <Col className="gutter-row" span={12}>
                       <div className="cardShow">
-                      <ActiveConnertions activeConnertions={this.state.activeConnertions} />
+                      <ActiveConnections activeConnections={this.state.activeConnections} />
                       </div>
                     </Col>
                     <Col className="gutter-row" span={12}>
                       <div className="cardShow">
-                      <TotalConnertions totalConnertions={this.state.totalConnertions} />
+                      <TotalConnections totalConnections={this.state.totalConnections} />
                       </div>
                     </Col>
                     </Row>

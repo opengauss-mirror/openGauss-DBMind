@@ -1,8 +1,8 @@
 import React, { Component } from 'react';
-import IndexAdvisor from '../components/AiTookit/IndexAdvisor.jsx';
-import QueryTuning from '../components/AiTookit/QueryTuning.jsx';
-import Inteligent from '../components/AiTookit/InteligentSqlAnalysis';
-import RiskAnalysis from '../components/AiTookit/RiskAnalysis';
+import IndexAdvisor from '../components/AiToolkit/IndexAdvisor.jsx';
+import QueryTuning from '../components/AiToolkit/QueryTuning.jsx';
+import Intelligent from '../components/AiToolkit/IntelligentSqlAnalysis';
+import RiskAnalysis from '../components/AiToolkit/RiskAnalysis';
 import { AreaChartOutlined, BarChartOutlined, BarsOutlined, PieChartOutlined } from '@ant-design/icons';
 import '../assets/css/common.css'
 import '../assets/css/main/aiToolkit.css';
@@ -44,11 +44,11 @@ export default class AlToolkit extends Component {
             tab={
               <span>
                 <BarChartOutlined />
-                Inteligent SQL Analysis
+                Intelligent SQL Analysis
               </span>
             }
             key="3">
-            < Inteligent />
+            < Intelligent />
           </TabPane>
           <TabPane
             tab={

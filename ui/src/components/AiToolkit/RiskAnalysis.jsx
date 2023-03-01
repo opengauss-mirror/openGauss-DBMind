@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { Button, Card, Col, Empty, InputNumber, message, Row, Select, Spin, Input} from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import ReactEcharts from 'echarts-for-react';
-import { getForcastInterface, getSearchMetricInterface } from '../../api/autonormousMangemant'
+import { getForecastInterface, getSearchMetricInterface } from '../../api/autonomousManagement'
 import { getAgentListInterface } from '../../api/common';
 import { formatTimestamp } from '../../utils/function';
 import db from '../../utils/storage';
@@ -56,14 +56,14 @@ export default class RiskAnalysis extends Component {
       this.setState(() => ({
         optionsSel: optionArr, instanceName: optionArr[0]
       }), () => {
-        this.getWorkloadForcast()
+        this.getWorkloadForecast()
       })
     } else {
       message.error(msg)
     }
   }
   // 查询图表
-  async getWorkloadForcast () {
+  async getWorkloadForecast () {
     let params = {
       instance_name: this.state.instanceName ? this.state.instanceName : null,
       metric_name: this.state.metricName ? this.state.metricName : null,
@@ -75,7 +75,7 @@ export default class RiskAnalysis extends Component {
     this.setState({
       showType: 0
     })
-    const { success, data, msg } = await getForcastInterface(params)
+    const { success, data, msg } = await getForecastInterface(params)
     if (success) {
       if (Object.keys(data).length > 0) {
         let instanceAllData = []
@@ -153,7 +153,7 @@ export default class RiskAnalysis extends Component {
     if (!this.state.metricName) {
       message.warning('Please choose metric name')
     } else {
-      this.getWorkloadForcast()
+      this.getWorkloadForecast()
     }
   }
   getOption = (item) => {

@@ -3,7 +3,7 @@ import { Card, Table, message } from 'antd';
 import PropTypes from 'prop-types'
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTitle } from '../../../utils/function';
-import { getExistingIndexes } from '../../../api/databaseOptimaztion'
+import { getExistingIndexes } from '../../../api/databaseOptimization'
 
 export default class PositiveSql extends Component {
   static propTypes={

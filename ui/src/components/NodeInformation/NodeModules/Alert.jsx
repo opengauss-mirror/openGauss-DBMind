@@ -6,7 +6,7 @@ import { formatTimestamp } from '../../../utils/function';
 
 let timer = null
 
-export default class Nodealart extends Component {
+export default class Nodealert extends Component {
   constructor() {
     super()
     this.state = {

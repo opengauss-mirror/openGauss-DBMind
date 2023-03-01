@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { Button, Card, Checkbox, Col, DatePicker, message, Row, Select, Table } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import { getFutureAlarmsInterface, getFutureAlarmsInterfaceCount, getSearchMetricInterface } from '../../../api/autonormousMangemant';
+import { getFutureAlarmsInterface, getFutureAlarmsInterfaceCount, getSearchMetricInterface } from '../../../api/autonomousManagement';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 
 const { Option } = Select;
@@ -24,7 +24,7 @@ export default class Alarms extends Component {
       options: [],
       loadingFuture: false,
       hostOptionsFilter: [],
-      futerHostOptionFilter: [],
+      futureHostOptionFilter: [],
       timekey:''
     }
   }
@@ -92,7 +92,7 @@ export default class Alarms extends Component {
         })
         let hostOptions = this.handleDataDeduplicate(hostOptionsFilterArr)
         this.setState(() => ({
-          futerHostOptionFilter: hostOptions,
+          futureHostOptionFilter: hostOptions,
           loadingFuture: false,
           futureTableSource: res,
           columns: tableHeader,
@@ -301,7 +301,7 @@ export default class Alarms extends Component {
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
                 } style={{ width: 200 }}>
                 {
-                  this.state.futerHostOptionFilter.map((item, index) => {
+                  this.state.futureHostOptionFilter.map((item, index) => {
                     return (
                       <Option value={item} key={index}>{item}</Option>
                     )

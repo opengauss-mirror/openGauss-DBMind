@@ -3,7 +3,7 @@ import { Card, message, Table, Spin } from 'antd';
 import KnobData from './DatabaseTuningModules/Knob';
 import MetricData from './DatabaseTuningModules/Metric';
 import WarningData from './DatabaseTuningModules/Warning';
-import { getDatabaseTuningInterface, getKnobRecommendationSnapshotCount, getKnobRecommendationWarningsCount, getKnobRecommendationCount } from '../../api/databaseOptimaztion';
+import { getDatabaseTuningInterface, getKnobRecommendationSnapshotCount, getKnobRecommendationWarningsCount, getKnobRecommendationCount } from '../../api/databaseOptimization';
 
 export default class DatabaseTuning extends Component {
   constructor(props) {

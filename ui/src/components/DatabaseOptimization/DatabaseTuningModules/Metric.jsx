@@ -3,7 +3,7 @@ import { Card, Table, message } from 'antd';
 import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTitle } from '../../../utils/function';
-import { getKnobRecommendationSnapshot } from '../../../api/databaseOptimaztion'
+import { getKnobRecommendationSnapshot } from '../../../api/databaseOptimization'
 
 export default class MetricData extends Component {
   static propTypes={

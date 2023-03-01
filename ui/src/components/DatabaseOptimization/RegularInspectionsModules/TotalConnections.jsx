@@ -5,9 +5,9 @@ import ResizeableTitle from '../../common/ResizeableTitle';
 import '../../../assets/css/main/databaseOptimization.css';
 import { formatTableTitle } from '../../../utils/function';
 
-export default class TotalConnertions extends Component {
+export default class TotalConnections extends Component {
   static propTypes={
-    totalConnertions:PropTypes.object.isRequired
+    totalConnections:PropTypes.object.isRequired
   }
   constructor(props) {
     super(props)
@@ -69,7 +69,7 @@ export default class TotalConnertions extends Component {
     });
   };
   UNSAFE_componentWillReceiveProps (nextProps) {
-    this.handleTableData(nextProps.totalConnertions)
+    this.handleTableData(nextProps.totalConnections)
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -81,7 +81,7 @@ export default class TotalConnertions extends Component {
     }))
     return (
       <div style={{ textAlign: 'center' }} className='tableDiv'>
-        <Card title="Total Connertions">
+        <Card title="Total Connections">
           <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 157, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>
       </div>

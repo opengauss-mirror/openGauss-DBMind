@@ -1,8 +1,8 @@
 import React, { Component } from 'react';
 import { Col, Row, Card } from 'antd';
 import PropTypes from 'prop-types';
-import ActiveConnertionsChart from './RegularInspectionsModules/ActiveConnertionsChart';
-import TotalConnertionsChart from './RegularInspectionsModules/TotalConnertionsChart';
+import ActiveConnectionsChart from './RegularInspectionsModules/ActiveConnectionsChart';
+import TotalConnectionsChart from './RegularInspectionsModules/TotalConnectionsChart';
 import ResponseTimeLineChart from './RegularInspectionsModules/ResponseTimeLineChart';
 import TpsLineChart from './RegularInspectionsModules/TpsLineChart';
 import SystemResourceChart from './RegularInspectionsModules/SystemResourceChart';
@@ -89,12 +89,12 @@ export default class RegularInspectionsWeek extends Component {
               <Row gutter={16}>
               <Col className="gutter-row" span={12}>
                   <div className="cardShow">
-                    <TotalConnertionsChart totalLineChart={this.state.totalLineChart} />
+                    <TotalConnectionsChart totalLineChart={this.state.totalLineChart} />
                   </div>
                 </Col>
                 <Col className="gutter-row" span={12}>
                   <div className="cardShow">
-                    <ActiveConnertionsChart activeLineChart={this.state.activeLineChart} />
+                    <ActiveConnectionsChart activeLineChart={this.state.activeLineChart} />
                   </div>
                 </Col>
               </Row>

@@ -3,7 +3,7 @@ import { Card, Table, message } from 'antd';
 import PropTypes from 'prop-types'
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTitle } from '../../../utils/function';
-import { getKnobRecommendationWarnings } from '../../../api/databaseOptimaztion'
+import { getKnobRecommendationWarnings } from '../../../api/databaseOptimization'
 
 export default class WarningData extends Component {
   static propTypes={

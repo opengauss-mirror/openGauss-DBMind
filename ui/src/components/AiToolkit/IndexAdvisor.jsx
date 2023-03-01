@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { UploadOutlined, SettingFilled, InfoCircleFilled } from '@ant-design/icons';
 import { Button, Card, Input, message, Select, Table, Upload, Modal, InputNumber, Tooltip, Progress } from 'antd';
-import { getItemListInterface, getListIndexAdvisorInterface, getListIndexAdvisorDefaultValue } from '../../api/aitook';
+import { getItemListInterface, getListIndexAdvisorInterface, getListIndexAdvisorDefaultValue } from '../../api/aiTool';
 import { formatTableTitle } from '../../utils/function';
 import db from '../../utils/storage';
 
@@ -85,8 +85,8 @@ export default class IndexAdvisor extends Component {
     const { success, data, msg } = await getListIndexAdvisorInterface(params)
     if (success) {
       let advisorColumObj = {},advisorHeader = ["index","improve_rate","index_size","templates","select","delete","update","insert"],advisorTableHeader = [],
-      redundantColumObj = [],redundantHeader = ["schemaName","tbname","columns","statment","related_indexes"],redundantTableHeader = [],
-      uselessColumObj = [],uselessHeader = ["schemaName","tbname","columns","statment"],uselessTableHeader = [],widthArray = ['34%','12%','12%','12%','5%','5%','5%','15%']
+      redundantColumObj = [],redundantHeader = ["schemaName","tbname","columns","statement","related_indexes"],redundantTableHeader = [],
+      uselessColumObj = [],uselessHeader = ["schemaName","tbname","columns","statement"],uselessTableHeader = [],widthArray = ['34%','12%','12%','12%','5%','5%','5%','15%']
       advisorHeader.forEach((item,Index) => {
         advisorColumObj = {
           title: formatTableTitle(item),
@@ -373,7 +373,7 @@ export default class IndexAdvisor extends Component {
 # SELECT * FROM t1 WHERE t1.id > 100`} />
           </div>
           <div className="flexbox">
-          <Button type="primary" size="small" style={{ margin: '20px 0px 20px 120px' }} onClick={() => this.addTableData('type1')}>Adivse Index</Button>
+          <Button type="primary" size="small" style={{ margin: '20px 0px 20px 120px' }} onClick={() => this.addTableData('type1')}>Advise Index</Button>
           </div>
         </Card>
         <Card title="Recommended Set" className='recommended bordmargin' bordered={false} style={{ width: '100%', height: 'auto' }}>

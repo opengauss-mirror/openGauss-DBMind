@@ -27,7 +27,7 @@ export default class TopologicalGraph extends Component {
   constructor() {
     super()
     this.state = {
-      choosedNode: null,
+      chosenNode: null,
       chartdata: [],
       links: [],
       categories: [{
@@ -69,7 +69,7 @@ export default class TopologicalGraph extends Component {
     myChart.setOption(option, true)
     myChart.on('click', (params) => {
       this.setState({
-        choosedNode: params.data.name
+        chosenNode: params.data.name
       })
     });
   }

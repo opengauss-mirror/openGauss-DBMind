@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { Card, message, Table, } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import { getTopQueryInterface } from '../../../api/autonormousMangemant';
+import { getTopQueryInterface } from '../../../api/autonomousManagement';
 import { formatTableTitle } from '../../../utils/function';
 
 export default class SlowTopQuery extends Component {

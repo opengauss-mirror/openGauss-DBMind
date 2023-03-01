@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Button, Card, Checkbox, Col, Input, message, Row, Select } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
-import { getItemListInterface, getQueryTuningInterface } from '../../api/aitook';
+import { getItemListInterface, getQueryTuningInterface } from '../../api/aiTool';
 
 const { TextArea } = Input;
 const { Option } = Select;

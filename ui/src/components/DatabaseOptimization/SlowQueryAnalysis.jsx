@@ -12,7 +12,7 @@ import MeanFetchTimeChart from './SlowQueryAnalysisModules/MeanFetchTimeChart';
 import StatisticsChart from './SlowQueryAnalysisModules/StatisticsChart';
 import SlowQueryTable from './SlowQueryAnalysisModules/SlowQueryTable';
 import TableofSlowQueryTable from './SlowQueryAnalysisModules/TableofSlowQueryTable';
-import { getSlowQueryAnalysisInterface, getSlowQueryRecentCount} from '../../api/databaseOptimaztion';
+import { getSlowQueryAnalysisInterface, getSlowQueryRecentCount} from '../../api/databaseOptimization';
 import { FileSearchOutlined, FundOutlined, MonitorOutlined } from '@ant-design/icons';
 const iconimg = [<FileSearchOutlined key="1"/>, <MonitorOutlined key="2"/>, <FundOutlined key="3"/>, <FileSearchOutlined key="4"/>, <MonitorOutlined key="5"/>, <FundOutlined key="6"/>]
 export default class SlowQueryAnalysis extends Component {

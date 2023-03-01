@@ -3,7 +3,7 @@ import { Button, Card, Checkbox, Col, DatePicker, Form, Input, InputNumber, mess
 import moment from 'moment';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
-import { getRecentSlowQueryInterface, getRecentSlowQueryInterfaceCount} from '../../../api/autonormousMangemant';
+import { getRecentSlowQueryInterface, getRecentSlowQueryInterfaceCount} from '../../../api/autonomousManagement';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 
 const { RangePicker } = DatePicker;

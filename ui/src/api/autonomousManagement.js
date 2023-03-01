@@ -1,7 +1,7 @@
 import { get, post } from './request';
 
 // ----Workload Forecasting
-export const getWorkloadForcastInterface = (data) => {
+export const getWorkloadForecastInterface = (data) => {
   return get(`/workload_forecasting/sequence/${data.name}`, data.time);
 };
 export const getForecastChartInterface = (data) => {
@@ -11,7 +11,7 @@ export const getForecastChartInterface = (data) => {
 export const getSearchMetricInterface = () => {
   return get('/list/metric');
 };
-export const getForcastInterface = (data) => {
+export const getForecastInterface = (data) => {
   return get(`/toolkit/risk_analysis?instance_name=${data.instance_name}&metric_name=${data.metric_name}&filter_name=${data.labels}&warning_hours=${data.warning_hours}&upper=${data.upper}&lower=${data.lower}`);
 };
 
@@ -68,6 +68,6 @@ export const getLockingQueryInterface = () => {
 };
 
 // ----Log Information
-export const getLogSummaryTnterface = () => {
+export const getLogSummaryInterface = () => {
   return get('/summary/log')
 }

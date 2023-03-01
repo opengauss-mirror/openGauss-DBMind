@@ -4,9 +4,9 @@ import PropTypes from 'prop-types';
 import ReactEcharts from 'echarts-for-react';
 import { formatTimestamp } from '../../../utils/function';
 
-export default class TotalConnertionsChart extends Component {
+export default class ActiveConnectionsChart extends Component {
   static propTypes={
-    totalLineChart:PropTypes.object.isRequired
+    activeLineChart:PropTypes.object.isRequired
   }
   constructor(props) {
     super(props)
@@ -20,7 +20,7 @@ export default class TotalConnertionsChart extends Component {
   getOption = () => {
     return {
       title: {
-        text: 'Total Connertions',
+        text: 'Active Connections',
         left: 'center',
         textStyle:{
           color: '#314b71',
@@ -88,18 +88,18 @@ export default class TotalConnertionsChart extends Component {
     };
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
-    if (JSON.stringify(nextProps.totalLineChart.data) !== '{}') {
+    if (JSON.stringify(nextProps.activeLineChart.data) !== '{}') {
       let colors = ['#5470c6', '#91cc75', '#fac858', '#007acc' ], legendData = []
           // 处理X轴
           let formatTimeData = [];
-          nextProps.totalLineChart.timestamps.forEach(ele => {
+          nextProps.activeLineChart.timestamps.forEach(ele => {
             formatTimeData.push(formatTimestamp(ele));
           });
             let allData = [],seriesItem = {}
-            Object.keys(nextProps.totalLineChart.data.total_connection).forEach(function (data, i, v) {
+            Object.keys(nextProps.activeLineChart.data.active_connection).forEach(function (data, i, v) {
               legendData.push(data);
               seriesItem = {
-                data: nextProps.totalLineChart.data.total_connection[data],
+                data: nextProps.activeLineChart.data.active_connection[data],
                 type: 'line',
                 smooth: true,
                 name: data,

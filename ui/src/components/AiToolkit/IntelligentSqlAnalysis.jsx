@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Button, Input, message, Select, Card, Col, Row, Table, Form, DatePicker } from 'antd';
-import { getIntelligentSqlAnalysisInterface } from '../../api/aitook';
-import { getItemListInterface } from '../../api/aitook';
+import { getIntelligentSqlAnalysisInterface } from '../../api/aiTool';
+import { getItemListInterface } from '../../api/aiTool';
 import moment from 'moment';
 
 const { Option } = Select;
@@ -98,7 +98,7 @@ export default class Sqlanalysis extends Component {
   render () {
     return (
       <div>
-        <Card title="Inteligent SQL Analysis" style={{ minHeight: 800 }}>
+        <Card title="Intelligent SQL Analysis" style={{ minHeight: 800 }}>
           <Form
             name="basic"
             initialValues={{
@@ -109,7 +109,7 @@ export default class Sqlanalysis extends Component {
             autoComplete="off"
           >
             <Row justify="space-between">
-              <Col span={6} className="errorinvalied">
+              <Col span={6} className="errorinvalid">
                 <Form.Item
                   label="Database List"
                   name="database"

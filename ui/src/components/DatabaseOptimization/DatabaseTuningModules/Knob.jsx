@@ -3,7 +3,7 @@ import { Card, Table, message } from 'antd';
 import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTitle } from '../../../utils/function';
-import { getKnobRecommendation } from '../../../api/databaseOptimaztion'
+import { getKnobRecommendation } from '../../../api/databaseOptimization'
 
 export default class KnobData extends Component {
   static propTypes={
