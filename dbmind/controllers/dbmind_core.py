@@ -159,27 +159,6 @@ def get_metric_sequence(name, start: int = None, end: int = None, step: int = No
     return web.get_metric_sequence(name, start, end, step)
 
 
-@request_mapping('/api/summary/workload_forecasting', methods=['GET'], api=True)
-@oauth2.token_authentication()
-@standardized_api_output
-def workload_forecasting_summary():
-    return web.get_forecast_sequence_info(metric_name=None)
-
-
-@request_mapping('/api/workload_forecasting/sequence/{name}', methods=['GET'], api=True)
-@oauth2.token_authentication()
-@standardized_api_output
-def workload_forecasting_get_metric_sequence(name, start: int = None, end: int = None, step: int = None):
-    return web.get_metric_sequence(name, start, end, step)
-
-
-@request_mapping('/api/workload_forecasting/sequence/forecast/{name}', methods=['GET'], api=True)
-@oauth2.token_authentication()
-@standardized_api_output
-def workload_forecasting_forecast(name: str, start: int = None, end: int = None, step: int = None):
-    return web.get_metric_forecast_sequence(name, start, end, step)
-
-
 @request_mapping('/api/alarm/history', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
@@ -193,6 +172,13 @@ def get_history_alarms(pagesize: int = None, current: int = None,
 @standardized_api_output
 def get_history_alarms_count(instance: str = None, alarm_type: str = None, alarm_level: str = None, group: bool = False):
     return web.get_history_alarms_count(instance, alarm_type, alarm_level, group)
+
+
+@request_mapping('/api/workload_forecasting/sequence/forecast/{name}', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def workload_forecasting_forecast(name: str, start: int = None, end: int = None, step: int = None):
+    return web.get_metric_forecast_sequence(name, start, end, step)
 
 
 @request_mapping('/api/alarm/future', methods=['GET'], api=True)
@@ -462,13 +448,6 @@ def sqldiag(database: str, sql: str):
     }
 
 
-@request_mapping('/api/toolkit/forecast/sequence/{name}', methods=['POST', 'GET'], api=True)
-@oauth2.token_authentication()
-@standardized_api_output
-def forecast(name: str, start: int = None, end: int = None, step: int = None):
-    return web.get_metric_forecast_sequence(name, start, end, step)
-
-
 @request_mapping('/api/setting/set', methods=['POST', 'GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
@@ -527,20 +506,6 @@ def diagnosis_slow_sql(item: SlowSQLItem):
                                     schema=schema,
                                     start_time=start_time,
                                     end_time=end_time)
-
-
-@request_mapping('/api/summary/metric_statistic', methods=['GET'], api=True)
-@oauth2.token_authentication()
-@standardized_api_output
-def get_metric_statistic(pagesize: int = None, current: int = None, instance: str = None, metric_name: str = None):
-    return web.get_metric_statistic(pagesize, current, instance, metric_name)
-
-
-@request_mapping('/api/summary/metric_statistic_count', methods=['GET'], api=True)
-@oauth2.token_authentication()
-@standardized_api_output
-def get_metric_statistic_count(instance: str = None, metric_name: str = None):
-    return web.get_metric_statistic_count(instance, metric_name)
 
 
 @request_mapping('/api/summary/regular_inspections', methods=['GET'], api=True)

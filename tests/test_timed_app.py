@@ -15,8 +15,3 @@ from dbmind.app import timed_app
 
 def test_self_monitoring():
     timed_app.self_monitoring()
-
-
-def test_forecast_kpi(capfd):
-    timed_app.forecast_kpi()
-    assert len(capfd.readouterr())

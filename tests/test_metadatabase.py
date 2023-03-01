@@ -22,7 +22,6 @@ from dbmind.metadatabase import business_db, Base
 from dbmind.metadatabase import create_dynamic_config_schema
 from dbmind.metadatabase.dao.alarms import *
 from dbmind.metadatabase.dao.dynamic_config import dynamic_config_get, dynamic_config_set
-from dbmind.metadatabase.dao.forecasting_metrics import *
 from dbmind.metadatabase.dao.slow_queries import *
 
 
@@ -87,40 +86,6 @@ def test_slow_queries():
 
     truncate_slow_queries()
     assert count_slow_queries() == 0
-
-
-def test_forecasting_metrics():
-    truncate_forecasting_metrics()  # clear
-
-    batch_insert_forecasting_metric(
-        metric_name='metric0',
-        instance='127.0.0.1',
-        metric_value=tuple(range(0, 1000)),
-        metric_time=tuple(range(0, 1000))
-    )
-    batch_insert_forecasting_metric(
-        metric_name='metric1',
-        instance='127.0.0.1',
-        metric_value=tuple(range(0, 1000)),
-        metric_time=tuple(range(0, 1000))
-    )
-    batch_insert_forecasting_metric(
-        metric_name='metric2',
-        instance='127.0.0.1',
-        metric_value=tuple(range(0, 1000)),
-        metric_time=tuple(range(0, 1000))
-    )
-    assert count_forecasting_metric(metric_name='metric0') == 1000
-    assert count_forecasting_metric() == 1000 * 3
-    for i, metric in enumerate(select_forecasting_metric(
-            metric_name='metric1', instance='127.0.0.1',
-            min_metric_time=500, max_metric_time=800
-    )):
-        assert metric.metric_value == 500 + i
-    delete_timeout_forecasting_metrics(oldest_metric_time=500)
-    assert count_forecasting_metric() == 1000 * 3 // 2
-    truncate_forecasting_metrics()
-    assert count_forecasting_metric() == 0
 
 
 def test_history_alarms():

@@ -11,7 +11,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 from .existing_index import ExistingIndexes
-from .forecasting_metrics import ForecastingMetrics
 from .future_alarms import FutureAlarms
 from .healing_records import HealingRecords
 from .history_alarms import HistoryAlarms
@@ -26,7 +25,6 @@ from .slow_queries import SlowQueries
 from .slow_queries_journal import SlowQueriesJournal
 from .slow_queries_killed import SlowQueriesKilled
 from .regular_inspections import RegularInspection
-from .statistical_metric import StatisticalMetric
 
 
 def load_all_schema_models():

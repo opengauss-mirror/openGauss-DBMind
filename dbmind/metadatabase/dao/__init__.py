@@ -12,10 +12,8 @@
 # See the Mulan PSL v2 for more details.
 from . import alarms
 from . import dynamic_config
-from . import forecasting_metrics
 from . import healing_records
 from . import index_recommendation
 from . import knob_recommendation
 from . import slow_queries
-from . import statistical_metric
 from . import regular_inspections

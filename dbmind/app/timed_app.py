@@ -18,19 +18,16 @@ from datetime import timedelta, datetime
 from dbmind import global_vars, constants
 from dbmind.app.diagnosis.entry import diagnose_query
 from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
-from dbmind.app.monitoring import detect_future, MUST_BE_DETECTED_METRICS
+from dbmind.app.monitoring import MUST_BE_DETECTED_METRICS
 from dbmind.app.monitoring import detect_history, group_sequences_together, regular_inspection
 from dbmind.app.optimization import (need_recommend_index,
                                      do_index_recomm,
                                      recommend_knobs,
                                      TemplateArgs,
                                      get_database_schemas)
-from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.dispatcher import customized_timer
-from dbmind.common.types.sequence import EMPTY_SEQUENCE
 from dbmind.common.utils import cast_to_int_or_float, NaiveQueue
 from dbmind.service import dai
-from dbmind.service.utils import SequenceUtils
 
 global_vars.self_driving_records = NaiveQueue(20)
 
@@ -53,12 +50,8 @@ self_monitoring_interval = global_vars.configs.getint('TIMED_TASK', 'self_monito
                                                       fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 slow_query_killer_interval = global_vars.configs.getint('TIMED_TASK', 'slow_query_killer_interval',
                                                         fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
-forecast_kpi_interval = global_vars.configs.getint('TIMED_TASK', 'forecast_kpi_interval',
-                                                   fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 discard_expired_results_interval = global_vars.configs.getint('TIMED_TASK', 'discard_expired_results_interval',
                                                               fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
-update_detection_param_interval = global_vars.configs.getint('TIMED_TASK', 'update_detection_param_interval',
-                                                             fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
 one_day = 24 * 60 * 60  # unit is second
 one_week = 7 * one_day  # unit is second
 one_month = 30 * one_day  # unit is second
@@ -234,79 +227,6 @@ def slow_query_killer():
                     'time': int(time.time() * 1000)
                 }
             )
-
-
-@customized_timer(forecast_kpi_interval)
-def forecast_kpi():
-    # The general training length is at least three times the forecasting length.
-    expansion_factor = 5
-    enough_history_minutes = how_long_to_forecast_minutes * expansion_factor
-    if enough_history_minutes <= 0:
-        logging.error(
-            'The value of enough_history_minutes is less than or equal to 0 '
-            'and DBMind has ignored it.'
-        )
-        return
-
-    start = datetime.now() - timedelta(minutes=enough_history_minutes)
-    end = datetime.now()
-    alarms = list()
-    for metrics in to_be_detected_metrics_for_future:
-        sequences_list = []
-        latest_to_future = {}
-        for metric in metrics:
-            latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
-            try:
-                metric_value_range = global_vars.metric_value_range_map.get(metric)
-                lower, upper = map(float, metric_value_range.split(','))
-            except Exception:
-                lower, upper = 0, float("inf")
-
-            future_sequences = global_vars.worker.parallel_execute(
-                quickly_forecast, ((sequence, how_long_to_forecast_minutes, lower, upper)
-                                   for sequence in latest_sequences)
-            )
-
-            if future_sequences:
-                for i in range(len(latest_sequences)):
-                    if future_sequences[i]:
-                        latest_to_future[latest_sequences[i]] = future_sequences[i]
-                        # Save the forecast future KPIs for users browsing.
-                        metric = latest_sequences[i].name
-                        host = SequenceUtils.from_server(latest_sequences[i])
-                        dai.save_forecast_sequence(metric, host, future_sequences[i])
-                    else:
-                        latest_to_future[latest_sequences[i]] = EMPTY_SEQUENCE
-
-            sequences_list.append(latest_sequences)
-
-        group_list = group_sequences_together(sequences_list, metrics)
-
-        detect_materials = list()
-        for latest_sequences in group_list:
-            future_sequences = []
-            for latest_sequence in latest_sequences:
-                future_sequence = latest_to_future.get(latest_sequence)
-                if future_sequence:
-                    future_sequences.append(future_sequence)
-                else:
-                    future_sequences.append(EMPTY_SEQUENCE)
-
-            host = SequenceUtils.from_server(latest_sequences[0])
-            detect_materials.append((host, metrics, latest_sequences, future_sequences))
-
-        alarms.extend(global_vars.worker.parallel_execute(detect_future, detect_materials) or [])
-
-    global_vars.self_driving_records.put(
-        {
-            'catalog': 'monitoring',
-            'msg': 'Completed forecast for KPIs and found %d anomalies in future.'
-                   % len(alarms),
-            'time': int(time.time() * 1000)
-        }
-    )
-    for alarm in alarms:
-        dai.save_future_alarms(alarm)
 
 
 @customized_timer(max(discard_expired_results_interval, 60))

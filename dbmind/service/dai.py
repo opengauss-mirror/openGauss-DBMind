@@ -312,16 +312,6 @@ def save_healing_record(record):
     )
 
 
-def save_forecast_sequence(metric_name, instance, sequence):
-    if not sequence:
-        return
-
-    dao.forecasting_metrics.batch_insert_forecasting_metric(
-        metric_name, instance, sequence.values, sequence.timestamps,
-        labels=json.dumps(sequence.labels)
-    )
-
-
 def save_slow_queries(slow_queries):
     for slow_query in slow_queries:
         if slow_query is None:
@@ -381,14 +371,6 @@ def delete_older_result(current_timestamp, retention_time):
             action(before_timestamp)
         except Exception as e:
             logging.exception(e)
-
-    # The timestamp of forecast is in the future. So we cannot delete older
-    # results according to `before_timestamp`. Here, we use current time to 
-    # delete forecast metrics.
-    try:
-        dao.forecasting_metrics.delete_timeout_forecasting_metrics(current_timestamp)
-    except Exception as e:
-        logging.exception(e)
 
 
 def get_all_last_monitoring_alarm_logs(minutes):
@@ -571,13 +553,6 @@ def save_killed_slow_queries(instance, results):
     for row in results:
         logging.debug('[Killed Slow Query] %s.', str(row))
         dao.slow_queries.insert_killed_slow_queries(instance, **row)
-
-
-def save_statistical_metric_records(results):
-    dao.statistical_metric.truncate()
-    for row in results:
-        logging.debug('[STATISTICAL METRIC RECORD] %s', str(row))
-        dao.statistical_metric.insert_record(**row)
 
 
 def save_regular_inspection_results(results):

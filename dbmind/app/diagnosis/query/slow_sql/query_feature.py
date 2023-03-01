@@ -17,7 +17,6 @@ from dbmind.app import monitoring
 from dbmind.common.algorithm.anomaly_detection.spike_detector import SpikeDetector
 from dbmind.common.parser import sql_parsing
 from dbmind.common.types import Sequence
-from dbmind.metadatabase.dao import statistical_metric
 from ..slow_sql.query_info_source import QueryContext
 
 PROPERTY_LENGTH = 40
@@ -37,15 +36,6 @@ def _search_in_existing_indexes(index_info, seqscan_info):
         if set(index_columns) & set(seqscan_info.columns):
             result.append({'index_name': index_name, 'index_column': index_columns})
     return result
-
-
-def _get_historical_statistics(metric_name, instance):
-    result = statistical_metric.select_metric_statistic_avg_records(
-        instance=instance, metric_name=metric_name, only_avg=True)
-    for item in result:
-        avg = list(item)[0] if list(item) else 0
-        return avg
-    return 0.0
 
 
 def _get_operator_cost(node):

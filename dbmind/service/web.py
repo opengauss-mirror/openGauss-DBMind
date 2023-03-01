@@ -153,45 +153,6 @@ def get_metric_value(metric_name):
     return fetcher
 
 
-def get_forecast_sequence_info(metric_name):
-    return _sqlalchemy_query_jsonify_for_multiple_instances(
-        query_function=dao.forecasting_metrics.aggregate_forecasting_metric,
-        instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST),
-        metric_name=metric_name
-    )
-
-
-def get_stored_forecast_sequence(metric_name, instance, start_at=None, limit=None):
-    r = dao.forecasting_metrics.select_forecasting_metric(
-        metric_name, instance=instance, min_metric_time=start_at)
-    metric_forecast_result = dict()
-    for row in r:
-        metric_time = row.metric_time
-        metric_value = row.metric_value
-        labels = row.labels
-        if labels not in metric_forecast_result:
-            metric_forecast_result[labels] = {'timestamps': [], 'values': []}
-
-        # skip duplication
-        if len(metric_forecast_result[labels]['timestamps']) > 0 and \
-                metric_time <= metric_forecast_result[labels]['timestamps'][-1]:
-            continue
-        metric_forecast_result[labels]['timestamps'].append(metric_time)
-        metric_forecast_result[labels]['values'].append(float(metric_value))
-    rv = []
-    for labels in metric_forecast_result:
-        forecast_entity = metric_forecast_result[labels]
-        forecast_entity['labels'] = json.loads(labels)
-        forecast_entity['name'] = metric_name
-        if limit is not None:
-            forecast_entity['timestamps'] = forecast_entity['timestamps'][-limit:]
-            forecast_entity['values'] = forecast_entity['values'][-limit:]
-        rv.append(forecast_entity)
-    # Bring into correspondence with the function get_metric_sequence().
-    rv.sort(key=lambda v: str(v['labels']))
-    return rv
-
-
 def get_metric_forecast_sequence(metric_name, from_timestamp=None, to_timestamp=None, step=None):
     fetcher = get_metric_sequence_internal(metric_name, from_timestamp, to_timestamp, step)
     sequences = fetcher.fetchall()
@@ -227,6 +188,7 @@ def get_metric_forecast_sequence(metric_name, from_timestamp=None, to_timestamp=
         i += 1
 
     return list(map(lambda _s: _s.jsonify(), future_sequences))
+
 
 
 def get_xact_status():
@@ -1213,31 +1175,6 @@ def search_slow_sql_rca_result(sql, start_time=None, end_time=None, limit=None):
     return root_causes, suggestions
 
 
-def get_metric_statistic(pagesize=None, current=None, instance=None, metric_name=None):
-    if instance is not None:
-        instances = [instance]
-    else:
-        instances = None
-    offset = max(0, (current - 1) * pagesize)
-    limit = pagesize 
-    return _sqlalchemy_query_union_records_logic(
-        query_function=dao.statistical_metric.select_metric_statistic_records,
-        instances=instances, 
-        offset=offset, limit=limit,
-        metric_name=metric_name
-    )
-
-
-def get_metric_statistic_count(instance, metric_name):
-    if instance is not None:
-        instances = [instance]
-    else:
-        instances = None
-    return _sqlalchemy_query_records_count_logic(
-        count_function=dao.statistical_metric.count_records,
-        instances=instances, metric_name=metric_name)
-
-
 def get_regular_inspections(inspection_type):
     return sqlalchemy_query_jsonify(dao.regular_inspections.select_metric_regular_inspections(
         instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT), 
@@ -1313,8 +1250,7 @@ def get_timed_task_status():
 
 
 def risk_analysis(metric, instance, warning_hours, upper, lower, labels):
-    end_time = int(time.time()) * 1000
-    start_time = end_time - warning_hours * 60 * 60 * 1000 * 3
+    retroactive_period = warning_hours * 3
     labels = string_to_dict(labels, delimiter=',')
-    warnings = early_warning(metric, instance, start_time, end_time, warning_hours, upper, lower, labels)
+    warnings = early_warning(metric, instance, retroactive_period, warning_hours, upper, lower, labels)
     return warnings
