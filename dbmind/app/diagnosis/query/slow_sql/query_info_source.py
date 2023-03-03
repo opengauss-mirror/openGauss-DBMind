@@ -28,6 +28,7 @@ from dbmind.common.types import Sequence
 from dbmind.common.utils import ExceptionCatcher
 from dbmind.components.sql_rewriter.sql_rewriter import rewrite_sql_api
 from dbmind.service import dai
+from dbmind.service.dai import is_sequence_valid, is_driver_result_valid
 
 exception_catcher = ExceptionCatcher(strategy='raise', name='SLOW QUERY')
 DEFAULT_FETCH_INTERVAL = 15
@@ -247,19 +248,6 @@ def parse_field_from_indexdef(indexdef):
         fields = [item.strip() for item in fields.groups()[0].split(',')]
         return fields
     return []
-
-
-def is_sequence_valid(s):
-    if isinstance(s, list):
-        return len([item for item in s if item.values]) > 0
-    else:
-        return s and s.values and s.labels
-
-
-def is_driver_result_valid(s):
-    if isinstance(s, list) and len(s) > 0:
-        return True
-    return False
 
 
 def _get_sequence_max_value(s: Sequence, precision=0):

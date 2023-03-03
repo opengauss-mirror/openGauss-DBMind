@@ -17,7 +17,6 @@
     - The data obtained from here ensures that the format is clean and uniform;
     - The data has been preprocessed here.
 """
-import json
 import logging
 from datetime import timedelta, datetime
 import time
@@ -559,3 +558,109 @@ def save_regular_inspection_results(results):
     for row in results:
         logging.debug('[REGULAR INSPECTION] %s', str(row))
         dao.regular_inspections.insert_regular_inspection(**row)
+
+
+def check_tsdb_status():
+    detail = {'status': 'down', 'listen_address': 'unknown', 'instance': '', 'name': ''}
+    client = TsdbClientFactory.get_tsdb_client()
+    if not client.check_connection():
+        return detail
+    detail['listen_address'] = f"{TsdbClientFactory.host}:{TsdbClientFactory.port}"
+    detail['instance'] = f"{TsdbClientFactory.host}"
+    detail['name'] = client.name
+    detail['status'] = "up"
+    return detail
+
+
+def check_exporter_status():
+    detail = {'opengauss_exporter': [], 'reprocessing_exporter': [], 'node_exporter': []}
+    client = TsdbClientFactory.get_tsdb_client()
+    if not client.check_connection():
+        detail['opengauss_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
+        detail['reprocessing_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
+        detail['node_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
+        return detail
+    self_exporters = {'opengauss_exporter': 'pg_node_info_uptime', 'reprocessing_exporter': 'os_cpu_usage',
+                      'node_exporter': 'node_boot_time_seconds'}
+    instance_with_port = global_vars.agent_proxy.current_cluster_instances()
+    instance_with_no_port = [item.split(':')[0] for item in instance_with_port]
+    for exporter, metric in self_exporters.items():
+        # add cmd_exporter here later
+        if exporter in ('opengauss_exporter', ):
+            instances = instance_with_port
+        else:
+            instances = instance_with_no_port
+        for instance in instances:
+            if exporter == 'node_exporter':
+                instance_regex = instance + ':?.*'
+                sequences = get_latest_metric_value('node_boot_time_seconds').\
+                    from_server_like(instance_regex).fetchall()
+            else:
+                sequences = get_latest_metric_value(metric).from_server(instance).fetchall()
+            if is_sequence_valid(sequences):
+                for sequence in sequences:
+                    listen_address = sequence.labels.get('instance')
+                    if exporter == 'reprocessing_exporter':
+                        if listen_address not in (item['listen_address'] for item in detail[exporter]):
+                            detail[exporter].append(
+                                {'instance': instance, 'listen_address': listen_address, 'status': 'up'})
+                    else:
+                        detail[exporter].append(
+                            {'instance': instance, 'listen_address': listen_address, 'status': 'up'})
+            else:
+                if exporter == 'node_exporter':
+                    detail['node_exporter'].append({'instance': instance, 'status': 'down'})
+    return detail
+
+
+def diagnosis_exporter_status(exporter_status):
+    # accept the return value of the function 'check_exporter_status'
+    # and give suggestions for the current exporter deployment
+    suggestions = []
+    instance_with_port = global_vars.agent_proxy.current_cluster_instances()
+    instance_with_no_port = [item.split(':')[0] for item in instance_with_port]
+    agent_address = global_vars.agent_proxy.current_agent_addr()
+    # 1) check whether opengauss_exporter is deployed or whether the number of deployed instances is optimal
+    number_of_opengauss_exporter = len(set((item['listen_address'] for item in
+                                            exporter_status['opengauss_exporter'])))
+    if number_of_opengauss_exporter == 0:
+        suggestions.append(
+            "It is found that the instance has not deployed opengauss_exporter or some exceptions occurs.")
+    # 2) check whether the opengauss_exporter bound to the agent is running normally
+    if number_of_opengauss_exporter and \
+            agent_address not in (item['instance'] for item in exporter_status['opengauss_exporter']):
+        suggestions.append(
+            "The opengauss_exporter bound to the agent is not deployed or is running abnormally.")
+    # 3) check whether too many opengauss_exporters are deployed
+    if number_of_opengauss_exporter > len(instance_with_port):
+        suggestions.append("Too many opengauss_exporter on instance, "
+                           "it is recommended to deploy at most one opengauss_exporter on each instance.")
+    # 4) check the number of reprocessing_exporter
+    number_of_reprocessing_number = len(set((item['listen_address'] for item in
+                                             exporter_status['reprocessing_exporter'])))
+    if number_of_reprocessing_number > 1:
+        suggestions.append("Only need to start one reprocessing exporter component.")
+
+    number_of_alive_node_exporter = len(set([item['instance'] for item in
+                                        exporter_status['node_exporter'] if item['status'] == 'up']))
+    # 5) check whether too many node_exporters are deployed
+    if number_of_alive_node_exporter > len(instance_with_no_port):
+        suggestions.append("Too many node_exporter on instance, "
+                           "it is recommended to deploy at most one opengauss_exporter on each instance.")
+    # 6) check if some nodes do not deploy exporter
+    if number_of_alive_node_exporter < len(instance_with_no_port):
+        suggestions.append("Is is recommended to deploy one node_exporter on each instance node.")
+    return suggestions
+
+
+def is_sequence_valid(s):
+    if isinstance(s, list):
+        return len([item for item in s if item.values]) > 0
+    else:
+        return s and s.values and s.labels
+
+
+def is_driver_result_valid(s):
+    if isinstance(s, list) and len(s) > 0:
+        return True
+    return False

@@ -313,3 +313,7 @@ class PrometheusClient(TsdbClient):
         if response['status'] == 'success' and len(response['data']) > 0:
             return response['data']
         return list()
+
+    @cached_property
+    def name(self):
+        return 'prometheus'

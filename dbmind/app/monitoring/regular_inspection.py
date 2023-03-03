@@ -20,7 +20,7 @@ from dbmind.metadatabase import dao
 from dbmind.service import dai
 from dbmind.service.web import _sqlalchemy_query_jsonify_for_multiple_instances as \
     sqlalchemy_query_jsonify_for_multiple_instances
-from dbmind.app.diagnosis.query.slow_sql.query_info_source import is_sequence_valid
+from dbmind.service.dai import is_sequence_valid
 
 ONE_DAY = 24 * 60
 

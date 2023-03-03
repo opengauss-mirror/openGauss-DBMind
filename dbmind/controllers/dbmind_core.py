@@ -569,3 +569,10 @@ def get_timed_task_status():
 @standardized_api_output
 def risk_analysis(metric, instance, warning_hours: int = 0, upper: int = 0, lower: int = 0, labels: str = None):
     return web.risk_analysis(metric, instance, warning_hours, upper, lower, labels)
+
+
+@request_mapping('/api/collection/status', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_collection_system_status():
+    return web.get_collection_system_status()

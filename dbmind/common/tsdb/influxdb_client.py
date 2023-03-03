@@ -354,3 +354,6 @@ class InfluxdbClient(TsdbClient):
         if response.status_code == 200 and len(response.json()["results"]) > 0:
             return response.json()["results"][0]["series"][0]["values"][0][0]
 
+    @cached_property
+    def name(self):
+        return "influxdb"

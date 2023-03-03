@@ -94,3 +94,6 @@ class TsdbClient(object):
         """get all the metric name from tsdb."""
         return None
 
+    @property
+    def name(self):
+        return None

@@ -23,7 +23,7 @@ from psycopg2.extensions import parse_dsn
 
 from dbmind import constants
 from dbmind import global_vars
-from dbmind.app.diagnosis.query.slow_sql.query_info_source import is_sequence_valid, is_driver_result_valid
+from dbmind.service.dai import is_sequence_valid, is_driver_result_valid
 from dbmind.app.monitoring.generic_detection import AnomalyDetections
 from dbmind.cmd.edbmind import init_global_configs
 from dbmind.common.opengauss_driver import Driver

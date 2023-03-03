@@ -28,7 +28,7 @@ from dbmind.common.utils import write_to_terminal
 from dbmind.common.utils.checking import path_type
 from dbmind.common.utils.exporter import KVPairAction
 from dbmind.service import dai
-from dbmind.app.diagnosis.query.slow_sql.query_info_source import is_sequence_valid
+from dbmind.service.dai import is_sequence_valid
 
 
 def _get_sequences(metric, instance, labels, start_datetime, end_datetime):

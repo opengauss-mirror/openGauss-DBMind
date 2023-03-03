@@ -14,7 +14,6 @@
 and does not disturb internal operations in DBMind."""
 import datetime
 import getpass
-import json
 import logging
 import math
 import os
@@ -1254,3 +1253,10 @@ def risk_analysis(metric, instance, warning_hours, upper, lower, labels):
     labels = string_to_dict(labels, delimiter=',')
     warnings = early_warning(metric, instance, retroactive_period, warning_hours, upper, lower, labels)
     return warnings
+
+
+def get_collection_system_status():
+    detail = {'tsdb': dai.check_tsdb_status(), 'exporter': dai.check_exporter_status()}
+    suggestions = dai.diagnosis_exporter_status(detail['exporter'])
+    detail['suggestions'] = suggestions
+    return detail
