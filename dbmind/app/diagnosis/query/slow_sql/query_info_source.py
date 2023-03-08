@@ -724,22 +724,10 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                                                                   self.query_start_time,
                                                                   self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        node_network_receive_packets_info = dai.get_metric_sequence('os_network_receive_packets',
-                                                                    self.query_start_time,
-                                                                    self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
-        node_network_transmit_packets_info = dai.get_metric_sequence('os_network_transmit_packets',
-                                                                     self.query_start_time,
-                                                                     self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchone()
         if is_sequence_valid(node_network_receive_drop_info):
             network_info.receive_drop = _get_sequence_first_value(node_network_receive_drop_info, precision=4)
         if is_sequence_valid(node_network_transmit_drop_info):
             network_info.transmit_drop = _get_sequence_first_value(node_network_transmit_drop_info, precision=4)
-        if is_sequence_valid(node_network_receive_packets_info):
-            network_info.receive_packets = _get_sequence_first_value(node_network_receive_packets_info, precision=4)
-        if is_sequence_valid(node_network_transmit_packets_info):
-            network_info.transmit_packets = _get_sequence_first_value(node_network_transmit_packets_info, precision=4)
 
         return network_info
 

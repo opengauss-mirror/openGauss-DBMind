@@ -28,7 +28,7 @@ from dbmind.common.dispatcher.task_worker import get_mp_sync_manager
 from dbmind.common.platform import LINUX
 from dbmind.common.sequence_buffer import SequenceBufferPool
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.common.types import Sequence
+from dbmind.common.types import Sequence, EMPTY_SEQUENCE
 from dbmind.common.utils import dbmind_assert
 from dbmind.metadatabase import dao
 from dbmind.service.utils import SequenceUtils
@@ -664,3 +664,25 @@ def is_driver_result_valid(s):
     if isinstance(s, list) and len(s) > 0:
         return True
     return False
+
+
+def get_database_data_directory_usage(instance, latest_minutes):
+    # get the size of the database data directory
+    data_directory_sequence = get_latest_metric_sequence('pg_node_info_uptime', latest_minutes).\
+        from_server(instance).fetchone()
+    if not is_sequence_valid(data_directory_sequence):
+        return EMPTY_SEQUENCE
+    data_directory = data_directory_sequence.labels.get('datapath')
+    instance_with_no_port = instance.split(':')[0]
+    os_disk_usage_sequences = get_latest_metric_sequence('os_disk_usage', latest_minutes).\
+        from_server(instance_with_no_port).fetchall()
+    if not is_sequence_valid(os_disk_usage_sequences):
+        return EMPTY_SEQUENCE
+    for sequence in os_disk_usage_sequences:
+        if not sequence.values:
+            continue
+        mount_point = sequence.labels.get('mountpoint')
+        # avoid mismatched, for example: mount_point is '/', data path is '/media/sdb/opengauss/data/dn'
+        if mount_point != '/' and mount_point in data_directory:
+            return sequence
+    return EMPTY_SEQUENCE

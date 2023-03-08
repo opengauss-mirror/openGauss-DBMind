@@ -613,16 +613,13 @@ class QueryFeature:
         """Determine whether the current network packet loss is serious."""
         node_network_transmit_drop = self.network_info.transmit_drop
         node_network_receive_drop = self.network_info.receive_drop
-        node_network_transmit_packets = self.network_info.transmit_packets
-        node_network_receive_packets = self.network_info.receive_packets
         if isinstance(node_network_transmit_drop, (list, tuple)) and \
                 isinstance(node_network_receive_drop, (list, tuple)):
             if _existing_spike(node_network_receive_drop) or _existing_spike(node_network_transmit_drop):
                 self.detail['network_drop'] = "Found a positive spike in NETWORK-PACKET-DROP"
         else:
-            if node_network_receive_drop / node_network_receive_packets >= \
-                    monitoring.get_param('package_drop_rate_threshold') or \
-                    node_network_transmit_drop / node_network_transmit_packets >= \
+            if node_network_receive_drop >= monitoring.get_param('package_drop_rate_threshold') or \
+                    node_network_transmit_drop >= \
                     monitoring.get_param('package_drop_rate_threshold'):
                 self.detail['network_drop'] = "The current network packet loss rate is abnormal"
         if self.detail.get('network_drop'):

@@ -159,6 +159,15 @@ def get_metric_sequence(name, start: int = None, end: int = None, step: int = No
     return web.get_metric_sequence(name, start, end, step)
 
 
+@request_mapping('/api/latest-sequence/{name}', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_latest_metric_sequence(instance, name, latest_minutes: int = None,
+                               step: int = None, fetch_all: bool = False, labels: str = None):
+    return web.get_latest_metric_sequence(instance, name, latest_minutes,
+                                          step=step, fetch_all=fetch_all, labels=labels)
+
+
 @request_mapping('/api/alarm/history', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
@@ -576,3 +585,10 @@ def risk_analysis(metric, instance, warning_hours: int = 0, upper: int = 0, lowe
 @standardized_api_output
 def get_collection_system_status():
     return web.get_collection_system_status()
+
+
+@request_mapping('/api/app/data-directory/growth-rate', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_database_data_directory_growth_rate(instance: str, latest_minutes: int = 5):
+    return web.get_database_data_directory_growth_rate(instance, latest_minutes)

@@ -14,5 +14,5 @@ from .alarm import Alarm
 from .enums import ALARM_LEVEL, ALARM_TYPES, ANOMALY_TYPES
 from .misc import Log
 from .root_cause import RootCause
-from .sequence import Sequence
+from .sequence import Sequence, EMPTY_SEQUENCE
 from .ssl import SSLContext

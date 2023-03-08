@@ -28,7 +28,7 @@ from dbmind.app.monitoring.generic_detection import AnomalyDetections
 from dbmind.cmd.edbmind import init_global_configs
 from dbmind.common.opengauss_driver import Driver
 from dbmind.common.types import Sequence
-from dbmind.common.types.sequence import EMPTY_SEQUENCE
+from dbmind.common.types import EMPTY_SEQUENCE
 from dbmind.common.utils.checking import path_type, date_type
 from dbmind.common.utils.cli import write_to_terminal
 from dbmind.common.utils import cached_property

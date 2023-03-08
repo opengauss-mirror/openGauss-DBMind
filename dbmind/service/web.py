@@ -43,6 +43,7 @@ from dbmind.components.memory_check import memory_check
 from dbmind.common.utils import dbmind_assert, string_to_dict
 from dbmind.common.dispatcher import TimedTaskManager
 from dbmind.components.forecast import early_warning
+from dbmind.common.algorithm.anomaly_detection.gradient_detector import linear_fitting
 from . import dai
 
 
@@ -114,7 +115,7 @@ def _override_fetchone(self):
         return Sequence()
 
 
-def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=None, step=None):
+def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=None, step=None, instance=None):
     """Timestamps are microsecond level."""
     if to_timestamp is None:
         to_timestamp = int(time.time() * 1000)
@@ -123,9 +124,12 @@ def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=
     from_datetime = datetime.datetime.fromtimestamp(from_timestamp / 1000)
     to_datetime = datetime.datetime.fromtimestamp(to_timestamp / 1000)
     fetcher = dai.get_metric_sequence(metric_name, from_datetime, to_datetime, step)
-    from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
-    if from_server_predicate:
-        fetcher.from_server_like(from_server_predicate)
+    if instance is None:
+        from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
+        if from_server_predicate:
+            fetcher.from_server_like(from_server_predicate)
+    else:
+        fetcher.from_server(instance)
 
     # monkeypatch trick
     setattr(fetcher, 'fetchall', lambda: _override_fetchall(fetcher))
@@ -134,9 +138,28 @@ def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=
 
 
 def get_metric_sequence(metric_name, from_timestamp=None, to_timestamp=None, step=None):
+    # notes: 1) this method must ensure that the front-end and back-end time are consistent
+    #        2) this method will return the data of all nodes in the cluster, which is not friendly to some scenarios
     fetcher = get_metric_sequence_internal(metric_name, from_timestamp, to_timestamp, step)
     result = fetcher.fetchall()
     result.sort(key=lambda s: str(s.labels))  # Sorted by labels.
+    return list(map(lambda s: s.jsonify(), result))
+
+
+def get_latest_metric_sequence(instance, metric_name, latest_minutes, step=None, fetch_all=False, labels=None):
+    # this function can actually be replaced by 'get_metric_sequence', but in order to avoid
+    # the hidden problems of that method, we add 'instance', 'fetch_all' and 'labels' to solve it
+    # notes: the format of labels is 'key1=val1, key2=val2, key3=val3, ...'
+    end_timestamp = int(time.time() * 1000)
+    start_timestamp = end_timestamp - latest_minutes * 60 * 1000  # transfer to ms
+    fetcher = get_metric_sequence_internal(metric_name, start_timestamp, end_timestamp, step=step, instance=instance)
+    if labels is not None:
+        labels = string_to_dict(labels, delimiter=',')
+        fetcher.filter(**labels)
+    if fetch_all:
+        result = fetcher.fetchall()
+    else:
+        result = [fetcher.fetchone()]
     return list(map(lambda s: s.jsonify(), result))
 
 
@@ -187,7 +210,6 @@ def get_metric_forecast_sequence(metric_name, from_timestamp=None, to_timestamp=
         i += 1
 
     return list(map(lambda _s: _s.jsonify(), future_sequences))
-
 
 
 def get_xact_status():
@@ -917,10 +939,14 @@ def get_killed_slow_queries_count(instance=None, query=None, start_time=None, en
 def get_slow_query_summary(pagesize=None, current=None):
     # Maybe multiple nodes, but we don't need to care.
     # Because that is an abnormal scenario.
-    threshold = get_metric_value('pg_settings_setting') \
+    sequence = get_metric_value('pg_settings_setting') \
         .filter(name='log_min_duration_statement') \
-        .fetchone().values[0]
-
+        .fetchone()
+    # fix the error which occurs in the interface of DBMind
+    if not dai.is_sequence_valid(sequence):
+        threshold = sequence.values[-1]
+    else:
+        threshold = 'Nan'
     return {
         'nb_unique_slow_queries': dao.slow_queries.count_slow_queries(
             instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)),
@@ -1260,3 +1286,14 @@ def get_collection_system_status():
     suggestions = dai.diagnosis_exporter_status(detail['exporter'])
     detail['suggestions'] = suggestions
     return detail
+
+
+def get_database_data_directory_growth_rate(instance, latest_minutes):
+    # instance: address of database, format is 'host:port'
+    # get the growth_rate of disk usage where the database data directory is located
+    sequence = dai.get_database_data_directory_usage(instance, latest_minutes)
+    if not sequence.values:
+        return
+    growth_rate, _ = linear_fitting(list(range(0, len(sequence))), sequence.values)
+    return growth_rate
+
