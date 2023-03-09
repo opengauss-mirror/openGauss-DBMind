@@ -25,7 +25,7 @@ from itertools import groupby
 
 import sqlparse
 
-from dbmind import global_vars, constants
+from dbmind import global_vars
 from dbmind.app.optimization import get_database_schemas, TemplateArgs
 from dbmind.app.optimization.index_recommendation import rpc_index_advise
 from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
@@ -1229,37 +1229,6 @@ def get_correlation_result(metric_name, host, start_time, end_time, corr_thresho
 
 def check_memory_context(start_time, end_time):
     return memory_check(start_time, end_time)
-
-
-def start_timed_task(timed_task, seconds=None):
-    if timed_task not in global_vars.timed_task:
-        return {'state': 'failed', 'detail': f"The timed-task '{timed_task}' does not exist"}
-    if TimedTaskManager.check(timed_task):
-        return {'state': 'success', 'detail': f"The timed-task '{timed_task}' has already started"}
-    else:
-        func = global_vars.timed_task[timed_task]['object']
-        seconds = constants.TIMED_TASK_DEFAULT_INTERVAL if seconds is None else seconds
-        TimedTaskManager.apply(func, seconds)
-        TimedTaskManager.start(timed_task)
-        return {'state': 'success', 'detail': f"The timed-task '{timed_task}' started successfully"}
-
-
-def stop_timed_task(timed_task):
-    if timed_task not in global_vars.timed_task:
-        return {'state': 'fail', 'detail': f"The timed-task '{timed_task}' does not exist"}
-    if not TimedTaskManager.check(timed_task):
-        return {'state': 'fail', 'detail': f"The timed-task '{timed_task}' is not started"}
-    TimedTaskManager.stop(timed_task)
-    return {'state': 'success', 'detail': f"The timed-task '{timed_task}' stopped successfully"}
-
-
-def reset_timed_task_interval(timed_task, seconds):
-    if timed_task not in global_vars.timed_task:
-        return {'state': 'fail', 'detail': f"The timed-task '{timed_task}' does not exist"}
-    if not TimedTaskManager.check(timed_task):
-        return {'state': 'fail', 'detail': f"The timed-task '{timed_task}' is not started"}
-    TimedTaskManager.reset_interval(timed_task, seconds)
-    return {'state': 'success', 'detail': f"The interval of timed-task '{timed_task}' has been modified successfully"}
 
 
 def get_timed_task_status():

@@ -38,9 +38,13 @@ DBMIND_UI_DIRECTORY = os.path.join(DBMIND_PATH, '../ui/build')
 # User should not stop the 'DISCARD_EXPIRED_RESULTS' to avoid excessive disk usage.
 DISCARD_EXPIRED_RESULTS = 'discard_expired_results'
 ANOMALY_DETECTION_NAME = 'self_monitoring'
+DAILY_INSPECTION = 'daily_inspection'
+WEEKLY_INSPECTION = 'weekly_inspection'
+MONTHLY_INSPECTION = 'monthly_inspection'
 # If the user does not provide a task run interval, the following default values will be used.
 TIMED_TASK_DEFAULT_INTERVAL = 24 * 60 * 60
-DEFAULT_TASK_NAMES = (ANOMALY_DETECTION_NAME, DISCARD_EXPIRED_RESULTS)
+DEFAULT_TASK_NAMES = (ANOMALY_DETECTION_NAME, DISCARD_EXPIRED_RESULTS,
+                      DAILY_INSPECTION, WEEKLY_INSPECTION, MONTHLY_INSPECTION)
 
 # Notice: 'DISTINGUISHING_INSTANCE_LABEL' is a magic string, i.e., our own name.
 # Thus, not all collection agents (such as Prometheus's openGauss-exporter)
