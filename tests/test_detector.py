@@ -465,7 +465,7 @@ def test_increase_detector():
     # test case: the increasing sequence.
     input_data = [i * 0.05 + 0.7 * random.randint(1, 5) for i in list(range(50))]
     raw_data = Sequence(timestamps=list(range(len(input_data))), values=input_data)
-    detector = anomaly_detection.IncreaseDetector(side="positive", alpha=0.05)
+    detector = anomaly_detection.IncreaseDetector(side="positive")
     res = detector.fit_predict(raw_data)
     correct_data = (True,) * 50
     assert res.values == correct_data
