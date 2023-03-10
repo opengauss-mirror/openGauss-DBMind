@@ -38,7 +38,7 @@ from dbmind.components.sql_rewriter.sql_rewriter import rewrite_sql_api
 from dbmind.metadatabase import dao
 from dbmind.service.utils import SequenceUtils
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.components.anomaly_analysis import single_process_correlation_calculation
+from dbmind.components.anomaly_analysis import get_sequences, get_correlations
 from dbmind.components.memory_check import memory_check
 from dbmind.common.utils import dbmind_assert, string_to_dict
 from dbmind.common.dispatcher import TimedTaskManager
@@ -455,11 +455,11 @@ def toolkit_recommend_knobs_by_metrics(metric_pagesize, metric_current,
                    offset=warning_offset, limit=warning_limit),
                 field_names=('instance', 'level', 'comment')
            )
-    
+
     details = sqlalchemy_query_jsonify(
                 dao.knob_recommendation.select_details(
                    instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
-                   offset=knob_offset, limit=knob_limit), 
+                   offset=knob_offset, limit=knob_limit),
               field_names=('instance', 'name', 'current', 'recommend', 'min', 'max')
           )
     return {"metric_snapshot": metric_snapshot, "warnings": warnings, "details": details}
@@ -473,7 +473,7 @@ def get_knob_recommendation_snapshot(pagesize, current):
         offset=offset, limit=limit),
         field_names=('instance', 'metric', 'value'))
 
- 
+
 def get_knob_recommendation_snapshot_count():
     return dao.knob_recommendation.count_metric_snapshot(
         get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT))
@@ -620,7 +620,7 @@ def get_existing_indexes(pagesize, current):
     limit = pagesize
     filenames = ['db_name', 'tb_name', 'columns', 'index_stmt']
     return sqlalchemy_query_jsonify(dao.index_recommendation.get_existing_indexes(
-        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT), 
+        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
         offset=offset, limit=limit),
         filenames)
 
@@ -813,7 +813,7 @@ def get_history_alarms(pagesize=None, current=None, instance=None, alarm_type=No
     return _sqlalchemy_query_union_records_logic(
         query_function=dao.alarms.select_history_alarm,
         instances=instances,
-        offset=offset, limit=limit, 
+        offset=offset, limit=limit,
         alarm_type=alarm_type, alarm_level=alarm_level, group=group
     )
 
@@ -839,7 +839,7 @@ def get_future_alarms(pagesize=None, current=None, instance=None, metric_name=No
     return _sqlalchemy_query_union_records_logic(
         query_function=dao.alarms.select_future_alarm,
         instances=instances,
-        offset=offset, limit=limit, 
+        offset=offset, limit=limit,
         metric_name=metric_name, start_at=start_at, group=group
     )
 
@@ -869,7 +869,7 @@ def get_healing_info(pagesize=None, current=None, instance=None, action=None, su
     return _sqlalchemy_query_union_records_logic(
         query_function=dao.healing_records.select_healing_records,
         instances=instances,
-        offset=offset, limit=limit, 
+        offset=offset, limit=limit,
         action=action, success=success, min_occurrence=min_occurrence
     )
 
@@ -894,7 +894,7 @@ def get_slow_queries(pagesize=None, current=None, instance=None, query=None, sta
     limit = pagesize
     return _sqlalchemy_query_union_records_logic(
         query_function=dao.slow_queries.select_slow_queries,
-        instances=instances, only_with_port=True, 
+        instances=instances, only_with_port=True,
         target_list=(), query=query, start_time=start_time, end_time=end_time, offset=offset, limit=limit, group=group
     )
 
@@ -906,8 +906,8 @@ def get_slow_queries_count(instance=None, distinct=False, query=None, start_time
         instances = None
     return _sqlalchemy_query_records_count_logic(
         count_function=dao.slow_queries.count_slow_queries,
-        instances=instances, only_with_port=True, 
-        distinct=distinct, query=query, 
+        instances=instances, only_with_port=True,
+        distinct=distinct, query=query,
         start_time=start_time, end_time=end_time, group=group)
 
 
@@ -920,7 +920,7 @@ def get_killed_slow_queries(pagesize=None, current=None, instance=None, query=No
     limit = pagesize
     return _sqlalchemy_query_union_records_logic(
         query_function=dao.slow_queries.select_killed_slow_queries,
-        instances=instances, only_with_port=True, 
+        instances=instances, only_with_port=True,
         query=query, start_time=start_time, end_time=end_time, offset=offset, limit=limit
     )
 
@@ -932,7 +932,7 @@ def get_killed_slow_queries_count(instance=None, query=None, start_time=None, en
         instances = None
     return _sqlalchemy_query_records_count_logic(
         count_function=dao.slow_queries.count_killed_slow_queries,
-        instances=instances, only_with_port=True, 
+        instances=instances, only_with_port=True,
         query=query, start_time=start_time, end_time=end_time)
 
 
@@ -1213,7 +1213,7 @@ def get_regular_inspections_count(inspection_type):
         inspection_type=inspection_type)
 
 
-def get_correlation_result(metric_name, host, start_time, end_time, corr_threshold=0.3, topk=10):
+def get_correlation_result(metric_name, host, start_time, end_time, topk=10):
     LEAST_WINDOW = int(7.2e3) * 1000
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
@@ -1222,8 +1222,34 @@ def get_correlation_result(metric_name, host, start_time, end_time, corr_thresho
     actual_start_time = min(start_time, end_time - LEAST_WINDOW)
     start_datetime = datetime.datetime.fromtimestamp(actual_start_time / 1000)
     end_datetime = datetime.datetime.fromtimestamp(end_time / 1000)
-    sequence_args = [(metric_name, host, start_datetime, end_datetime) for metric_name in all_metrics]
-    correlation_result = single_process_correlation_calculation(metric_name, sequence_args, corr_threshold=corr_threshold, topk=topk)
+    sequence_args = [((metric, host, start_datetime, end_datetime),) for metric in all_metrics]
+
+    these_sequences = get_sequences((metric_name, host, start_datetime, end_datetime))
+    if not these_sequences:
+        raise ValueError('The metric was not found.')
+
+    sequence_results = global_vars.worker.parallel_execute(
+        get_sequences, sequence_args
+    ) or []
+
+    if all(sequences is None for sequences in sequence_results):
+        raise ValueError('The sequence_results is all None.')
+
+    correlation_result = dict()
+    for this_name, this_sequence in these_sequences:
+        correlation_args = list()
+        for sequences in sequence_results:
+            for name, sequence in sequences:
+                correlation_args.append(((name, sequence, this_sequence),))
+
+        correlation_result[this_name] = global_vars.worker.parallel_execute(
+            get_correlations, correlation_args
+        ) or []
+
+    for this_name, this_sequence in correlation_result.items():
+        this_sequence.sort(key=lambda item: item[1], reverse=True)
+        del (this_sequence[topk:])
+
     return correlation_result
 
 

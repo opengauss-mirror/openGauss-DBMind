@@ -65,6 +65,7 @@ def get_sequences(arg):
             raise ValueError(f"Invalid instance: {instance}.")
     else:
         raise
+
     step = dai.get_metric_sequence(metric, start_datetime, end_datetime).step / 1000
     start_time = datetime.timestamp(start_datetime)
     end_time = datetime.timestamp(end_datetime)
