@@ -20,7 +20,7 @@ import os
 import sys
 import threading
 import time
-from collections import defaultdict
+from collections import defaultdict, Counter
 from itertools import groupby
 
 import sqlparse
@@ -30,7 +30,7 @@ from dbmind.app.optimization import get_database_schemas, TemplateArgs
 from dbmind.app.optimization.index_recommendation import rpc_index_advise
 from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
 from dbmind.common.algorithm.forecasting import quickly_forecast
-from dbmind.common.types import ALARM_TYPES
+from dbmind.common.types import ALARM_TYPES, ALARM_LEVEL
 from dbmind.common.types import Sequence
 from dbmind.components.extract_log import get_workload_template
 from dbmind.components.slow_query_diagnosis import analyze_slow_query_with_rpc
@@ -40,10 +40,9 @@ from dbmind.service.utils import SequenceUtils
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.components.anomaly_analysis import single_process_correlation_calculation
 from dbmind.components.memory_check import memory_check
-from dbmind.common.utils import dbmind_assert, string_to_dict
+from dbmind.common.utils import dbmind_assert, string_to_dict, cast_to_int_or_float
 from dbmind.common.dispatcher import TimedTaskManager
 from dbmind.components.forecast import early_warning
-from dbmind.common.algorithm.anomaly_detection.gradient_detector import linear_fitting
 from . import dai
 
 
@@ -115,7 +114,7 @@ def _override_fetchone(self):
         return Sequence()
 
 
-def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=None, step=None, instance=None):
+def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=None, step=None):
     """Timestamps are microsecond level."""
     if to_timestamp is None:
         to_timestamp = int(time.time() * 1000)
@@ -124,12 +123,9 @@ def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=
     from_datetime = datetime.datetime.fromtimestamp(from_timestamp / 1000)
     to_datetime = datetime.datetime.fromtimestamp(to_timestamp / 1000)
     fetcher = dai.get_metric_sequence(metric_name, from_datetime, to_datetime, step)
-    if instance is None:
-        from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
-        if from_server_predicate:
-            fetcher.from_server_like(from_server_predicate)
-    else:
-        fetcher.from_server(instance)
+    from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
+    if from_server_predicate:
+        fetcher.from_server_like(from_server_predicate)
 
     # monkeypatch trick
     setattr(fetcher, 'fetchall', lambda: _override_fetchall(fetcher))
@@ -146,16 +142,33 @@ def get_metric_sequence(metric_name, from_timestamp=None, to_timestamp=None, ste
     return list(map(lambda s: s.jsonify(), result))
 
 
-def get_latest_metric_sequence(instance, metric_name, latest_minutes, step=None, fetch_all=False, labels=None):
+def get_latest_metric_sequence(metric_name, instance, latest_minutes, step=None, fetch_all=False, regrex=False,
+                               labels=None, regrex_labels=None):
     # this function can actually be replaced by 'get_metric_sequence', but in order to avoid
     # the hidden problems of that method, we add 'instance', 'fetch_all' and 'labels' to solve it
     # notes: the format of labels is 'key1=val1, key2=val2, key3=val3, ...'
-    end_timestamp = int(time.time() * 1000)
-    start_timestamp = end_timestamp - latest_minutes * 60 * 1000  # transfer to ms
-    fetcher = get_metric_sequence_internal(metric_name, start_timestamp, end_timestamp, step=step, instance=instance)
+    if latest_minutes is None or latest_minutes <= 0:
+        fetcher = dai.get_latest_metric_value(metric_name)
+    else:
+        fetcher = dai.get_latest_metric_sequence(metric_name, latest_minutes, step=step)
+    if instance is None:
+        from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
+        if from_server_predicate:
+            fetcher.from_server_like(from_server_predicate)
+    else:
+        if regrex:
+            instance = instance + ':?.*'
+            fetcher.from_server_like(instance)
+        else:
+            fetcher.from_server(instance)
+
     if labels is not None:
         labels = string_to_dict(labels, delimiter=',')
         fetcher.filter(**labels)
+    if regrex_labels is not None:
+        regrex_labels = string_to_dict(regrex_labels, delimiter=',')
+        fetcher.filter_like(**regrex_labels)
+
     if fetch_all:
         result = fetcher.fetchall()
     else:
@@ -1232,37 +1245,116 @@ def check_memory_context(start_time, end_time):
 
 
 def get_timed_task_status():
-    detail = {}
+    detail = {'header': ['name', 'current_status', 'running_interval'], 'rows': []}
+    rows_list = []
     for timed_task, _ in global_vars.timed_task.items():
-        detail[timed_task] = {}
+        detail_list = [timed_task]
         if TimedTaskManager.check(timed_task):
-            detail[timed_task]['status'] = TimedTaskManager.is_alive(timed_task)
-            detail[timed_task]['interval'] = TimedTaskManager.get_interval(timed_task)
+            if TimedTaskManager.is_alive(timed_task):
+                detail_list.append('Running')
+                detail_list.append(TimedTaskManager.get_interval(timed_task))
         else:
-            detail[timed_task]['status'] = 'not start'
+            detail_list.append('Stopping')
+            detail_list.append(0)
+        rows_list.append(detail_list)
+    detail['rows'] = rows_list
     return detail
 
 
 def risk_analysis(metric, instance, warning_hours, upper, lower, labels):
-    retroactive_period = warning_hours * 3
     labels = string_to_dict(labels, delimiter=',')
-    warnings = early_warning(metric, instance, retroactive_period, warning_hours, upper, lower, labels)
+    upper = cast_to_int_or_float(upper)
+    lower = cast_to_int_or_float(lower)
+    warnings = early_warning(metric, instance, None, warning_hours, upper, lower, labels)
     return warnings
 
 
-def get_collection_system_status():
-    detail = {'tsdb': dai.check_tsdb_status(), 'exporter': dai.check_exporter_status()}
-    suggestions = dai.diagnosis_exporter_status(detail['exporter'])
-    detail['suggestions'] = suggestions
+def get_database_data_directory_status(instance, latest_minutes):
+    # instance: address of instance agent, format is 'host:port'
+    # get the growth_rate of disk usage where the database data directory is located
+    return dai.get_database_data_directory_status(instance, latest_minutes)
+
+
+def get_front_overview(latest_minutes=5):
+    overview_detail = {'status': 'stopping', 'strength_version': 'unknown', 'deployment_mode': 'unknown',
+                       'operating_system': 'unknown', 'general_risk': 0, 'major_risk': 0, 'high_risk': 0, 'low_risk':0}
+    # this method can be used to front-end
+    # instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
+    instance = global_vars.agent_proxy.current_agent_addr()
+    if instance is None:
+        return overview_detail
+    instance_with_no_port = instance.split(':')[0]
+    instance_regrex = instance_with_no_port + ':?.*'
+
+    # get the status of instance
+    overview_detail['status'] = dai.check_instance_status().get('status')
+
+    # get version of opengauss
+    version_sequence = dai.get_latest_metric_value('pg_node_info_uptime').from_server(instance).fetchone()
+    if dai.is_sequence_valid(version_sequence):
+        overview_detail['strength_version'] = version_sequence.labels['version']
+
+    # get version of system
+    operating_system_sequence = dai.get_latest_metric_value('node_uname_info').filter_like(instance=instance_regrex).fetchone()
+    if dai.is_sequence_valid(operating_system_sequence):
+        overview_detail['operating_system'] = operating_system_sequence.labels['machine']
+
+    # get summary of alarm between start at and end_at
+    end_time = int(time.time() * 1000)
+    start_time = end_time - latest_minutes * 60 * 1000
+    history_alarms = dao.alarms.select_history_alarm(instance=instance, start_at=start_time, end_at=end_time).all()
+    alarm_level = [item.alarm_level for item in history_alarms]
+    count = Counter(alarm_level)
+    for item, times in count.items():
+        if times >= 0 and item == ALARM_LEVEL.WARNING.value:
+            overview_detail['general_risk'] = times
+        elif times >= 0 and item == ALARM_LEVEL.CRITICAL.value:
+            overview_detail['major_risk'] = times
+        elif times >= 0 and item == ALARM_LEVEL.ERROR.value:
+            overview_detail['high_risk'] = times
+        elif times >= 0 and item == ALARM_LEVEL.INFO.value:
+            overview_detail['low_risk'] = times
+
+    # get deployment mode of instance
+    # need to change to: clusters = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
+    clusters = global_vars.agent_proxy.current_cluster_instances()
+    if len(clusters) == 1:
+        overview_detail['deployment_mode'] = 'single'
+    elif len(clusters) > 1:
+        overview_detail['deployment_mode'] = 'centralized'
+
+    return overview_detail
+
+
+def get_agent_status():
+    agent_status = dai.check_agent_status()
+    agent_status['status'] = True if agent_status['status'] == 'up' else False
+    return agent_status
+
+
+def get_current_instance_status():
+    detail = {'header': ['instance', 'role', 'state'], 'rows': []}
+    instance_status = dai.check_instance_status()
+    detail['rows'].append([instance_status['primary'], 'primary', True if
+                           instance_status['primary'] not in
+                           instance_status['abnormal'] else False])
+    for instance in instance_status['standby']:
+        detail['rows'].append([instance, 'standby', True if instance not in instance_status['abnormal'] else False])
     return detail
 
 
-def get_database_data_directory_growth_rate(instance, latest_minutes):
-    # instance: address of database, format is 'host:port'
-    # get the growth_rate of disk usage where the database data directory is located
-    sequence = dai.get_database_data_directory_usage(instance, latest_minutes)
-    if not sequence.values:
-        return
-    growth_rate, _ = linear_fitting(list(range(0, len(sequence))), sequence.values)
-    return growth_rate
+def get_collection_system_status():
+    collection_detail = {'header': ['component', 'listen_address', 'is_alive'], 'rows': [], 'suggestions': []}
+    tsdb_status = dai.check_tsdb_status()
+    exporter_status = dai.check_exporter_status()
+    collection_detail['suggestions'] = dai.diagnosis_exporter_status(exporter_status)
+    for component, details in exporter_status.items():
+        for detail in details:
+            listen_address = detail['listen_address']
+            status = True if detail['status'] == 'up' else False
+            collection_detail['rows'].append([component, listen_address, status])
+    collection_detail['rows'].append([tsdb_status['name'],
+                                      tsdb_status['listen_address'],
+                                      True if tsdb_status['status'] == 'up' else False])
+    return collection_detail
 

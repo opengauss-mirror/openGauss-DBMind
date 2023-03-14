@@ -162,10 +162,14 @@ def get_metric_sequence(name, start: int = None, end: int = None, step: int = No
 @request_mapping('/api/latest-sequence/{name}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_latest_metric_sequence(instance, name, latest_minutes: int = None,
-                               step: int = None, fetch_all: bool = False, labels: str = None):
-    return web.get_latest_metric_sequence(instance, name, latest_minutes,
-                                          step=step, fetch_all=fetch_all, labels=labels)
+def get_latest_metric_sequence(name, instance: str = None, latest_minutes: int = None,
+                               step: int = None, fetch_all: bool = False, 
+                               regrex: bool = False, labels: str = None, 
+                               regrex_labels: str = None):
+    return web.get_latest_metric_sequence(name, instance, latest_minutes,
+                                          step=step, fetch_all=fetch_all, 
+                                          regrex=regrex, labels=labels, 
+                                          regrex_labels=regrex_labels)
 
 
 @request_mapping('/api/alarm/history', methods=['GET'], api=True)
@@ -552,11 +556,12 @@ def get_timed_task_status():
     return web.get_timed_task_status()
 
 
-@request_mapping('/api/toolkit/risk_analysis', methods=['GET'], api=True)
+@request_mapping('/api/toolkit/risk-analysis/{metric}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def risk_analysis(metric, instance, warning_hours: int = 0, upper: int = 0, lower: int = 0, labels: str = None):
-    return web.risk_analysis(metric, instance, warning_hours, upper, lower, labels)
+def risk_analysis(metric, instance: str = None, warning_hours: int = 1, upper: str = None, 
+                  lower: str = None, labels: str = None):
+    return web.risk_analysis(metric, instance, warning_hours, upper=upper, lower=lower, labels=labels)
 
 
 @request_mapping('/api/collection/status', methods=['GET'], api=True)
@@ -566,8 +571,30 @@ def get_collection_system_status():
     return web.get_collection_system_status()
 
 
-@request_mapping('/api/app/data-directory/growth-rate', methods=['GET'], api=True)
+@request_mapping('/api/data-directory/status', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_database_data_directory_growth_rate(instance: str, latest_minutes: int = 5):
-    return web.get_database_data_directory_growth_rate(instance, latest_minutes)
+def get_database_data_directory_status(instance: str, latest_minutes: int = 5):
+    return web.get_database_data_directory_status(instance, latest_minutes)
+
+
+@request_mapping('/api/overview', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_front_oveview(latest_minutes: int = 3):
+    return web.get_front_overview(latest_minutes=latest_minutes)
+
+
+@request_mapping('/api/instance/status', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_current_instance_status():
+    return web.get_current_instance_status()
+
+
+@request_mapping('/api/agent/status', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_agent_status():
+    return web.get_agent_status()
+
