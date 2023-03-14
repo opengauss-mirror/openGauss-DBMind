@@ -56,7 +56,7 @@ export default class Instance extends Component {
         </Card>
       </Col>
       <Col className="gutter-row ant-col-5" >
-        <Card title="Aralm List" className='instancefontsize' style={{ height: 100}}  extra={<img src={icon5} alt="" ></img>}>
+        <Card title="Alarm List" className='instancefontsize' style={{ height: 100}}  extra={<img src={icon5} alt="" ></img>}>
             <Row gutter={2}>
                 <Col className="gutter-row" span={6}>
                   <span className='textstyle'><img src={alarm1} alt="" className='alarmstyle'></img><span className='numstyle'>{this.state.alertData.major_risk}</span></span>

@@ -12,7 +12,7 @@ export const getSearchMetricInterface = () => {
   return get('/list/metric');
 };
 export const getForecastInterface = (data) => {
-  return get(`/toolkit/risk-analysis?metric=${data.metric_name}&instance=${data.instance_name}&warning_hours=${data.warning_hours}&upper=${data.upper}&lower=${data.lower}&labels=${data.labels}`);
+  return get(`/toolkit/risk-analysis/${data.metric_name}?instance=${data.instance_name}&warning_hours=${data.warning_hours}&upper=${data.upper}&lower=${data.lower}&labels=${data.labels}`);
 };
 
 // ----Alarms
