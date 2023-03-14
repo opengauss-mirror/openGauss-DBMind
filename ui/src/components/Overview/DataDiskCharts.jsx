@@ -15,7 +15,7 @@ export default class DataDiskCharts extends Component {
   async getDataDisk () {
     const { success, data, msg }= await getDataDisk(db.ss.get('Instance_value'))
     if (success) {
-      let obj = data[Object.keys(data)]
+      let obj = data[Object.keys(data)[0]]
       if(obj.tilt_rate > db.ss.get('tilt_rate_Max')){
         db.ss.set('tilt_rate_Max', obj.tilt_rate)
       } else if(obj.tilt_rate < db.ss.get('tilt_rate_Min')){
@@ -31,7 +31,7 @@ export default class DataDiskCharts extends Component {
       this.setState(() => ({
         showFlag: 1,
         chartData: allData,
-        instance:Object.keys(data)
+        instance:Object.keys(data)[0]
       }))
     } else {
       message.error(msg)
