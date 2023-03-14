@@ -82,7 +82,7 @@
       "options": {
         "dedupStrategy": "exact",
         "enableLogDetails": true,
-        "prettifyLogMessage": true,
+        "prettifyLogMessage": false,
         "showCommonLabels": false,
         "showLabels": false,
         "showTime": true,
@@ -100,7 +100,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n   report,start as time\nFROM tb_regular_inspections where inspection_type='daily check' order by time desc limit 1;",
+          "rawSql": "SELECT\n   report,start as time\nFROM tb_regular_inspections where inspection_type='daily_check' order by time desc limit 1;",
           "refId": "A",
           "select": [
             [
@@ -159,7 +159,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  start as time, conclusion\nFROM tb_regular_inspections order by time desc limit 1;\n",
+          "rawSql": "SELECT\n  start as time, conclusion\nFROM tb_regular_inspections where inspection_type='daily_check' order by time desc limit 1;\n",
           "refId": "A",
           "select": [
             [
@@ -282,7 +282,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  date as time, * \nFROM tb_stat_one_month order by host, time;",
+          "rawSql": "SELECT\n   report,start as time\nFROM tb_regular_inspections where inspection_type='monthly_check' order by time desc limit 1;",
           "refId": "A",
           "select": [
             [
@@ -294,31 +294,13 @@
               }
             ]
           ],
-          "table": "tb_stat_one_month",
+          "table": "tb_regular_inspections",
           "timeColumn": "time",
           "where": []
         }
       ],
       "title": "Month Statistics",
-      "transformations": [
-        {
-          "id": "filterFieldsByName",
-          "options": {
-            "include": {
-              "names": [
-                "metric_name",
-                "host",
-                "avg",
-                "min",
-                "max",
-                "the_95_quantile",
-                "time"
-              ]
-            }
-          }
-        }
-      ],
-      "type": "table"
+      "type": "logs"
     }
   ],
   "schemaVersion": 37,

@@ -128,7 +128,7 @@
               "options": {
                 "mode": "exclude",
                 "names": [
-                  "metric_value gaussdb_qps_by_instance"
+                  "alarm_content gaussdb_qps_by_instance"
                 ],
                 "prefix": "All except:",
                 "readOnly": true
@@ -176,19 +176,19 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  metric_time as time, metric_name, metric_value\nFROM tb_forecasting_metrics where metric_name='gaussdb_qps_by_instance' order by time;",
+          "rawSql": "SELECT\n  start_at as time, metric_name, alarm_type, alarm_content\nFROM tb_future_alarms where metric_name='gaussdb_qps_by_instance' order by time;",
           "refId": "A",
           "select": [
             [
               {
                 "params": [
-                  "metric_time"
+                  "start_at"
                 ],
                 "type": "column"
               }
             ]
           ],
-          "table": "tb_forecasting_metrics",
+          "table": "tb_future_alarms",
           "timeColumn": "time",
           "where": []
         }
@@ -283,7 +283,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  metric_time as time, metric_value\nFROM tb_forecasting_metrics where metric_name='os_disk_iops' order by time;\n",
+          "rawSql": "SELECT\n  start_at as time, alarm_content\nFROM tb_future_alarms where metric_name='os_disk_iops' order by time;\n",
           "refId": "A",
           "select": [
             [
@@ -394,7 +394,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  metric_time as time, metric_value\nFROM tb_forecasting_metrics where metric_name='statement_responsetime_percentile_p80' order by time;\n",
+          "rawSql": "SELECT\n  start_at as time, alarm_content\nFROM tb_future_alarms where metric_name='statement_responsetime_percentile_p80' order by time;\n",
           "refId": "A",
           "select": [
             [
@@ -510,7 +510,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  metric_time as time, metric_name, metric_value\nFROM tb_forecasting_metrics where metric_name in ('os_mem_usage', 'os_cpu_usage', 'os_disk_usage') and pg_catalog.random() < 0.05 order by time;\n",
+          "rawSql": "SELECT\n  start_at as time, metric_name, alarm_content\nFROM tb_future_alarms where metric_name in ('os_mem_usage', 'os_cpu_usage', 'os_disk_usage') and pg_catalog.random() < 0.05 order by time;\n",
           "refId": "A",
           "select": [
             [
@@ -595,7 +595,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  start_at as time, *\nFROM tb_future_alarms\nORDER BY time desc, host;",
+          "rawSql": "SELECT\n  start_at as time, *\nFROM tb_future_alarms\nORDER BY time desc, instance;",
           "refId": "A",
           "select": [
             [
@@ -718,7 +718,7 @@
           "group": [],
           "metricColumn": "none",
           "rawQuery": true,
-          "rawSql": "SELECT\n  occurrence_at as time, * \nFROM tb_history_alarms order by time desc;",
+          "rawSql": "SELECT\n  start_at as time, * \nFROM tb_history_alarms order by time desc;",
           "refId": "A",
           "select": [
             [
