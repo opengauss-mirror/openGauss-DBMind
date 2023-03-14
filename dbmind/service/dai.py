@@ -614,9 +614,9 @@ def check_exporter_status():
                 for sequence in sequences:
                     listen_address = sequence.labels.get('instance')
                     if exporter == 'reprocessing_exporter':
-                        #if listen_address not in (item['listen_address'] for item in detail[exporter]):
-                        detail[exporter].append(
-                            {'instance': instance, 'listen_address': listen_address, 'status': 'up'})
+                        if listen_address not in (item['listen_address'] for item in detail[exporter]):
+                            detail[exporter].append(
+                                {'instance': instance, 'listen_address': listen_address, 'status': 'up'})
                     else:
                         detail[exporter].append(
                             {'instance': instance, 'listen_address': listen_address, 'status': 'up'})
@@ -701,6 +701,9 @@ def get_database_data_directory_status(instance, latest_minutes):
             continue
         if not is_sequence_valid(os_disk_usage_sequences):
             continue
+        # in order to avoid mismatching data-directory, we sort sequences by 'mounpoint' first
+        filesystem_total_size_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
+        os_disk_usage_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
         data_directory_related_sequences = [sequence for sequence in filesystem_total_size_sequences if
                                             data_directory.startswith(sequence.labels['mountpoint'])]
         disk_usage_related_sequences = [sequence for sequence in os_disk_usage_sequences if
