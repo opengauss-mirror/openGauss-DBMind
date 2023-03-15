@@ -918,7 +918,7 @@ class QueryContextFromDriver(QueryContext):
 
     @exception_follower(output=list)
     @exception_catcher
-    def acquire_tables_structure_info(self):
+    def acquire_tables_structure_info(self) -> list:
         tables_info = []
         tuples_statistics_stmt = """
             select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2 
@@ -979,7 +979,7 @@ class QueryContextFromDriver(QueryContext):
 
     @exception_follower(output=dict)
     @exception_catcher
-    def acquire_pg_settings(self):
+    def acquire_pg_settings(self) -> dict:
         pg_settings = {}
         stmts = "select name, setting, vartype from pg_settings where name='{metric_name}';"
         for parameter in REQUIRED_PARAMETERS:
@@ -1001,7 +1001,7 @@ class QueryContextFromDriver(QueryContext):
 
     @exception_follower(output=DatabaseInfo)
     @exception_catcher
-    def acquire_database_info(self):
+    def acquire_database_info(self) -> DatabaseInfo:
         database_info = DatabaseInfo()
         used_connections_stmt = "select count(1) as used_conn from pg_stat_activity;"
         tps_stmt = """
@@ -1021,7 +1021,7 @@ class QueryContextFromDriver(QueryContext):
 
     @exception_follower(output=list)
     @exception_catcher
-    def acquire_thread_info(self):
+    def acquire_thread_info(self) -> ThreadInfo:
         stmt = """
         select event, wait_status, block_sessionid, lockmode, locktag from gs_asp where 
         query_id={debug_query_id};
@@ -1038,7 +1038,7 @@ class QueryContextFromDriver(QueryContext):
 
     @exception_follower(output=SystemInfo)
     @exception_catcher
-    def acquire_system_info(self):
+    def acquire_system_info(self) -> SystemInfo:
         system_info = SystemInfo()
         return system_info
 
@@ -1053,7 +1053,7 @@ class QueryContextFromDriver(QueryContext):
 
     @exception_follower(output=str)
     @exception_catcher
-    def acquire_rewritten_sql(self):
+    def acquire_rewritten_sql(self) -> str:
         if not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
             return ''
         rewritten_flags = []
@@ -1084,7 +1084,7 @@ class QueryContextFromDriver(QueryContext):
 
     @exception_follower(output=tuple)
     @exception_catcher
-    def acquire_index_analysis_info(self):
+    def acquire_index_analysis_info(self) -> tuple:
         recommend_indexes, redundant_indexes = [], []
         query = self.standard_query
         if self.query_type == 'normalized':
