@@ -284,7 +284,7 @@ class MultiProcessingRFHandler(RotatingFileHandler):
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
-            self.handleError(record)
+            pass
 
     def format(self, record):
         s = super().format(record)

@@ -20,53 +20,19 @@ class DynamicParams(DynamicConfig):
     detection_params = {'detection_params': [
         ('high_ac_threshold', 0.1, ''),
         ('min_seasonal_freq', 2, ''),
-        ('disk_usage_threshold', 0.1, ''),
-        ('disk_usage_max_coef', 2.5e-08, ''),  # window, 5 minutes
-        ('mem_usage_threshold', 0.2, ''),
-        ('mem_usage_max_coef', 8e-08, ''),  # window, 5 minutes
-        ('cpu_usage_threshold', 0.05, ''),
+        ('disk_usage_threshold', 0.7, ''),
+        ('mem_usage_threshold', 0.6, ''),
+        ('cpu_usage_threshold', 0.6, ''),
         ('cpu_high_usage_percent', 0.8, ''),
-        ('tps_threshold', 2, ''),
-        ('qps_max_coef', 8e-03, ''),  # window, 5 minutes
-        ('connection_max_coef', 4e-04, ''),  # window, 5 minutes
-        ('p80_threshold', 260, ''),
-        ('io_capacity_threshold', 25, ''),
-        ('io_delay_threshold', 50, ''),
-        ('io_wait_threshold', 0.1, ''),
-        ('load_average_threshold', 0.6, ''),
-        ('iops_threshold', 2000, ''),
+        ('tps_threshold', 1000, ''),
         ('handler_occupation_threshold', 0.7, ''),
         ('disk_ioutils_threshold', 0.7, ''),
-        ('connection_rate_threshold', 0.1, ''),
         ('connection_usage_threshold', 0.9, ''),
         ('package_drop_rate_threshold', 0.01, ''),
         ('package_error_rate_threshold', 0.01, ''),
-        ('bgwriter_rate_threshold', 0.1, ''),
-        ('replication_write_diff_threshold', 100000, ''),
-        ('replication_sent_diff_threshold', 100000, ''),
-        ('replication_replay_diff_threshold', 1000000, ''),
         ('thread_occupy_rate_threshold', 0.95, ''),
         ('idle_session_occupy_rate_threshold', 0.3, ''),
-        ('double_write_file_wait_threshold', 100, ''),
-        ('data_file_wait_threshold', 100000, ''),
-        ('os_cpu_usage_low', 0, ''),
-        ('os_cpu_usage_high', 0.8, ''),
-        ('os_cpu_usage_percent', 0.8, ''),
-        ('os_mem_usage_low', 0, ''),
-        ('os_mem_usage_high', 0.8, ''),
-        ('os_mem_usage_percent', 0.8, ''),
-        ('os_disk_usage_low', 0, ''),
-        ('os_disk_usage_high', 0.8, ''),
-        ('os_disk_usage_percent', 0, ''),
-        ('io_write_bytes_low', 0, ''),
-        ('io_write_bytes_high', 2, ''),
-        ('io_write_bytes_percent', 0, ''),
-        ('pg_replication_replay_diff_low', 0, ''),
-        ('pg_replication_replay_diff_high', 70, ''),
-        ('pg_replication_replay_diff_percent', 0, ''),
-        ('gaussdb_qps_by_instance_low', 0, ''),
-        ('gaussdb_qps_by_instance_high', 100, ''),
-        ('gaussdb_qps_by_instance_percent', 0, '')]
+        ('data_file_wait_threshold', 100000, '')]
     }
 
     iv_table = {'iv_table': [
@@ -75,8 +41,8 @@ class DynamicParams(DynamicConfig):
     ]}
 
     slow_sql_threshold = {'slow_sql_threshold': [
-        ('tuple_number_threshold', 5, ''),
-        ('table_total_size_threshold', 3, ''),
+        ('tuple_number_threshold', 1000, ''),
+        ('table_total_size_threshold', 50, ''), # unit is MB
         ('fetch_tuples_threshold', 1000, ''),
         ('returned_rows_threshold', 1000, ''),
         ('updated_tuples_threshold', 1000, ''),
@@ -85,9 +51,7 @@ class DynamicParams(DynamicConfig):
         ('hit_rate_threshold', 0.95, ''),
         ('dead_rate_threshold', 0.02, ''),
         ('index_number_threshold', 3, ''),
-        ('column_number_threshold', 2, ''),
         ('analyze_operation_probable_time_interval', 6, ''),  # unit is second
-        ('max_elapsed_time', 60, ''),
         ('analyze_threshold', 3, ''),  # unit is second
         ('nestloop_rows_threshold', 10000, ''),
         ('large_join_threshold', 10000, ''),
@@ -120,8 +84,7 @@ class DynamicParams(DynamicConfig):
         ('max_template_num', 5000, 'Maximum number of templates'),
         ('max_reserved_period', 100, 'Maximum retention time (day)'),
         ('optimization_interval', 86400, 'The interval for index recommendation (second)'),
-        ('kill_slow_query', 0, 'Whether to actively check and kill slow query. '
-                               'The default elapsed time of a slow query to be killed is 1 minute.')
+        ('max_elapsed_time', 0, 'The default elapsed time of a slow query to be killed (second)')
     ]}
 
     __default__ = dict()

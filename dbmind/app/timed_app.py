@@ -118,7 +118,12 @@ def self_monitoring():
 
 @customized_timer(slow_sql_diagnosis_interval)
 def slow_sql_diagnosis():
-    slow_query_collection = dai.get_all_slow_queries(last_detection_minutes)
+    # in order to avoid losing slow SQL data, the real 'fetch_interval' is equal to
+    # the 'slow_sql_diagnosis_interval * expansion coefficient'
+    expansion_coefficient = 1.2
+    # transfer 'second' to 'minute'
+    fetch_interval = int(expansion_coefficient * slow_sql_diagnosis_interval / 60)
+    slow_query_collection = dai.get_all_slow_queries(fetch_interval)
     logging.debug('The length of slow_query_collection is %d.', len(slow_query_collection))
     global_vars.self_driving_records.put(
         {
@@ -196,7 +201,7 @@ def knob_recommend():
 @customized_timer(seconds=slow_query_killer_interval)
 def slow_query_killer():
     max_elapsed_time = cast_to_int_or_float(
-        global_vars.dynamic_configs.get('slow_sql_threshold', 'max_elapsed_time')
+        global_vars.dynamic_configs.get('self_optimization', 'max_elapsed_time')
     )
     if max_elapsed_time is None or max_elapsed_time < 0:
         logging.warning("Can not actively kill slow SQL, because the "
