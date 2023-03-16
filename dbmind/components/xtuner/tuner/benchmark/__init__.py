@@ -21,13 +21,6 @@ from ..exceptions import ConfigureError
 from dbmind.common.cmd_executor import ExecutorFactory
 from dbmind.common.utils import where_am_i
 
-# Create a local shell with resident memory.
-# We must pass a local shell as an API to benchmark instance,
-# maybe the shell will be used by benchmark instance sometime.
-local_ssh = ExecutorFactory() \
-    .set_host('127.0.0.1') \
-    .get_executor()
-
 
 def get_benchmark_instance(script, path, cmd, db_info):
     if script.endswith('.py'):
@@ -72,6 +65,12 @@ def get_benchmark_instance(script, path, cmd, db_info):
     # Wrap remote server shell as an API and pass it to benchmark instance.
     def wrapper(server_ssh):
         try:
+            # Create a local shell with resident memory.
+            # We must pass a local shell as an API to benchmark instance,
+            # maybe the shell will be used by benchmark instance sometime.
+            local_ssh = ExecutorFactory() \
+                .set_host('127.0.0.1') \
+                .get_executor()
             return bm.run(server_ssh, local_ssh)
         except Exception as e:
             logging.warning(

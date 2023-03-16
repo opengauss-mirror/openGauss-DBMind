@@ -31,7 +31,8 @@ from dbmind.common.utils.checking import (
     check_ip_valid, check_port_valid, date_type, path_type
 )
 from dbmind.common.utils.cli import write_to_terminal
-from dbmind.cmd.edbmind import init_global_configs, init_tsdb_with_config
+from dbmind.cmd.edbmind import init_global_configs
+from dbmind.common.utils.component import initialize_tsdb_param
 from dbmind.service import dai
 from dbmind.service.utils import SequenceUtils
 from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
@@ -182,7 +183,8 @@ def main(argv):
 
     os.chdir(args.conf)
     init_global_configs(args.conf)
-    init_tsdb_with_config()
+    if not initialize_tsdb_param():
+        parser.exit(1, "TSDB service does not exist, exiting...")
   
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics

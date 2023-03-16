@@ -22,7 +22,8 @@ from scipy import interpolate
 
 from dbmind import global_vars
 from dbmind.app.monitoring.generic_detection import AnomalyDetections
-from dbmind.cmd.edbmind import init_tsdb_with_config, init_global_configs
+from dbmind.cmd.edbmind import init_global_configs
+from dbmind.common.utils.component import initialize_tsdb_param
 from dbmind.common.algorithm.stat_utils import sequence_interpolate
 from dbmind.common.utils.checking import date_type, path_type
 from dbmind.common.utils.cli import (
@@ -231,7 +232,8 @@ def main(argv):
     # Initialize
     os.chdir(args.conf)
     init_global_configs(args.conf)
-    init_tsdb_with_config()
+    if not initialize_tsdb_param():
+        parser.exit(1, "TSDB service does not exist, exiting...")
 
     metric = args.metric
     start_time = args.start_time

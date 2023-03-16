@@ -33,7 +33,7 @@ from dbmind.common.utils.checking import path_type, date_type
 from dbmind.common.utils.cli import write_to_terminal
 from dbmind.common.utils import cached_property
 from dbmind.common.utils.exporter import set_logger
-from dbmind.components.slow_query_diagnosis import initialize_rpc_service, initialize_tsdb_param
+from dbmind.common.utils.component import initialize_rpc_service, initialize_tsdb_param
 from dbmind.service import dai
 
 ONE_DAY = 24 * 60 * 60
