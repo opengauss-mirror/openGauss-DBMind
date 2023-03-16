@@ -53,11 +53,9 @@ def exception_follower(output=None):
     return decorator
 
 
-REQUIRED_PARAMETERS = ('shared_buffers', 'work_mem', 'maintenance_work_mem', 'synchronous_commit',
-                       'max_process_memory', 'enable_nestloop', 'enable_hashjoin', 'random_page_cost',
-                       'enable_mergejoin', 'enable_indexscan', 'enable_hashagg', 'enable_sort',
-                       'skew_option', 'block_size', 'recovery_min_apply_delay', 'max_connections',
-                       'job_queue_processes')
+REQUIRED_PARAMETERS = ('shared_buffers', 'work_mem', 'enable_nestloop',
+                       'enable_hashjoin', 'enable_mergejoin', 'enable_indexscan',
+                       'enable_hashagg', 'enable_sort', 'max_connections')
 
 
 class TableStructure:
@@ -294,15 +292,18 @@ def _get_sequences_sum_value(seqs: List[Sequence], precision=0):
     return value
 
 
-def _get_driver_value(rows, key, default=0):
+def _get_driver_value(rows, key, precision=0, default=0):
     """
     Get the execution result of the driver.
     Note: the result format: '[RealDictRow([('relname', 't1'), ('n_live_tup', 3000076)]), RealDictRow(...), ...]'
     """
-    if len(rows) == 1:
-        return rows[0].get(key, default)
+    if precision == 0:
+        return int(rows[0].get(key, default)) if len(rows) == 1 else [int(item.get(key, default)) for item in rows]
+    elif precision > 1:
+        return round(float(rows[0].get(key, default)), precision) if len(rows) == 1 \
+            else [round(float(item.get(key, default)), precision) for item in rows]
     else:
-        return [item.get(key, default) for item in rows]
+        return rows[0].get(key, default) if len(rows) == 1 else [item.get(key, default) for item in rows]
 
 
 class QueryContextFromTSDBAndRPC(QueryContext):
@@ -419,8 +420,8 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                                             'postgres',
                                             return_tuples=False)
         if is_driver_result_valid(rows):
-            self.slow_sql_instance.sort_spill_count = _get_driver_value(rows, 'sort_spill_count')
-            self.slow_sql_instance.hash_spill_count = _get_driver_value(rows, 'hash_spill_count')
+            self.slow_sql_instance.sort_spill_count = _get_driver_value(rows, 'sort_spill_count', precision=2)
+            self.slow_sql_instance.hash_spill_count = _get_driver_value(rows, 'hash_spill_count', precision=2)
         return sort_condition
 
     @exception_follower(output=LockInfo)
@@ -448,7 +449,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
             where r1.schemaname = '{schemaname}' and r2.relname = '{relname}' and r1.relname = r2.relname;
         """
         user_table_stmt = """
-            SELECT n_live_tup, n_dead_tup,
+            SELECT n_live_tup::int, n_dead_tup::int,
                    round(n_dead_tup / (n_live_tup + 1), 2) as dead_rate,
                    case when (last_vacuum is null) then -1 else 
                    extract(epoch from pg_catalog.now() - last_vacuum)::bigint end as vacuum_delay,
@@ -539,11 +540,11 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                                                                    self.slow_sql_instance.db_name,
                                                                    return_tuples=False)
                     if is_driver_result_valid(tuples_statistics_rows):
-                        table_info.tuples_diff = tuples_statistics_rows.get('diff', 0)
+                        table_info.tuples_diff = _get_driver_value(tuples_statistics_rows, 'diff')
                     if is_driver_result_valid(user_table_rows):
                         table_info.live_tuples = _get_driver_value(user_table_rows, 'n_live_tup')
                         table_info.dead_tuples = _get_driver_value(user_table_rows, 'n_dead_tup')
-                        table_info.dead_rate = _get_driver_value(user_table_rows, 'dead_rate')
+                        table_info.dead_rate = _get_driver_value(user_table_rows, 'dead_rate', precision=2)
                         table_info.analyze_delay = _get_driver_value(user_table_rows, 'analyze_delay', default=-1)
                         table_info.vacuum_delay = _get_driver_value(user_table_rows, 'vacuum_delay', default=-1)
                         table_info.data_changed_delay = _get_driver_value(user_table_rows,
@@ -554,7 +555,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                     datname=f"{self.slow_sql_instance.db_name}").filter(
                     nspname=f"{schema_name}").filter(relname=f"{table_name}").fetchone()
                 if is_sequence_valid(pg_table_size_info):
-                    table_info.table_size = _get_sequence_max_value(pg_table_size_info, precision=4)
+                    table_info.table_size = _get_sequence_max_value(pg_table_size_info, precision=2)
                 else:
                     table_size_rows = global_vars.agent_proxy.call('query_in_database',
                                                                    table_size_stmt.format(schemaname=schema_name,
@@ -562,7 +563,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                                                                    self.slow_sql_instance.db_name,
                                                                    return_tuples=False)
                     if is_driver_result_valid(table_size_rows):
-                        table_info.table_size = _get_driver_value(table_size_rows, 'mbytes')
+                        table_info.table_size = _get_driver_value(table_size_rows, 'mbytes', precision=2)
                 index_number_info = dai.get_metric_sequence("pg_index_idx_scan", self.query_start_time,
                                                             self.query_end_time).from_server(
                     self.slow_sql_instance.instance).filter(
@@ -645,11 +646,11 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                                             return_tuples=False)
         thread_info = ThreadInfo()
         if is_driver_result_valid(rows):
-            thread_info.event = _get_driver_value(rows, 'event')
-            thread_info.wait_status = _get_driver_value(rows, 'wait_status')
-            thread_info.block_sessionid = _get_driver_value(rows, 'block_sessionid')
-            thread_info.lockmode = _get_driver_value(rows, 'lock_mode')
-            thread_info.locktag = _get_driver_value(rows, 'locktag')
+            thread_info.event = _get_driver_value(rows, 'event', precision=-1)
+            thread_info.wait_status = _get_driver_value(rows, 'wait_status', precision=-1)
+            thread_info.block_sessionid = _get_driver_value(rows, 'block_sessionid', precision=-1)
+            thread_info.lockmode = _get_driver_value(rows, 'lock_mode', precision=-1)
+            thread_info.locktag = _get_driver_value(rows, 'locktag', precision=-1)
         return thread_info
 
     @exception_follower(output=SystemInfo)
@@ -885,8 +886,8 @@ class QueryContextFromDriver(QueryContext):
         """ % query
         rows = self.driver.query(stmt, return_tuples=False)
         if is_driver_result_valid(rows):
-            self.slow_sql_instance.sort_spill_count = _get_driver_value(rows, 'sort_spill_count')
-            self.slow_sql_instance.hash_spill_count = _get_driver_value(rows, 'hash_spill_count')
+            self.slow_sql_instance.sort_spill_count = _get_driver_value(rows, 'sort_spill_count', precision=2)
+            self.slow_sql_instance.hash_spill_count = _get_driver_value(rows, 'hash_spill_count', precision=2)
         return sort_condition
 
     @exception_follower(output=LockInfo)
@@ -913,12 +914,12 @@ class QueryContextFromDriver(QueryContext):
         """ % query
         rows = self.driver.query(stmt, return_tuples=False)
         if is_driver_result_valid(rows):
-            blocks_info.locker_query = _get_driver_value(rows, 'locker_query')
+            blocks_info.locker_query = _get_driver_value(rows, 'locker_query', precision=-1)
         return blocks_info
 
     @exception_follower(output=list)
     @exception_catcher
-    def acquire_tables_structure_info(self):
+    def acquire_tables_structure_info(self) -> list:
         tables_info = []
         tuples_statistics_stmt = """
             select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2 
@@ -965,7 +966,7 @@ class QueryContextFromDriver(QueryContext):
                 if is_driver_result_valid(user_table_rows):
                     table_info.live_tuples = _get_driver_value(user_table_rows, 'n_live_tup')
                     table_info.dead_tuples = _get_driver_value(user_table_rows, 'n_dead_tup')
-                    table_info.dead_rate = _get_driver_value(user_table_rows, 'dead_rate')
+                    table_info.dead_rate = _get_driver_value(user_table_rows, 'dead_rate', precision=2)
                     table_info.analyze_delay = _get_driver_value(user_table_rows, 'analyze_delay', default=-1)
                     table_info.vacuum_delay = _get_driver_value(user_table_rows, 'vacuum_delay', default=-1)
                     table_info.data_changed_delay = _get_driver_value(user_table_rows, 'data_changed_delay', default=-1)
@@ -973,13 +974,13 @@ class QueryContextFromDriver(QueryContext):
                     for row in pg_index_rows:
                         table_info.index[row.get('indexrelname')] = parse_field_from_indexdef(row.get('indexdef'))
                 if is_driver_result_valid(table_size_rows):
-                    table_info.table_size = _get_driver_value(table_size_rows, 'mbytes')
+                    table_info.table_size = _get_driver_value(table_size_rows, 'mbytes', precision=2)
                 tables_info.append(table_info)
         return tables_info
 
     @exception_follower(output=dict)
     @exception_catcher
-    def acquire_pg_settings(self):
+    def acquire_pg_settings(self) -> dict:
         pg_settings = {}
         stmts = "select name, setting, vartype from pg_settings where name='{metric_name}';"
         for parameter in REQUIRED_PARAMETERS:
@@ -991,17 +992,17 @@ class QueryContextFromDriver(QueryContext):
                 if pg_setting.vartype in ('integer', 'int64'):
                     pg_setting.setting = int(_get_driver_value(row, 'setting'))
                 elif pg_setting.vartype == 'bool':
-                    pg_setting.setting = 1 if _get_driver_value(row, 'setting') == 'on' else 0
+                    pg_setting.setting = 1 if _get_driver_value(row, 'setting', precision=-1) == 'on' else 0
                 elif pg_setting.vartype == 'real':
-                    pg_setting.setting = float(_get_driver_value(row, 'setting'))
+                    pg_setting.setting = float(_get_driver_value(row, 'setting', precision=4))
                 else:
-                    pg_setting.setting = _get_driver_value(row, 'setting')
+                    pg_setting.setting = _get_driver_value(row, 'setting', precision=-1)
                 pg_settings[parameter] = pg_setting
         return pg_settings
 
     @exception_follower(output=DatabaseInfo)
     @exception_catcher
-    def acquire_database_info(self):
+    def acquire_database_info(self) -> DatabaseInfo:
         database_info = DatabaseInfo()
         used_connections_stmt = "select count(1) as used_conn from pg_stat_activity;"
         tps_stmt = """
@@ -1016,12 +1017,12 @@ class QueryContextFromDriver(QueryContext):
         if is_driver_result_valid(used_connections_rows):
             database_info.current_connection = _get_driver_value(used_connections_rows, 'used_conn')
         if is_driver_result_valid(tps_rows):
-            database_info.current_tps = _get_driver_value(tps_rows, 'tps')
+            database_info.current_tps = _get_driver_value(tps_rows, 'tps', precision=2)
         return database_info
 
     @exception_follower(output=list)
     @exception_catcher
-    def acquire_thread_info(self):
+    def acquire_thread_info(self) -> ThreadInfo:
         stmt = """
         select event, wait_status, block_sessionid, lockmode, locktag from gs_asp where 
         query_id={debug_query_id};
@@ -1029,16 +1030,16 @@ class QueryContextFromDriver(QueryContext):
         thread_info = ThreadInfo()
         rows = self.driver.query(stmt, force_connection_db='postgres', return_tuples=False)
         if is_driver_result_valid(rows):
-            thread_info.event = _get_driver_value(rows, 'event')
-            thread_info.wait_status = _get_driver_value(rows, 'wait_status')
-            thread_info.block_sessionid = _get_driver_value(rows, 'block_sessionid')
-            thread_info.lockmode = _get_driver_value(rows, 'lock_mode')
-            thread_info.locktag = _get_driver_value(rows, 'locktag')
+            thread_info.event = _get_driver_value(rows, 'event', precision=-1)
+            thread_info.wait_status = _get_driver_value(rows, 'wait_status', precision=-1)
+            thread_info.block_sessionid = _get_driver_value(rows, 'block_sessionid', precision=-1)
+            thread_info.lockmode = _get_driver_value(rows, 'lock_mode', precision=-1)
+            thread_info.locktag = _get_driver_value(rows, 'locktag', precision=-1)
         return thread_info
 
     @exception_follower(output=SystemInfo)
     @exception_catcher
-    def acquire_system_info(self):
+    def acquire_system_info(self) -> SystemInfo:
         system_info = SystemInfo()
         return system_info
 
@@ -1053,7 +1054,7 @@ class QueryContextFromDriver(QueryContext):
 
     @exception_follower(output=str)
     @exception_catcher
-    def acquire_rewritten_sql(self):
+    def acquire_rewritten_sql(self) -> str:
         if not self.slow_sql_instance.query.strip().upper().startswith('SELECT'):
             return ''
         rewritten_flags = []
@@ -1084,7 +1085,7 @@ class QueryContextFromDriver(QueryContext):
 
     @exception_follower(output=tuple)
     @exception_catcher
-    def acquire_index_analysis_info(self):
+    def acquire_index_analysis_info(self) -> tuple:
         recommend_indexes, redundant_indexes = [], []
         query = self.standard_query
         if self.query_type == 'normalized':

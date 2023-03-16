@@ -91,7 +91,7 @@ class QueryFeature:
     Feature processing factory
     """
 
-    def __init__(self, query_context: QueryContext = None):
+    def __init__(self, query_context: QueryContext):
         """
         :param query_context context including the necessary information of metrics when SQL occurs
 
@@ -369,6 +369,7 @@ class QueryFeature:
                 self.detail["insert_large_data"] = "Insert a large number of tuples(%s rows)" % \
                                                    round(inserted_tuples / self.table_structure[0].live_tuples, 4)
                 self.suggestion["insert_large_data"] = "Make adjustments to the business"
+            self.detail['update_large_data'] = 'UNKNOWN'
             return True
         else:
             if self.plan_parse_info is None:

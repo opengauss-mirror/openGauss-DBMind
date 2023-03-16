@@ -190,6 +190,8 @@ class RootCause:
                           'Confirm the schema and database is correct')
     UNSUPPORTED_TYPE = _Define('[SLOW SQL][TYPE]',
                                'The SQL type is not supported.')
+    LACK_INFORMATION = _Define('[LACK INFORMATION]',
+                               'LACK NECESSARY INFORMATION.')
     # security
     TOO_MANY_ERRORS = _Define(
         '[SECURITY][RISK]',
