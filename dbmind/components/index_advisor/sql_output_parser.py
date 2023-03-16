@@ -150,8 +150,9 @@ def parse_explain_plan(results, query_num):
             ind1, ind2 = re.search(r'Index.*Scan(.*)on ([^\s]+)',
                                    text.strip(), re.IGNORECASE).groups()
             if ind1.strip():
-                if ind1.strip().split(' ')[1] not in index_names:
-                    index_names.append(ind1.strip().split(' ')[1])
+                # `Index (Only)? Scan (Backward)? using index1`
+                if ind1.strip().split(' ')[-1] not in index_names:
+                    index_names.append(ind1.strip().split(' ')[-1])
             else:
                 index_names.append(ind2)
     index_names_list.append(index_names)
