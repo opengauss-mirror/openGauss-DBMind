@@ -143,8 +143,8 @@ class DailyInspection:
                 datname = sequence.labels.get('datname', 'UNKNOWN')
                 indexsize_seq = dai.get_metric_sequence('pg_tables_size_indexsize', self._start, self._end).\
                     from_server(self._agent_instance).filter(nspname=schema, relname=relname).fetchone()
-                rv['rows'].append((datname, schema, relname, round(get_sequence_value(sequence, max) / 1024 / 1024, 2),
-                                   round(get_sequence_value(indexsize_seq, max) / 1024 / 1024, 2)))
+                rv['rows'].append((datname, schema, relname, round(get_sequence_value(sequence, max), 2),
+                                   round(get_sequence_value(indexsize_seq, max), 2)))
         return rv
 
     @property

@@ -441,5 +441,5 @@ def string_to_dict(values, delimiter=','):
             name, value = pair.split('=')
             d[name.strip()] = value.strip()
     except Exception as e:
-        raise e
+        return d
     return d

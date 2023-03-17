@@ -161,7 +161,7 @@ os_disk_io_read_bytes:
       label: instance
       description: from instance
       usage: LABEL
-  status: disable
+  status: enable
   ttl: 10
   timeout: 5
 
@@ -185,7 +185,7 @@ os_disk_io_write_bytes:
       label: instance
       description: from instance
       usage: LABEL
-  status: disable
+  status: enable
   ttl: 10
   timeout: 5
 

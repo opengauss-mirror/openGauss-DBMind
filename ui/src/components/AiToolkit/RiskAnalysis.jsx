@@ -19,7 +19,7 @@ export default class RiskAnalysis extends Component {
       xdata: [],
       optionsSel: [],
       options: [],
-      showType: 0,
+      showType: 2,
       newSelectValue: '',
       newSelValue: '',
       instanceName: '',
@@ -55,9 +55,7 @@ export default class RiskAnalysis extends Component {
     if (success) {
       this.setState(() => ({
         optionsSel: optionArr, instanceName: optionArr[0]
-      }), () => {
-        this.getWorkloadForecast()
-      })
+      }))
     } else {
       message.error(msg)
     }
@@ -67,7 +65,7 @@ export default class RiskAnalysis extends Component {
     let params = {
       instance_name: this.state.instanceName ? this.state.instanceName : null,
       metric_name: this.state.metricName ? this.state.metricName : null,
-      labels: this.state.labels ? this.state.labels : '',
+      labels: this.state.labels ? this.state.labels : null,
       warning_hours: this.state.warningHours ? this.state.warningHours : null,
       upper: this.state.upper ? this.state.upper : null,
       lower: this.state.lower ? this.state.lower : null,
@@ -85,49 +83,54 @@ export default class RiskAnalysis extends Component {
           data[key][i].timestamps.forEach(ele => {
             formatTimeData.push(formatTimestamp(ele))
           });
-          data[key][i].forecast_timestmaps.forEach(ele => {
-            forecastFormatTimeData.push(formatTimestamp(ele))
-          });
-          formatTimeData = formatTimeData.concat(forecastFormatTimeData)
+          if(data[key][i].forecast_timestmaps){
+            data[key][i].forecast_timestmaps.forEach(ele => {
+              forecastFormatTimeData.push(formatTimestamp(ele))
+            });
+            formatTimeData = formatTimeData.concat(forecastFormatTimeData)
+          }
           // 处理Y轴数据
           let colors = ['#5c7bd9', '#91cc75', '#fac858', '#007acc', '#fb542f', '#c586c0', '#1890ff', '#d69439', '#b03a5b', '#eb8f53', '#c5c63e', '#1e1e1e', '#5470c6', '#91cc75', '#fac858', '#007acc', '#fb542f', '#34a853', '#d69439', '#b03a5b', '#eb8f53', '#c5c63e', '#1e1e1e', '#5470c6', '#91cc75', '#fac858', '#007acc', '#fb542f', '34a853', '#d69439', '#b03a5b', '#eb8f53', '#c5c63e']
           data[key].forEach((item, index) => {
-            let  ydata = [], nametooltip = '', legendDataFlag = []
+            let  ydata = [], nametooltip = '', legendDataFlag = [], timeTotal = '', solidLine = [], dataArray = [], dashedLine = [], forecastSeriesItem = {}
             Object.keys(item.labels).forEach(function (key) {
               nametooltip += `${key}:${item.labels[key] ? item.labels[key] : '-'}  `
             })
-            let timeTotal = item.values.length + item.forecast_values.length;
-            let solidLine = item.values.concat(Array(timeTotal - item.values.length).fill(''));
-            let dataArray = [...item.values].fill('',0,item.values.length-1)
-            let dashedLine = dataArray.concat(item.forecast_values)
-            let seriesItem = {
-              data: solidLine,
-              type: 'line',
-              smooth: true,
-              name: nametooltip,
-              symbol: 'none',
-              color: colors[index],
-            }
-            let forecastSeriesItem = {
-              data: dashedLine,
-              type: 'line',
-              smooth: true,
-              name: nametooltip,
-              symbol: 'none',
-              color: colors[index],
-              lineStyle: {
-                type: 'dashed'
+            if(item.forecast_values){
+              timeTotal = item.values.length + item.forecast_values.length;
+              solidLine = item.values.concat(Array(timeTotal - item.values.length).fill(''));
+              dataArray = [...item.values].fill('',0,item.values.length-1)
+              dashedLine = dataArray.concat(item.forecast_values)
+              forecastSeriesItem = {
+                data: dashedLine,
+                type: 'line',
+                smooth: true,
+                name: nametooltip,
+                symbol: 'none',
+                color: colors[index],
+                lineStyle: {
+                  type: 'dashed'
+                }
               }
+            }
+            let seriesItem = {
+              data: item.forecast_values ? solidLine : item.values,
+              type: 'line',
+              smooth: true,
+              name: nametooltip,
+              symbol: 'none',
+              color: colors[index],
             }
             legendDataFlag.push(nametooltip)
             ydata.push(seriesItem)
-            ydata.push(forecastSeriesItem)
+            if(item.forecast_values){
+              ydata.push(forecastSeriesItem)
+            }
             let param = {
               xdata:formatTimeData,
               seriesData:ydata,
               legendData:legendDataFlag,
-              warning:(item.abnormal_detail).join("\n"),
-              textAreaRows:item.abnormal_detail.length ? item.abnormal_detail.length : 1
+              warning:item.abnormal_detail,
             }
             instanceAllData.push(param);
           })
@@ -373,13 +376,13 @@ export default class RiskAnalysis extends Component {
             <label>Hours: </label><InputNumber min={1} max={720} defaultValue={1} onChange={(e) => this.handleNumChange(e)} value={this.state.warningHours} style={{ width:60 }}/>
             </Col>
             <Col>
-            <label>Upper: </label><InputNumber min={0} onChange={(e) => this.handleUpperChange(e)} stringMode value={this.state.upper} style={{ width:60 }}/>
+            <label>Upper: </label><InputNumber min={0} onChange={(e) => this.handleUpperChange(e)}  value={this.state.upper} style={{ width:60 }}/>
             </Col>
             <Col>
-            <label>Lower: </label><InputNumber min={0} onChange={(e) => this.handleLowerChange(e)} stringMode value={this.state.lower} style={{ width:60 }}/>
+            <label>Lower: </label><InputNumber min={0} onChange={(e) => this.handleLowerChange(e)}  value={this.state.lower} style={{ width:60 }}/>
             </Col>
             <Col>
-              <Button onClick={() => this.showChart()}>Analysis</Button>
+              <Button type="primary" onClick={() => this.showChart()}>Analysis</Button>
             </Col>
           </Row>
           <div style={{ width: '100%',minHeight: 730, height: 'auto', textAlign: 'center' }}>
@@ -388,7 +391,6 @@ export default class RiskAnalysis extends Component {
               this.state.allDataRegular.map((item,index) => {
                 return (
                   <>
-                  <TextArea className="mb-20" rows={item.textAreaRows} disabled value={item.warning} />
                     <ReactEcharts
                       ref={(e) => {
                         this.echartsElement = e
@@ -398,6 +400,7 @@ export default class RiskAnalysis extends Component {
                       lazyUpdate={true}
                     >
                     </ReactEcharts>
+                    <div style={{color:'#272727',textAlign:'left',fontWeight:500}}><span>Conclusion Description: </span><span>{item.warning}</span></div>
                   </>
                 )
               }) : this.state.showType === 2 ? <Empty style={{ margin: '250px auto' }} description={''} /> : ''

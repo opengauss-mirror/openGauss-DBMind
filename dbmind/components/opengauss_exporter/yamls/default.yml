@@ -511,7 +511,7 @@ pg_database:
     - name: pg_database
       sql: |-
         SELECT datname,
-          pg_catalog.pg_database_size(pg_database.datname) as size_bytes
+          pg_catalog.pg_database_size(pg_database.datname) / 1024 / 1024 as size_bytes
         FROM pg_database
         where datname NOT IN ('template0','template1');
       version: '>=0.0.0'
@@ -1136,7 +1136,7 @@ statement_responsetime_percentile:
   desc: statement responsetime percentile
   query:
     - name: statement_responsetime_percentile
-      sql:  SELECT p80, p95 FROM dbe_perf.statement_responsetime_percentile;
+      sql:  SELECT p80 / 1000 as p80, p95 / 1000 as p95  FROM dbe_perf.statement_responsetime_percentile;
       version: '>=0.0.0'
       timeout: 1
       ttl: 10
