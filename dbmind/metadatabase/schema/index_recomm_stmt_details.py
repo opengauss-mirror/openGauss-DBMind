@@ -10,7 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from sqlalchemy import Column, Integer, String, BigInteger
+from sqlalchemy import Column, Integer, String, BigInteger, TEXT
 
 from .. import Base
 
@@ -23,7 +23,7 @@ class IndexRecommendationStmtDetails(Base):
     db_name = Column(String(32), nullable=False)
     index_id = Column(BigInteger)  # ForeignKey('tb_index_recommendation.id', ondelete='CASCADE')
     template_id = Column(BigInteger)  # ForeignKey('tb_index_recommendation_stmt_templates.id', ondelete='CASCADE')
-    stmt = Column(String(4096))
+    stmt = Column(TEXT)
     optimized = Column(String(16))
     correlation_type = Column(Integer)
     stmt_count = Column(Integer)
