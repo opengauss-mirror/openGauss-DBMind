@@ -83,12 +83,13 @@ to_be_detected_metrics_for_future = wrapped_golden_kpi | MUST_BE_DETECTED_METRIC
 @customized_timer(self_monitoring_interval)
 def self_monitoring():
     history_alarms = list()
-    end = datetime.now()
-    start = end - timedelta(minutes=last_detection_minutes)
+    expansion_coefficient = 1.5
+    # transfer 'second' to 'minute'
+    fetch_interval = int(expansion_coefficient * self_monitoring_interval / 60)
     for metrics in to_be_detected_metrics_for_history:
         sequences_list = []
         for metric in metrics:
-            latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
+            latest_sequences = dai.get_latest_metric_sequence(metric, fetch_interval).fetchall()
             logging.debug('The length of latest_sequences is %d and metric name is %s.',
                           len(latest_sequences), metric)
 
@@ -120,7 +121,7 @@ def self_monitoring():
 def slow_sql_diagnosis():
     # in order to avoid losing slow SQL data, the real 'fetch_interval' is equal to
     # the 'slow_sql_diagnosis_interval * expansion coefficient'
-    expansion_coefficient = 1.2
+    expansion_coefficient = 1.5
     # transfer 'second' to 'minute'
     fetch_interval = int(expansion_coefficient * slow_sql_diagnosis_interval / 60)
     slow_query_collection = dai.get_all_slow_queries(fetch_interval)

@@ -259,7 +259,7 @@ def save_history_alarms(history_alarms):
             pre_alarm_end_at = result[1]
             cur_alarm_start_at = alarm.start_timestamp
             cur_alarm_end_at = alarm.end_timestamp
-            if cur_alarm_start_at - pre_alarm_end_at < MERGE_INTERVAL:
+            if 0 < cur_alarm_start_at - pre_alarm_end_at < MERGE_INTERVAL:
                 dao.alarms.update_history_alarm(alarm_id=pre_alarm_id, end_at=cur_alarm_end_at)
                 continue
         func.add(

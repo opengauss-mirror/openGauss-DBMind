@@ -1213,18 +1213,17 @@ def get_regular_inspections_count(inspection_type):
         inspection_type=inspection_type)
 
 
-def get_correlation_result(metric_name, host, start_time, end_time, topk=10):
-    LEAST_WINDOW = int(7.2e3) * 1000
+def get_correlation_result(metric_name, instance, start_time, end_time, topk=10):
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
     start_time = int(start_time)
     end_time = int(end_time)
-    actual_start_time = min(start_time, end_time - LEAST_WINDOW)
+    actual_start_time = min(start_time, end_time)
     start_datetime = datetime.datetime.fromtimestamp(actual_start_time / 1000)
     end_datetime = datetime.datetime.fromtimestamp(end_time / 1000)
-    sequence_args = [((metric, host, start_datetime, end_datetime),) for metric in all_metrics]
+    sequence_args = [((metric, instance, start_datetime, end_datetime),) for metric in all_metrics]
 
-    these_sequences = get_sequences((metric_name, host, start_datetime, end_datetime))
+    these_sequences = get_sequences((metric_name, instance, start_datetime, end_datetime))
     if not these_sequences:
         raise ValueError('The metric was not found.')
 

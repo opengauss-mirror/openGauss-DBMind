@@ -42,20 +42,17 @@ class DynamicParams(DynamicConfig):
 
     slow_sql_threshold = {'slow_sql_threshold': [
         ('tuple_number_threshold', 1000, ''),
-        ('table_total_size_threshold', 50, ''), # unit is MB
+        ('table_total_size_threshold', 50, ''),  # unit is MB
         ('fetch_tuples_threshold', 1000, ''),
         ('returned_rows_threshold', 1000, ''),
         ('updated_tuples_threshold', 1000, ''),
         ('deleted_tuples_threshold', 1000, ''),
         ('inserted_tuples_threshold', 1000, ''),
-        ('hit_rate_threshold', 0.95, ''),
         ('dead_rate_threshold', 0.02, ''),
         ('index_number_threshold', 3, ''),
         ('analyze_operation_probable_time_interval', 6, ''),  # unit is second
-        ('analyze_threshold', 3, ''),  # unit is second
         ('nestloop_rows_threshold', 10000, ''),
         ('large_join_threshold', 10000, ''),
-        ('groupagg_rows_threshold', 5000, ''),
         ('cost_rate_threshold', 0.02, ''),
         ('plan_height_threshold', 10, ''),
         ('complex_operator_threshold', 2, ''),
