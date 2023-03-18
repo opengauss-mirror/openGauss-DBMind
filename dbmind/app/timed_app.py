@@ -56,8 +56,6 @@ one_day = 24 * 60 * 60  # unit is second
 one_week = 7 * one_day  # unit is second
 one_month = 30 * one_day  # unit is second
 
-last_detection_minutes = global_vars.dynamic_configs.get_int_or_float(
-    'self_monitoring', 'last_detection_time', fallback=600) / 60
 how_long_to_forecast_minutes = global_vars.dynamic_configs.get_int_or_float(
     'self_monitoring', 'forecasting_future_time', fallback=3600
 ) / 60
@@ -66,6 +64,12 @@ result_storage_retention = global_vars.dynamic_configs.get_int_or_float(
 )
 optimization_interval = global_vars.dynamic_configs.get_int_or_float(
     'self_monitoring', 'optimization_interval', fallback=86400
+)
+# there is a relationship between the interval of some timed-task and
+# the fetch-interval in each task during execution, in order to avoid problems
+# caused by inconsistencies, we set 'expansion coefficient' to associate them
+expansion_coefficient = global_vars.dynamic_configs.get_int_or_float(
+    'self_optimization', 'expansion_coefficient', fallback=1.5
 )
 templates = defaultdict(dict)
 
@@ -83,12 +87,13 @@ to_be_detected_metrics_for_future = wrapped_golden_kpi | MUST_BE_DETECTED_METRIC
 @customized_timer(self_monitoring_interval)
 def self_monitoring():
     history_alarms = list()
-    end = datetime.now()
-    start = end - timedelta(minutes=last_detection_minutes)
+    # in order to avoid repeated abnormal diagnosis, the 'fetch_interval' is equal to
+    # the 'self_monitoring_interval * expansion coefficient'
+    fetch_interval = int(expansion_coefficient * self_monitoring_interval / 60)
     for metrics in to_be_detected_metrics_for_history:
         sequences_list = []
         for metric in metrics:
-            latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
+            latest_sequences = dai.get_latest_metric_sequence(metric, fetch_interval).fetchall()
             logging.debug('The length of latest_sequences is %d and metric name is %s.',
                           len(latest_sequences), metric)
 
@@ -120,8 +125,6 @@ def self_monitoring():
 def slow_sql_diagnosis():
     # in order to avoid losing slow SQL data, the real 'fetch_interval' is equal to
     # the 'slow_sql_diagnosis_interval * expansion coefficient'
-    expansion_coefficient = 1.2
-    # transfer 'second' to 'minute'
     fetch_interval = int(expansion_coefficient * slow_sql_diagnosis_interval / 60)
     slow_query_collection = dai.get_all_slow_queries(fetch_interval)
     logging.debug('The length of slow_query_collection is %d.', len(slow_query_collection))

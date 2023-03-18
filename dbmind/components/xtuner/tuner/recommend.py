@@ -404,8 +404,8 @@ class OpenGaussKnobAdvisor:
 
     @property
     def effective_cache_size(self):
-        upper = self.max_process_memory.recommend * 0.75
         lower = self.shared_buffers.recommend
+        upper = max(self.max_process_memory.recommend * 0.75, lower)
 
         if self.metric.workload_type == WORKLOAD_TYPE.TP:
             return instantiate_knob(name="effective_cache_size",

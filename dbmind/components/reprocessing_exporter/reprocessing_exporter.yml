@@ -804,7 +804,7 @@ gaussdb_cpu_time:
 gaussdb_state_memory:
   desc: total memory in all databases.
   promql: |
-    sum(og_state_memory_totalsize{state='active'}) by (from_instance, job)
+    sum(pg_state_memory_totalsize{state='active'}) by (from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -814,7 +814,7 @@ gaussdb_state_memory:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1062,7 +1062,7 @@ gaussdb_dead_tup_increase_rate:
       label: schemaname
       description: schemaname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1092,7 +1092,7 @@ gaussdb_table_increase_amplitude:
       label: relname
       description: relname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1122,7 +1122,7 @@ gaussdb_table_increase_rate:
       label: relname
       description: relname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1152,7 +1152,7 @@ gaussdb_index_increase_rate:
       label: tablename
       description: tablename
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1174,7 +1174,7 @@ gaussdb_database_increase_rate:
       label: datname
       description: dataname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1196,7 +1196,7 @@ gaussdb_database_increase_amplitude:
       label: datname
       description: dataname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1226,7 +1226,7 @@ gaussdb_corrosion_index:
       label: index_name
       description: index_name
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1282,7 +1282,7 @@ gaussdb_statement_db_time:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1308,7 +1308,7 @@ gaussdb_statement_calls:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1360,7 +1360,7 @@ gaussdb_statement_hash_spill:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1391,6 +1391,24 @@ gaussdb_active_connection:
   desc: sum of active connection
   promql: |
     sum (pg_stat_activity_count{state='active'}) by (job, from_instance) 
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 10
+  timeout: 5
+
+
+gaussdb_idle_connection:
+  desc: sum of idle connection
+  promql: |
+    sum (pg_stat_activity_count{state=~'idle.*'}) by (job, from_instance)
   metrics:
     - name: from_job
       label: job

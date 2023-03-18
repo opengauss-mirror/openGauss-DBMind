@@ -42,20 +42,17 @@ class DynamicParams(DynamicConfig):
 
     slow_sql_threshold = {'slow_sql_threshold': [
         ('tuple_number_threshold', 1000, ''),
-        ('table_total_size_threshold', 50, ''), # unit is MB
+        ('table_total_size_threshold', 50, ''),  # unit is MB
         ('fetch_tuples_threshold', 1000, ''),
         ('returned_rows_threshold', 1000, ''),
         ('updated_tuples_threshold', 1000, ''),
         ('deleted_tuples_threshold', 1000, ''),
         ('inserted_tuples_threshold', 1000, ''),
-        ('hit_rate_threshold', 0.95, ''),
         ('dead_rate_threshold', 0.02, ''),
         ('index_number_threshold', 3, ''),
         ('analyze_operation_probable_time_interval', 6, ''),  # unit is second
-        ('analyze_threshold', 3, ''),  # unit is second
         ('nestloop_rows_threshold', 10000, ''),
         ('large_join_threshold', 10000, ''),
-        ('groupagg_rows_threshold', 5000, ''),
         ('cost_rate_threshold', 0.02, ''),
         ('plan_height_threshold', 10, ''),
         ('complex_operator_threshold', 2, ''),
@@ -84,7 +81,10 @@ class DynamicParams(DynamicConfig):
         ('max_template_num', 5000, 'Maximum number of templates'),
         ('max_reserved_period', 100, 'Maximum retention time (day)'),
         ('optimization_interval', 86400, 'The interval for index recommendation (second)'),
-        ('max_elapsed_time', 0, 'The default elapsed time of a slow query to be killed (second)')
+        ('max_elapsed_time', 60, 'The default elapsed time of a slow query to be killed (second)'),
+        ('alarm_merge_interval', 60, 'The default interval of alarm compression (second)'),
+        ('expansion_coefficient', 1.2, 'The relationship between interval of some timed-task and the fetch-interval '
+                                       'in each task during execution (second)')
     ]}
 
     __default__ = dict()
