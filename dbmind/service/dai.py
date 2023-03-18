@@ -40,7 +40,6 @@ if LINUX:
 else:
     mp_shared_buffer = None
 buff = SequenceBufferPool(600, vacuum_timeout=300, buffer=mp_shared_buffer)
-MERGE_INTERVAL = 60 * 1000  # Alarm merge interval, unit is ms
 
 
 def datetime_to_timestamp(t: datetime):
@@ -259,7 +258,9 @@ def save_history_alarms(history_alarms):
             pre_alarm_end_at = result[1]
             cur_alarm_start_at = alarm.start_timestamp
             cur_alarm_end_at = alarm.end_timestamp
-            if 0 < cur_alarm_start_at - pre_alarm_end_at < MERGE_INTERVAL:
+            # unit is 'ms', so here should be multiplied by 1000
+            if cur_alarm_start_at - pre_alarm_end_at < global_vars.dynamic_configs.get_int_or_float(
+                    'self_optimization', 'alarm_merge_interval', fallback=60) * 1000:
                 dao.alarms.update_history_alarm(alarm_id=pre_alarm_id, end_at=cur_alarm_end_at)
                 continue
         func.add(
@@ -609,7 +610,7 @@ def check_exporter_status():
                             {'instance': instance, 'listen_address': listen_address, 'status': 'up'})
             else:
                 if exporter == 'node_exporter':
-                    detail['node_exporter'].append({'instance': instance, 'status': 'down'})
+                    detail['node_exporter'].append({'instance': instance, 'listen_address': '', 'status': 'down'})
     return detail
 
 
