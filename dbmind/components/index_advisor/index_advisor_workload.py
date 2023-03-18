@@ -24,7 +24,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 from collections import defaultdict
 from functools import lru_cache
-from itertools import groupby, chain, combinations
+from itertools import groupby, chain, combinations, permutations
 from typing import Tuple, List
 import heapq
 from multiprocessing import Pool
@@ -244,6 +244,8 @@ class IndexAdvisor:
                 filtered_indexes.append(short_index)
         for filtered_index in filtered_indexes:
             opt_config.remove(filtered_index)
+            logging.info(f'filtered: {filtered_index} is removed due to similar benefits '
+                         f'with other same column indexes')
 
     def simple_index_advisor(self, candidate_indexes: List[AdvisedIndex]):
         estimate_workload_cost_file(self.executor, self.workload)
@@ -266,9 +268,9 @@ class IndexAdvisor:
             sql_optimized = 0
             negative_sql_ratio = 0
             insert_queries, delete_queries, \
-                update_queries, select_queries, \
-                positive_queries, ineffective_queries, \
-                negative_queries = self.workload.get_index_related_queries(index)
+            update_queries, select_queries, \
+            positive_queries, ineffective_queries, \
+            negative_queries = self.workload.get_index_related_queries(index)
             sql_num = self.workload.get_index_sql_num(index)
             total_benefit = 0
             # Calculate the average benefit of each positive SQL.
@@ -414,7 +416,7 @@ class IndexAdvisor:
     def compute_index_optimization_info(self, index: AdvisedIndex, table_name: str, statement: str):
         sql_info = {'sqlDetails': []}
         insert_queries, delete_queries, update_queries, select_queries, \
-            positive_queries, ineffective_queries, negative_queries = \
+        positive_queries, ineffective_queries, negative_queries = \
             self.workload.get_index_related_queries(index)
 
         for category, queries in zip([QueryType.INEFFECTIVE, QueryType.POSITIVE, QueryType.NEGATIVE],
@@ -740,14 +742,15 @@ def estimate_workload_cost_file(executor, workload, indexes=None):
         workload.add_indexes(indexes, query_costs, index_names, plans)
 
 
-def query_index_check(executor, query, indexes):
+def query_index_check(executor, query, indexes, sort_by_column_no=True):
     """ Obtain valid indexes based on the optimizer. """
     valid_indexes = []
     if len(indexes) == 0:
         return valid_indexes, None
-    # When the cost values are the same, the execution plan picks the last index created.
-    # Sort indexes to ensure that short indexes have higher priority.
-    indexes = sorted(indexes, key=lambda index: -len(index.get_columns()))
+    if sort_by_column_no:
+        # When the cost values are the same, the execution plan picks the last index created.
+        # Sort indexes to ensure that short indexes have higher priority.
+        indexes = sorted(indexes, key=lambda index: -len(index.get_columns()))
     index_check_results = executor.execute_sqls(get_index_check_sqls(query, indexes, is_multi_node(executor)))
     valid_indexes = get_checked_indexes(index_check_results, set(index.get_table() for index in indexes))
     cost = None
@@ -756,6 +759,16 @@ def query_index_check(executor, query, indexes):
             cost = parse_plan_cost(res[0])
             break
     return valid_indexes, cost
+
+
+def remove_unused_indexes(executor, statement, valid_indexes):
+    """ Remove invalid indexes by creating virtual indexes in different order. """
+    least_indexes = valid_indexes
+    for indexes in permutations(valid_indexes, len(valid_indexes)):
+        cur_indexes, cost = query_index_check(executor, statement, indexes, False)
+        if len(cur_indexes) < len(least_indexes):
+            least_indexes = cur_indexes
+    return least_indexes
 
 
 def filter_candidate_columns_by_cost(valid_indexes, statement, executor, max_candidate_columns):
@@ -832,6 +845,8 @@ def get_valid_indexes(advised_indexes, original_base_indexes, statement, executo
         else:
             break
 
+    # filtering of functionally redundant indexes due to index order
+    valid_indexes = remove_unused_indexes(executor, statement, valid_indexes)
     set_source_indexes(valid_indexes, original_base_indexes)
     return valid_indexes
 
@@ -856,7 +871,7 @@ def get_redundant_created_indexes(indexes: List[ExistingIndex], unused_indexes: 
             # Redundant objects are not in the useless index set, or
             # both redundant objects and redundant index in the useless index must be redundant index.
             index_exist = redundant_obj not in unused_indexes or \
-                (redundant_obj in unused_indexes and index in unused_indexes)
+                          (redundant_obj in unused_indexes and index in unused_indexes)
             if index_exist:
                 is_redundant = True
         if not is_redundant:
@@ -1205,6 +1220,7 @@ def filter_no_benefit_indexes(indexes):
     for index in indexes[:]:
         if not index.get_positive_queries():
             indexes.remove(index)
+            logging.info('remove no benefit index {index}')
 
 
 def index_advisor_workload(history_advise_indexes, executor: BaseExecutor, workload_file_path,

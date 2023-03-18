@@ -93,7 +93,7 @@ class GsqlExecutor(BaseExecutor):
         if self.user:
             self.base_cmd += ' -U ' + self.user
         if self.password:
-            self.base_cmd += ' -W ' + self.password
+            self.base_cmd += ' -W ' + shlex.quote(self.password)
 
     def __check_connect(self):
         cmd = self.base_cmd + ' -c \"'
