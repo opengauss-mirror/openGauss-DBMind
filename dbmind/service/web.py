@@ -1056,13 +1056,18 @@ def get_active_query(username, password):
 
 def get_holding_lock_query(username, password):
     stmt = """\
-    SELECT c.relkind,
-       d.datname,
-       c.relname,
-       l.mode,
-       s.query,
-       extract(epoch
-               FROM pg_catalog.now() - s.xact_start) AS holding_time
+    SELECT d.datname,
+           s.application_name,
+           s.sessionid,
+           c.relname,
+           c.relkind,
+           l.locktype,
+           l.mode,
+           l.granted,
+           s.xact_start,
+           extract(epoch
+               FROM pg_catalog.now() - s.xact_start) AS holding_time,
+           s.query
     FROM pg_locks AS l
     INNER JOIN pg_database AS d ON l.database = d.oid
     INNER JOIN pg_class AS c ON l.relation = c.oid
