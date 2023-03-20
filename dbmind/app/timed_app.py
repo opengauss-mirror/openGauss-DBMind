@@ -56,9 +56,9 @@ one_day = 24 * 60 * 60  # unit is second
 one_week = 7 * one_day  # unit is second
 one_month = 30 * one_day  # unit is second
 
-how_long_to_forecast_minutes = global_vars.dynamic_configs.get_int_or_float(
-    'self_monitoring', 'forecasting_future_time', fallback=3600
-) / 60
+last_detection_seconds = global_vars.dynamic_configs.get_int_or_float(
+    'self_monitoring', 'last_detection_time', fallback=600
+)
 result_storage_retention = global_vars.dynamic_configs.get_int_or_float(
     'self_monitoring', 'result_storage_retention', fallback=604800
 )
@@ -87,13 +87,12 @@ to_be_detected_metrics_for_future = wrapped_golden_kpi | MUST_BE_DETECTED_METRIC
 @customized_timer(self_monitoring_interval)
 def self_monitoring():
     history_alarms = list()
-    # in order to avoid repeated abnormal diagnosis, the 'fetch_interval' is equal to
-    # the 'self_monitoring_interval * expansion coefficient'
-    fetch_interval = int(expansion_coefficient * self_monitoring_interval / 60)
+    end = datetime.now()
+    start = end - timedelta(seconds=last_detection_seconds)
     for metrics in to_be_detected_metrics_for_history:
         sequences_list = []
         for metric in metrics:
-            latest_sequences = dai.get_latest_metric_sequence(metric, fetch_interval).fetchall()
+            latest_sequences = dai.get_metric_sequence(metric, start, end).fetchall()
             logging.debug('The length of latest_sequences is %d and metric name is %s.',
                           len(latest_sequences), metric)
 
@@ -111,7 +110,7 @@ def self_monitoring():
     for alarms in history_alarms:
         if not alarms:
             continue
-        dai.save_history_alarms(alarms)
+        dai.save_history_alarms(alarms, self_monitoring_interval)
     global_vars.self_driving_records.put(
         {
             'catalog': 'monitoring',

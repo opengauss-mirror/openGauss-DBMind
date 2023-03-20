@@ -102,8 +102,12 @@ def will_disk_spill(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.SYSTEM,
                 metric_name='os_disk_usage',
-                start_timestamp=full_sequence.timestamps[0],
-                end_timestamp=full_sequence.timestamps[-1],
+                start_timestamp=full_sequence.timestamps[
+                    over_threshold_anomalies.values.index(True)
+                ],
+                end_timestamp=full_sequence.timestamps[
+                    -over_threshold_anomalies.values[::-1].index(True) - 1
+                ],
                 alarm_level=ALARM_LEVEL.WARNING,
                 anomaly_type=ANOMALY_TYPES.THRESHOLD
             )
@@ -140,8 +144,12 @@ def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
             alarm_content="The memory usage has exceeded the warning level: %s%%." % (mem_usage_threshold * 100),
             alarm_type=ALARM_TYPES.ALARM,
             metric_name=metric_name,
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                over_threshold_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -over_threshold_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.WARNING,
             anomaly_type=ANOMALY_TYPES.THRESHOLD
         )
@@ -152,8 +160,12 @@ def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
             alarm_content="Find obvious spikes in memory usage.",
             alarm_type=ALARM_TYPES.SYSTEM,
             metric_name=metric_name,
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                spike_threshold_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -spike_threshold_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.WARNING,
             anomaly_type=ANOMALY_TYPES.SPIKE
         )
@@ -164,8 +176,12 @@ def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
             alarm_content="Find obvious level-shift in memory usage.",
             alarm_type=ALARM_TYPES.SYSTEM,
             metric_name=metric_name,
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                level_shift_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -level_shift_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.WARNING,
             anomaly_type=ANOMALY_TYPES.LEVEL_SHIFT
         )
@@ -175,9 +191,12 @@ def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
             instance=SequenceUtils.from_server(latest_sequence),
             alarm_content="Find continued growth in memory usage.",
             alarm_type=ALARM_TYPES.SYSTEM,
-            metric_name=metric_name,
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                increase_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -increase_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.WARNING,
             anomaly_type=ANOMALY_TYPES.INCREASE
         )
@@ -212,8 +231,12 @@ def has_cpu_high_usage(latest_sequences, future_sequences):
                               cpu_usage_threshold * 100, cpu_high_usage_percent * 100),
             alarm_type=ALARM_TYPES.SYSTEM,
             metric_name='os_cpu_usage',
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                over_threshold_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -over_threshold_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.ERROR,
             anomaly_type=ANOMALY_TYPES.THRESHOLD
         )
@@ -224,8 +247,12 @@ def has_cpu_high_usage(latest_sequences, future_sequences):
             alarm_content="Find obvious level-shift in cpu usage.",
             alarm_type=ALARM_TYPES.SYSTEM,
             metric_name='os_cpu_usage',
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                level_shift_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -level_shift_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.WARNING,
             anomaly_type=ANOMALY_TYPES.LEVEL_SHIFT
         )
@@ -246,8 +273,12 @@ def has_qps_rapid_change(latest_sequences, future_sequences):
             alarm_content="Find obvious spikes in QPS.",
             alarm_type=ALARM_TYPES.PERFORMANCE,
             metric_name='gaussdb_qps_by_instance',
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                spike_threshold_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -spike_threshold_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.WARNING,
             anomaly_type=ANOMALY_TYPES.SPIKE
         )
@@ -275,8 +306,12 @@ def has_connections_high_occupation(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.ALARM,
                 metric_name='gaussdb_connections_used_ratio',
-                start_timestamp=full_sequence.timestamps[0],
-                end_timestamp=full_sequence.timestamps[-1],
+                start_timestamp=full_sequence.timestamps[
+                    over_threshold_anomalies.values.index(True)
+                ],
+                end_timestamp=full_sequence.timestamps[
+                    -over_threshold_anomalies.values[::-1].index(True) - 1
+                ],
                 alarm_level=ALARM_LEVEL.ERROR,
                 anomaly_type=ANOMALY_TYPES.THRESHOLD
             )
@@ -297,8 +332,12 @@ def has_p95_rapid_change(latest_sequences, future_sequences):
             alarm_content="Find obvious spikes in P95.",
             alarm_type=ALARM_TYPES.PERFORMANCE,
             metric_name='statement_responsetime_percentile_p95',
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                spike_threshold_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -spike_threshold_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.WARNING,
             anomaly_type=ANOMALY_TYPES.SPIKE
         )
@@ -332,8 +371,12 @@ def has_high_disk_ioutils(latest_sequences, future_sequences):
                 ),
                 alarm_type=ALARM_TYPES.SYSTEM,
                 metric_name='os_disk_ioutils',
-                start_timestamp=full_sequence.timestamps[0],
-                end_timestamp=full_sequence.timestamps[-1],
+                start_timestamp=full_sequence.timestamps[
+                    over_threshold_anomalies.values.index(True)
+                ],
+                end_timestamp=full_sequence.timestamps[
+                    -over_threshold_anomalies.values[::-1].index(True) - 1
+                ],
                 alarm_level=ALARM_LEVEL.WARNING,
                 anomaly_type=ANOMALY_TYPES.THRESHOLD
             )
@@ -356,8 +399,12 @@ def has_p95_rapid_change(latest_sequences, future_sequences):
             alarm_content="Find obvious spikes in os_network_receive_drop.",
             alarm_type=ALARM_TYPES.PERFORMANCE,
             metric_name='os_network_receive_drop',
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                spike_threshold_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -spike_threshold_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.WARNING,
             anomaly_type=ANOMALY_TYPES.SPIKE
         )
@@ -380,8 +427,12 @@ def has_p95_rapid_change(latest_sequences, future_sequences):
             alarm_content="Find obvious spikes in os_network_transmit_drop.",
             alarm_type=ALARM_TYPES.PERFORMANCE,
             metric_name='os_network_transmit_drop',
-            start_timestamp=full_sequence.timestamps[0],
-            end_timestamp=full_sequence.timestamps[-1],
+            start_timestamp=full_sequence.timestamps[
+                spike_threshold_anomalies.values.index(True)
+            ],
+            end_timestamp=full_sequence.timestamps[
+                -spike_threshold_anomalies.values[::-1].index(True) - 1
+            ],
             alarm_level=ALARM_LEVEL.WARNING,
             anomaly_type=ANOMALY_TYPES.SPIKE
         )

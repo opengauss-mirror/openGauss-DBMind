@@ -82,7 +82,6 @@ class DynamicParams(DynamicConfig):
         ('max_reserved_period', 100, 'Maximum retention time (day)'),
         ('optimization_interval', 86400, 'The interval for index recommendation (second)'),
         ('max_elapsed_time', 60, 'The default elapsed time of a slow query to be killed (second)'),
-        ('alarm_merge_interval', 60, 'The default interval of alarm compression (second)'),
         ('expansion_coefficient', 1.2, 'The relationship between interval of some timed-task and the fetch-interval '
                                        'in each task during execution (second)')
     ]}

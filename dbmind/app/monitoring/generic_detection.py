@@ -89,8 +89,8 @@ class AnomalyDetections(object):
         return anomalies
 
     @staticmethod
-    def do_increase_detect(sequence, side="positive", alpha=1e-5):
-        increase_detector = IncreaseDetector(side=side, alpha=alpha)
+    def do_increase_detect(sequence, side="positive"):
+        increase_detector = IncreaseDetector(side=side)
         anomalies = increase_detector.fit_predict(sequence)
         return anomalies
 

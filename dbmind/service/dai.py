@@ -240,7 +240,7 @@ def get_latest_metric_value(metric_name):
     return LazyFetcher(metric_name)
 
 
-def save_history_alarms(history_alarms):
+def save_history_alarms(history_alarms, detection_interval):
     if not history_alarms:
         return
     func = dao.alarms.get_batch_insert_history_alarms_functions()
@@ -259,9 +259,9 @@ def save_history_alarms(history_alarms):
             pre_alarm_end_at = result[1]
             cur_alarm_start_at = alarm.start_timestamp
             cur_alarm_end_at = alarm.end_timestamp
-            # unit is 'ms', so here should be multiplied by 1000
-            if cur_alarm_start_at - pre_alarm_end_at < global_vars.dynamic_configs.get_int_or_float(
-                    'self_optimization', 'alarm_merge_interval', fallback=60) * 1000:
+            delay = (cur_alarm_start_at - pre_alarm_end_at) / 1000
+            # timestamp unit is 'ms'
+            if 0 < delay <= detection_interval:
                 dao.alarms.update_history_alarm(alarm_id=pre_alarm_id, end_at=cur_alarm_end_at)
                 continue
         func.add(
