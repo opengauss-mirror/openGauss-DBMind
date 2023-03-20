@@ -1234,8 +1234,15 @@ def get_regular_inspections_count(inspection_type):
 def get_correlation_result(metric_name, instance, start_time, end_time, topk=10):
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
-    start_time = int(start_time)
-    end_time = int(end_time)
+    start_time, end_time = int(start_time), int(end_time)
+    # in order to prevent the analysis from being abnormal due to the abnormal window being too small,
+    # the two sides of the abnormal window are expanded by specified interval, default value is 10% of the abnormal
+    # time interval, when it is smaller than the tsdb_scrape_interval, then use tsdb_scrape_interval instead
+    tsdb_scrape_interval = client.scrape_interval
+    least_window = int((end_time - start_time) * 0.2) if int((end_time - start_time) * 0.2) > \
+                                                         tsdb_scrape_interval else tsdb_scrape_interval
+    start_time = int(start_time) - least_window
+    end_time = int(end_time) + least_window
     actual_start_time = min(start_time, end_time)
     start_datetime = datetime.datetime.fromtimestamp(actual_start_time / 1000)
     end_datetime = datetime.datetime.fromtimestamp(end_time / 1000)

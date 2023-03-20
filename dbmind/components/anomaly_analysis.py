@@ -67,7 +67,7 @@ def get_sequences(arg):
     else:
         raise
 
-    step = dai.get_metric_sequence(metric, start_datetime, end_datetime).step / 1000
+    step = TsdbClientFactory.get_tsdb_client().scrape_interval
     start_time = datetime.timestamp(start_datetime)
     end_time = datetime.timestamp(end_datetime)
     length = (end_time - start_time) // step
