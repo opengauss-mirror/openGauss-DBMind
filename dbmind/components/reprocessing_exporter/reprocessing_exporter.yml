@@ -787,7 +787,7 @@ gaussdb_table_expansion_rate:
 gaussdb_cpu_time:
   desc: cpu time in all databases.
   promql: |
-    sum(irate(og_cpu_load_total_cpu[3m])) by (from_instance, job)
+    sum(irate(pg_cpu_load_total_cpu[3m])) by (from_instance, job)
   metrics:
     - name: from_job
       label: job
