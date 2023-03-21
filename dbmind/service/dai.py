@@ -261,7 +261,7 @@ def save_history_alarms(history_alarms, detection_interval):
             cur_alarm_end_at = alarm.end_timestamp
             delay = (cur_alarm_start_at - pre_alarm_end_at) / 1000
             # timestamp unit is 'ms'
-            if 0 < delay <= detection_interval:
+            if delay <= detection_interval + 1:  # tolerance in 1 second:
                 dao.alarms.update_history_alarm(alarm_id=pre_alarm_id, end_at=cur_alarm_end_at)
                 continue
         func.add(
