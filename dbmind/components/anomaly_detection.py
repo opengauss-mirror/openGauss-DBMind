@@ -195,7 +195,8 @@ def plot(sequences_set, anomalies_set, metric, start_time, end_time):
     output_table = PrettyTable(title='Anomalies')
     output_table.field_names = ('time', 'value')
     output_table.align = "l"
-    output_table.add_rows(table.values())
+    for r in table.values():
+        output_table.add_row(r)
     print(output_table)
 
 
