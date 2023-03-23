@@ -33,15 +33,15 @@ gaussdb_cluster:
         usage: "GAUGE"
         description: "cluster state, 0 meaning abnormal and 1 meaning normal"
     - primary:
-        subquery: grep -E "P Primary" | sed 's/|/\n/g' | grep -E "Primary" | awk '{printf "%s:%s\n",$3,$5}'
+        subquery: grep -E "Primary " | sed 's/|/\n/g' | grep -E "Primary" | awk '{printf "%s:%s\n",$3,$5}'
         usage: "LABEL"
         description: "primary node list"
     - standby:
-        subquery: grep -E "P Primary" | sed 's/|/\n/g' | grep -E "Primary" | awk '{printf "%s:%s\n",$3,$5}' | sed -z 's/\n/,/g'
+        subquery: grep -E "Primary " | sed 's/|/\n/g' | grep -E "Primary" | awk '{printf "%s:%s\n",$3,$5}' | sed -z 's/\n/,/g'
         usage: "LABEL"
         description: "standby node list"
     - normal:
-        subquery: grep -E "P Primary" | sed 's/|/\n/g' | grep -E "Normal" | awk '{printf "%s:%s\n",$3,$5}' | sed -z 's/\n/,/g'
+        subquery: grep -E "Primary " | sed 's/|/\n/g' | grep -E "Normal" | awk '{printf "%s:%s\n",$3,$5}' | sed -z 's/\n/,/g'
         usage: "LABEL"
         description: "standby node list"
 

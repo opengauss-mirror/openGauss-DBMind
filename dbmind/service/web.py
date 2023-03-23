@@ -1234,6 +1234,8 @@ def get_regular_inspections_count(inspection_type):
 def get_correlation_result(metric_name, instance, start_time, end_time, topk=10):
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
+    # In case the length from start_time to end_time is too short,
+    # we fix the least window to 20 intervals or 300 seconds.
     least_window = 300  # empirical
     least_n_intervals = 20  # empirical
     tsdb_interval = client.scrape_interval
