@@ -47,7 +47,7 @@ def build_parser():
     # This type should not be path_type because path_type will validate if the path exists.
     parser_service.add_argument('-c', '--conf', type=os.path.realpath, metavar='DIRECTORY', required=True,
                                 help='set the directory of configuration files')
-    parser_service.add_argument('--only-run', choices=constants.DEFAULT_TASK_NAMES,
+    parser_service.add_argument('--only-run', choices=constants.DEFAULT_TASK_NAMES + constants.OPTIONAL_TASK_NAMES,
                                 help='explicitly set a certain task running in the backend')
     parser_service.add_argument('--dry-run', action='store_true',
                                 help='run the backend task(s) once. '

@@ -191,6 +191,7 @@ def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
             instance=SequenceUtils.from_server(latest_sequence),
             alarm_content="Find continued growth in memory usage.",
             alarm_type=ALARM_TYPES.SYSTEM,
+            metric_name=metric_name,
             start_timestamp=full_sequence.timestamps[
                 increase_anomalies.values.index(True)
             ],

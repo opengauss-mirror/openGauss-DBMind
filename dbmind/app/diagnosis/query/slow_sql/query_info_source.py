@@ -53,9 +53,8 @@ def exception_follower(output=None):
     return decorator
 
 
-REQUIRED_PARAMETERS = ('shared_buffers', 'work_mem', 'enable_nestloop',
-                       'enable_hashjoin', 'enable_mergejoin', 'enable_indexscan',
-                       'enable_hashagg', 'enable_sort', 'max_connections')
+REQUIRED_PARAMETERS = ('enable_nestloop', 'enable_hashjoin', 'enable_mergejoin',
+                       'enable_indexscan', 'enable_hashagg', 'enable_sort', 'max_connections')
 
 
 class TableStructure:
@@ -126,7 +125,7 @@ class SystemInfo:
         self.total_memory = 0.0
         self.gaussdb_number = 0
         self.cpu_core_number = 1
-        self.system_cpu_usage = 0
+        self.user_cpu_usage = 0
         self.system_mem_usage = 0
         self.db_cpu_usage = 0
         self.db_mem_usage = 0
@@ -445,8 +444,9 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         if not self.slow_sql_instance.tables_name:
             return table_structure
         tuples_statistics_stmt = """
-            select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2 
-            where r1.schemaname = '{schemaname}' and r2.relname = '{relname}' and r1.relname = r2.relname;
+            select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2, 
+            pg_namespace r3 where r1.relname='{relname}' and r1.schemaname='{schemaname}' 
+            and r1.relname=r2.relname and r1.schemaname=r3.nspname and r2.relnamespace=r3.oid;
         """
         user_table_stmt = """
             SELECT n_live_tup::int, n_dead_tup::int,
@@ -594,7 +594,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                 self.slow_sql_instance.instance).filter(
                 name=f"{parameter}").fetchone()
             if is_sequence_valid(sequence):
-                pg_setting.name = parameter
+                pg_setting.name = sequence.labels['name']
                 pg_setting.vartype = sequence.labels['vartype']
                 if pg_setting.vartype in ('integer', 'int64'):
                     pg_setting.setting = _get_sequence_first_value(sequence)
@@ -666,8 +666,8 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         disk_usage_info = dai.get_metric_sequence("os_disk_usage", self.query_start_time,
                                                   self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchall()
-        cpu_usage_info = dai.get_metric_sequence("os_cpu_usage", self.query_start_time,
-                                                 self.query_end_time).from_server(
+        user_cpu_usage_info = dai.get_metric_sequence("os_cpu_usage", self.query_start_time,
+                                                      self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
         mem_usage_info = dai.get_metric_sequence("os_mem_usage", self.query_start_time,
                                                  self.query_end_time).from_server(
@@ -705,9 +705,9 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                                        (system_info.cpu_core_number * 100)
         if is_sequence_valid(db_mem_usage_info):
             system_info.db_mem_usage = _get_sequences_sum_value(db_mem_usage_info, precision=4)
-        if is_sequence_valid(cpu_usage_info):
-            system_info.system_cpu_usage = _get_sequence_first_value(cpu_usage_info, precision=4) - \
-                                           system_info.db_cpu_usage
+        if is_sequence_valid(user_cpu_usage_info):
+            system_info.user_cpu_usage = _get_sequence_first_value(user_cpu_usage_info, precision=4) - \
+                                         system_info.db_cpu_usage
         if is_sequence_valid(mem_usage_info):
             system_info.system_mem_usage = _get_sequence_first_value(mem_usage_info, precision=4) - \
                                            system_info.db_mem_usage
@@ -922,8 +922,9 @@ class QueryContextFromDriver(QueryContext):
     def acquire_tables_structure_info(self) -> list:
         tables_info = []
         tuples_statistics_stmt = """
-            select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2 
-            where r1.schemaname = '{schemaname}' and r2.relname = '{relname}' and r1.relname = r2.relname;
+            select abs(r1.n_live_tup - r2.reltuples)::int diff from pg_stat_user_tables r1, pg_class r2, 
+            pg_namespace r3 where r1.relname='{relname}' and r1.schemaname='{schemaname}' 
+            and r1.relname=r2.relname and r1.schemaname=r3.nspname and r2.relnamespace=r3.oid;
         """
         user_table_stmt = """
             SELECT n_live_tup, n_dead_tup,
@@ -987,8 +988,8 @@ class QueryContextFromDriver(QueryContext):
             row = self.driver.query(stmts.format(metric_name=parameter), return_tuples=False)
             if is_driver_result_valid(row):
                 pg_setting = PgSetting()
-                pg_setting.name = _get_driver_value(row, 'name')
-                pg_setting.vartype = _get_driver_value(row, 'vartype')
+                pg_setting.name = _get_driver_value(row, 'name', precision=-1)
+                pg_setting.vartype = _get_driver_value(row, 'vartype', precision=-1)
                 if pg_setting.vartype in ('integer', 'int64'):
                     pg_setting.setting = int(_get_driver_value(row, 'setting'))
                 elif pg_setting.vartype == 'bool':

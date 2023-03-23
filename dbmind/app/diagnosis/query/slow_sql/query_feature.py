@@ -503,25 +503,18 @@ class QueryFeature:
     def workload_contention(self) -> bool:
         """
         Determine whether it is caused by the load of the database itself, which includes:
-          case1: The TPS of instance is abnormal compared to the historical value.
-          case2: The CPU resource occupied by the database is abnormal.
-          case3: The MEMORY resource occupied by the database is abnormal.
-          case4: Insufficient space in database data directory.
-          case5: The connections of database accounts for too much of the total connections.
+          case1: The CPU resource occupied by the database is abnormal.
+          case2: The MEMORY resource occupied by the database is abnormal.
+          case3: Insufficient space in database data directory.
+          case4: The connections of database accounts for too much of the total connections.
         """
         if not self.database_info.current_tps:
             return False
         indexes = ['a', 'b', 'c', 'd', 'e']
-        tps_threshold = max(monitoring.get_param('tps_threshold'),
-                            self.pg_setting_info['max_connections'].setting * 10)
         self.detail['workload_contention'], self.suggestion['workload_contention'] = '', ''
         if isinstance(self.database_info.current_tps, (list, tuple)):
             if _existing_spike(self.database_info.current_tps):
                 self.detail['workload_contention'] += "%s. Found a positive spike in TPS\n" % indexes.pop(0)
-        else:
-            if self.database_info.current_tps > tps_threshold:
-                self.detail['workload_contention'] += '%s. The current TPS  of the database is large: %s\n' \
-                                                      % (indexes.pop(0), self.database_info.current_tps)
         if isinstance(self.system_info.db_cpu_usage, (list, tuple)):
             if _existing_spike(self.system_info.db_cpu_usage):
                 self.detail['work_contention'] += "%s. Found a positive spike in DB_CPU_USAGE" % indexes.pop(0)
@@ -556,13 +549,13 @@ class QueryFeature:
     @property
     def cpu_resource_contention(self) -> bool:
         """Determine whether other processes outside the database occupy too many CPU resources."""
-        if isinstance(self.system_info.system_cpu_usage, (list, tuple)):
-            if _existing_spike(self.system_info.system_cpu_usage):
-                self.detail['system_cpu_contention'] = "Found positive spike in SYSTEM_CPU_USAGE"
+        if isinstance(self.system_info.user_cpu_usage, (list, tuple)):
+            if _existing_spike(self.system_info.user_cpu_usage):
+                self.detail['system_cpu_contention'] = "Found positive spike in CPU_USER_USAGE"
         else:
-            if self.system_info.system_cpu_usage >= monitoring.get_param('cpu_usage_threshold'):
-                self.detail['system_cpu_contention'] = "The current system cpu usage is significant: %s." \
-                                                       % self.system_info.system_cpu_usage
+            if self.system_info.user_cpu_usage >= monitoring.get_param('cpu_usage_threshold'):
+                self.detail['system_cpu_contention'] = "The current user cpu usage is significant: %s." \
+                                                       % self.system_info.user_cpu_usage
         if self.detail.get('system_cpu_contention'):
             self.suggestion['system_cpu_contention'] = "Handle exception processes in system"
             return True

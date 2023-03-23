@@ -24,7 +24,6 @@ class DynamicParams(DynamicConfig):
         ('mem_usage_threshold', 0.6, ''),
         ('cpu_usage_threshold', 0.6, ''),
         ('cpu_high_usage_percent', 0.8, ''),
-        ('tps_threshold', 1000, ''),
         ('handler_occupation_threshold', 0.7, ''),
         ('disk_ioutils_threshold', 0.7, ''),
         ('connection_usage_threshold', 0.9, ''),

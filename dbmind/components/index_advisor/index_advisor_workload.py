@@ -237,10 +237,10 @@ class IndexAdvisor:
                 continue
             short_index_benefit = workload.get_total_index_cost((short_index,)) - origin_cost
             long_index_benefit = workload.get_total_index_cost((long_index,)) - origin_cost
-            if short_index_benefit / combined_benefit > rate:
+            if combined_benefit and short_index_benefit / combined_benefit > rate:
                 filtered_indexes.append(long_index)
                 continue
-            if long_index_benefit / combined_benefit > rate:
+            if combined_benefit and long_index_benefit / combined_benefit > rate:
                 filtered_indexes.append(short_index)
         for filtered_index in filtered_indexes:
             opt_config.remove(filtered_index)
