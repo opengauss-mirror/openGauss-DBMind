@@ -1234,14 +1234,15 @@ def get_regular_inspections_count(inspection_type):
 def get_correlation_result(metric_name, instance, start_time, end_time, topk=10):
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
-
+    least_window = 300  # empirical
+    least_n_intervals = 20  # empirical
     tsdb_interval = client.scrape_interval
-    start_time, end_time = int(start_time), int(end_time)
-    least_window = tsdb_interval * 20 if tsdb_interval is not None else 300
-    end_time = min(int(datetime.datetime.now().timestamp()), end_time + least_window)
-    start_time = min(start_time, end_time - least_window * 2)
-    start_datetime = datetime.datetime.fromtimestamp(start_time / 1000)
-    end_datetime = datetime.datetime.fromtimestamp(end_time / 1000)
+    start_time, end_time = int(start_time) // 1000, int(end_time) // 1000
+    window = tsdb_interval * least_n_intervals if tsdb_interval is not None else least_window
+    end_time = min(int(datetime.datetime.now().timestamp()), end_time + window)
+    start_time = end_time - window * 2
+    start_datetime = datetime.datetime.fromtimestamp(start_time)
+    end_datetime = datetime.datetime.fromtimestamp(end_time)
 
     sequence_args = [((metric, instance, start_datetime, end_datetime),) for metric in all_metrics]
 

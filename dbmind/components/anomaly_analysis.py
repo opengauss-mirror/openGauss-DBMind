@@ -52,7 +52,6 @@ http.client.HTTPConnection._http_vsn_str = "HTTP/1.0"
 def get_sequences(arg):
     metric, instance, start_datetime, end_datetime = arg
     result = []
-    seqs = []
     if global_vars.configs.get('TSDB', 'name') == "prometheus":
         if ":" in instance and check_ip_valid(instance.split(":")[0]) and check_port_valid(instance.split(":")[1]):
             seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).from_server(instance).fetchall()
@@ -67,11 +66,10 @@ def get_sequences(arg):
     else:
         raise
 
-    step = TsdbClientFactory.get_tsdb_client().scrape_interval
     start_time = datetime.timestamp(start_datetime)
     end_time = datetime.timestamp(end_datetime)
-    length = (end_time - start_time) // step
     for seq in seqs:
+        length = (end_time - start_time) * 1000 // seq.step
         if DISTINGUISHING_INSTANCE_LABEL not in seq.labels or len(seq) < 0.6 * length:
             continue
 
