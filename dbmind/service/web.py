@@ -45,7 +45,6 @@ from dbmind.common.dispatcher import TimedTaskManager
 from dbmind.components.forecast import early_warning
 from . import dai
 
-
 _access_context = threading.local()
 
 
@@ -457,24 +456,24 @@ def toolkit_recommend_knobs_by_metrics(metric_pagesize, metric_current,
     knob_offset = max(0, (knob_current - 1) * knob_pagesize)
     knob_limit = knob_pagesize
     metric_snapshot = sqlalchemy_query_jsonify(
-                dao.knob_recommendation.select_metric_snapshot(
-                    instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
-                    offset=metric_offset, limit=metric_limit),
-                field_names=('instance', 'metric', 'value')
-            )
+        dao.knob_recommendation.select_metric_snapshot(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
+            offset=metric_offset, limit=metric_limit),
+        field_names=('instance', 'metric', 'value')
+    )
     warnings = sqlalchemy_query_jsonify(
-                dao.knob_recommendation.select_warnings(
-                   instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
-                   offset=warning_offset, limit=warning_limit),
-                field_names=('instance', 'level', 'comment')
-           )
+        dao.knob_recommendation.select_warnings(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
+            offset=warning_offset, limit=warning_limit),
+        field_names=('instance', 'level', 'comment')
+    )
 
     details = sqlalchemy_query_jsonify(
-                dao.knob_recommendation.select_details(
-                   instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
-                   offset=knob_offset, limit=knob_limit),
-              field_names=('instance', 'name', 'current', 'recommend', 'min', 'max')
-          )
+        dao.knob_recommendation.select_details(
+            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
+            offset=knob_offset, limit=knob_limit),
+        field_names=('instance', 'name', 'current', 'recommend', 'min', 'max')
+    )
     return {"metric_snapshot": metric_snapshot, "warnings": warnings, "details": details}
 
 
@@ -640,7 +639,7 @@ def get_existing_indexes(pagesize, current):
 
 def get_existing_indexes_count():
     return dao.index_recommendation.count_existing_indexes(
-        get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)) 
+        get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT))
 
 
 def get_positive_sql_count():
@@ -675,8 +674,18 @@ def get_all_metrics():
     return list(global_vars.metric_map.keys())
 
 
+def update_agent_list(force=False):
+    if not force:
+        global_vars.agent_proxy.agent_lightweight_update()
+        return True
+    if not global_vars.agent_proxy.agent_can_heavyweight_update():
+        return False
+    global_vars.agent_proxy.agent_heavyweight_update()
+    return True
+
+
 def get_all_agents():
-    return global_vars.agent_proxy.get_all_agents()
+    return global_vars.agent_proxy.agent_get_all()
 
 
 def sqlalchemy_query_jsonify(query, field_names=None):
@@ -775,7 +784,8 @@ def _sqlalchemy_query_records_count_logic(count_function, instances, **kwargs):
         if only_with_port:
             instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
         else:
-            instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST) + get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
+            instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST) + get_access_context(
+                ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
         for instance in instances:
             result += count_function(instance, **kwargs)
         return result
@@ -898,7 +908,8 @@ def get_healing_info_count(instance=None, action=None, success=None, min_occurre
         action=action, success=success, min_occurrence=min_occurrence)
 
 
-def get_slow_queries(pagesize=None, current=None, instance=None, query=None, start_time=None, end_time=None, group=False):
+def get_slow_queries(pagesize=None, current=None, instance=None, query=None, start_time=None, end_time=None,
+                     group=False):
     if instance is not None:
         instances = [instance]
     else:
@@ -1220,7 +1231,7 @@ def search_slow_sql_rca_result(sql, start_time=None, end_time=None, limit=None):
 
 def get_regular_inspections(inspection_type):
     return sqlalchemy_query_jsonify(dao.regular_inspections.select_metric_regular_inspections(
-        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT), 
+        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
         inspection_type=inspection_type, limit=1),
         field_names=['instance', 'report', 'start', 'end'])
 
@@ -1312,7 +1323,7 @@ def get_database_data_directory_status(instance, latest_minutes):
 
 def get_front_overview(latest_minutes=5):
     overview_detail = {'status': 'stopping', 'strength_version': 'unknown', 'deployment_mode': 'unknown',
-                       'operating_system': 'unknown', 'general_risk': 0, 'major_risk': 0, 'high_risk': 0, 'low_risk':0}
+                       'operating_system': 'unknown', 'general_risk': 0, 'major_risk': 0, 'high_risk': 0, 'low_risk': 0}
     # this method can be used to front-end
     # instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
     instance = global_vars.agent_proxy.current_agent_addr()
@@ -1330,7 +1341,8 @@ def get_front_overview(latest_minutes=5):
         overview_detail['strength_version'] = version_sequence.labels['version']
 
     # get version of system
-    operating_system_sequence = dai.get_latest_metric_value('node_uname_info').filter_like(instance=instance_regrex).fetchone()
+    operating_system_sequence = dai.get_latest_metric_value('node_uname_info').filter_like(
+        instance=instance_regrex).fetchone()
     if dai.is_sequence_valid(operating_system_sequence):
         overview_detail['operating_system'] = operating_system_sequence.labels['machine']
 
@@ -1371,8 +1383,8 @@ def get_current_instance_status():
     detail = {'header': ['instance', 'role', 'state'], 'rows': []}
     instance_status = dai.check_instance_status()
     detail['rows'].append([instance_status['primary'], 'primary', True if
-                           instance_status['primary'] not in
-                           instance_status['abnormal'] else False])
+    instance_status['primary'] not in
+    instance_status['abnormal'] else False])
     for instance in instance_status['standby']:
         detail['rows'].append([instance, 'standby', True if instance not in instance_status['abnormal'] else False])
     return detail
@@ -1392,4 +1404,3 @@ def get_collection_system_status():
                                       tsdb_status['listen_address'],
                                       True if tsdb_status['status'] == 'up' else False])
     return collection_detail
-

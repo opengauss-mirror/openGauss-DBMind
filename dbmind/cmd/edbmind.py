@@ -28,7 +28,8 @@ from dbmind.cmd.config_utils import (
     load_sys_configs,
     DynamicConfig
 )
-from dbmind.service.utils import AgentProxy
+from dbmind.common.utils.base import try_to_get_an_element
+from dbmind.service import multicluster
 from dbmind.common import platform
 from dbmind.common import utils
 from dbmind.common.daemon import Daemon, read_dbmind_pid_file
@@ -152,6 +153,9 @@ def init_rpc_with_config(tsdb=None):
         utils.raise_fatal_and_exit(
             error_msg, use_logging=False
         )
+
+    global_vars.agent_proxy = multicluster.AgentProxy()
+
     # -- finish checking --
     # If user doesn't set any urls, we can
     # try to scan and discover the urls by TSDB metrics.
@@ -159,55 +163,44 @@ def init_rpc_with_config(tsdb=None):
     # user should set a username. Otherwise, we can't
     # connect to the agent with any credentials.
     # Meanwhile, the username should be one element.
-    if tsdb and len(master_url) == 0 and len(agent_username) == 1:
+    if tsdb and len(master_url) == 0:
         try:
-            sequences = tsdb.get_current_metric_value(
-                'opengauss_exporter_fixed_info'
+            if (
+                len(agent_username) != 1 or
+                len(ssl_certfile) > 1
+            ):
+                utils.raise_fatal_and_exit(
+                    "You haven't set master_url, which means "
+                    "you employ autodiscover mode. You only can "
+                    "set ONE same username/password/SSL for all cluster.",
+                    use_logging=False
+                )
+            global_vars.agent_proxy.set_autodiscover_connection_info(
+                username=try_to_get_an_element(agent_username, 0),
+                password=try_to_get_an_element(agent_pwd, 0),
+                ssl_certfile=try_to_get_an_element(ssl_certfile, 0),
+                ssl_keyfile=try_to_get_an_element(ssl_keyfile, 0),
+                ssl_key_password=try_to_get_an_element(ssl_keyfile_password, 0),
+                ca_file=try_to_get_an_element(ssl_ca_file, 0)
             )
-            for s in sequences:
-                labels = s.labels
-                # fixed key name, refer to openGauss exporter component
-                rpc = labels['rpc'] == 'True'
-                primary = labels['primary'] == 'True'
-                # Currently, we only use the master instance.
-                if not (rpc and primary):
-                    continue
-
-                url = labels['url']
-                # It is similar to username, only one element can be used.
-                if url.startswith('https') and len(ssl_certfile) != 1:
-                    continue
-
-                # override the following scenario
-                if '0.0.0.0' in url:
-                    host = labels['instance'].split(':')[0]
-                    url = url.replace('0.0.0.0', host)
-                master_url.append(url)
+            global_vars.agent_proxy.autodiscover(tsdb)
         except Exception as e:
             logging.warning(
                 'Cannot extract agent url from TSDB.', exc_info=e
             )
-    global_vars.agent_proxy = AgentProxy()
-
-    def try_to_get_the_element(l, idx):
-        if len(l) == 0:
-            return None
-        if len(l) <= idx:
-            return l[0]  # default to return the first one
-        return l[idx]
 
     for i, url in enumerate(master_url):
-        pwd = try_to_get_the_element(agent_pwd, i)
-        global_vars.agent_proxy.add_agent(
+        global_vars.agent_proxy.agent_add(
             url=url,
-            username=try_to_get_the_element(agent_username, i),
-            password=pwd,
-            ssl_certfile=try_to_get_the_element(ssl_certfile, i),
-            ssl_keyfile=try_to_get_the_element(ssl_keyfile, i),
-            ssl_key_password=try_to_get_the_element(ssl_keyfile_password, i),
-            ca_file=try_to_get_the_element(ssl_ca_file, i)
+            username=try_to_get_an_element(agent_username, i),
+            password=try_to_get_an_element(agent_pwd, i),
+            ssl_certfile=try_to_get_an_element(ssl_certfile, i),
+            ssl_keyfile=try_to_get_an_element(ssl_keyfile, i),
+            ssl_key_password=try_to_get_an_element(ssl_keyfile_password, i),
+            ca_file=try_to_get_an_element(ssl_ca_file, i)
         )
 
+    global_vars.agent_proxy.agent_finalize()
     return global_vars.agent_proxy
 
 

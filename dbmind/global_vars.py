@@ -4,8 +4,7 @@
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
 #
-#          http://license.coscl.org.cn/MulanPSL2
-#
+#          http://license.coscl.org.cn/MulanPSL2#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -18,7 +17,6 @@ Notice: The variables in the following should be used across files.
 Otherwise, if a variable is not used across files,
 it should be placed where the nearest used position is.
 """
-import multiprocessing
 
 configs = None
 dynamic_configs = None
@@ -32,4 +30,3 @@ timed_task = {}
 is_dry_run_mode = False
 agent_proxy = None
 self_driving_records = None
-executor_lock = multiprocessing.Lock()

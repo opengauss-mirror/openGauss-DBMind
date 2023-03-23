@@ -443,3 +443,11 @@ def string_to_dict(values, delimiter=','):
     except Exception as e:
         return d
     return d
+
+
+def try_to_get_an_element(l, idx):
+    if len(l) == 0:
+        return None
+    if len(l) <= idx:
+        return l[0]  # default to return the first one
+    return l[idx]

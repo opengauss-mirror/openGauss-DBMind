@@ -690,7 +690,7 @@ def get_database_data_directory_status(instance, latest_minutes):
         return EMPTY_SEQUENCE
     # the data-directory is all same in the cluster
     data_directory = data_directory_sequence.labels.get('datapath')
-    instances = global_vars.agent_proxy.get_all_agents()[instance]
+    instances = global_vars.agent_proxy.agent_get_all()[instance]
     for instance in instances:
         instance_with_no_port = instance.split(':')[0]
         instance_regrex = instance_with_no_port + ':?.*'

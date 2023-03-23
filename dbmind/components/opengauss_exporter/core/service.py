@@ -385,10 +385,11 @@ def query_all_metrics():
     update_exporter_fixed_info(
         'primary', (not driver.is_standby())
     )
-    # have to get the private variable
+    # Notice: have to get the private variable
     exporter_fixed_info = getattr(REGISTRY, '_names_to_collectors')[
         'opengauss_exporter_fixed_info'
     ]
+    exporter_fixed_info.clear()
     exporter_fixed_info.labels(**EXPORTER_FIXED_INFO).set(1)
 
     return generate_latest(REGISTRY)

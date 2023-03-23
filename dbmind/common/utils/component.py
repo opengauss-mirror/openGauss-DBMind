@@ -23,7 +23,7 @@ from dbmind.common.utils.cli import keep_inputting_until_correct
 def initialize_rpc_service():
     try:
         proxy = init_rpc_with_config()
-        proxy.finalize_agents()
+        proxy.agent_finalize()
         choose_an_rpc()
         result = global_vars.agent_proxy.call('query_in_database',
                                               'select 1',
@@ -45,7 +45,7 @@ def initialize_tsdb_param():
 
 
 def choose_an_rpc():
-    all_agents = global_vars.agent_proxy.get_all_agents()
+    all_agents = global_vars.agent_proxy.agent_get_all()
     if len(all_agents) == 1:
         return
 

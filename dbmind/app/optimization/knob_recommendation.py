@@ -17,7 +17,6 @@ from dbmind.components.xtuner.tuner.character import AbstractMetric
 from dbmind.components.xtuner.tuner.recommend import recommend_knobs as rk
 from dbmind.components.xtuner.tuner.utils import cached_property
 from dbmind.service import dai
-from dbmind.service.utils import get_agent_instance_address
 from dbmind.service.utils import SequenceUtils
 
 

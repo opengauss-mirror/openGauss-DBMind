@@ -71,7 +71,7 @@ class DailyInspection:
         self._start = start
         self._end = end
         self._agent_instance = instance
-        all_agents = global_vars.agent_proxy.get_all_agents()
+        all_agents = global_vars.agent_proxy.agent_get_all()
         self._instances_with_port = all_agents.get(instance)
         self._instances_with_no_port = [i.split(':')[0] for i in self._instances_with_port]
 
@@ -289,7 +289,7 @@ class MultipleDaysInspection:
         self._start = int(start.timestamp() * 1000)
         self._end = int(end.timestamp() * 1000)
         self._agent_instance = instance
-        all_agents = global_vars.agent_proxy.get_all_agents()
+        all_agents = global_vars.agent_proxy.agent_get_all()
         self._instances_with_port = all_agents.get(instance)
         self._instances_with_no_port = [i.split(':')[0] for i in self._instances_with_port]
         self._existing_data = True

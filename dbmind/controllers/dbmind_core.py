@@ -62,7 +62,7 @@ class DBMindOauth2(OAuth2):
             global_vars.agent_proxy.switch_context(scope)
         else:
             # If not specified and there is only one RPC, use it.
-            agent_list = global_vars.agent_proxy.get_all_agents()
+            agent_list = global_vars.agent_proxy.agent_get_all()
             if len(agent_list) != 1:
                 return
             global_vars.agent_proxy.switch_context(list(agent_list.keys())[0])
@@ -98,9 +98,22 @@ oauth2 = DBMindOauth2.get_dbmind_oauth_instance()
 
 
 @request_mapping('/api/list/agent', methods=['GET'], api=True)
+@request_mapping(api_prefix + '/agent/list', methods=['GET'], api=True)
 @standardized_api_output
 def get_all_agents():
     return web.get_all_agents()
+
+
+@request_mapping(api_prefix + '/agent/update', methods=['GET'], api=True)
+@standardized_api_output
+def update_agents():
+    return web.update_agent_list(force=False)
+
+
+@request_mapping(api_prefix + '/agent/update/force', methods=['GET'], api=True)
+@standardized_api_output
+def update_agents_force():
+    return web.update_agent_list(force=True)
 
 
 @request_mapping('/api/status/running', methods=['GET'], api=True)
@@ -163,12 +176,12 @@ def get_metric_sequence(name, start: int = None, end: int = None, step: int = No
 @oauth2.token_authentication()
 @standardized_api_output
 def get_latest_metric_sequence(name, instance: str = None, latest_minutes: int = None,
-                               step: int = None, fetch_all: bool = False, 
-                               regrex: bool = False, labels: str = None, 
+                               step: int = None, fetch_all: bool = False,
+                               regrex: bool = False, labels: str = None,
                                regrex_labels: str = None):
     return web.get_latest_metric_sequence(name, instance, latest_minutes,
-                                          step=step, fetch_all=fetch_all, 
-                                          regrex=regrex, labels=labels, 
+                                          step=step, fetch_all=fetch_all,
+                                          regrex=regrex, labels=labels,
                                           regrex_labels=regrex_labels)
 
 
@@ -183,7 +196,8 @@ def get_history_alarms(pagesize: int = None, current: int = None,
 @request_mapping('/api/alarm/history_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_history_alarms_count(instance: str = None, alarm_type: str = None, alarm_level: str = None, group: bool = False):
+def get_history_alarms_count(instance: str = None, alarm_type: str = None, alarm_level: str = None,
+                             group: bool = False):
     return web.get_history_alarms_count(instance, alarm_type, alarm_level, group)
 
 
@@ -212,7 +226,7 @@ def get_future_alarms_count(instance: str = None, metric_name: str = None, start
 @request_mapping('/api/alarm/healing', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_healing_info_for_alarms(pagesize: int = None, current: int = None, instance: str = None, 
+def get_healing_info_for_alarms(pagesize: int = None, current: int = None, instance: str = None,
                                 action: str = None, success: bool = None, min_occurrence: int = None):
     return web.get_healing_info(pagesize, current, instance, action, success, min_occurrence)
 
@@ -220,7 +234,8 @@ def get_healing_info_for_alarms(pagesize: int = None, current: int = None, insta
 @request_mapping('/api/alarm/healing_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_healing_info_count_for_alarms(instance: str = None, action: str = None, success: bool = None, min_occurrence: int = None):
+def get_healing_info_count_for_alarms(instance: str = None, action: str = None, success: bool = None,
+                                      min_occurrence: int = None):
     return web.get_healing_info_count(instance, action, success, min_occurrence)
 
 
@@ -281,9 +296,9 @@ def get_db_list():
 @request_mapping('/api/summary/index_advisor', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_index_advisor_summary(positive_pagesize: int = None, positive_current: int = None, 
+def get_index_advisor_summary(positive_pagesize: int = None, positive_current: int = None,
                               existing_pagesize: int = None, existing_current: int = None):
-    return web.get_index_advisor_summary(positive_pagesize, positive_current, 
+    return web.get_index_advisor_summary(positive_pagesize, positive_current,
                                          existing_pagesize, existing_current)
 
 
@@ -385,7 +400,7 @@ def get_slow_query_summary(pagesize: int = None, current: int = None):
 @request_mapping('/api/query/slow/recent_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_slow_query_count(instance: str = None, distinct: bool = False, query: str = None, 
+def get_slow_query_count(instance: str = None, distinct: bool = False, query: str = None,
                          start_time: str = None, end_time: str = None, group: bool = False):
     return web.get_slow_queries_count(instance, distinct, query, start_time, end_time, group)
 
@@ -559,7 +574,7 @@ def get_timed_task_status():
 @request_mapping('/api/toolkit/risk-analysis/{metric}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def risk_analysis(metric, instance: str = None, warning_hours: int = 1, upper: str = None, 
+def risk_analysis(metric, instance: str = None, warning_hours: int = 1, upper: str = None,
                   lower: str = None, labels: str = None):
     return web.risk_analysis(metric, instance, warning_hours, upper=upper, lower=lower, labels=labels)
 
@@ -597,4 +612,3 @@ def get_current_instance_status():
 @standardized_api_output
 def get_agent_status():
     return web.get_agent_status()
-
