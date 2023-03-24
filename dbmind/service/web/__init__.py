@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2023 Huawei Technologies Co.,Ltd.
 #
 # openGauss is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -10,9 +10,5 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
-
-def register_timed_app():
-    """A dummy function.
-    We guess this `timed_app` has already been imported."""
-    from . import timed_app
+"""This module is merely for web service
+and does not disturb internal operations in DBMind."""

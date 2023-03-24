@@ -168,6 +168,7 @@ TimedTaskManager = _TimedTaskManager()
 
 
 def timer(seconds):
+    """DBMind built-in timer."""
     def inner(func):
         TimedTaskManager.apply(func, seconds)
         return func
@@ -176,6 +177,7 @@ def timer(seconds):
 
 
 def customized_timer(seconds):
+    """User customized timer."""
     def inner(func):
         global_vars.timed_task[func.__name__] = {'object': func, 'seconds': seconds}
         if func.__name__ in global_vars.default_timed_task:

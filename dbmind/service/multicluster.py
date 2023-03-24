@@ -206,7 +206,7 @@ class AgentProxy:
             logging.info('[AgentProxy] Starting to update agents '
                          'in the mode of lightweight.')
             self._finalized = False
-            self._unchecked_agents.extend(self._agents)
+            self._unchecked_agents.extend(self._agents.values())
             self.agent_finalize()
 
     def agent_can_heavyweight_update(self):

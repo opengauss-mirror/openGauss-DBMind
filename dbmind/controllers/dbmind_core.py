@@ -18,10 +18,11 @@ import time
 
 from pydantic import BaseModel
 
+from dbmind import global_vars
 from dbmind.common.http import request_mapping, OAuth2
 from dbmind.common.http import standardized_api_output
-from dbmind.service import web
-from dbmind import global_vars
+from dbmind.service.web import context_manager
+from dbmind.service.web import data_transformer
 
 latest_version = 'v1'
 api_prefix = '/%s/api' % latest_version
@@ -53,7 +54,7 @@ class DBMindOauth2(OAuth2):
         # the parameter scopes here indicate the corresponding
         # instance address if there are more than one clusters
         # are recorded into the TSDB.
-        return web.check_credential(username, password, scopes)
+        return data_transformer.check_credential(username, password, scopes)
 
     def before_hook(self, *args, **kwargs):
         super().before_hook(*args, **kwargs)
@@ -69,14 +70,14 @@ class DBMindOauth2(OAuth2):
         instances = global_vars.agent_proxy.current_cluster_instances()
         ip_list = [i.split(':')[0] for i in instances]
         params = {
-            web.ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST: instances,
-            web.ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST: ip_list,
-            web.ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT:
+            context_manager.ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST: instances,
+            context_manager.ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST: ip_list,
+            context_manager.ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT:
                 global_vars.agent_proxy.current_agent_addr(),
-            web.ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX:
+            context_manager.ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX:
                 '|'.join(map(lambda s: s + ':?.*', ip_list))
         }
-        web.set_access_context(
+        context_manager.set_access_context(
             **params
         )
 
@@ -84,12 +85,12 @@ class DBMindOauth2(OAuth2):
         super().after_hook(*args, **kwargs)
         global_vars.agent_proxy.switch_context(None)  # clear the RPC state
         params = {
-            web.ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST: None,
-            web.ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST: None,
-            web.ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT: None,
-            web.ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX: None
+            context_manager.ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST: None,
+            context_manager.ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST: None,
+            context_manager.ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT: None,
+            context_manager.ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX: None
         }
-        web.set_access_context(
+        context_manager.set_access_context(
             **params
         )
 
@@ -101,96 +102,96 @@ oauth2 = DBMindOauth2.get_dbmind_oauth_instance()
 @request_mapping(api_prefix + '/agent/list', methods=['GET'], api=True)
 @standardized_api_output
 def get_all_agents():
-    return web.get_all_agents()
+    return data_transformer.get_all_agents()
 
 
 @request_mapping(api_prefix + '/agent/update', methods=['GET'], api=True)
 @standardized_api_output
 def update_agents():
-    return web.update_agent_list(force=False)
+    return data_transformer.update_agent_list(force=False)
 
 
 @request_mapping(api_prefix + '/agent/update/force', methods=['GET'], api=True)
 @standardized_api_output
 def update_agents_force():
-    return web.update_agent_list(force=True)
+    return data_transformer.update_agent_list(force=True)
 
 
 @request_mapping('/api/status/running', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_running_status():
-    return web.get_running_status()
+    return data_transformer.get_running_status()
 
 
 @request_mapping('/api/status/transaction', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_xact_status():
-    return web.get_xact_status()
+    return data_transformer.get_xact_status()
 
 
 @request_mapping('/api/status/alert', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_alert():
-    return web.get_latest_alert()
+    return data_transformer.get_latest_alert()
 
 
 @request_mapping('/api/status/node', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_node_status():
-    return web.get_cluster_node_status()
+    return data_transformer.get_cluster_node_status()
 
 
 @request_mapping('/api/status/instance', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_instance_status():
-    return web.get_instance_status()
+    return data_transformer.get_instance_status()
 
 
 @request_mapping('/api/summary/cluster', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_cluster_summary():
-    return web.get_cluster_summary()
+    return data_transformer.get_cluster_summary()
 
 
 @request_mapping('/api/list/metric', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_all_metrics():
-    return web.get_all_metrics()
+    return data_transformer.get_all_metrics()
 
 
 @request_mapping('/api/sequence/{name}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_metric_sequence(name, start: int = None, end: int = None, step: int = None):
-    return web.get_metric_sequence(name, start, end, step)
+def get_metric_sequence(name: str, start: int = None, end: int = None, step: int = None):
+    return data_transformer.get_metric_sequence(name, start, end, step)
 
 
 @request_mapping('/api/latest-sequence/{name}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_latest_metric_sequence(name, instance: str = None, latest_minutes: int = None,
+def get_latest_metric_sequence(name: str, instance: str = None, latest_minutes: int = None,
                                step: int = None, fetch_all: bool = False,
                                regrex: bool = False, labels: str = None,
                                regrex_labels: str = None):
-    return web.get_latest_metric_sequence(name, instance, latest_minutes,
-                                          step=step, fetch_all=fetch_all,
-                                          regrex=regrex, labels=labels,
-                                          regrex_labels=regrex_labels)
+    return data_transformer.get_latest_metric_sequence(name, instance, latest_minutes,
+                                                       step=step, fetch_all=fetch_all,
+                                                       regrex=regrex, labels=labels,
+                                                       regrex_labels=regrex_labels)
 
 
 @request_mapping('/api/alarm/history', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_history_alarms(pagesize: int = None, current: int = None,
+def get_history_alarms(pagesize: int = 20, current: int = 0,
                        instance: str = None, alarm_type: str = None, alarm_level: str = None, group: bool = False):
-    return web.get_history_alarms(pagesize, current, instance, alarm_type, alarm_level, group)
+    return data_transformer.get_history_alarms(pagesize, current, instance, alarm_type, alarm_level, group)
 
 
 @request_mapping('/api/alarm/history_count', methods=['GET'], api=True)
@@ -198,37 +199,37 @@ def get_history_alarms(pagesize: int = None, current: int = None,
 @standardized_api_output
 def get_history_alarms_count(instance: str = None, alarm_type: str = None, alarm_level: str = None,
                              group: bool = False):
-    return web.get_history_alarms_count(instance, alarm_type, alarm_level, group)
+    return data_transformer.get_history_alarms_count(instance, alarm_type, alarm_level, group)
 
 
 @request_mapping('/api/workload_forecasting/sequence/forecast/{name}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def workload_forecasting_forecast(name: str, start: int = None, end: int = None, step: int = None):
-    return web.get_metric_forecast_sequence(name, start, end, step)
+    return data_transformer.get_metric_forecast_sequence(name, start, end, step)
 
 
 @request_mapping('/api/alarm/future', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_future_alarms(pagesize: int = None, current: int = None,
+def get_future_alarms(pagesize: int = 20, current: int = 0,
                       instance: str = None, metric_name: str = None, start: int = None, group: bool = False):
-    return web.get_future_alarms(pagesize, current, instance, metric_name, start, group)
+    return data_transformer.get_future_alarms(pagesize, current, instance, metric_name, start, group)
 
 
 @request_mapping('/api/alarm/future_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_future_alarms_count(instance: str = None, metric_name: str = None, start: int = None, group: bool = False):
-    return web.get_future_alarms_count(instance, metric_name, start, group)
+    return data_transformer.get_future_alarms_count(instance, metric_name, start, group)
 
 
 @request_mapping('/api/alarm/healing', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_healing_info_for_alarms(pagesize: int = None, current: int = None, instance: str = None,
+def get_healing_info_for_alarms(pagesize: int = 20, current: int = 0, instance: str = None,
                                 action: str = None, success: bool = None, min_occurrence: int = None):
-    return web.get_healing_info(pagesize, current, instance, action, success, min_occurrence)
+    return data_transformer.get_healing_info(pagesize, current, instance, action, success, min_occurrence)
 
 
 @request_mapping('/api/alarm/healing_count', methods=['GET'], api=True)
@@ -236,30 +237,30 @@ def get_healing_info_for_alarms(pagesize: int = None, current: int = None, insta
 @standardized_api_output
 def get_healing_info_count_for_alarms(instance: str = None, action: str = None, success: bool = None,
                                       min_occurrence: int = None):
-    return web.get_healing_info_count(instance, action, success, min_occurrence)
+    return data_transformer.get_healing_info_count(instance, action, success, min_occurrence)
 
 
 @request_mapping('/api/query/slow/recent', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_recent_slow_queries(pagesize: int = None, current: int = None, instance: str = None, query: str = None,
+def get_recent_slow_queries(pagesize: int = 20, current: int = 0, instance: str = None, query: str = None,
                             start: int = None, end: int = None, group: bool = False):
-    return web.get_slow_queries(pagesize, current, instance, query, start, end, group)
+    return data_transformer.get_slow_queries(pagesize, current, instance, query, start, end, group)
 
 
 @request_mapping('/api/query/slow/killed', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_killed_slow_queries(pagesize: int = None, current: int = None, instance: str = None, query: str = None,
+def get_killed_slow_queries(pagesize: int = 20, current: int = 0, instance: str = None, query: str = None,
                             start: int = None, end: int = None):
-    return web.get_killed_slow_queries(pagesize, current, instance, query, start, end)
+    return data_transformer.get_killed_slow_queries(pagesize, current, instance, query, start, end)
 
 
 @request_mapping('/api/query/slow/killed_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_killed_slow_queries_count(instance: str = None, query: str = None, start: int = None, end: int = None):
-    return web.get_killed_slow_queries_count(instance, query, start, end)
+    return data_transformer.get_killed_slow_queries_count(instance, query, start, end)
 
 
 @request_mapping('/api/query/top', methods=['GET'], api=True)
@@ -267,7 +268,7 @@ def get_killed_slow_queries_count(instance: str = None, query: str = None, start
 @standardized_api_output
 def get_top_queries():
     username, password = oauth2.credential
-    return web.get_top_queries(username, password)
+    return data_transformer.get_top_queries(username, password)
 
 
 @request_mapping('/api/query/active', methods=['GET'], api=True)
@@ -275,7 +276,7 @@ def get_top_queries():
 @standardized_api_output
 def get_active_queries():
     username, password = oauth2.credential
-    return web.get_active_query(username, password)
+    return data_transformer.get_active_query(username, password)
 
 
 @request_mapping('/api/query/locking', methods=['GET'], api=True)
@@ -283,118 +284,118 @@ def get_active_queries():
 @standardized_api_output
 def get_locking_queries():
     username, password = oauth2.credential
-    return web.get_holding_lock_query(username, password)
+    return data_transformer.get_holding_lock_query(username, password)
 
 
 @request_mapping('/api/list/database', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_db_list():
-    return web.get_database_list()
+    return data_transformer.get_database_list()
 
 
 @request_mapping('/api/summary/index_advisor', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_index_advisor_summary(positive_pagesize: int = None, positive_current: int = None,
-                              existing_pagesize: int = None, existing_current: int = None):
-    return web.get_index_advisor_summary(positive_pagesize, positive_current,
-                                         existing_pagesize, existing_current)
+def get_index_advisor_summary(positive_pagesize: int = 20, positive_current: int = 20,
+                              existing_pagesize: int = 20, existing_current: int = 20):
+    return data_transformer.get_index_advisor_summary(positive_pagesize, positive_current,
+                                                      existing_pagesize, existing_current)
 
 
 @request_mapping('/api/summary/get_existing_indexes', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_existing_indexes(pagesize: int = None, current: int = None):
-    return web.get_existing_indexes(pagesize, current)
+def get_existing_indexes(pagesize: int = 20, current: int = 0):
+    return data_transformer.get_existing_indexes(pagesize, current)
 
 
 @request_mapping('/api/summary/existing_indexes_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_existing_indexes_count():
-    return web.get_existing_indexes_count()
+    return data_transformer.get_existing_indexes_count()
 
 
 @request_mapping('/api/summary/get_advised_indexes', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_advised_indexes():
-    return web.get_advised_index()
+    return data_transformer.get_advised_index()
 
 
 @request_mapping('/api/summary/get_positive_sql', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_positive_sql(pagesize: int = None, current: int = None):
-    return web.get_positive_sql(pagesize, current)
+def get_positive_sql(pagesize: int = 20, current: int = 0):
+    return data_transformer.get_positive_sql(pagesize, current)
 
 
 @request_mapping('/api/summary/positive_sql_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_positive_sql_count():
-    return web.get_positive_sql_count()
+    return data_transformer.get_positive_sql_count()
 
 
 @request_mapping('/api/summary/knob_tuning', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_knob_tuning_summary(metricpagesize: int = None, metriccurrent: int = None,
-                            warningpagesize: int = None, warningcurrent: int = None,
-                            knobpagesize: int = None, knobcurrent: int = None):
-    return web.toolkit_recommend_knobs_by_metrics(metricpagesize, metriccurrent,
-                                                  warningpagesize, warningcurrent,
-                                                  knobpagesize, knobcurrent)
+def get_knob_tuning_summary(metricpagesize: int = 20, metriccurrent: int = 0,
+                            warningpagesize: int = 20, warningcurrent: int = 0,
+                            knobpagesize: int = 20, knobcurrent: int = 0):
+    return data_transformer.toolkit_recommend_knobs_by_metrics(metricpagesize, metriccurrent,
+                                                               warningpagesize, warningcurrent,
+                                                               knobpagesize, knobcurrent)
 
 
 @request_mapping('/api/summary/get_knob_recommendation_snapshot', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_knob_recommendation_snapshot(pagesize: int = None, current: int = None):
-    return web.get_knob_recommendation_snapshot(pagesize, current)
+def get_knob_recommendation_snapshot(pagesize: int = 20, current: int = 0):
+    return data_transformer.get_knob_recommendation_snapshot(pagesize, current)
 
 
 @request_mapping('/api/summary/knob_recommendation_snapshot_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_knob_recommendation_snapshot_count():
-    return web.get_knob_recommendation_snapshot_count()
+    return data_transformer.get_knob_recommendation_snapshot_count()
 
 
 @request_mapping('/api/summary/get_knob_recommendation_warnings', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_knob_recommendation_warnings(pagesize: int = None, current: int = None):
-    return web.get_knob_recommendation_warnings(pagesize, current)
+def get_knob_recommendation_warnings(pagesize: int = 20, current: int = 0):
+    return data_transformer.get_knob_recommendation_warnings(pagesize, current)
 
 
 @request_mapping('/api/summary/knob_recommendation_warnings_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_knob_recommendation_warnings_count():
-    return web.get_knob_recommendation_warnings_count()
+    return data_transformer.get_knob_recommendation_warnings_count()
 
 
 @request_mapping('/api/summary/get_knob_recommendation', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_knob_recommendation(pagesize: int = None, current: int = None):
-    return web.get_knob_recommendation(pagesize, current)
+def get_knob_recommendation(pagesize: int = 20, current: int = 0):
+    return data_transformer.get_knob_recommendation(pagesize, current)
 
 
 @request_mapping('/api/summary/knob_recommendation_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_knob_recommendation_count():
-    return web.get_knob_recommendation_count()
+    return data_transformer.get_knob_recommendation_count()
 
 
 @request_mapping('/api/summary/slow_query', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_slow_query_summary(pagesize: int = None, current: int = None):
-    return web.get_slow_query_summary(pagesize, current)
+def get_slow_query_summary(pagesize: int = 20, current: int = 0):
+    return data_transformer.get_slow_query_summary(pagesize, current)
 
 
 @request_mapping('/api/query/slow/recent_count', methods=['GET'], api=True)
@@ -402,7 +403,7 @@ def get_slow_query_summary(pagesize: int = None, current: int = None):
 @standardized_api_output
 def get_slow_query_count(instance: str = None, distinct: bool = False, query: str = None,
                          start_time: str = None, end_time: str = None, group: bool = False):
-    return web.get_slow_queries_count(instance, distinct, query, start_time, end_time, group)
+    return data_transformer.get_slow_queries_count(instance, distinct, query, start_time, end_time, group)
 
 
 @request_mapping('/api/summary/slow_query/projection', methods=['GET'], api=True)
@@ -420,8 +421,8 @@ def get_security_summary():
 @request_mapping('/api/summary/security', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_security_summary(pagesize: int = None, current: int = None, instance: str = None):
-    return web.get_security_alarms(pagesize, current, instance)
+def get_security_summary(pagesize: int = 20, current: int = 0, instance: str = None):
+    return data_transformer.get_security_alarms(pagesize, current, instance)
 
 
 @request_mapping('/api/summary/log', methods=['GET'], api=True)
@@ -446,14 +447,14 @@ def get_log_information():
 @oauth2.token_authentication()
 @standardized_api_output
 def advise_indexes(pagesize: int, current: int, database: str, max_index_num: int, max_index_storage: int, sqls: list):
-    return web.toolkit_index_advise(current, pagesize, database, sqls, max_index_num, max_index_storage)
+    return data_transformer.toolkit_index_advise(current, pagesize, database, sqls, max_index_num, max_index_storage)
 
 
 @request_mapping('/api/toolkit/advise/default/value', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def advise_indexes():
-    return web.toolkit_index_advise_default_value()
+    return data_transformer.toolkit_index_advise_default_value()
 
 
 @request_mapping('/api/toolkit/advise/query', methods=['POST'], api=True)
@@ -463,7 +464,7 @@ def tune_query(database: str, sql: str,
                use_rewrite: bool = True,
                use_hinter: bool = True,
                use_materialized: bool = True):
-    return web.toolkit_rewrite_sql(database, sql)
+    return data_transformer.toolkit_rewrite_sql(database, sql)
 
 
 @request_mapping('/api/toolkit/predict/query', methods=['POST'], api=True)
@@ -483,7 +484,7 @@ def set_setting(config: str, name: str, value: str, dynamic: bool = True):
     if dynamic:
         if '' in (config.strip(), name.strip(), value.strip()):
             raise Exception('You should input correct setting.')
-        web.global_vars.dynamic_configs.set(config, name, value)
+        global_vars.dynamic_configs.set(config, name, value)
         return 'success'
     else:
         raise Exception('Currently, DBMind cannot modify the static configurations. '
@@ -496,7 +497,7 @@ def set_setting(config: str, name: str, value: str, dynamic: bool = True):
 @standardized_api_output
 def get_setting(config: str, name: str, dynamic: bool = True):
     if dynamic:
-        return web.global_vars.dynamic_configs.get(config, name)
+        return global_vars.dynamic_configs.get(config, name)
     else:
         raise Exception("Currently, DBMind doesn't support showing the static "
                         "configurations due to security. Instead, you should "
@@ -508,7 +509,7 @@ def get_setting(config: str, name: str, dynamic: bool = True):
 @oauth2.token_authentication()
 @standardized_api_output
 def list_setting():
-    return {'dynamic': web.global_vars.dynamic_configs.list()}
+    return {'dynamic': global_vars.dynamic_configs.list()}
 
 
 class SlowSQLItem(BaseModel):
@@ -529,86 +530,86 @@ def diagnosis_slow_sql(item: SlowSQLItem):
     schema = item.schemaname if len(item.schemaname) else 'public'
     start_time = item.start_time if len(item.start_time) else None
     end_time = item.end_time if len(item.end_time) else None
-    return web.toolkit_slow_sql_rca(sql,
-                                    dbname=database,
-                                    schema=schema,
-                                    start_time=start_time,
-                                    end_time=end_time)
+    return data_transformer.toolkit_slow_sql_rca(sql,
+                                                 dbname=database,
+                                                 schema=schema,
+                                                 start_time=start_time,
+                                                 end_time=end_time)
 
 
 @request_mapping('/api/summary/regular_inspections', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_regular_inspections(inspection_type: str = None):
-    return web.get_regular_inspections(inspection_type)
+    return data_transformer.get_regular_inspections(inspection_type)
 
 
 @request_mapping('/api/summary/regular_inspections_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_regular_inspections_count(inspection_type: str = None):
-    return web.get_regular_inspections_count(inspection_type)
+    return data_transformer.get_regular_inspections_count(inspection_type)
 
 
 @request_mapping('/api/summary/correlation_result', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_correlation_result(metric_name: str = None, host: str = None, start_time: str = None, end_time: str = None):
-    return web.get_correlation_result(metric_name, host, start_time, end_time)
+    return data_transformer.get_correlation_result(metric_name, host, start_time, end_time)
 
 
 @request_mapping('/api/toolkit/memory_check', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def memory_check(start_time: int = 0, end_time: int = 0):
-    return web.check_memory_context(start_time, end_time)
+    return data_transformer.check_memory_context(start_time, end_time)
 
 
 @request_mapping('/api/app/timed-task/status', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_timed_task_status():
-    return web.get_timed_task_status()
+    return data_transformer.get_timed_task_status()
 
 
 @request_mapping('/api/toolkit/risk-analysis/{metric}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def risk_analysis(metric, instance: str = None, warning_hours: int = 1, upper: str = None,
+def risk_analysis(metric: str, instance: str = None, warning_hours: int = 1, upper: str = None,
                   lower: str = None, labels: str = None):
-    return web.risk_analysis(metric, instance, warning_hours, upper=upper, lower=lower, labels=labels)
+    return data_transformer.risk_analysis(metric, instance, warning_hours, upper=upper, lower=lower, labels=labels)
 
 
 @request_mapping('/api/collection/status', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_collection_system_status():
-    return web.get_collection_system_status()
+    return data_transformer.get_collection_system_status()
 
 
 @request_mapping('/api/data-directory/status', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_database_data_directory_status(instance: str, latest_minutes: int = 5):
-    return web.get_database_data_directory_status(instance, latest_minutes)
+    return data_transformer.get_database_data_directory_status(instance, latest_minutes)
 
 
 @request_mapping('/api/overview', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_front_oveview(latest_minutes: int = 3):
-    return web.get_front_overview(latest_minutes=latest_minutes)
+    return data_transformer.get_front_overview(latest_minutes=latest_minutes)
 
 
 @request_mapping('/api/instance/status', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_current_instance_status():
-    return web.get_current_instance_status()
+    return data_transformer.get_current_instance_status()
 
 
 @request_mapping('/api/agent/status', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_agent_status():
-    return web.get_agent_status()
+    return data_transformer.get_agent_status()

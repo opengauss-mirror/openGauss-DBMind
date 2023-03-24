@@ -10,15 +10,15 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-"""This module is merely for web service
-and does not disturb internal operations in DBMind."""
+"""Imply that the module is responsible for
+transforming data into a specific format,
+ which in this case is JSON."""
 import datetime
 import getpass
 import logging
 import math
 import os
 import sys
-import threading
 import time
 from collections import defaultdict, Counter
 from itertools import groupby
@@ -29,6 +29,7 @@ from dbmind import global_vars
 from dbmind.app.optimization import get_database_schemas, TemplateArgs
 from dbmind.app.optimization.index_recommendation import rpc_index_advise
 from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
+from dbmind.app.timed_app import get_timed_app_records
 from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.types import ALARM_TYPES, ALARM_LEVEL
 from dbmind.common.types import Sequence
@@ -36,45 +37,20 @@ from dbmind.components.extract_log import get_workload_template
 from dbmind.components.slow_query_diagnosis import analyze_slow_query_with_rpc
 from dbmind.components.sql_rewriter.sql_rewriter import rewrite_sql_api
 from dbmind.metadatabase import dao
-from dbmind.service.utils import SequenceUtils
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.components.anomaly_analysis import get_sequences, get_correlations
 from dbmind.components.memory_check import memory_check
-from dbmind.common.utils import dbmind_assert, string_to_dict, cast_to_int_or_float
+from dbmind.common.utils import string_to_dict, cast_to_int_or_float
 from dbmind.common.dispatcher import TimedTaskManager
 from dbmind.components.forecast import early_warning
-from . import dai
+from dbmind.service import dai
+from dbmind.service.utils import SequenceUtils
 
-_access_context = threading.local()
-
-
-class ACCESS_CONTEXT_NAME:
-    TSDB_FROM_SERVERS_REGEX = 'tsdb_from_servers_regex'
-    INSTANCE_IP_WITH_PORT_LIST = 'instance_ip_with_port_list'
-    INSTANCE_IP_LIST = 'instance_ip_list'
-    AGENT_INSTANCE_IP_WITH_PORT = 'agent_instance_ip_with_port'
-
-
-def set_access_context(**kwargs):
-    """Since the web front-end login user can specify
-    a cope, we should also pay attention
-    to this context when returning data to the user.
-    Through this function, set the effective visible field."""
-    for k, v in kwargs.items():
-        setattr(_access_context, k, v)
-
-
-def get_access_context(name):
-    return getattr(_access_context, name, None)
-
-
-def split_ip_and_port(address):
-    if not address:
-        return None, None
-    arr = address.split(':')
-    if len(arr) < 2:
-        return arr[0], None
-    return arr[0], arr[1]
+from .context_manager import ACCESS_CONTEXT_NAME, get_access_context
+from .jsonify_utils import (
+    sqlalchemy_query_jsonify, psycopg2_dict_jsonify,
+    sqlalchemy_query_records_count_logic, sqlalchemy_query_union_records_logic
+)
 
 
 # The following functions are
@@ -318,14 +294,6 @@ def stat_group_by_instance(to_agg_tbl):
     }
 
 
-def format_date_key(obj, old_date_key):
-    new_date = obj[old_date_key]
-    if obj[old_date_key].find('.') >= 0 and obj[old_date_key].find('+00:00') >= 0:
-        new_date = datetime.datetime.strptime(obj[old_date_key], "%Y-%m-%d %H:%M:%S.%f+00:00").strftime(
-            '%Y-%m-%d %H:%M:%S')
-    return new_date
-
-
 def get_running_status():
     buffer_pool = stat_group_by_instance(stat_buffer_hit())
     index = stat_group_by_instance(stat_idx_hit())
@@ -391,9 +359,7 @@ def get_database_list():
 
 
 def get_latest_alert():
-    alerts = list(global_vars.self_driving_records)
-    alerts.reverse()  # Bring the latest events to the front
-    return alerts
+    return get_timed_app_records()
 
 
 def get_cluster_summary():
@@ -688,143 +654,6 @@ def get_all_agents():
     return global_vars.agent_proxy.agent_get_all()
 
 
-def sqlalchemy_query_jsonify(query, field_names=None):
-    rv = {'header': field_names, 'rows': []}
-    if not field_names:
-        field_names = query.statement.columns.keys()  # in order keys.
-    rv['header'] = field_names
-    for result in query:
-        if hasattr(result, '__iter__'):
-            row = list(result)
-        else:
-            row = [getattr(result, field) for field in field_names]
-        rv['rows'].append(row)
-    return rv
-
-
-def _sqlalchemy_query_jsonify_for_multiple_instances(
-        query_function, instances, **kwargs
-):
-    field_names = kwargs.pop('field_names', None)
-    if not instances:
-        return sqlalchemy_query_jsonify(query_function(**kwargs), field_names=field_names)
-    rv = None
-    for instance in instances:
-        r = sqlalchemy_query_jsonify(query_function(instance=instance, **kwargs), field_names=field_names)
-        if not rv:
-            rv = r
-        else:
-            rv['rows'].extend(r['rows'])
-    return rv
-
-
-def psycopg2_dict_jsonify(realdict, field_names=None):
-    rv = {'header': field_names, 'rows': []}
-    if len(realdict) == 0:
-        return rv
-
-    if not field_names:
-        rv['header'] = list(realdict[0].keys())
-    for obj in realdict:
-        old_date_key = 'last_updated'
-        if old_date_key in obj.keys():
-            obj[old_date_key] = format_date_key(obj, old_date_key)
-        row = []
-        for field in rv['header']:
-            row.append(obj[field])
-        rv['rows'].append(row)
-    return rv
-
-
-def _sqlalchemy_query_records_logic(query_function, instances, **kwargs):
-    if instances is None or len(instances) != 1:
-        r1 = _sqlalchemy_query_jsonify_for_multiple_instances(
-            query_function=query_function,
-            instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST),
-            **kwargs
-        )
-        r2 = _sqlalchemy_query_jsonify_for_multiple_instances(
-            query_function=query_function,
-            instances=get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST),
-            **kwargs
-        )
-        r1['rows'].extend(r2['rows'])
-        return r1
-
-    instance = instances[0]
-    ip, port = split_ip_and_port(instance)
-    if port is None:
-        if ip not in get_access_context(
-                ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST
-        ):
-            # return nothing
-            return sqlalchemy_query_jsonify(query_function(instance='', **kwargs))
-    else:
-        if instance not in get_access_context(
-                ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST
-        ):
-            # return nothing
-            return sqlalchemy_query_jsonify(query_function(instance='', **kwargs))
-    r1 = sqlalchemy_query_jsonify(
-        query_function(ip, **kwargs)
-    )
-    if port is None:
-        return r1
-    r2 = sqlalchemy_query_jsonify(
-        query_function(instance, **kwargs)
-    )
-    r1['rows'].extend(r2['rows'])
-    return r1
-
-
-def _sqlalchemy_query_records_count_logic(count_function, instances, **kwargs):
-    result = 0
-    only_with_port = kwargs.pop('only_with_port', False)
-    if instances is None or len(instances) != 1:
-        if only_with_port:
-            instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
-        else:
-            instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST) + get_access_context(
-                ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
-        for instance in instances:
-            result += count_function(instance, **kwargs)
-        return result
-
-    instance = instances[0]
-    result = count_function(instance, **kwargs)
-    return result
-
-
-def _sqlalchemy_query_union_records_logic(query_function, instances, **kwargs):
-    only_with_port = kwargs.pop('only_with_port', False)
-    offset = kwargs.pop('offset', None)
-    limit = kwargs.pop('limit', None)
-    field_names = None
-    if instances is None or len(instances) != 1:
-        if only_with_port:
-            instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
-        else:
-            instances = get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST) + get_access_context(
-                ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST)
-        # Notice: the following `query_function` allows to receive a list or tuple
-        # then use using clause for predicate, which all have adapted for this function.
-        r = query_function(instance=instances, **kwargs)
-        field_names = r.statement.columns.keys()
-    else:
-        dbmind_assert(len(instances) == 1,
-                      'Found code bug: the variable instances cannot '
-                      'have zero or one more elements.')
-        instance = instances[0]
-        r = query_function(instance, **kwargs)
-    if r is not None:
-        if offset is not None:
-            r = r.offset(offset)
-        if limit is not None:
-            r = r.limit(limit)
-        return sqlalchemy_query_jsonify(r, field_names)
-    return sqlalchemy_query_jsonify(query_function(instance='', **kwargs))
-
-
 def get_history_alarms(pagesize=None, current=None, instance=None, alarm_type=None,
                        alarm_level=None, group: bool = False):
     if instance is not None:
@@ -833,7 +662,7 @@ def get_history_alarms(pagesize=None, current=None, instance=None, alarm_type=No
         instances = None
     offset = max(0, (current - 1) * pagesize)
     limit = pagesize
-    return _sqlalchemy_query_union_records_logic(
+    return sqlalchemy_query_union_records_logic(
         query_function=dao.alarms.select_history_alarm,
         instances=instances,
         offset=offset, limit=limit,
@@ -846,7 +675,7 @@ def get_history_alarms_count(instance=None, alarm_type=None, alarm_level=None, g
         instances = [instance]
     else:
         instances = None
-    return _sqlalchemy_query_records_count_logic(
+    return sqlalchemy_query_records_count_logic(
         count_function=dao.alarms.count_history_alarms,
         instances=instances,
         alarm_type=alarm_type, alarm_level=alarm_level, group=group)
@@ -859,7 +688,7 @@ def get_future_alarms(pagesize=None, current=None, instance=None, metric_name=No
         instances = None
     offset = max(0, (current - 1) * pagesize)
     limit = pagesize
-    return _sqlalchemy_query_union_records_logic(
+    return sqlalchemy_query_union_records_logic(
         query_function=dao.alarms.select_future_alarm,
         instances=instances,
         offset=offset, limit=limit,
@@ -872,7 +701,7 @@ def get_future_alarms_count(instance=None, metric_name=None, start_at=None, grou
         instances = [instance]
     else:
         instances = None
-    return _sqlalchemy_query_records_count_logic(
+    return sqlalchemy_query_records_count_logic(
         count_function=dao.alarms.count_future_alarms,
         instances=instances,
         metric_name=metric_name, start_at=start_at, group=group)
@@ -889,7 +718,7 @@ def get_healing_info(pagesize=None, current=None, instance=None, action=None, su
         instances = None
     offset = max(0, (current - 1) * pagesize)
     limit = pagesize
-    return _sqlalchemy_query_union_records_logic(
+    return sqlalchemy_query_union_records_logic(
         query_function=dao.healing_records.select_healing_records,
         instances=instances,
         offset=offset, limit=limit,
@@ -902,7 +731,7 @@ def get_healing_info_count(instance=None, action=None, success=None, min_occurre
         instances = [instance]
     else:
         instances = None
-    return _sqlalchemy_query_records_count_logic(
+    return sqlalchemy_query_records_count_logic(
         count_function=dao.healing_records.count_healing_records,
         instances=instances,
         action=action, success=success, min_occurrence=min_occurrence)
@@ -916,7 +745,7 @@ def get_slow_queries(pagesize=None, current=None, instance=None, query=None, sta
         instances = None
     offset = max(0, (current - 1) * pagesize)
     limit = pagesize
-    return _sqlalchemy_query_union_records_logic(
+    return sqlalchemy_query_union_records_logic(
         query_function=dao.slow_queries.select_slow_queries,
         instances=instances, only_with_port=True,
         target_list=(), query=query, start_time=start_time, end_time=end_time, offset=offset, limit=limit, group=group
@@ -928,7 +757,7 @@ def get_slow_queries_count(instance=None, distinct=False, query=None, start_time
         instances = [instance]
     else:
         instances = None
-    return _sqlalchemy_query_records_count_logic(
+    return sqlalchemy_query_records_count_logic(
         count_function=dao.slow_queries.count_slow_queries,
         instances=instances, only_with_port=True,
         distinct=distinct, query=query,
@@ -942,7 +771,7 @@ def get_killed_slow_queries(pagesize=None, current=None, instance=None, query=No
         instances = None
     offset = max(0, (current - 1) * pagesize)
     limit = pagesize
-    return _sqlalchemy_query_union_records_logic(
+    return sqlalchemy_query_union_records_logic(
         query_function=dao.slow_queries.select_killed_slow_queries,
         instances=instances, only_with_port=True,
         query=query, start_time=start_time, end_time=end_time, offset=offset, limit=limit
@@ -954,7 +783,7 @@ def get_killed_slow_queries_count(instance=None, query=None, start_time=None, en
         instances = [instance]
     else:
         instances = None
-    return _sqlalchemy_query_records_count_logic(
+    return sqlalchemy_query_records_count_logic(
         count_function=dao.slow_queries.count_killed_slow_queries,
         instances=instances, only_with_port=True,
         query=query, start_time=start_time, end_time=end_time)
