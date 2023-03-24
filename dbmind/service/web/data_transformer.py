@@ -27,7 +27,7 @@ import sqlparse
 
 from dbmind import global_vars
 from dbmind.app.optimization import get_database_schemas, TemplateArgs
-from dbmind.app.optimization.index_recommendation import rpc_index_advise
+from dbmind.app.optimization.index_recommendation import rpc_index_advise, is_rpc_available
 from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
 from dbmind.app.timed_app import get_timed_app_records
 from dbmind.common.algorithm.forecasting import quickly_forecast
@@ -953,21 +953,21 @@ def check_credential(username, password, scopes=None):
     return rpc.handshake(username, password, receive_exception=True)
 
 
-def toolkit_index_advise(current, pagesize, database, sqls, max_index_num, max_index_storage):
-    result = sqlparse.split(sqls[0])
-    database_schemas = get_database_schemas()
-    schema_names = []
-    for key1, val1 in database_schemas.items():
-        for key2, val2 in database_schemas[key1].items():
-            if key2 == database:
-                schema_names.append(val2)
-    database_templates = dict()
-    get_workload_template(database_templates, result, TemplateArgs(10, 5000))
-    executor = RpcExecutor(database, None, None, None, None, '"$user",public,' + ','.join(schema_names))
-    detail_info = rpc_index_advise(executor, database_templates, max_index_num, max_index_storage)
-    if detail_info is None:
-        return []
-    return index_advise_final_result(detail_info, current, pagesize)
+def toolkit_index_advise(current, pagesize, instance, database, sqls, max_index_num, max_index_storage):
+    with global_vars.agent_proxy.context(instance):
+        result = sqlparse.split(sqls[0])
+        database_schemas = get_database_schemas()
+        schema_names = []
+        if instance in database_schemas and database in database_schemas[instance]:
+            schema_names = database_schemas[instance][database]
+
+        database_templates = dict()
+        get_workload_template(database_templates, result, TemplateArgs(10, 5000))
+        executor = RpcExecutor(database, None, None, None, None, schema_names)
+        detail_info = rpc_index_advise(executor, database_templates, max_index_num, max_index_storage)
+        if detail_info is None:
+            return []
+        return index_advise_final_result(detail_info, current, pagesize)
 
 
 def index_advise_final_result(detail_info, current, pagesize):
@@ -987,7 +987,7 @@ def index_advise_final_result(detail_info, current, pagesize):
     for item in recommend_indexes:
         advise_index = dict()
         advise_index['index'] = item['statement']
-        advise_index['improve_rate'] = item['workloadOptimized']
+        advise_index['improve_rate'] = item['workloadOptimized'] + '%'
         advise_index['index_size'] = str('%.2f' % float(item['storage'])) + "MB"
         advise_index['select'] = '%.2f' % item['selectRatio']
         advise_index['delete'] = '%.2f' % item['deleteRatio']
@@ -999,7 +999,7 @@ def index_advise_final_result(detail_info, current, pagesize):
             if detail['correlationType'] == 1:
                 detail_dict['template'] = detail['sqlTemplate']
                 detail_dict['count'] = detail['sqlCount']
-                detail_dict['improve'] = round(float(detail['optimized']) / 100, 2)
+                detail_dict['improve'] = detail['optimized'] + '%'
                 detail_list.append(detail_dict)
         advise_index['templates'] = detail_list
         recommend_list.append(advise_index)
@@ -1034,8 +1034,9 @@ def toolkit_index_advise_default_value():
     return opt_default_value
 
 
-def toolkit_rewrite_sql(database, sqls):
-    return rewrite_sql_api(database, sqls)
+def toolkit_rewrite_sql(instance, database, sqls):
+    with global_vars.agent_proxy.context(instance):
+        return rewrite_sql_api(database, sqls)
 
 
 def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_time=None):

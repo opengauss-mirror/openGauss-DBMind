@@ -446,8 +446,9 @@ def get_log_information():
 @request_mapping('/api/toolkit/advise/index', methods=['POST'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def advise_indexes(pagesize: int, current: int, database: str, max_index_num: int, max_index_storage: int, sqls: list):
-    return data_transformer.toolkit_index_advise(current, pagesize, database, sqls, max_index_num, max_index_storage)
+def advise_indexes(pagesize: int, current: int, instance: str, database: str,
+                   max_index_num: int, max_index_storage: int, sqls: list):
+    return data_transformer.toolkit_index_advise(current, pagesize, instance, database, sqls, max_index_num, max_index_storage)
 
 
 @request_mapping('/api/toolkit/advise/default/value', methods=['GET'], api=True)
@@ -461,10 +462,11 @@ def advise_indexes():
 @oauth2.token_authentication()
 @standardized_api_output
 def tune_query(database: str, sql: str,
+               instance: str,
                use_rewrite: bool = True,
                use_hinter: bool = True,
                use_materialized: bool = True):
-    return data_transformer.toolkit_rewrite_sql(database, sql)
+    return data_transformer.toolkit_rewrite_sql(instance, database, sql)
 
 
 @request_mapping('/api/toolkit/predict/query', methods=['POST'], api=True)
