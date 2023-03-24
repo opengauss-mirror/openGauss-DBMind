@@ -148,45 +148,50 @@ def quickly_forecast(sequence, forecasting_minutes, lower=0, upper=float('inf'))
     :return: forecast sequence: type->Sequence
     """
 
-    if len(sequence) <= 1:
-        return Sequence()
+    try:
+        # 1. check for sequence length and forecasting minutes
+        if len(sequence) <= 1:
+            raise ValueError("The sequence length is too short.")
+        _check_forecasting_minutes(forecasting_minutes)
+        forecasting_length = int(forecasting_minutes * 60 * 1000 / sequence.step)
+        if forecasting_length == 0 or forecasting_minutes == 0:
+            raise ValueError("The forecasting minutes is too short.")
 
-    # 1. check for forecasting minutes
-    _check_forecasting_minutes(forecasting_minutes)
-    forecasting_length = int(forecasting_minutes * 60 * 1000 / sequence.step)
-    if forecasting_length == 0 or forecasting_minutes == 0:
-        return Sequence()
+        # 2. interpolate
+        interpolated_sequence = sequence_interpolate(sequence)
 
-    # 2. interpolate
-    interpolated_sequence = sequence_interpolate(sequence)
+        # 3. decompose sequence
+        seasonal_data, train_sequence = decompose_sequence(interpolated_sequence)
 
-    # 3. decompose sequence
-    seasonal_data, train_sequence = decompose_sequence(interpolated_sequence)
+        # 4. get model from ForecastingFactory
+        model = ForecastingFactory.get_instance(train_sequence)
 
-    # 4. get model from ForecastingFactory
-    model = ForecastingFactory.get_instance(train_sequence)
+        # 5. fit and forecast
+        model.fit(train_sequence)
 
-    # 5. fit and forecast
-    model.fit(train_sequence)
+        forecast_data = model.forecast(forecasting_length)
+        forecast_data = trim_head_and_tail_nan(forecast_data)
+        dbmind_assert(len(forecast_data) == forecasting_length)
 
-    forecast_data = model.forecast(forecasting_length)
-    forecast_data = trim_head_and_tail_nan(forecast_data)
-    dbmind_assert(len(forecast_data) == forecasting_length)
+        # 6. compose sequence
+        forecast_timestamps, forecast_values = compose_sequence(
+            seasonal_data,
+            train_sequence,
+            forecast_data
+        )
 
-    # 6. compose sequence
-    forecast_timestamps, forecast_values = compose_sequence(
-        seasonal_data,
-        train_sequence,
-        forecast_data
-    )
+        for i in range(len(forecast_values)):
+            forecast_values[i] = min(forecast_values[i], upper)
+            forecast_values[i] = max(forecast_values[i], lower)
 
-    for i in range(len(forecast_values)):
-        forecast_values[i] = min(forecast_values[i], upper)
-        forecast_values[i] = max(forecast_values[i], lower)
+        result_sequence = Sequence(
+            timestamps=forecast_timestamps,
+            values=forecast_values,
+            name=sequence.name,
+            labels=sequence.labels
+        )
+    except ValueError as e:
+        logging.warning(f"An Exception was raised while quickly forecasting: {e}")
+        result_sequence, model = Sequence(), None
 
-    return Sequence(
-        timestamps=forecast_timestamps,
-        values=forecast_values,
-        name=sequence.name,
-        labels=sequence.labels
-    )
+    return result_sequence

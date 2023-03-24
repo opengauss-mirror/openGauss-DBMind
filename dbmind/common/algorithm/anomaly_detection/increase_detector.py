@@ -56,9 +56,12 @@ class IncreaseDetector(AbstractDetector):
         self.length = len(s.values)
         self.half_n = int(self.length / 2)
         if self.alpha is None:
-            self.cdfs = 2 * scipy.stats.binom.cdf(range(self.half_n + 1), self.length, 0.5)
-            idx = np.where(np.diff(self.cdfs) > CDF_THRESHOLD)[0][0]
-            self.alpha = self.cdfs[idx]
+            if self.half_n > 0:
+                self.cdfs = 2 * scipy.stats.binom.cdf(range(self.half_n + 1), self.length, 0.5)
+                idx = np.where(np.diff(self.cdfs) > CDF_THRESHOLD)[0][0]
+                self.alpha = self.cdfs[idx]
+            else:
+                self.alpha = 0
 
     def _predict(self, s: Sequence) -> Sequence:
         x, y = s.timestamps, s.values

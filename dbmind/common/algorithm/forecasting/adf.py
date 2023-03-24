@@ -79,7 +79,7 @@ def adfuller(x, max_lag=None, trend_order=1):
     if max_lag is None:
         max_lag = int(np.ceil(12.0 * np.power(L / 100.0, 1 / 4.0)))
         max_lag = min(L // 2 - trend_order - 1, max_lag)
-        if max_lag < 0:
+        if max_lag <= 0:
             raise ValueError("Sample size is too small.")
 
     elif max_lag > L // 2 - trend_order - 1:

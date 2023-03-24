@@ -1013,8 +1013,11 @@ def main(argv):
                              'prometheus for deploy Prometheus. node_exporter for deploy node_exporter.')
     args = vars(parser.parse_args(argv))
 
-    if not (args['online'] or args['offline'] or args['run'] or args['check']):
+    n_actions = sum([bool(action) for action in (args['online'], args['offline'], args['run'], args['check'])])
+    if n_actions == 0:
         parser.error('You must specify a action from [--online, --offline, --run, --check] or --help for details.')
+    elif n_actions > 1:
+        parser.error("You can't specify more than one action from [--online, --offline, --run, --check].")
 
     if args['conf'] is not None:
         if os.path.exists(args['conf']):
@@ -1039,9 +1042,6 @@ def main(argv):
 
     try:
         if args['online'] or args['offline']:
-            if args['online'] and args['offline']:
-                raise ValueError("You can't set online and offline at the same time.")
-
             os_arch = ARCHITECTURES[architecture]
             prometheus = configs.get(DOWNLOADING, 'prometheus')
             node_exporter = configs.get(DOWNLOADING, 'node_exporter')
@@ -1083,4 +1083,4 @@ def main(argv):
                 check(checks, args['timeout'])
 
     except KeyboardInterrupt:
-        print("\nThe procedure was manual terminated.")
+        print("\nThe procedure was manually terminated.")
