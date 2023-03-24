@@ -17,7 +17,7 @@ from configparser import ConfigParser
 
 from dbmind.cmd.configs.config_constants import (
     SKIP_LIST, NULL_TYPE, ENCRYPTED_SIGNAL,
-    DBMIND_CONF_HEADER,
+    DBMIND_CONF_HEADER, IV_TABLE,
     check_config_validity)
 from dbmind.common import security
 from dbmind.common.exceptions import (
@@ -76,9 +76,9 @@ class ReadonlyConfig(BaseConfig):
         if value == NULL_TYPE:
             value = ''
         if 'password' in option and value != '':
-            s1 = dynamic_config_get('dbmind_config', 'cipher_s1')
-            s2 = dynamic_config_get('dbmind_config', 'cipher_s2')
-            iv = dynamic_config_get('iv_table', '%s-%s' % (section, option))
+            s1 = dynamic_config_get(IV_TABLE, 'cipher_s1')
+            s2 = dynamic_config_get(IV_TABLE, 'cipher_s2')
+            iv = dynamic_config_get(IV_TABLE, '%s-%s' % (section, option))
             if value.startswith(ENCRYPTED_SIGNAL):
                 real_value = value[len(ENCRYPTED_SIGNAL):]
             else:

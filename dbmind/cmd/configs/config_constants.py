@@ -12,7 +12,6 @@
 # See the Mulan PSL v2 for more details.
 
 
-# header text
 from configparser import ConfigParser
 
 import dbmind.common
@@ -20,6 +19,7 @@ from dbmind.common.rpc import ping_rpc_url
 from dbmind.common.utils import write_to_terminal
 from dbmind.common.utils.checking import check_port_valid, check_ip_valid
 
+# header text
 DBMIND_CONF_HEADER = """\
 # Copyright (c) 2022 Huawei Technologies Co.,Ltd.
 #
@@ -131,4 +131,8 @@ def check_config_validity(section, option, value, silent=False):
     return True, None
 
 
+# Ignore the following sections while config iterates
 SKIP_LIST = ('COMMENT', 'LOG', 'TIMED_TASK')
+
+# IV table name
+IV_TABLE = 'iv_table'

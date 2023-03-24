@@ -16,7 +16,7 @@ from configparser import NoSectionError, NoOptionError
 
 from dbmind import constants
 from dbmind.cmd.configs.config_constants import (
-    ENCRYPTED_SIGNAL, check_config_validity, NULL_TYPE
+    ENCRYPTED_SIGNAL, check_config_validity, NULL_TYPE, IV_TABLE
 )
 from dbmind.cmd.configs.configurators import ReadonlyConfig, UpdateConfig
 from dbmind.common import security, utils
@@ -49,11 +49,11 @@ def set_config_parameter(confpath, section: str, option: str, value: str):
             if 'password' in option:
                 # dynamic_config_xxx searches file from current working directory.
                 os.chdir(confpath)
-                s1 = dynamic_config_get('dbmind_config', 'cipher_s1')
-                s2 = dynamic_config_get('dbmind_config', 'cipher_s2')
+                s1 = dynamic_config_get(IV_TABLE, 'cipher_s1')
+                s2 = dynamic_config_get(IV_TABLE, 'cipher_s2')
                 # Every time a new password is generated, update the IV.
                 iv = security.generate_an_iv()
-                dynamic_config_set('iv_table', '%s-%s' % (section, option), iv)
+                dynamic_config_set(IV_TABLE, '%s-%s' % (section, option), iv)
                 cipher = security.encrypt(s1, s2, iv, value)
                 value = ENCRYPTED_SIGNAL + cipher
             config.set(section, option, value, comment)
@@ -84,14 +84,14 @@ def create_dynamic_configs():
     create_dynamic_config_schema()
     s1_ = security.safe_random_string(16)
     s2_ = security.safe_random_string(16)
-    dynamic_config_set('dbmind_config', 'cipher_s1', s1_)
-    dynamic_config_set('dbmind_config', 'cipher_s2', s2_)
+    dynamic_config_set(IV_TABLE, 'cipher_s1', s1_)
+    dynamic_config_set(IV_TABLE, 'cipher_s2', s2_)
     return s1_, s2_
 
 
 def get_config_security_keys():
-    s1 = dynamic_config_get('dbmind_config', 'cipher_s1')
-    s2 = dynamic_config_get('dbmind_config', 'cipher_s2')
+    s1 = dynamic_config_get(IV_TABLE, 'cipher_s1')
+    s2 = dynamic_config_get(IV_TABLE, 'cipher_s2')
     return s1, s2
 
 
@@ -122,4 +122,4 @@ def set_config_encryption_iv(iv, section, option):
     """Record IV for each config option to prevent
     rainbow attack from hackers.
     """
-    dynamic_config_set('iv_table', '%s-%s' % (section, option), iv)
+    dynamic_config_set(IV_TABLE, '%s-%s' % (section, option), iv)
