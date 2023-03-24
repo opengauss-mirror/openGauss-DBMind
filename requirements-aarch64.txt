@@ -8,7 +8,8 @@ sqlparse
 fastapi
 uvicorn
 sqlalchemy==1.4.44
-psycopg2-binary
+# Use `#` to set an alternative psycopg2
+psycopg2-binary # psycopg2
 pycryptodome
 ## For components ##
 prettytable>=2.5.0
