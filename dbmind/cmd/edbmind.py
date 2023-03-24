@@ -24,12 +24,11 @@ from dbmind import app
 from dbmind import constants
 from dbmind import controllers
 from dbmind import global_vars
-from dbmind.cmd.config_utils import (
-    load_sys_configs,
-    DynamicConfig
+from dbmind.cmd.configs.config_utils import (
+    load_sys_configs
 )
+from dbmind.cmd.configs.configurators import DynamicConfig
 from dbmind.common.utils.base import try_to_get_an_element
-from dbmind.service import multicluster
 from dbmind.common import platform
 from dbmind.common import utils
 from dbmind.common.daemon import Daemon, read_dbmind_pid_file
@@ -44,8 +43,6 @@ try:
     import readline
 except ImportError:
     pass
-
-SKIP_LIST = ('COMMENT', 'LOG', 'TIMED_TASK')
 
 _http_service = HttpService()
 dbmind_master_should_exit = False
@@ -154,8 +151,6 @@ def init_rpc_with_config(tsdb=None):
             error_msg, use_logging=False
         )
 
-    global_vars.agent_proxy = multicluster.AgentProxy()
-
     # -- finish checking --
     # If user doesn't set any urls, we can
     # try to scan and discover the urls by TSDB metrics.
@@ -226,11 +221,15 @@ def init_logger_with_config():
 def init_global_configs(confpath):
     global_vars.confpath = confpath
     global_vars.configs = load_sys_configs(constants.CONFILE_NAME)
-    global_vars.dynamic_configs = DynamicConfig
-    global_vars.metric_map = utils.read_simple_config_file(
-        constants.METRIC_MAP_CONFIG
+    global_vars.dynamic_configs = DynamicConfig()
+    global_vars.metric_map.update(
+        utils.read_simple_config_file(
+            constants.METRIC_MAP_CONFIG
+        )
     )
-    global_vars.metric_value_range_map = utils.read_simple_config_file(constants.METRIC_VALUE_RANGE_CONFIG)
+    global_vars.metric_value_range_map.update(
+        utils.read_simple_config_file(constants.METRIC_VALUE_RANGE_CONFIG)
+    )
     global_vars.must_filter_labels = utils.read_simple_config_file(
         constants.MUST_FILTER_LABEL_CONFIG
     )

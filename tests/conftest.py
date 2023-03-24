@@ -27,7 +27,7 @@ import pytest
 from dbmind import global_vars
 from dbmind.constants import DYNAMIC_CONFIG
 from dbmind.metadatabase import create_dynamic_config_schema
-from dbmind.cmd.config_utils import DynamicConfig
+from dbmind.cmd.configs.configurators import DynamicConfig
 from dbmind.cmd.edbmind import get_worker_instance
 from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
 from dbmind.common.types import Sequence
@@ -89,7 +89,7 @@ if os.path.exists(metadatabase_name):
     os.unlink(metadatabase_name)
 
 global_vars.configs = configs
-global_vars.dynamic_configs = DynamicConfig
+global_vars.dynamic_configs = DynamicConfig()
 global_vars.worker = get_worker_instance('local', -1)
 TsdbClientFactory.set_client_info(
     global_vars.configs.get('TSDB', 'name'),
