@@ -651,7 +651,12 @@ def update_agent_list(force=False):
 
 
 def get_all_agents():
-    return global_vars.agent_proxy.agent_get_all()
+    agents = global_vars.agent_proxy.agent_get_all()
+    if not agents:
+        global_vars.agent_proxy.agent_lightweight_update()
+        # try again
+        agents = global_vars.agent_proxy.agent_get_all() 
+    return agents
 
 
 def get_history_alarms(pagesize=None, current=None, instance=None, alarm_type=None,

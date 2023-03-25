@@ -176,8 +176,11 @@ class AgentProxy:
 
     def _try_to_finalize(self):
         """Lazy finalization."""
-        with self._lock:
-            if not self._finalized:
+        # double check trick
+        if not self._finalized:
+            with self._lock:
+                if self._finalized:
+                    return
                 self.agent_finalize()
 
     def agent_add(
