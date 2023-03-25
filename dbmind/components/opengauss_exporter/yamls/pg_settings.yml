@@ -12,8 +12,8 @@
 # See the Mulan PSL v2 for more details.
 
 pg_settings:
-  name: pg_connections
-  desc: OpenGauss database connections
+  name: pg_settings
+  desc: OpenGauss database settings
   query:
     - name: pg_settings
       sql: "select name,

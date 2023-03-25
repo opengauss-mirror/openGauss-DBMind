@@ -215,9 +215,6 @@ class SlowSQLAnalyzer:
             title = FEATURES_CAUSE_MAPPER.get('C_UNKNOWN')
             root_cause = RootCause.get(title)
             query_context.slow_sql_instance.add_cause(root_cause)
-        # If an exception occurs during diagnosis, then prompt the user.
-        if details['existing_exception']:
-            query_context.slow_sql_instance.add_cause(RootCause.get('EXISTING_EXCEPTION'))
         # Further to avoid repetition and diagnosis for slow sql
         if self._is_diagnosed(query_context.slow_sql_instance, strict=False):
             query_context.slow_sql_instance.mark_replicated()

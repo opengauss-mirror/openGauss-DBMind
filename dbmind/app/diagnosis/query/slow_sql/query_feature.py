@@ -878,6 +878,8 @@ class QueryFeature:
                 if 'random' in sort_operator.properties.get('Sort Key'):
                     self.detail['string_matching'] += "%s. Suspected to use 'order by random()' " \
                                                       "which may cause index failure" % index
+                    self.suggestion['string_matching'] += "%s. Confirm whether the scene requires " \
+                                                          "this operation" % index
                     break
         if self.detail['string_matching']:
             return True
@@ -1021,7 +1023,6 @@ class QueryFeature:
     def __call__(self):
         self.detail['system_cause'] = {}
         self.detail['plan'] = {}
-        self.detail['existing_exception'] = False
         feature_names = (
             'lock_contention',
             'many_dead_tuples',
@@ -1061,6 +1062,5 @@ class QueryFeature:
                 logging.error(
                     'Cannot get the feature %s, for details: %s.', feature_name, e, exc_info=True
                 )
-                self.detail['existing_exception'] = True
                 feature_vector.append(0)
         return feature_vector, self.detail, self.suggestion

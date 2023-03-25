@@ -164,10 +164,10 @@ def _is_schema_exist(schema, database=None, data_source='tsdb', driver=None):
 
 
 def try_to_initialize_rpc_and_tsdb(database, schema):
-    if not initialize_rpc_service():
-        return False, 'RPC service does not exist, exiting...'
     if not initialize_tsdb_param():
         return False, 'TSDB service does not exist, exiting...'
+    if not initialize_rpc_service():
+        return False, 'RPC service does not exist, exiting...'
     if database is None:
         return False, "Lack the information of 'database', exiting..."
     if not _is_database_exist(database, data_source='tsdb'):

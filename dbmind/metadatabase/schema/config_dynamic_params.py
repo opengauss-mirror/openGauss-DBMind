@@ -14,6 +14,7 @@
 from dbmind.metadatabase import DynamicConfig
 from dbmind.cmd.configs.config_constants import IV_TABLE
 
+
 class DynamicParams(DynamicConfig):
     __tablename__ = "dynamic_params"
 
