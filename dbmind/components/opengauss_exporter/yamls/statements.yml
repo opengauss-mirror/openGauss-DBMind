@@ -30,15 +30,17 @@ pg_sql_statement_history:
                       FROM H.finish_time - H.start_time) * 1000 AS exc_time,
       H.cpu_time,
       H.data_io_time,
-          H.parse_time,
-          H.plan_time,
-          H.db_time,
+      H.parse_time,
+      H.plan_time,
+      H.db_time,
       H.n_returned_rows,
       H.n_tuples_fetched,
       H.n_tuples_returned,
       H.n_tuples_inserted,
       H.n_tuples_updated,
       H.n_tuples_deleted,
+      H.n_soft_parse,
+      H.n_hard_parse,
       (H.n_blocks_hit / (H.n_blocks_fetched+0.01)) AS hit_rate,
       (H.n_blocks_fetched / (H.n_blocks_hit+0.01)) AS fetch_rate,
       H.lock_wait_count,
@@ -110,6 +112,12 @@ pg_sql_statement_history:
       usage: LABEL
     - name: n_tuples_deleted
       description: delete tuples
+      usage: LABEL
+    - name: n_soft_parse
+      description: number of soft parse
+      usage: LABEL
+    - name: n_hard_parse
+      description: number of hard parse
       usage: LABEL
     - name: hit_rate
       description: hit ratio

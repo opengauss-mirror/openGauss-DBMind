@@ -29,9 +29,10 @@ class DynamicParams(DynamicConfig):
         ('connection_usage_threshold', 0.9, ''),
         ('package_drop_rate_threshold', 0.01, ''),
         ('package_error_rate_threshold', 0.01, ''),
-        ('thread_occupy_rate_threshold', 0.95, ''),
+        ('thread_pool_usage_threshold', 0.95, ''),
         ('idle_session_occupy_rate_threshold', 0.3, ''),
-        ('data_file_wait_threshold', 100000, '')]
+        ('data_file_wait_threshold', 100000, ''),
+        ('network_bandwidth_usage_threshold', 0.8, 'bandwidth usage')]
     }
 
     iv_table = {IV_TABLE: [
@@ -56,7 +57,9 @@ class DynamicParams(DynamicConfig):
         ('plan_height_threshold', 10, ''),
         ('complex_operator_threshold', 2, ''),
         ('large_in_list_threshold', 10, ''),
-        ('tuples_diff_threshold', 1000, ''), ]
+        ('tuples_diff_threshold', 1000, ''),
+        ('plan_time_rate_threshold', 0.6, 'rate of SQL execution plan generation time'),
+        ('sort_rate_threshold', 0.7, 'threshold of disk-spill rate in SQL execution history')]
     }
 
     self_monitoring = {'self_monitoring': [

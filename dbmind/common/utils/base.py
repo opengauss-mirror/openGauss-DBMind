@@ -390,13 +390,18 @@ def is_integer_string(s):
     return False
 
 
-def cast_to_int_or_float(value):
+def cast_to_int_or_float(value, precision=-1):
+    # cast value to int or float
+    # notes: precision only works when converting to float
     if isinstance(value, (int, float)):
         return value
     try:
         if isinstance(value, str) and is_integer_string(value):
             return int(value)
-        return float(value)
+        if precision <= 0:
+            return float(value)
+        else:
+            return round(float(value), precision)
     except (ValueError, TypeError):
         logging.warning('The value: %s cannot be converted to int or float.', value, exc_info=True)
         return float('nan')

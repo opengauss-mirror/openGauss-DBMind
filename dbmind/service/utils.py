@@ -33,6 +33,6 @@ class SequenceUtils:
     def exporter_ip(s: Sequence):
         address = SequenceUtils.exporter_address(s)
         if address:
-            return address.split(':')[0]
+            return address.split(':')[0].strip()
 
 

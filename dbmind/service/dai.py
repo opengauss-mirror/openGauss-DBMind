@@ -28,8 +28,8 @@ from dbmind.common.dispatcher.task_worker import get_mp_sync_manager
 from dbmind.common.platform import LINUX
 from dbmind.common.sequence_buffer import SequenceBufferPool
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.common.types import Sequence, EMPTY_SEQUENCE
-from dbmind.common.utils import dbmind_assert
+from dbmind.common.types import Sequence
+from dbmind.common.utils import dbmind_assert, cast_to_int_or_float
 from dbmind.metadatabase import dao
 from dbmind.service.utils import SequenceUtils
 from dbmind.constants import (DISTINGUISHING_INSTANCE_LABEL,
@@ -392,37 +392,42 @@ def get_all_slow_queries(minutes):
         track_parameter = True if 'parameters: $1' in sequence.labels['query'].lower() else False
         query = sequence.labels['query']
         query_plan = sequence.labels['query_plan'] if sequence.labels['query_plan'] != 'None' else None
-        start_timestamp = int(sequence.labels['start_time'])  # unit: microsecond
-        duration_time = int(sequence.labels['finish_time']) - int(sequence.labels['start_time'])  # unit: microsecond
-        hit_rate = round(float(sequence.labels['hit_rate']), 4)
-        fetch_rate = round(float(sequence.labels['fetch_rate']), 4)
-        cpu_time = round(float(sequence.labels['cpu_time']), 4)
-        plan_time = round(float(sequence.labels['plan_time']), 4)
-        parse_time = round(float(sequence.labels['parse_time']), 4)
-        db_time = round(float(sequence.labels['db_time']), 4)
-        data_io_time = round(float(sequence.labels['data_io_time']), 4)
+        # unit: microsecond
+        start_timestamp = cast_to_int_or_float(sequence.labels['start_time'])
+        # unit: microsecond
+        duration_time = cast_to_int_or_float(sequence.labels['finish_time']) - \
+                        cast_to_int_or_float(sequence.labels['start_time'])
+        hit_rate = cast_to_int_or_float(sequence.labels['hit_rate'], precision=4)
+        fetch_rate = cast_to_int_or_float(sequence.labels['fetch_rate'], precision=4)
+        cpu_time = cast_to_int_or_float(sequence.labels['cpu_time'], precision=4)
+        plan_time = cast_to_int_or_float(sequence.labels['plan_time'], precision=4)
+        parse_time = cast_to_int_or_float(sequence.labels['parse_time'], precision=4)
+        db_time = cast_to_int_or_float(sequence.labels['db_time'], precision=4)
+        data_io_time = cast_to_int_or_float(sequence.labels['data_io_time'], precision=4)
         template_id = sequence.labels['unique_query_id']
         query_id = sequence.labels['debug_query_id']
-        lock_wait_count = int(sequence.labels['lock_wait_count'])
-        lwlock_wait_count = int(sequence.labels['lwlock_wait_count'])
-        n_returned_rows = int(sequence.labels['n_returned_rows'])
-        n_tuples_returned = int(sequence.labels['n_tuples_returned'])
-        n_tuples_fetched = int(sequence.labels['n_tuples_fetched'])
-        n_tuples_inserted = int(sequence.labels['n_tuples_inserted'])
-        n_tuples_updated = int(sequence.labels['n_tuples_updated'])
-        n_tuples_deleted = int(sequence.labels['n_tuples_deleted'])
+        n_returned_rows = cast_to_int_or_float(sequence.labels['n_returned_rows'])
+        n_tuples_returned = cast_to_int_or_float(sequence.labels['n_tuples_returned'])
+        n_tuples_fetched = cast_to_int_or_float(sequence.labels['n_tuples_fetched'])
+        n_tuples_inserted = cast_to_int_or_float(sequence.labels['n_tuples_inserted'])
+        n_tuples_updated = cast_to_int_or_float(sequence.labels['n_tuples_updated'])
+        n_tuples_deleted = cast_to_int_or_float(sequence.labels['n_tuples_deleted'])
+        n_soft_parse = cast_to_int_or_float(sequence.labels['n_soft_parse'])
+        n_hard_parse = cast_to_int_or_float(sequence.labels['n_hard_parse'])
+        hash_spill_count = cast_to_int_or_float(sequence.labels['hash_spill_count'])
+        sort_spill_count = cast_to_int_or_float(sequence.labels['sort_spill_count'])
         slow_sql_info = SlowQuery(
             db_host=db_host, db_port=db_port, query_plan=query_plan,
             schema_name=schema_name, db_name=db_name, query=query,
             start_timestamp=start_timestamp, duration_time=duration_time,
             hit_rate=hit_rate, fetch_rate=fetch_rate, track_parameter=track_parameter,
             cpu_time=cpu_time, data_io_time=data_io_time, plan_time=plan_time,
-            parse_time=parse_time, db_time=db_time,
-            template_id=template_id, lock_wait_count=lock_wait_count,
-            lwlock_wait_count=lwlock_wait_count, n_returned_rows=n_returned_rows,
+            parse_time=parse_time, db_time=db_time, n_hard_parse=n_hard_parse,
+            n_soft_parse=n_soft_parse, template_id=template_id,  n_returned_rows=n_returned_rows,
             n_tuples_returned=n_tuples_returned, n_tuples_fetched=n_tuples_fetched,
             n_tuples_inserted=n_tuples_inserted, n_tuples_updated=n_tuples_updated,
-            n_tuples_deleted=n_tuples_deleted, query_id=query_id
+            n_tuples_deleted=n_tuples_deleted, query_id=query_id, hash_spill_count=hash_spill_count,
+            sort_spill_count=sort_spill_count
         )
 
         slow_queries.append(slow_sql_info)
@@ -682,47 +687,52 @@ def is_driver_result_valid(s):
     return False
 
 
-def get_database_data_directory_status(instance, latest_minutes):
-    # return the data-directory information of current cluster
-    detail = {}
+def get_data_directory_mountpoint_info(instance):
+    # return the mountpoint and total size of the disk where the instance data directory is located
     data_directory_sequence = get_latest_metric_value('pg_node_info_uptime').from_server(instance).fetchone()
     if not is_sequence_valid(data_directory_sequence):
-        return EMPTY_SEQUENCE
-    # the data-directory is all same in the cluster
-    data_directory = data_directory_sequence.labels.get('datapath')
-    instances = global_vars.agent_proxy.agent_get_all()[instance]
-    for instance in instances:
-        instance_with_no_port = instance.split(':')[0]
-        instance_regrex = instance_with_no_port + ':?.*'
-        filesystem_total_size_sequences = get_latest_metric_value('node_filesystem_size_bytes').\
-                          filter_like(instance=instance_regrex).fetchall()
-        os_disk_usage_sequences = get_latest_metric_sequence('os_disk_usage', latest_minutes).\
-                          from_server(instance_with_no_port).fetchall()
-        if not is_sequence_valid(filesystem_total_size_sequences):
-            continue
-        if not is_sequence_valid(os_disk_usage_sequences):
-            continue
-        # in order to avoid mismatching data-directory, we sort sequences by 'mounpoint' first
-        filesystem_total_size_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
-        os_disk_usage_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
-        data_directory_related_sequences = [sequence for sequence in filesystem_total_size_sequences if
-                                            data_directory.startswith(sequence.labels['mountpoint'])]
-        disk_usage_related_sequences = [sequence for sequence in os_disk_usage_sequences if
-                                        data_directory.startswith(sequence.labels['mountpoint'])]
-        # transfer bytes to GB
-        total_space = '' if not is_sequence_valid(data_directory_related_sequences) else round(data_directory_related_sequences[0].values[-1] / 1024 / 1024 / 1024, 2)
-        usage_rate = '' if not is_sequence_valid(disk_usage_related_sequences) else disk_usage_related_sequences[0].values
-        tile_rate, used_space, free_space = '', '', ''
-        if total_space and usage_rate:
-            tile_rate, _ = linear_fitting(range(0, len(usage_rate)), usage_rate)
-            # replace tile rate with disk absolute size(unit: mbytes)
-            tile_rate = round(total_space * tile_rate * 1024, 2)
-            used_space = round(total_space * usage_rate[-1], 2)
-            free_space = round(total_space - used_space, 2)
-        detail[instance] = {'total_space': total_space, 
-                            'tilt_rate': tile_rate, 
-                            'usage_rate': round(usage_rate[-1], 2) if usage_rate else '', 
-                            'used_space': used_space, 'free_space': free_space}
+        return
+    data_directory = data_directory_sequence.labels['datapath']
+    instance_with_no_port = instance.split(':')[0]
+    instance_regrex = instance_with_no_port + ':?.*'
+    filesystem_total_size_sequences = get_latest_metric_value('node_filesystem_size_bytes'). \
+        filter_like(instance=instance_regrex).fetchall()
+    if not is_sequence_valid(filesystem_total_size_sequences):
+        return
+    filesystem_total_size_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
+    for sequence in filesystem_total_size_sequences:
+        if data_directory.startswith(sequence.labels['mountpoint']):
+            return sequence.labels['mountpoint'], \
+                   sequence.labels['device'], round(sequence.values[-1] / 1024 / 1024 / 1024, 2)
+
+
+def get_database_data_directory_status(instance, latest_minutes):
+    # return the data-directory information of current cluster
+    # note: now the node of instance should be deployed opengauss_exporter
+    mountpoint, total_size = '', 0.0
+    detail = {'total_space': '', 'tilt_rate': '', 'usage_rate': '', 'used_space': ''}
+    instance_with_no_port = instance.split(':')[0]
+    cluster_instance = global_vars.agent_proxy.get_all_agents()[instance]
+    for instance in cluster_instance:
+        # get data_directory of any node in cluster, because all the node have the same data-directory.
+        mountpoint_info = get_data_directory_mountpoint_info(instance)
+        if mountpoint_info is not None:
+            mountpoint, _, total_size = mountpoint_info
+        break
+    disk_usage_sequence = get_latest_metric_sequence('os_disk_usage', latest_minutes).\
+        from_server(instance_with_no_port).filter(mountpoint=mountpoint).fetchone()
+    if not is_sequence_valid(disk_usage_sequence):
+        return detail
+    usage_rate = disk_usage_sequence.values
+    tile_rate, _ = linear_fitting(range(0, len(usage_rate)), usage_rate)
+    # replace tile rate with disk absolute size(unit: mbytes)
+    tile_rate = round(total_size * tile_rate * 1024, 2)
+    used_space = round(total_size * usage_rate[-1], 2)
+    free_space = round(total_size - used_space, 2)
+    detail[instance] = {'total_space': total_size,
+                        'tilt_rate': tile_rate,
+                        'usage_rate': round(usage_rate[-1], 2) if usage_rate else '',
+                        'used_space': used_space, 'free_space': free_space}
     return detail
 
 

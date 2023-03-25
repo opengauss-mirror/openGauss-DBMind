@@ -40,7 +40,6 @@ _system_table_keywords = ('PG_CLASS', 'PG_STAT_DATABASE', 'PG_STAT_REPLICATION',
                           'LOCAL_DOUBLE_WRITE_STAT', 'GS_TOTAL_MEMORY_DETAIL', 'SUMMARY_FILE_IOSTAT', 'INSTANCE_TIME',
                           'PG_JOB', 'PG_NAMESPACE', 'PG_CONSTRAINT')
 _system_query_threshold = 0.6
-_white_list_of_type = ('SELECT', 'UPDATE', 'DELETE', 'INSERT')
 
 
 FEATURE_LIB = load_feature_lib()
@@ -183,10 +182,7 @@ class SlowSQLAnalyzer:
     def _analyze(self, query_context: query_info_source.QueryContext) -> [SlowQuery, None]:
         """Slow SQL diagnosis main process"""
         exist_tables = defaultdict(list)
-        if not sum(query_context.slow_sql_instance.query.upper().startswith(item) for item in _white_list_of_type):
-            root_cause = RootCause.get(FEATURES_CAUSE_MAPPER.get('C_UNSUPPORTED_TYPE'))
-            query_context.slow_sql_instance.add_cause(root_cause)
-            return
+        # if the SQL is not valid, we just need to skip it
         if not query_context.is_sql_valid:
             root_cause = RootCause.get(FEATURES_CAUSE_MAPPER.get('C_INVALID_SQL'))
             query_context.slow_sql_instance.add_cause(root_cause)

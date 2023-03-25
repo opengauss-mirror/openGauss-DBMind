@@ -103,10 +103,6 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         return {}
 
     @staticmethod
-    def acquire_sort_condition():
-        return {}
-
-    @staticmethod
     def acquire_redundant_index():
         return {}
 
@@ -115,20 +111,8 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         return 5
 
     @staticmethod
-    def acquire_lock_info():
-        lock_info = query_info_source.LockInfo()
-        lock_info.db_host = '127.0.0.1'
-        lock_info.locked_query = ['update schema1.table1 set age=30 where id=3']
-        lock_info.locked_query_start = [1640139691000]
-        lock_info.locker_query = ['update schema1.table1 set age=80 where id=3']
-        lock_info.locker_query_start = [1640139690000]
-        return lock_info
-
-    @staticmethod
     def acquire_tables_structure_info():
         table_info = query_info_source.TableStructure()
-        table_info.db_host = '127.0.0.1'
-        table_info.db_port = '5432'
         table_info.db_name = 'database1'
         table_info.schema_name = 'schema1'
         table_info.table_name = 'table1'
@@ -140,7 +124,6 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         table_info.analyze = 1640139691000
         table_info.vacuum = 1640139691000
         table_info.table_size = 1000000
-        table_info.skew_ratio = 0.5
         table_info.index = {'index1': ['col1'], 'index2': ['col2'], 'index3': ['col3']}
         table_info.redundant_index = ['redundant_index1', 'redundant_index2', 'redundant_index3', 'redundant_index4']
         return [table_info]
@@ -148,84 +131,38 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
     @staticmethod
     def acquire_database_info():
         db_info = query_info_source.DatabaseInfo()
-        db_info.db_host = '127.0.0.1'
-        db_info.db_port = '8080'
-        db_info.history_tps = [100, 100]
-        db_info.current_tps = [100000, 100000]
-        db_info.max_conn = 100
-        db_info.used_conn = 99
-        db_info.thread_pool = {'worker_info_default': 100, 'worker_info_idle': 90, 'session_info_total': 50,
-                               'session_info_idle': 40}
+        db_info.tps = 100000
+        db_info.connection = 100
+        db_info.thread_pool_rate = 0.6
         return db_info
 
     @staticmethod
     def acquire_wait_event():
-        wait_event_info = query_info_source.WaitEvent()
-        wait_event_info.node_name = 'node1'
-        wait_event_info.type = 'IO_EVENT'
+        wait_event_info = query_info_source.ThreadInfo()
+        wait_event_info.status = 'IO_EVENT'
         wait_event_info.event = 'CopyFileWrite'
-        return [wait_event_info]
+        return wait_event_info
 
     @staticmethod
     def acquire_system_info():
         system_info = query_info_source.SystemInfo()
-        system_info.db_host = '127.0.0.1'
-        system_info.db_port = '8080'
-        system_info.iops = 100000
         system_info.ioutils = {'sdm-0': 0.9}
-        system_info.iocapacity = 100000
-        system_info.iowait = 0.9
-        system_info.cpu_usage = 0.9
-        system_info.mem_usage = 0.9
+        system_info.iowait_cpu_usage = [0.9]
+        system_info.user_cpu_usage = [0.9]
+        system_info.system_mem_usage = [0.9]
         system_info.disk_usage = {'sdm-0': 0.8}
-        system_info.process_fds_rate = 0.8
-        system_info.load_average = 0.9
-        system_info.io_read_delay_time = 1000000
-        system_info.io_write_delay_time = 1000000
-        system_info.io_queue_number = 100000
+        system_info.process_fds_rate = [0.8]
+        system_info.io_read_delay = [1000000]
+        system_info.io_write_delay = [1000000]
         return system_info
 
     @staticmethod
     def acquire_network_info():
         network_info = query_info_source.NetWorkInfo()
-        network_info.receive_bytes = 10000000
-        network_info.transmit_bytes = 10000000
-        network_info.transmit_drop = 0.9
-        network_info.transmit_error = 0.9
-        network_info.transmit_packets = 1000000
-        network_info.receive_drop = 0.9
-        network_info.receive_error = 0.9
-        network_info.receive_packets = 1000000
+        network_info.transmit_drop = [0.9]
+        network_info.receive_drop = [0.9]
+        network_info.bandwidth_usage = 0.8
         return network_info
-
-    @staticmethod
-    def acquire_bgwriter_info():
-        bgwriter_info = query_info_source.BgWriter()
-        bgwriter_info.buffers_checkpoint = 100
-        bgwriter_info.buffers_clean = 100
-        bgwriter_info.buffers_backend = 100000000
-        bgwriter_info.buffers_alloc = 100
-        return bgwriter_info
-
-    @staticmethod
-    def acquire_pg_replication_info():
-        pg_replication_info = query_info_source.PgReplicationInfo()
-        pg_replication_info.application_name = 'WalSender to Standby[dn_6002]'
-        pg_replication_info.pg_replication_lsn = 1667524422792
-        pg_replication_info.pg_replication_write_diff = 10000000
-        pg_replication_info.pg_replication_sent_diff = 100000000
-        pg_replication_info.pg_replication_flush_diff = 10000000
-        pg_replication_info.pg_replication_replay_diff = 10000000
-        return [pg_replication_info]
-
-    @staticmethod
-    def acquire_sql_count_info():
-        gs_sql_count_info = query_info_source.GsSQLCountInfo()
-        gs_sql_count_info.select_count = 1000
-        gs_sql_count_info.delete_count = 1000
-        gs_sql_count_info.insert_count = 1000
-        gs_sql_count_info.update_count = 1000
-        return gs_sql_count_info
 
     @staticmethod
     def acquire_rewritten_sql():

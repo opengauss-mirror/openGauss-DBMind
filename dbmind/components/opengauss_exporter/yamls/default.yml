@@ -876,7 +876,7 @@ pg_lock_sql:
     - name: locked_query
       description: locked query
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 1
 
@@ -1299,7 +1299,6 @@ pg_redo_stat:
   timeout: 1
   
 
-
 pg_global_ckpt_status:
   name: pg_global_ckpt_status
   desc: openGauss all instance checkpoints and log flushing metrics
@@ -1455,6 +1454,26 @@ pg_time:
     - name: name
       usage: LABEL
     - name: value
+      usage: GAUGE
+  status: enable
+  ttl: 10
+  timeout: 1
+
+
+pg_thread_pool:
+  name: pg_thread_pool
+  query:
+    - name: pg_thread_pool
+      sql: |- 
+        select s1.count / s2.count as rate from
+        (select count(*)  as count from pg_thread_wait_status where wait_status != 'wait cmd') s1, 
+        (select count(*)  as count from pg_thread_wait_status where wait_status != 'wait cmd') s2;
+      version: '>=0.0.0'
+      timeout: 1
+      ttl: 10
+      status: enable
+  metrics:
+    - name: rate
       usage: GAUGE
   status: enable
   ttl: 10

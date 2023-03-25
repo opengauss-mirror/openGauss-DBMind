@@ -136,7 +136,6 @@ def get_query_plan(
         )
     else:
         raise AssertionError()
-
     return query_context.slow_sql_instance.query_plan, query_context.query_type
 
 
