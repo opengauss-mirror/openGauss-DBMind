@@ -362,15 +362,3 @@ def exists_count_operation(query):
     if re.search(r"[\s+|\s*,]count\(-?[\d+|\*]\)", query, flags=re.IGNORECASE):
         return True
     return False
-
-
-def exists_no_index_operation(query):
-    operations = []
-    # todo: test it
-    # exist 'count' operation
-    if re.search(r"[\s+|\s*,]count\(-?[\d+|\*]\)", query, flags=re.IGNORECASE):
-        operations.append('count')
-    # exist 'random by random()'
-    if re.search(r"random\s+by\s+random\(\)", query, flags=re.IGNORECASE):
-        operations.append('order by random()')
-    return operations
