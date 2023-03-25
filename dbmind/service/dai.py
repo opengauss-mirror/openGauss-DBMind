@@ -712,7 +712,7 @@ def get_database_data_directory_status(instance, latest_minutes):
     mountpoint, total_size = '', 0.0
     detail = {'total_space': '', 'tilt_rate': '', 'usage_rate': '', 'used_space': ''}
     instance_with_no_port = instance.split(':')[0]
-    cluster_instance = global_vars.agent_proxy.get_all_agents()[instance]
+    cluster_instance = global_vars.agent_proxy.agent_get_all()[instance]
     for instance in cluster_instance:
         # get data_directory of any node in cluster, because all the node have the same data-directory.
         mountpoint_info = get_data_directory_mountpoint_info(instance)
@@ -729,10 +729,10 @@ def get_database_data_directory_status(instance, latest_minutes):
     tile_rate = round(total_size * tile_rate * 1024, 2)
     used_space = round(total_size * usage_rate[-1], 2)
     free_space = round(total_size - used_space, 2)
-    detail[instance] = {'total_space': total_size,
-                        'tilt_rate': tile_rate,
-                        'usage_rate': round(usage_rate[-1], 2) if usage_rate else '',
-                        'used_space': used_space, 'free_space': free_space}
+    detail = {'total_space': total_size,
+              'tilt_rate': tile_rate,
+              'usage_rate': round(usage_rate[-1], 2) if usage_rate else '',
+              'used_space': used_space, 'free_space': free_space}
     return detail
 
 
