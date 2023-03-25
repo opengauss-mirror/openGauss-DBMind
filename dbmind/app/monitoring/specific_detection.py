@@ -132,8 +132,8 @@ def has_mem_leak(latest_sequences, future_sequences, metric_name=''):
         full_sequence,
         high=mem_usage_threshold
     )
-    spike_threshold_anomalies = AnomalyDetections.do_spike_detect(full_sequence)
-    level_shift_anomalies = AnomalyDetections.do_level_shift_detect(full_sequence)
+    spike_threshold_anomalies = AnomalyDetections.do_spike_detect(full_sequence, outliers=(None, 6))
+    level_shift_anomalies = AnomalyDetections.do_level_shift_detect(full_sequence, outliers=(None, 12))
 
     # Polish later: the time window needs to be longer
     increase_anomalies = AnomalyDetections.do_increase_detect(full_sequence, side="positive")
@@ -287,39 +287,6 @@ def has_qps_rapid_change(latest_sequences, future_sequences):
     return alarms
 
 
-@_check_for_metric(('gaussdb_connections_used_ratio',), only_history=True)
-def has_connections_high_occupation(latest_sequences, future_sequences):
-    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
-    full_sequence = approximatively_merge(latest_sequence, future_sequence)
-    connection_usage_threshold = monitoring.get_param('connection_usage_threshold')
-    over_threshold_anomalies = AnomalyDetections.do_threshold_detect(
-        full_sequence,
-        high=connection_usage_threshold
-    )
-
-    alarms = []
-    if True in over_threshold_anomalies.values:
-        alarms.append(
-            Alarm(
-                instance=SequenceUtils.from_server(latest_sequence),
-                alarm_content='The connection usage has exceeded the warning level: %s%%.' % (
-                        connection_usage_threshold * 100
-                ),
-                alarm_type=ALARM_TYPES.ALARM,
-                metric_name='gaussdb_connections_used_ratio',
-                start_timestamp=full_sequence.timestamps[
-                    over_threshold_anomalies.values.index(True)
-                ],
-                end_timestamp=full_sequence.timestamps[
-                    -over_threshold_anomalies.values[::-1].index(True) - 1
-                ],
-                alarm_level=ALARM_LEVEL.ERROR,
-                anomaly_type=ANOMALY_TYPES.THRESHOLD
-            )
-        )
-    return alarms
-
-
 @_check_for_metric(('statement_responsetime_percentile_p95',), only_history=True)
 def has_p95_rapid_change(latest_sequences, future_sequences):
     latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
@@ -383,59 +350,4 @@ def has_high_disk_ioutils(latest_sequences, future_sequences):
             )
         )
 
-    return alarms
-
-
-@_check_for_metric(('os_network_receive_drop',), only_history=True)
-def has_p95_rapid_change(latest_sequences, future_sequences):
-    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
-    full_sequence = approximatively_merge(latest_sequence, future_sequence)
-
-    spike_threshold_anomalies = AnomalyDetections.do_spike_detect(full_sequence)
-
-    alarms = []
-    if True in spike_threshold_anomalies.values:
-        alarm = Alarm(
-            instance=SequenceUtils.from_server(latest_sequence),
-            alarm_content="Find obvious spikes in os_network_receive_drop.",
-            alarm_type=ALARM_TYPES.PERFORMANCE,
-            metric_name='os_network_receive_drop',
-            start_timestamp=full_sequence.timestamps[
-                spike_threshold_anomalies.values.index(True)
-            ],
-            end_timestamp=full_sequence.timestamps[
-                -spike_threshold_anomalies.values[::-1].index(True) - 1
-            ],
-            alarm_level=ALARM_LEVEL.WARNING,
-            anomaly_type=ANOMALY_TYPES.SPIKE
-        )
-        alarms.append(alarm)
-    return alarms
-
-
-@_check_for_metric(('os_network_transmit_drop',), only_history=True)
-def has_p95_rapid_change(latest_sequences, future_sequences):
-    latest_sequence, future_sequence = latest_sequences[0], future_sequences[0]
-
-    full_sequence = approximatively_merge(latest_sequence, future_sequence)
-
-    spike_threshold_anomalies = AnomalyDetections.do_spike_detect(full_sequence)
-
-    alarms = []
-    if True in spike_threshold_anomalies.values:
-        alarm = Alarm(
-            instance=SequenceUtils.from_server(latest_sequence),
-            alarm_content="Find obvious spikes in os_network_transmit_drop.",
-            alarm_type=ALARM_TYPES.PERFORMANCE,
-            metric_name='os_network_transmit_drop',
-            start_timestamp=full_sequence.timestamps[
-                spike_threshold_anomalies.values.index(True)
-            ],
-            end_timestamp=full_sequence.timestamps[
-                -spike_threshold_anomalies.values[::-1].index(True) - 1
-            ],
-            alarm_level=ALARM_LEVEL.WARNING,
-            anomaly_type=ANOMALY_TYPES.SPIKE
-        )
-        alarms.append(alarm)
     return alarms
