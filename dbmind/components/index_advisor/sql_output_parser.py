@@ -27,7 +27,7 @@ except ImportError:
 
 def __get_columns_from_indexdef(indexdef):
     for content in get_tokens(indexdef):
-        if content.ttype is Punctuation:
+        if content.ttype is Punctuation and content.normalized == '(':
             return content.parent.value.strip()[1:-1]
 
 

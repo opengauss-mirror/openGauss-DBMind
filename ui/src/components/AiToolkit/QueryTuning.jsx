@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import { Button, Card, Checkbox, Col, Input, message, Row, Select } from 'antd';
 import { DownloadOutlined } from '@ant-design/icons';
 import { getItemListInterface, getQueryTuningInterface } from '../../api/aiTool';
+import db from '../../utils/storage';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -51,7 +52,8 @@ export default class QueryTuning extends Component {
       sql: encodeURIComponent(this.state.sqlstatement_treaVal),
       use_rewrite: this.state.use_rewrite,
       use_hinter: this.state.use_hinter,
-      use_materialized: this.state.use_materialized
+      use_materialized: this.state.use_materialized,
+      instance:db.ss.get('Instance_value'),
     }
     const { success, data, msg } = await getQueryTuningInterface(params)
     if (success) {

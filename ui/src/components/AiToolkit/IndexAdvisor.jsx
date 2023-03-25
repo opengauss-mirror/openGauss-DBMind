@@ -80,7 +80,8 @@ export default class IndexAdvisor extends Component {
       max_index_storage: this.state.maxIndexStorage,
       min_improved_rate: this.state.minImprovedRate,
       current: pageParams ? pageParams.current : this.state.current,
-      pagesize:pageParams ? pageParams.pagesize : this.state.pageSize
+      pagesize:pageParams ? pageParams.pagesize : this.state.pageSize,
+      instance:db.ss.get('Instance_value'),
     }
     this.setState({ loadingAdvisor: true });
     const { success, data, msg } = await getListIndexAdvisorInterface(params)
