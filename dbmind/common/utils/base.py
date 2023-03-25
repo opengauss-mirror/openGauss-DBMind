@@ -440,7 +440,7 @@ def string_to_dict(values, delimiter=','):
         for pair in values.split(delimiter):
             name, value = pair.split('=')
             d[name.strip()] = value.strip()
-    except Exception as e:
+    except Exception:
         return d
     return d
 

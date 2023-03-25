@@ -23,6 +23,7 @@ class HistoryAlarms(Base):
     history_alarm_id = Column(Integer, primary_key=True, autoincrement=True)
     instance = Column(CHAR(24), nullable=False)
     metric_name = Column(String(64), nullable=False)
+    metric_filter = Column(String(1024))
     alarm_type = Column(String(16), nullable=False)
     alarm_level = Column(Integer, nullable=False)
     start_at = Column(BigInteger, nullable=False)  # unix timestamp

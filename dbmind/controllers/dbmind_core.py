@@ -554,8 +554,12 @@ def get_regular_inspections_count(inspection_type: str = None):
 @request_mapping('/api/summary/correlation_result', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_correlation_result(metric_name: str = None, host: str = None, start_time: str = None, end_time: str = None):
-    return data_transformer.get_correlation_result(metric_name, host, start_time, end_time)
+def get_correlation_result(metric_name: str = None, host: str = None,
+                           start_time: str = None, end_time: str = None,
+                           metric_filter: str = None):
+    return data_transformer.get_correlation_result(metric_name, host,
+                                                   start_time, end_time,
+                                                   metric_filter=metric_filter)
 
 
 @request_mapping('/api/toolkit/memory_check', methods=['GET'], api=True)
