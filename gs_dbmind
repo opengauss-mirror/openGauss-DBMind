@@ -14,28 +14,37 @@
 
 # ------------Utils------------
 function die() {
-    echo -e "FATAL: $1"
-    exit 1
+  echo -e "FATAL: $1"
+  exit 1
 }
 
 function extract_libname() {
-    # Split real library name.
-    line=$1
-    tmparr=(${line//==/ })
-    libname=${tmparr[0]}
-    tmparr=(${libname//>=/ })
-    libname=${tmparr[0]}
-    tmparr=(${libname//<=/ })
-    libname=${tmparr[0]}
-    tmparr=(${libname//~=/ })
-    libname=${tmparr[0]}
-    # trim
-    libname=$(echo $libname | sed 's/ *$//g')
-    echo $libname
+  # Split real library name.
+  line=$1
+  tmparr=(${line//==/ })
+  libname=${tmparr[0]}
+  tmparr=(${libname//>=/ })
+  libname=${tmparr[0]}
+  tmparr=(${libname//<=/ })
+  libname=${tmparr[0]}
+  tmparr=(${libname//~=/ })
+  libname=${tmparr[0]}
+  # trim
+  libname=$(echo $libname | sed 's/ *$//g')
+  echo $libname
+}
+
+function get_alias() {
+  # Split the input string using '#',
+  # take the last element, and trim leading/trailing whitespace
+  local parts=$(echo "$1" | cut -d '#' -f2 | xargs)
+
+  # Split the resulting string using ',', and return the resulting array
+  echo "$parts" | tr -d ' ' | tr ',' '\n'
 }
 
 # ------------Main Process------------
-ABSPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+ABSPATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DBMIND_PATH=${ABSPATH}/dbmind
 
 ORIGIN_PATH=$(pwd)
@@ -48,22 +57,22 @@ source constant
 export PATH=${ABSPATH}/python/bin:$PATH
 PYTHON=$(which python3)
 if [[ "$?" != "0" ]]; then
-    die "Not found the Python environment."
+  die "Not found the Python environment."
 fi
 
 # Check for the Python version.
 $PYTHON -c "import sys; exit(${MIN_PYTHON_VERSION} <= sys.version_info[:2] <= ${MAX_PYTHON_VERSION})"
 
 if [[ "$?" != "1" ]]; then
-    die "Not supported Python (${PYTHON}) version. At least Python ${MIN_PYTHON_VERSION}"
+  die "Not supported Python (${PYTHON}) version. At least Python ${MIN_PYTHON_VERSION}"
 fi
 
 # Run set command
 if [[ $1 == "set" ]]; then
-    cd $ORIGIN_PATH
-    echo "WARN: The SET operation will not detect the integrity of the module, please install the module in advance."
-    $PYTHON $DBMIND_PATH/ $@ &
-    exit $?
+  cd $ORIGIN_PATH
+  echo "WARN: The SET operation will not detect the integrity of the module, please install the module in advance."
+  $PYTHON $DBMIND_PATH/ $@ &
+  exit $?
 fi
 
 cd $ABSPATH
@@ -71,66 +80,75 @@ cd $ABSPATH
 # Check for dependencies
 ## Firstly, get the machine architecture so that determine different requirement files.
 if [[ -f "${DBMIND_PATH}/requirements-x86.txt" ]]; then
-    REQUIREMENT_PATH=$DBMIND_PATH
+  REQUIREMENT_PATH=$DBMIND_PATH
 else
-    REQUIREMENT_PATH=$DBMIND_PATH/..
+  REQUIREMENT_PATH=$DBMIND_PATH/..
 fi
 
 machine=$(uname -m)
 if [[ "$machine" =~ "x86" ]]; then
-    requirements=$REQUIREMENT_PATH/"requirements-x86.txt"
+  requirements=$REQUIREMENT_PATH/"requirements-x86.txt"
 else
-    requirements=$REQUIREMENT_PATH/"requirements-aarch64.txt"
+  requirements=$REQUIREMENT_PATH/"requirements-aarch64.txt"
 fi
 
 ## Secondly, check whether each library has been installed.
 if [[ $PYTHONPATH ]]; then
-    echo "NOTICE: You have set the variable PYTHONPATH. DBMind ignored it."
+  echo "NOTICE: You have set the variable PYTHONPATH. DBMind ignored it."
 fi
 export PYTHONPATH=${ABSPATH}/3rd
 installed_list=$($PYTHON -m pip list --disable-pip-version-check)
 while read line; do
-    libname=$(extract_libname $line)
-    # skip comment
-    if [[ $libname == "#"* ]] || [[ $libname == "" ]] ; then
-        continue
-    fi
+  libname=$(extract_libname $line)
+  # skip comment
+  if [[ $libname == "#"* ]] || [[ $libname == "" ]]; then
+    continue
+  fi
 
-    found=$(echo $installed_list | grep -i "$libname")
-    if [[ $found == "" ]]; then
-        die "Need dependency ${libname}. You should use pip to install it, following:\n
+  found=$(echo $installed_list | grep -i "$libname")
+  if [[ $found == "" ]]; then
+    # try to look for alias
+    for ali in $(get_alias "$line"); do
+      found=$(echo $installed_list | grep -i "$ali")
+      if [[ $found != "" ]]; then
+        break
+      fi
+    done
+  fi
+
+  if [[ $found == "" ]]; then
+    die "Require dependency ${libname}. You should use pip to install it, following:\n
         ${PYTHON} -m pip install -r ${requirements}"
-    fi
-done < $requirements
+  fi
+done <$requirements
 
 # Furthermore, if users want to use several components, he should install optional dependencies.
 ## e.g., gs_dbmind component sqldiag ...
 optional_reqs=$REQUIREMENT_PATH/"requirements-optional.txt"
 if [[ "$1" == "component" ]] && [[ "$2" == "sqldiag" || "$2" == "xtuner" ]]; then
-    while read line; do
-        libname=$(extract_libname $line)
-        # skip comment
-        if [[ $libname == "#"* ]] || [[ $libname == "" ]] ; then
-            continue
-        fi
+  while read line; do
+    libname=$(extract_libname $line)
+    # skip comment
+    if [[ $libname == "#"* ]] || [[ $libname == "" ]]; then
+      continue
+    fi
 
-        found=$(echo $installed_list | grep -i "$libname")
-        if [[ $found == "" ]]; then
-            echo -e "NOTICE: Maybe you need dependency ${libname} while using this component. You should use pip to install it, following:\n
+    found=$(echo $installed_list | grep -i "$libname")
+    if [[ $found == "" ]]; then
+      echo -e "NOTICE: Maybe you need dependency ${libname} while using this component. You should use pip to install it, following:\n
             ${PYTHON} -m pip install -r ${optional_reqs}"
-        fi
-    done < $optional_reqs
+    fi
+  done <$optional_reqs
 fi
 
 set -f
-for arg in "${@}" ; do
-    if [[ ${arg:0:1} != '-' ]]; then
-        arg=`echo $arg |sed 's/"""/\\\\\\"\\\\\\"\\\\\\"/g'`
-        arg=`${PYTHON} -c "import shlex;print(shlex.quote(\"\"\"$arg\"\"\"))"`
-    fi
-    _args=$_args" "$arg
+for arg in "${@}"; do
+  if [[ ${arg:0:1} != '-' ]]; then
+    arg=$(echo $arg | sed 's/"""/\\\\\\"\\\\\\"\\\\\\"/g')
+    arg=$(${PYTHON} -c "import shlex;print(shlex.quote(\"\"\"$arg\"\"\"))")
+  fi
+  _args=$_args" "$arg
 done
 
 cd $ORIGIN_PATH
 eval $PYTHON $DBMIND_PATH/ $_args
-

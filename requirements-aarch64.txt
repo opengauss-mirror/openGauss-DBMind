@@ -4,18 +4,19 @@ paramiko>=2.7.2
 numpy
 scipy
 requests
-sql-metadata
 sqlparse
 fastapi
 uvicorn
-python-multipart
 sqlalchemy==1.4.44
-psycopg2-binary
+# Use `#` to set an alternative psycopg2
+psycopg2-binary # psycopg2
 pycryptodome
 ## For components ##
-mo-sql-parsing>=9.262.22323
 prettytable>=2.5.0
 ## Prometheus Exporter
 pyyaml
 prometheus-client
+# Rewriter
+sql-metadata
+mo-sql-parsing>=9.262.22323
 
