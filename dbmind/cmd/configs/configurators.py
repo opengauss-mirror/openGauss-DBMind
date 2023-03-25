@@ -79,12 +79,13 @@ class ReadonlyConfig(BaseConfig):
             s1 = dynamic_config_get(IV_TABLE, 'cipher_s1')
             s2 = dynamic_config_get(IV_TABLE, 'cipher_s2')
             iv = dynamic_config_get(IV_TABLE, '%s-%s' % (section, option))
-            if value.startswith(ENCRYPTED_SIGNAL):
+            if value.startswith(ENCRYPTED_SIGNAL) and iv:
                 real_value = value[len(ENCRYPTED_SIGNAL):]
             else:
                 raise ExceptionCatcher.DontIgnoreThisError(configparser.InterpolationSyntaxError(
                     section, option, 'DBMind only supports encrypted password. '
-                                     'Please set %s-%s and initialize the configuration file.' % (section, option),
+                                     'Please try to set %s-%s and initialize the configuration file.'
+                                     % (section, option),
                 ))
 
             try:

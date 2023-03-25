@@ -149,10 +149,12 @@ class AgentProxy:
             if agent.heartbeat():
                 # double check for primary instance
                 if not _is_primary(agent):
+                    i += 1
                     continue
 
                 host, port = _get_agent_instance_details(agent)
                 if not host:
+                    i += 1
                     continue
                 addr = '%s:%s' % (host, port)
                 self._agents[addr] = agent
@@ -197,6 +199,7 @@ class AgentProxy:
             ssl_key_password=ssl_key_password,
             ca_file=ca_file
         )
+        agent.set_timeout(seconds=10)
         self._unchecked_agents.append(agent)
 
     def agent_lightweight_update(self):
