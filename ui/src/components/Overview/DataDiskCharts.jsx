@@ -21,8 +21,8 @@ export default class DataDiskCharts extends Component {
         db.ss.set('tilt_rate_Min', data.tilt_rate)
       }
       let allData = [[
-        { value: data.used_space.toFixed(2), name: 'Used Space' },
-        { value: data.free_space.toFixed(2), name: 'Free Space' },
+        { value: data.used_space, name: 'Used Space' },
+        { value: data.free_space, name: 'Free Space' },
       ],[
         { value: db.ss.get('tilt_rate_Max'), name: 'Max' },
         { value: db.ss.get('tilt_rate_Min'), name: 'Min' },
