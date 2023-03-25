@@ -136,7 +136,6 @@ def get_query_plan(
         )
     else:
         raise AssertionError()
-
     return query_context.slow_sql_instance.query_plan, query_context.query_type
 
 
@@ -165,10 +164,10 @@ def _is_schema_exist(schema, database=None, data_source='tsdb', driver=None):
 
 
 def try_to_initialize_rpc_and_tsdb(database, schema):
-    if not initialize_rpc_service():
-        return False, 'RPC service does not exist, exiting...'
     if not initialize_tsdb_param():
         return False, 'TSDB service does not exist, exiting...'
+    if not initialize_rpc_service():
+        return False, 'RPC service does not exist, exiting...'
     if database is None:
         return False, "Lack the information of 'database', exiting..."
     if not _is_database_exist(database, data_source='tsdb'):
@@ -189,7 +188,7 @@ def try_to_get_driver(url, schema):
     return driver, None
 
 
-def show(query, start_time, end_time):
+def show(instance, query, start_time, end_time):
     field_names = (
         'slow_query_id', 'schema_name', 'db_name',
         'query', 'start_at', 'duration_time',
@@ -198,7 +197,7 @@ def show(query, start_time, end_time):
     output_table = PrettyTable()
     output_table.field_names = field_names
 
-    result = slow_queries.select_slow_queries(field_names, query, start_time, end_time)
+    result = slow_queries.select_slow_queries(instance, field_names, query, start_time, end_time)
     nb_rows = 0
     for slow_query in result:
         row = [getattr(slow_query, field) for field in field_names]
@@ -287,6 +286,8 @@ def main(argv):
                         help='choose a functionality to perform')
     parser.add_argument('-c', '--conf', metavar='DIRECTORY', required=True, type=path_type,
                         help='Set the directory of configuration files')
+    parser.add_argument('--instance', metavar='INSTANCE',
+                        help='Set the instance of slow query. Using in show.')
     parser.add_argument('--database', metavar='DATABASE',
                         help='Set the name of database')
     parser.add_argument('--schema', metavar='SCHEMA',
@@ -364,7 +365,7 @@ def main(argv):
 
     try:
         if args.action == 'show':
-            show(args.query, args.start_time, args.end_time)
+            show(args.instance, args.query, args.start_time, args.end_time)
         elif args.action == 'clean':
             clean(args.retention_days)
         elif args.action == 'diagnosis':

@@ -835,7 +835,7 @@ def get_valid_indexes(advised_indexes, original_base_indexes, statement, executo
         if need_check:
             cur_indexes, cur_cost = query_index_check(executor, statement, valid_indexes)
             # If the cost reduction does not exceed 5%, return the previous indexes.
-            if cost / cur_cost < 1.05:
+            if cur_cost is not None and cost / cur_cost < 1.05:
                 set_source_indexes(pre_indexes, original_base_indexes)
                 return pre_indexes
             valid_indexes = cur_indexes

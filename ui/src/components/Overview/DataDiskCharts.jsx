@@ -15,22 +15,21 @@ export default class DataDiskCharts extends Component {
   async getDataDisk () {
     const { success, data, msg }= await getDataDisk(db.ss.get('Instance_value'))
     if (success && JSON.stringify(data) !== "{}") {
-      let obj = data[Object.keys(data)[0]]
-      if(obj.tilt_rate > db.ss.get('tilt_rate_Max')){
-        db.ss.set('tilt_rate_Max', obj.tilt_rate)
-      } else if(obj.tilt_rate < db.ss.get('tilt_rate_Min')){
-        db.ss.set('tilt_rate_Min', obj.tilt_rate)
+      if(data.tilt_rate > db.ss.get('tilt_rate_Max')){
+        db.ss.set('tilt_rate_Max', data.tilt_rate)
+      } else if(data.tilt_rate < db.ss.get('tilt_rate_Min')){
+        db.ss.set('tilt_rate_Min', data.tilt_rate)
       }
       let allData = [[
-        { value: obj.used_space.toFixed(2), name: 'Used Space' },
-        { value: obj.free_space.toFixed(2), name: 'Free Space' },
+        { value: data.used_space, name: 'Used Space' },
+        { value: data.free_space, name: 'Free Space' },
       ],[
         { value: db.ss.get('tilt_rate_Max'), name: 'Max' },
         { value: db.ss.get('tilt_rate_Min'), name: 'Min' },
-      ],[{totalLeft:obj.usage_rate,totalRight:obj.tilt_rate}]]
+      ],[{totalLeft:data.usage_rate,totalRight:data.tilt_rate}]]
       this.setState(() => ({
         chartData: allData,
-        instance:Object.keys(data)[0]
+        instance:db.ss.get('Instance_value')
       }))
     } else {
       message.error(msg)
