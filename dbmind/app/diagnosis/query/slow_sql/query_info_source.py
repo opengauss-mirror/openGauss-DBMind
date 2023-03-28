@@ -152,15 +152,14 @@ class Index:
         )
 
 
-class TimedTask:
+class TotalMemoryDetail:
     def __init__(self):
-        self.job_id = None
-        self.priv_user = None
-        self.dbname = None
-        self.job_status = None
-        self.last_start_date = 0
-        self.last_end_date = 0
-        self.failure_count = 0
+        # unit is 'MB'
+        self.max_process_memory = 1
+        self.process_used_memory = 0
+        self.max_dynamic_memory = 1
+        self.dynamic_used_memory = 0
+        self.other_used_memory = 0
 
 
 class ThreadInfo:
@@ -222,6 +221,9 @@ class QueryContext:
         raise NotImplementedError
 
     def acquire_rewritten_sql(self):
+        raise NotImplementedError
+
+    def acquire_total_memory_detail(self):
         raise NotImplementedError
 
 
@@ -645,6 +647,9 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         notes: it is expensive to record all waiting events in TSDB,
                so currently only support for obtaining thread waiting event information at runtime.
         """
+        thread_info = ThreadInfo()
+        if self.slow_sql_instance.query_id <= 0:
+            return thread_info
         stmt = """
         select tid, wait_status, wait_event, block_sessionid, lockmode from pg_catalog.pg_thread_wait_status where 
         query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.query_id)
@@ -652,7 +657,6 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                                             stmt,
                                             self.slow_sql_instance.db_name,
                                             return_tuples=False)
-        thread_info = ThreadInfo()
         if is_driver_result_valid(rows):
             thread_info.thread_id = _get_driver_value(rows, 'tid', precision=-1)
             thread_info.wait_event = _get_driver_value(rows, 'wait_event', precision=-1)
@@ -870,6 +874,22 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                     unused_index[key].append(row.get('indexrelname'))
         return unused_index
 
+    @exception_follower(output=TotalMemoryDetail)
+    @exception_catcher
+    def acquire_total_memory_detail(self) -> TotalMemoryDetail:
+        memory_detail = TotalMemoryDetail()
+        stmt = """
+        select memorytype, memorybytes from pg_catalog.gs_total_memory_detail 
+        where memorytype in ('max_process_memory', 'process_used_memory', 'max_dynamic_memory', 
+        'dynamic_used_memory', 'other_used_memory')"""
+        rows = global_vars.agent_proxy.call('query_in_database',
+                                            stmt,
+                                            self.slow_sql_instance.db_name,
+                                            return_tuples=False)
+        for row in rows:
+            setattr(memory_detail, row.get('memorytype'), round(float(row.get('memorymbytes')), 2))
+        return memory_detail
+
 
 class QueryContextFromDriver(QueryContext):
     def __init__(self, slow_sql_instance, **kwargs):
@@ -1005,7 +1025,6 @@ class QueryContextFromDriver(QueryContext):
         database_info = DatabaseInfo()
         used_connections_stmt = "select count(1) as used_conn from pg_stat_activity;"
         used_connections_rows = self.driver.query(used_connections_stmt,
-                                                  force_connection_db=self.slow_sql_instance.db_name,
                                                   return_tuples=False)
         thread_pool_rate_stmts = "select s1.count / s2.count as rate from " \
                                  "(select count(*)  as count from pg_thread_wait_status " \
@@ -1013,7 +1032,6 @@ class QueryContextFromDriver(QueryContext):
                                  "(select count(*)  as count from pg_thread_wait_status " \
                                  "where wait_status != 'wait cmd') s2;"
         thread_pool_rate_rows = self.driver.query(thread_pool_rate_stmts,
-                                                  force_connection_db=self.slow_sql_instance.db_name,
                                                   return_tuples=False)
         if is_driver_result_valid(thread_pool_rate_rows):
             database_info.thread_pool_rate = _get_driver_value(thread_pool_rate_rows, 'rate', precision=4)
@@ -1024,11 +1042,13 @@ class QueryContextFromDriver(QueryContext):
     @exception_follower(output=list)
     @exception_catcher
     def acquire_wait_event_info(self) -> ThreadInfo:
+        thread_info = ThreadInfo()
+        if self.slow_sql_instance.query_id <= 0:
+            return thread_info
         stmt = """
         select tid, wait_status, wait_event, block_sessionid, lockmode from pg_catalog.pg_thread_wait_status where 
         query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.query_id)
         rows = self.driver.query(stmt, force_connection_db=self.slow_sql_instance.db_name, return_tuples=False)
-        thread_info = ThreadInfo()
         if is_driver_result_valid(rows):
             thread_info.event = _get_driver_value(rows, 'event', precision=-1)
             thread_info.wait_status = _get_driver_value(rows, 'wait_status', precision=-1)
@@ -1135,3 +1155,16 @@ class QueryContextFromDriver(QueryContext):
                 for row in rows:
                     unused_index.append(row.get('indexrelname'))
         return unused_index
+
+    @exception_follower(output=TotalMemoryDetail)
+    @exception_catcher
+    def acquire_total_memory_detail(self) -> TotalMemoryDetail:
+        memory_detail = TotalMemoryDetail()
+        stmt = """
+        select memorytype, memorymbytes from pg_catalog.gs_total_memory_detail 
+        where memorytype in ('max_process_memory', 'process_used_memory', 'max_dynamic_memory', 
+        'dynamic_used_memory', 'other_used_memory')"""
+        rows = self.driver.query(stmt, return_tuples=False)
+        for row in rows:
+            setattr(memory_detail, row.get('memorytype'), round(float(row.get('memorymbytes')), 2))
+        return memory_detail

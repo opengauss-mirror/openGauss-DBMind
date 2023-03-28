@@ -14,15 +14,11 @@ import logging
 import time
 
 from dbmind.app import monitoring
-from dbmind.common.algorithm.anomaly_detection.spike_detector import SpikeDetector
 from dbmind.common.parser import sql_parsing
-from dbmind.common.types import Sequence
 from ..slow_sql.query_info_source import QueryContext
 
 PROPERTY_LENGTH = 40
-minimal_hit_rate = 0.95
-
-spike_detector = SpikeDetector(side="positive")
+MINIMAL_HIT_RATE = 0.98
 
 
 def _search_table_structures(table_structures, table_name):
@@ -70,14 +66,6 @@ def _hashjoin_adaptor(node):
     return False
 
 
-def _existing_spike(data):
-    sequence = Sequence(values=data, timestamps=list(range(len(data))))
-    result = spike_detector.fit_predict(sequence)
-    if True in result.values:
-        return True
-    return False
-
-
 def _get_node_rows(table_structures, node):
     if 'Seq Scan' in node.name:
         if node.properties.get('Filter'):
@@ -115,6 +103,7 @@ class QueryFeature:
         self.wait_event_info = None
         self.unused_index_info = None
         self.redundant_index_info = None
+        self.total_memory_detail = None
         self.detail = {}
         self.suggestion = {}
 
@@ -132,6 +121,7 @@ class QueryFeature:
         self.wait_event_info = self.query_context.acquire_wait_event_info()
         self.pg_setting_info = self.query_context.acquire_pg_settings()
         self.unused_index_info = self.query_context.acquire_unused_index()
+        self.total_memory_detail = self.query_context.acquire_total_memory_detail()
 
     @property
     def select_type(self) -> bool:
@@ -262,7 +252,7 @@ class QueryFeature:
         if self.plan_parse_info is None:
             if fetched_tuples + returned_tuples >= monitoring.get_threshold('fetch_tuples_threshold') or \
                     returned_rows >= monitoring.get_threshold('returned_rows_threshold'):
-                if hit_rate <= minimal_hit_rate:
+                if hit_rate <= MINIMAL_HIT_RATE:
                     self.detail['heavy_scan_operator'] = "Existing large scan situation and hit rate is low. " \
                                                       "Detail: fetch_tuples(%s), returned_rows(%s), hit_rate: %s" % \
                                                       (fetched_tuples + returned_tuples, returned_rows, hit_rate)
@@ -524,28 +514,55 @@ class QueryFeature:
           case3: Insufficient space in database data directory.
           case4: The connections of database accounts for too much of the total connections.
         """
-        indexes = ['a', 'b', 'c', 'd', 'e', 'f']
+        indexes = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
         wk_expansion_factor = 10
         self.detail['workload_contention'], self.suggestion['workload_contention'] = '', ''
+
+        # determine whether the process_used_memory occupancy rate is too high
+        if self.total_memory_detail.process_used_memory / \
+                self.total_memory_detail.max_process_memory >= monitoring.get_param('db_memory_rate_threshold'):
+            self.detail['workload_contention'] += "%s. The rate of max_process_memory is too high: %s" % \
+                                                  (indexes.pop(0),
+                                                   round(self.total_memory_detail.process_used_memory /
+                                                         self.total_memory_detail.max_process_memory, 2))
+
+        # determine whether the dynamic_used_memory occupancy rate is too high
+        if self.total_memory_detail.dynamic_used_memory / \
+                self.total_memory_detail.max_dynamic_memory >= monitoring.get_param('db_memory_rate_threshold'):
+            self.detail['workload_contention'] += "%s. The rate of max_dynamic_memory is too high: %s" % \
+                                                  (indexes.pop(0),
+                                                   round(self.total_memory_detail.dynamic_used_memory /
+                                                         self.total_memory_detail.max_dynamic_memory, 2))
+
+        # determine whether the other_used_memory is too large
+        if self.total_memory_detail.other_used_memory >= monitoring.get_param('other_used_memory_threshold'):
+            self.detail['workload_contention'] += "%s. The other_used_memory is high: %s" % \
+                                                  (indexes.pop(0),
+                                                   self.total_memory_detail.other_used_memory)
+
         # determine whether the TPS is too large
         if self.database_info.tps and 'max_connections' in self.pg_setting_info and \
                 self.database_info.tps >= self.pg_setting_info['max_connections'].setting * wk_expansion_factor:
             self.detail['workload_contention'] += "%s. Current business is heavy \n" % indexes.pop(0)
+
         # determine whether the db_cpu_usage is too high
         if self.system_info.db_cpu_usage and \
                 max(self.system_info.db_cpu_usage) >= monitoring.get_param('cpu_usage_threshold'):
             self.detail['workload_contention'] += "%s. The current database CPU usage is significant: %s\n" \
                                                   % (indexes.pop(0), self.system_info.db_cpu_usage)
+
         # determine whether the db_mem_usage is too high
         if self.system_info.db_mem_usage and \
                 max(self.system_info.db_mem_usage) >= monitoring.get_param('mem_usage_threshold'):
             self.detail['workload_contention'] += "%s. The current database memory usage is significant: %s\n" \
                                                   % (indexes.pop(0), self.system_info.db_mem_usage)
+
         # determine whether the disk usage which data directory located is too high
         if self.system_info.disk_usage and \
                 max(self.system_info.disk_usage) >= monitoring.get_param('disk_usage_threshold'):
             self.detail['workload_contention'] += "%s. Insufficient free space in the database directory\n" % \
                                                   indexes.pop(0)
+
         # determine whether the connection occupancy rate is too high
         if 'max_connections' in self.pg_setting_info and \
                 self.database_info.connection / self.pg_setting_info['max_connections'].setting >= \
@@ -554,15 +571,24 @@ class QueryFeature:
                                                   (indexes.pop(0),
                                                    self.database_info.connection /
                                                    self.pg_setting_info['max_connections'].setting)
+
         # determine whether the thread pool occupancy rate is too high
         if 'enable_thread_pool' in self.pg_setting_info and \
                 self.pg_setting_info['enable_thread_pool'].setting and \
                 self.database_info.thread_pool_rate >= monitoring.get_param('thread_pool_usage_threshold'):
             self.detail['workload_contention'] += "%s. The rate of thread pool usage is high: %s\n" % \
                                                   (indexes.pop(0), self.database_info.thread_pool_rate)
+        indexes = ['a', 'b', 'c']
         if self.detail.get('workload_contention'):
-            self.suggestion['workload_contention'] = "The current workload is heavy. " \
-                                                     "Check SLOW-SQL or whether the request is concentrated"
+            if 'other_used_memory' in self.detail['workload_contention']:
+                self.suggestion['workload_contention'] += \
+                    "%s. Detecting whether exists third-party memory usage heaps" % indexes.pop(0)
+            if 'max_dynamic_memory' in self.detail.get('workload_contention') or \
+                    'max_process_memory' in self.detail.get('workload_contention'):
+                self.suggestion['workload_contention'] += "%s. Detecting whether exists memory context " \
+                                                          "consuming too much dynamic memory" % indexes.pop(0)
+            self.suggestion['workload_contention'] += "%s. Current workload is heavy. Determine whether it is caused " \
+                                                      "by abnormal transaction or just busy business" % indexes.pop(0)
             return True
         return False
 
@@ -648,7 +674,8 @@ class QueryFeature:
     @property
     def os_resource_contention(self) -> bool:
         """Determine whether other processes outside the database occupy too many handle resources."""
-        if max(self.system_info.process_fds_rate) >= monitoring.get_param('handler_occupation_threshold'):
+        if self.system_info.process_fds_rate and \
+                max(self.system_info.process_fds_rate) >= monitoring.get_param('handler_occupation_threshold'):
             self.detail['os_resource_contention'] = "The system fds occupation rate is significant: %s;" \
                                                     % self.system_info.process_fds_rate
             self.suggestion['os_resource_contention'] = "Determine the handle resource is occupied " \
