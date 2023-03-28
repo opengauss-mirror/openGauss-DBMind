@@ -1077,7 +1077,8 @@ def get_regular_inspections_count(inspection_type):
         inspection_type=inspection_type)
 
 
-def get_correlation_result(metric_name, instance, start_time, end_time, topk=10):
+def get_correlation_result(metric_name, instance, start_time, end_time, topk=10,
+                           metric_filter=None):
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
     # In case the length from start_time to end_time is too short,
@@ -1094,8 +1095,10 @@ def get_correlation_result(metric_name, instance, start_time, end_time, topk=10)
 
     sequence_args = [((metric, instance, start_datetime, end_datetime),) for metric in all_metrics]
 
-    these_sequences = get_sequences((metric_name, instance, start_datetime, end_datetime))
-    if not these_sequences:
+    metric_filter = string_to_dict(metric_filter) if isinstance(metric_filter, str) else dict()
+    fetcher = dai.get_metric_sequence(metric_name, start_datetime, end_datetime).filter(**metric_filter)
+    this_sequence = fetcher.from_server(instance).fetchone()
+    if len(this_sequence) == 0:
         raise ValueError('The metric was not found.')
 
     sequence_results = global_vars.worker.parallel_execute(
@@ -1105,22 +1108,21 @@ def get_correlation_result(metric_name, instance, start_time, end_time, topk=10)
     if all(sequences is None for sequences in sequence_results):
         raise ValueError('The sequence_results is all None.')
 
-    correlation_result = dict()
-    for this_name, this_sequence in these_sequences:
-        correlation_args = list()
-        for sequences in sequence_results:
-            for name, sequence in sequences:
-                correlation_args.append(((name, sequence, this_sequence),))
+    correlation_results = dict()
+    this_name = metric_name + " from " + instance
+    correlation_args = list()
+    for sequences in sequence_results:
+        for name, sequence in sequences:
+            correlation_args.append(((name, sequence, this_sequence),))
 
-        correlation_result[this_name] = global_vars.worker.parallel_execute(
-            get_correlations, correlation_args
-        ) or []
+    correlation_results[this_name] = global_vars.worker.parallel_execute(
+        get_correlations, correlation_args
+    ) or []
 
-    for this_name, this_sequence in correlation_result.items():
-        this_sequence.sort(key=lambda item: item[1], reverse=True)
-        del (this_sequence[topk:])
+    correlation_results[this_name].sort(key=lambda item: item[1], reverse=True)
+    del (correlation_results[this_name][topk:])
 
-    return correlation_result
+    return correlation_results
 
 
 def check_memory_context(start_time, end_time):

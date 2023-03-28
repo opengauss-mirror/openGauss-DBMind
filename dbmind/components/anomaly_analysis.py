@@ -114,21 +114,21 @@ def multi_process_correlation_calculation(metric, sequence_args, corr_threshold=
             write_to_terminal('The metric was not found.')
             return
 
-        correlation_result = dict()
+        correlation_results = dict()
         for this_name, this_sequence in these_sequences:
             correlation_args = list()
             for sequences in sequence_result:
                 for name, sequence in sequences:
                     correlation_args.append((name, sequence, this_sequence))
-            correlation_result[this_name] = pool.map(get_correlations, iterable=correlation_args)
+            correlation_results[this_name] = pool.map(get_correlations, iterable=correlation_args)
    
     pool.join()
 
-    for this_name, this_sequence in correlation_result.items():
-        this_sequence.sort(key=lambda item: item[1], reverse=True)
-        del(this_sequence[topk:])
+    for name in correlation_results:
+        correlation_results[name].sort(key=lambda item: item[1], reverse=True)
+        del(correlation_results[name][topk:])
         
-    return correlation_result
+    return correlation_results
 
 
 def single_process_correlation_calculation(metric, sequence_args, corr_threshold=0, topk=100):
@@ -144,15 +144,15 @@ def single_process_correlation_calculation(metric, sequence_args, corr_threshold
         write_to_terminal('The metric was not found.')
         return
 
-    correlation_result = defaultdict(list)
+    correlation_results = defaultdict(list)
     for this_name, this_sequence in these_sequences:
         for name, sequence in sequence_result:
             name, corr, delay, values, timestamps = get_correlations((name, sequence, this_sequence))
             if abs(corr) >= corr_threshold:
-                correlation_result[this_name].append((name, corr, delay, values, timestamps))
-        correlation_result[this_name].sort(key=lambda item: item[1], reverse=True)
-        correlation_result[this_name] = correlation_result[this_name][:topk]
-    return correlation_result
+                correlation_results[this_name].append((name, corr, delay, values, timestamps))
+        correlation_results[this_name].sort(key=lambda item: item[1], reverse=True)
+        correlation_results[this_name] = correlation_results[this_name][:topk]
+    return correlation_results
 
 
 def main(argv):
@@ -193,14 +193,14 @@ def main(argv):
     sequence_args = [(metric_name, host, start_datetime, end_datetime) for metric_name in all_metrics]
 
     if platform.system() != 'Windows':
-        correlation_result = multi_process_correlation_calculation(metric, sequence_args)
+        correlation_results = multi_process_correlation_calculation(metric, sequence_args)
     else:
-        correlation_result = single_process_correlation_calculation(metric, sequence_args)
+        correlation_results = single_process_correlation_calculation(metric, sequence_args)
 
     result = dict()
-    for this_name in correlation_result:
+    for this_name in correlation_results:
         this_result = defaultdict(tuple)
-        for name, corr, delay, values, timestamps in correlation_result[this_name]:
+        for name, corr, delay, values, timestamps in correlation_results[this_name]:
             this_result[name] = max(this_result[name], (abs(corr), name, corr, delay, values, timestamps))
         result[this_name] = this_result
 

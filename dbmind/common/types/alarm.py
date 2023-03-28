@@ -19,19 +19,24 @@ from .root_cause import RootCause
 class Alarm:
     def __init__(self,
                  instance: Optional[str] = None,
-                 alarm_content: str = None,
+                 metric_name: str = None,
+                 metric_filter: dict = None,
                  alarm_type: ALARM_TYPES = ALARM_TYPES.SYSTEM,
-                 metric_name: str = None, start_timestamp=None, end_timestamp=None,
                  alarm_level: ALARM_LEVEL = ALARM_LEVEL.ERROR,
-                 alarm_cause: Optional[Union[RootCause, Iterable[RootCause]]] = None,
-                 extra=None, anomaly_type=None):
+                 start_timestamp=None,
+                 end_timestamp=None,
+                 alarm_content: str = None,
+                 extra=None,
+                 anomaly_type=None,
+                 alarm_cause: Optional[Union[RootCause, Iterable[RootCause]]] = None):
         self.instance = instance
-        self.alarm_content = alarm_content
-        self.alarm_type = alarm_type
         self.metric_name = metric_name
+        self.metric_filter = metric_filter
+        self.alarm_type = alarm_type
         self.alarm_level = alarm_level
         self.start_timestamp = start_timestamp
         self.end_timestamp = end_timestamp
+        self.alarm_content = alarm_content
         self.extra = extra
         self.anomaly_type = anomaly_type
 
