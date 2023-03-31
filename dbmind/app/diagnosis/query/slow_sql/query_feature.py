@@ -199,8 +199,8 @@ class QueryFeature:
         if not self.table_structure or self.insert_type:
             return False
         table_info = {f"{item.schema_name}:{item.table_name}": {'dead_rate': item.dead_rate,
-                                                                'live_tup': item.live_tuples,
-                                                                'dead_tup': item.dead_tuples,
+                                                                'live_tuples': item.live_tuples,
+                                                                'dead_tuples': item.dead_tuples,
                                                                 'table_size': item.table_size}
                       for item in self.table_structure}
         self.detail['dead_rate'] = {}
@@ -445,8 +445,6 @@ class QueryFeature:
             if self.slow_sql_instance.sort_spill_count >= monitoring.get_threshold('sort_rate_threshold') or \
                     self.slow_sql_instance.hash_spill_count >= monitoring.get_threshold('sort_rate_threshold'):
                 self.detail['disk_spill'] = "Disk-Spill may occur during SORT or Hash operation"
-                return True
-            return False
         else:
             plan_total_cost = self.plan_parse_info.root_node.total_cost
             if plan_total_cost <= 0:
@@ -549,13 +547,13 @@ class QueryFeature:
         if self.system_info.db_cpu_usage and \
                 max(self.system_info.db_cpu_usage) >= monitoring.get_param('cpu_usage_threshold'):
             self.detail['workload_contention'] += "%s. The current database CPU usage is significant: %s\n" \
-                                                  % (indexes.pop(0), self.system_info.db_cpu_usage)
+                                                  % (indexes.pop(0), max(self.system_info.db_cpu_usage))
 
         # determine whether the db_mem_usage is too high
         if self.system_info.db_mem_usage and \
                 max(self.system_info.db_mem_usage) >= monitoring.get_param('mem_usage_threshold'):
             self.detail['workload_contention'] += "%s. The current database memory usage is significant: %s\n" \
-                                                  % (indexes.pop(0), self.system_info.db_mem_usage)
+                                                  % (indexes.pop(0), max(self.system_info.db_mem_usage))
 
         # determine whether the disk usage which data directory located is too high
         if self.system_info.disk_usage and \
@@ -598,7 +596,7 @@ class QueryFeature:
         if self.system_info.user_cpu_usage and \
                 max(self.system_info.user_cpu_usage) >= monitoring.get_param('cpu_usage_threshold'):
             self.detail['system_cpu_contention'] = "The current user cpu usage is significant: %s." \
-                                                   % self.system_info.user_cpu_usage
+                                                   % max(self.system_info.user_cpu_usage)
         if self.detail.get('system_cpu_contention'):
             self.suggestion['system_cpu_contention'] = "Handle exception processes in system"
             return True
@@ -632,7 +630,7 @@ class QueryFeature:
                 max(self.system_info.system_mem_usage) >= monitoring.get_param('mem_usage_threshold'):
             self.detail['system_mem_contention'] = "The current system mem usage" \
                                                    " is significant: %s;" \
-                                                   % self.system_info.system_mem_usage
+                                                   % max(self.system_info.system_mem_usage)
         if self.detail.get('system_mem_contention'):
             self.suggestion['system_mem_contention'] = "Check whether there exists external " \
                                                        "process which snatch resources"
@@ -677,7 +675,7 @@ class QueryFeature:
         if self.system_info.process_fds_rate and \
                 max(self.system_info.process_fds_rate) >= monitoring.get_param('handler_occupation_threshold'):
             self.detail['os_resource_contention'] = "The system fds occupation rate is significant: %s;" \
-                                                    % self.system_info.process_fds_rate
+                                                    % max(self.system_info.process_fds_rate)
             self.suggestion['os_resource_contention'] = "Determine the handle resource is occupied " \
                                                         "by database or other processes"
             return True
@@ -869,7 +867,6 @@ class QueryFeature:
         self.detail['string_matching'], self.suggestion['string_matching'] = '', ''
         matching_results = sql_parsing.exists_regular_match(self.slow_sql_instance.query)
         existing_functions = sql_parsing.exists_function(self.slow_sql_instance.query)
-        sort_operators = self.plan_parse_info.find_operators('Sort', accurate=True)
         if self.plan_parse_info is not None:
             matching_results = [item.replace('like', '~~') for item in matching_results]
             existing_functions = [sql_parsing.remove_bracket(item) for item in existing_functions]
@@ -899,15 +896,18 @@ class QueryFeature:
             self.suggestion['string_matching'] += "%s. Avoid using functions or expression " \
                                                   "operations on indexed columns or " \
                                                   "create expression index for it" % index
-        if sql_parsing.regular_match(r"order\s+by\s+random()", self.slow_sql_instance.query.lower()) and sort_operators:
-            index = indexes.pop(0)
-            for sort_operator in sort_operators:
-                if 'random' in sort_operator.properties.get('Sort Key'):
-                    self.detail['string_matching'] += "%s. Suspected to use 'order by random()' " \
-                                                      "which may cause index failure" % index
-                    self.suggestion['string_matching'] += "%s. Confirm whether the scene requires " \
-                                                          "this operation" % index
-                    break
+        if self.plan_parse_info is not None:
+            sort_operators = self.plan_parse_info.find_operators('Sort', accurate=True)
+            if sql_parsing.regular_match(r"order\s+by\s+random()", self.slow_sql_instance.query.lower()) and \
+                    sort_operators:
+                index = indexes.pop(0)
+                for sort_operator in sort_operators:
+                    if 'random' in sort_operator.properties.get('Sort Key'):
+                        self.detail['string_matching'] += "%s. Suspected to use 'order by random()' " \
+                                                          "which may cause index failure" % index
+                        self.suggestion['string_matching'] += "%s. Confirm whether the scene requires " \
+                                                              "this operation" % index
+                        break
         if self.detail['string_matching']:
             return True
         return False

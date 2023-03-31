@@ -58,21 +58,20 @@ class DynamicParams(DynamicConfig):
     ]}
 
     detection_threshold = {'detection_threshold': [
-        ('connection_usage_threshold', 0.9, ''),
-        ('cpu_usage_threshold', 0.6, ''),
-        ('cpu_high_usage_percent', 0.8, ''),
-        ('data_file_wait_threshold', 100000, ''),
+        ('connection_usage_threshold', 0.9, 'The alarm threshold for the number of '
+                                            'connections and the maximum number of allowed connections.'),
+        ('cpu_usage_threshold', 0.6, 'The alarm threshold of CPU(User) usage.'),
+        ('cpu_high_usage_percent', 0.8, 'The proportion of abnormal CPU usage in the time window.'),
         ('db_memory_rate_threshold', 0.8, "The threshold of memory occupy in gs_total_memory_detail."),
-        ('disk_ioutils_threshold', 0.7, ''),
-        ('disk_usage_threshold', 0.7, ''),
-        ('handler_occupation_threshold', 0.7, ''),
-        ('idle_session_occupy_rate_threshold', 0.3, ''),
-        ('mem_usage_threshold', 0.6, ''),
-        ('network_bandwidth_usage_threshold', 0.8, 'bandwidth usage'),
-        ('other_used_memory_threshold', 5120, "The threshold of other_used_memory. Default is 5GB."),
-        ('package_drop_rate_threshold', 0.01, ''),
-        ('package_error_rate_threshold', 0.01, ''),
-        ('thread_pool_usage_threshold', 0.95, ''),
+        ('disk_ioutils_threshold', 0.7, 'The alarm threshold of IO-Utils.'),
+        ('disk_usage_threshold', 0.7, 'The alarm threshold of disk usage.'),
+        ('handler_occupation_threshold', 0.7, 'The alarm threshold of fds usage.'),
+        ('mem_usage_threshold', 0.6, 'The alarm threshold of memory usage.'),
+        ('network_bandwidth_usage_threshold', 0.8, 'The alarm threshold of bandwidth usage.'),
+        ('other_used_memory_threshold', 5120, "The alarm threshold of other_used_memory. Default is 5GB."),
+        ('package_drop_rate_threshold', 0.01, 'The alarm threshold of network drop rate.'),
+        ('package_error_rate_threshold', 0.01, 'The alarm threshold of network error rate.'),
+        ('thread_pool_usage_threshold', 0.95, 'The alarm threshold of thread pool usage.'),
     ]}
 
     iv_table = {IV_TABLE: [
