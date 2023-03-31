@@ -6,6 +6,7 @@ requests
 sqlparse
 fastapi
 uvicorn
+python-multipart
 sqlalchemy==1.4.44
 # Use `#` to set an alternative psycopg2
 psycopg2-binary # psycopg2
