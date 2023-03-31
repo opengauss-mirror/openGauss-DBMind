@@ -507,7 +507,7 @@ def multiple_cmd_exec(cmdline, **communicate_kwargs):
         # which contains $ and refer to and environment variable.
         dollar_index = -1
         for i, word in enumerate(cmd):
-            if '$' in word:
+            if word[0] == '$' and word.count("$") == 1 and env.get(word[1:]):
                 dollar_index = i
                 break
 
