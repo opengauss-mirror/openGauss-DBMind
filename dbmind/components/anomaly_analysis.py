@@ -25,18 +25,17 @@ from datetime import datetime
 from scipy.interpolate import interp1d
 
 from dbmind import global_vars
-from dbmind.common.algorithm.correlation import max_cross_correlation
+from dbmind.cmd.edbmind import init_global_configs
+from dbmind.common.algorithm.correlation import CorrelationAnalysis
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.utils.checking import (
     check_ip_valid, check_port_valid, date_type, path_type
 )
 from dbmind.common.utils.cli import write_to_terminal
-from dbmind.cmd.edbmind import init_global_configs
 from dbmind.common.utils.component import initialize_tsdb_param
+from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
 from dbmind.service import dai
 from dbmind.service.utils import SequenceUtils
-from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
-
 
 LEAST_WINDOW = int(7.2e3) * 1000
 LOOK_BACK = 0
@@ -111,7 +110,10 @@ def get_correlations(arg):
         fill_value=(sequence.values[0], sequence.values[-1])
     )
     y = f(this_sequence.timestamps)
-    corr, delay = max_cross_correlation(this_sequence.values, y, LOOK_BACK, LOOK_FORWARD)
+    correlation_calculation = CorrelationAnalysis(preprocess_method='diff',
+                                                  analyze_method='pearson')
+    x, y = correlation_calculation.preprocess(this_sequence.values, y)
+    corr, delay = correlation_calculation.analyze(x, y)
     return name, corr, delay, sequence.values, sequence.timestamps
 
 
@@ -138,7 +140,7 @@ def multi_process_correlation_calculation(metric, sequence_args, corr_threshold=
 
     for name in correlation_results:
         correlation_results[name].sort(key=lambda item: item[1], reverse=True)
-        del(correlation_results[name][topk:])
+        del (correlation_results[name][topk:])
         
     return correlation_results
 
@@ -195,7 +197,7 @@ def main(argv):
     init_global_configs(args.conf)
     if not initialize_tsdb_param():
         parser.exit(1, "TSDB service does not exist, exiting...")
-  
+ 
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
     actual_start_time = min(start_time, end_time - LEAST_WINDOW)
@@ -222,7 +224,8 @@ def main(argv):
             csv_path = os.path.join(args.csv_dump_path, new_name + ".csv")
             with open(csv_path, 'w+', newline='') as f:
                 writer = csv.writer(f)
-                for _, name, corr, delay, values, timestamps in sorted(result[this_name].values(), key=lambda t: (t[3], -t[0])):
+                for _, name, corr, delay, values, timestamps in sorted(result[this_name].values(),
+                                                                       key=lambda t: (-abs(t[2]), t[3])):
                     writer.writerow((name, corr, delay) + values)  # Discard the first element abs(corr) after sorting.
 
 
