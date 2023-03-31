@@ -24,7 +24,7 @@ from dbmind.components.fetch_statement import fetch_statement
 from dbmind.components.fetch_statement.fetch_statement import is_valid_statement
 from dbmind.service import dai
 from dbmind.service.utils import SequenceUtils
-
+from dbmind.service.multicluster import RPCAddressError
 from .index_recommendation_rpc_executor import RpcExecutor
 
 process_bar.print = lambda *args, **kwargs: None
@@ -85,7 +85,7 @@ def get_database_schemas():
                 )
 
                 rv[address][db_name] = ','.join(map(lambda l: l[0], schemas))
-        except global_vars.agent_proxy.RPCAddressError as e:
+        except RPCAddressError as e:
             logging.warning(e)
             continue
 

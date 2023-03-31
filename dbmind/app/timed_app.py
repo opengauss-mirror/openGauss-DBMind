@@ -28,6 +28,7 @@ from dbmind.app.optimization import (need_recommend_index,
 from dbmind.common.dispatcher import customized_timer
 from dbmind.common.utils import cast_to_int_or_float, NaiveQueue
 from dbmind.service import dai
+from dbmind.service.multicluster import RPCAddressError
 
 index_template_args = TemplateArgs(
     global_vars.configs.getint(
@@ -148,7 +149,7 @@ def slow_sql_diagnosis():
                 query_contexts.append(
                     (QueryContextFromTSDBAndRPC(slow_query),)
                 )
-        except global_vars.agent_proxy.RPCAddressError as e:
+        except RPCAddressError as e:
             logging.warning(
                 'Cannot diagnose slow queries because %s.', e
             )
