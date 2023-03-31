@@ -122,13 +122,14 @@ class DynamicParams(DynamicConfig):
     ]}
 
     self_monitoring = {'self_monitoring': [
-        ('detection_interval', 600,
-         'Unit is second. The interval for performing health examination on the openGauss through monitoring metrics.'),
-        ('last_detection_time', 600, 'Unit is second. The time for last detection.'),
-        ('forecasting_future_time', 3600,
+        ('detection_interval_seconds', 600,
+         'The interval for performing health examination on '
+         'the openGauss through monitoring metrics.'),
+        ('detection_window_seconds', 600, 'Unit is second. The time for last detection.'),
+        ('forecasting_seconds', 0,
          'Unit is second. How long the KPI in the future for forecasting. '
          'Meanwhile, this is the period for the forecast.'),
-        ('result_storage_retention', 604800,
+        ('result_retention_seconds', 604800,
          'Unit is second. How long should the results retain? '
          'If retention is more than the threshold, DBMind will delete them.'),
         ('golden_kpi', 'os_cpu_usage, os_mem_usage, os_disk_usage, gaussdb_qps_by_instance',

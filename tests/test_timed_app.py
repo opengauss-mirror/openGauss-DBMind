@@ -13,5 +13,5 @@
 from dbmind.app import timed_app
 
 
-def test_self_monitoring():
-    timed_app.self_monitoring()
+def test_anomaly_detection():
+    timed_app.anomaly_detection()

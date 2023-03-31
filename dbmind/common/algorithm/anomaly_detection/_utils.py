@@ -81,4 +81,6 @@ def over_max_coef(coef, side, threshold):
     if side == "positive":
         return coef >= threshold
     elif side == "negative":
+        return -coef >= threshold
+    elif side == "both":
         return abs(coef) >= threshold

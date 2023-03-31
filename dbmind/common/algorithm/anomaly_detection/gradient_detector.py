@@ -11,8 +11,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-import bisect
-
 import numpy as np
 
 from ._abstract_detector import AbstractDetector
@@ -28,30 +26,22 @@ def linear_fitting(x, y):
     return coef, intercept
 
 
-def sequence_partition(s: Sequence, timed_window: int):
-    if s.timestamps[-1] - s.timestamps[0] < timed_window:
-        return s, 0
-    idx = bisect.bisect_right(s.timestamps, s.timestamps[-1] - timed_window)
-    tail = Sequence(timestamps=s.timestamps[idx:], values=s.values[idx:])
-    return tail, idx
-
-
 class GradientDetector(AbstractDetector):
-    def __init__(self, side="positive", max_coef=1, timed_window=300000):  # 300000 ms
+    def __init__(self, side="positive", max_coef=1):
         self.side = side
-        self.max_coef = max_coef
-        self.timed_window = timed_window
+        self.max_coef = abs(max_coef)
 
     def do_gradient_detect(self, s: Sequence):
         coef, _ = linear_fitting(s.timestamps, s.values)
-        return (True,) * len(s) if over_max_coef(coef, self.side, self.max_coef) else (False,) * len(s)
+        if over_max_coef(coef, self.side, self.max_coef):
+            return (True,) * len(s)
+        else:
+            return (False,) * len(s)
 
     def _fit(self, sequence: Sequence):
         """Nothing to impl"""
 
     def _predict(self, s: Sequence) -> Sequence:
         normal_sequence = remove_spike(s)  # remove spike points
-        tail, idx = sequence_partition(normal_sequence, self.timed_window)
-        predicted = self.do_gradient_detect(tail)  # do detect for rapid change
-        values = (False,) * idx + predicted
-        return Sequence(timestamps=normal_sequence.timestamps, values=values)
+        predicted = self.do_gradient_detect(normal_sequence)  # do detect for rapid change
+        return Sequence(timestamps=normal_sequence.timestamps, values=predicted)

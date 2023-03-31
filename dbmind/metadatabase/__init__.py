@@ -66,7 +66,6 @@ def create_dynamic_config_schema():
     with sessionmaker(engine, autocommit=True, autoflush=True)() as session:
         try:
             session.bulk_save_objects(table.default_values())
-        except sqlalchemy.exc.IntegrityError:
+        except sqlalchemy.exc.IntegrityError as e:
             # May be duplicate, ignore it.
-            pass
-
+            raise DuplicateTableError(e)
