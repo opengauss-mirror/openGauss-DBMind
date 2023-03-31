@@ -22,6 +22,7 @@ from dbmind.app.diagnosis.query.slow_sql import query_info_source
 from dbmind.app.diagnosis.query.slow_sql.featurelib import load_feature_lib, get_feature_mapper
 from dbmind.app.diagnosis.query.slow_sql.significance_detection import average_base, ks_base, sum_base
 from dbmind.app.diagnosis.query.slow_sql.slow_query import SlowQuery
+from dbmind.metadatabase.schema.config_dynamic_params import DynamicParams
 
 big_current_data = [10, 10, 10, 10, 10]
 big_history_data = [1, 1, 1, 1, 1]
@@ -33,40 +34,13 @@ ilegal_current_data = []
 ilegal_history_data = [1, 1, 1, 1, 1]
 
 configs = configparser.ConfigParser()
-configs.add_section('detection_params')
-configs.set('detection_params', 'disk_usage_threshold', '0.3')
-configs.set('detection_params', 'mem_usage_threshold', '0.4')
-configs.set('detection_params', 'cpu_usage_threshold', '0.3')
-configs.set('detection_params', 'tps_threshold', '2000')
-configs.set('detection_params', 'io_capacity_threshold', '0.6')
-configs.set('detection_params', 'io_delay_threshold', '0.9')
-configs.set('detection_params', 'handler_occupation_threshold', '0.6')
-configs.set('detection_params', 'disk_ioutils_threshold', '3')
-configs.set('detection_params', 'connection_usage_threshold', '0.6')
-configs.set('detection_params', 'package_drop_rate_threshold', '100')
-configs.set('detection_params', 'package_error_rate_threshold', '100')
-configs.set('detection_params', 'thread_occupy_rate_threshold', '0.95')
-configs.set('detection_params', 'idle_session_occupy_rate_threshold', '0.3')
+configs.add_section('detection_threshold')
+for option, value, _ in DynamicParams.__default__.get('detection_threshold'):
+    configs.set('detection_threshold', option, str(value))
 
 configs.add_section('slow_sql_threshold')
-configs.set('slow_sql_threshold', 'tuple_number_threshold', '5000')
-configs.set('slow_sql_threshold', 'table_total_size_threshold', '2048')
-configs.set('slow_sql_threshold', 'fetch_tuples_threshold', '10000')
-configs.set('slow_sql_threshold', 'returned_rows_threshold', '1000')
-configs.set('slow_sql_threshold', 'updated_tuples_threshold', '1000')
-configs.set('slow_sql_threshold', 'deleted_tuples_threshold', '1000')
-configs.set('slow_sql_threshold', 'inserted_tuples_threshold', '1000')
-configs.set('slow_sql_threshold', 'hit_rate_threshold', '0.95')
-configs.set('slow_sql_threshold', 'dead_rate_threshold', '0.2')
-configs.set('slow_sql_threshold', 'index_number_threshold', '3')
-configs.set('slow_sql_threshold', 'index_number_rate_threshold', '0.6')
-configs.set('slow_sql_threshold', 'update_statistics_threshold', '60')
-configs.set('slow_sql_threshold', 'nestloop_rows_threshold', '10000')
-configs.set('slow_sql_threshold', 'hashjoin_rows_threshold', '10000')
-configs.set('slow_sql_threshold', 'groupagg_rows_threshold', '10000')
-configs.set('slow_sql_threshold', 'cost_rate_threshold', '0.4')
-configs.set('slow_sql_threshold', 'plan_time_occupy_rate_threshold', '0.3')
-configs.set('slow_sql_threshold', 'used_index_tuples_rate_threshold', '0.2')
+for option, value, _ in DynamicParams.__default__.get('slow_sql_threshold'):
+    configs.set('slow_sql_threshold', option, str(value))
 
 slow_sql_instance = SlowQuery(db_host='127.0.0.1', db_port='8080', db_name='database1', schema_name='schema1',
                               query='update schema1.table1 set age=30 where id=3', start_timestamp=1640139691000,
@@ -81,7 +55,7 @@ slow_sql_instance.tables_name = {'schema1': ['table1']}
 
 
 def mock_get_param(param):
-    return configs.getfloat('detection_params', param)
+    return configs.getfloat('detection_threshold', param)
 
 
 def mock_get_threshold(param):

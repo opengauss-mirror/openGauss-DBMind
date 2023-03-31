@@ -52,15 +52,27 @@ http.client.HTTPConnection._http_vsn_str = "HTTP/1.0"
 def get_sequences(arg):
     metric, instance, start_datetime, end_datetime = arg
     result = []
+    host = instance.split(":")[0]
     if global_vars.configs.get('TSDB', 'name') == "prometheus":
-        if ":" in instance and check_ip_valid(instance.split(":")[0]) and check_port_valid(instance.split(":")[1]):
-            seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).from_server(instance).fetchall()
+        if ":" in instance and check_ip_valid(host) and check_port_valid(instance.split(":")[1]):
+            seqs = dai.get_metric_sequence(
+                metric,
+                start_datetime,
+                end_datetime
+            ).from_server(instance).fetchall()
             if not seqs:
-                host = instance.split(":")[0]
-                seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).from_server(host).fetchall()
+                seqs = dai.get_metric_sequence(
+                    metric,
+                    start_datetime,
+                    end_datetime
+                ).from_server(host).fetchall()
         elif check_ip_valid(instance):
-            instance_like = {DISTINGUISHING_INSTANCE_LABEL: instance + "(:[0-9]{4,5}|)"}
-            seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).filter_like(**instance_like).fetchall()
+            instance_like = instance + "(:[0-9]{4,5}|)"
+            seqs = dai.get_metric_sequence(
+                metric,
+                start_datetime,
+                end_datetime
+            ).from_server_like(instance_like).fetchall()
         else:
             raise ValueError(f"Invalid instance: {instance}.")
     else:

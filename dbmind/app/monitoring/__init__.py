@@ -108,7 +108,7 @@ def get_dynamic_param(category, name):
 
 
 def get_param(name: str):
-    return cast_to_int_or_float(get_dynamic_param('detection_params', name))
+    return cast_to_int_or_float(get_dynamic_param('detection_threshold', name))
 
 
 def get_threshold(name: str) -> [float, int]:

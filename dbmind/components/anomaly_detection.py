@@ -45,10 +45,10 @@ ANOMALY_DETECTORS = {
 
 
 def get_param(name: str):
-    value = global_vars.dynamic_configs.get('detection_params', name)
+    value = global_vars.dynamic_configs.get('detection_threshold', name)
     if value is None:
-        from dbmind.metadatabase.schema import config_detection_params
-        value = config_detection_params.DetectionParams.__default__.get(name)
+        from dbmind.metadatabase.schema import config_dynamic_params
+        value = config_dynamic_params.DynamicParams.__default__.get(name)
 
     try:
         value = float(value)
