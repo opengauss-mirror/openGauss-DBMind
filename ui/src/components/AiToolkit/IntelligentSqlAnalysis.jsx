@@ -1,12 +1,13 @@
 import React, { Component } from 'react';
 import { Button, Input, message, Select, Card, Col, Row, Table, Form, DatePicker } from 'antd';
-import { getIntelligentSqlAnalysisInterface } from '../../api/aiTool';
-import { getItemListInterface } from '../../api/aiTool';
+import { getIntelligentSqlAnalysisInterface, getItemListInterface } from '../../api/aiTool';
 import moment from 'moment';
+import '../../assets/css/common.css'
+import '../../assets/css/main/aiToolkit.css';
 
 const { Option } = Select;
 const { TextArea } = Input;
-export default class Sqlanalysis extends Component {
+export default class IntelligentSqlAnalysis extends Component {
   constructor() {
     super()
     this.state = {
@@ -97,7 +98,7 @@ export default class Sqlanalysis extends Component {
   }
   render () {
     return (
-      <div>
+      <div className='contentWrap'>
         <Card title="Intelligent SQL Analysis" style={{ minHeight: 800 }}>
           <Form
             name="basic"

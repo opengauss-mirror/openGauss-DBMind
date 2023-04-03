@@ -1,8 +1,6 @@
 import React, { Component } from 'react';
 import SelfhealingRecordsTable from './AlarmsModules/SelfhealingRecordsTable';
 import HistoryAlarms from './AlarmsModules/HistoryAlarms';
-import FutureAlarms from './AlarmsModules/FutureAlarms';
-
 export default class Alarms extends Component {
   constructor() {
     super()
@@ -11,10 +9,9 @@ export default class Alarms extends Component {
   componentDidMount () { }
   render () {
     return (
-      <div>
+      <div className="contentWrap">
         <SelfhealingRecordsTable />
         <HistoryAlarms />
-        <FutureAlarms />
       </div>
     )
   }

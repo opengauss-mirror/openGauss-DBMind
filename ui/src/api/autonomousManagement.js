@@ -70,4 +70,33 @@ export const getLockingQueryInterface = () => {
 // ----Log Information
 export const getLogSummaryInterface = () => {
   return get('/summary/log')
-}
+};
+
+export const getCommonMetric = (data) => {
+  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}`);
+};
+export const getStorageData = (data) => {
+  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}&regrex=True&regrex_labels=device=/.*`);
+};
+export const getMemoryData = (data) => {
+  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}&regrex=True`);
+};
+export const getServiceCapabilityData = (data) => {
+  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}&regrex=False`);
+};
+export const getDBMemoryData = (data) => {
+  return get(`/latest-sequence/pg_total_memory_detail_mbytes?latest_minutes=${data.minutes}&labels=type=${data.label}&fetch_all=False&instance=${data.instance}&regrex=False`);
+};
+
+export const getSelfhealingface = (data) => {
+  return post(`/anomaly_detection/detectors/${data}/view`);
+};
+export const getSelfhealingSetting = () => {
+  return get(`/anomaly_detection/defaults`);
+};
+export const getSelfhealingSubmit = (data) => {
+  return post(`/anomaly_detection/detectors/${data.name}/addition`, data.detectors_info);
+};
+export const getSelfhealingDelete = (data) => {
+  return post(`/anomaly_detection/detectors/${data}/deletion`);
+};

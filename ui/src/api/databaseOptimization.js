@@ -50,3 +50,6 @@ export const getSlowQueryRecent = (data) => {
 export const getSlowQueryRecentCount = () => {
   return get('/query/slow/recent_count');
 };
+export const getIntelligentSqlCondition = (data) => {
+  return get(`/workloads/collect?data_source=${data.data_source}&databases=${data.databases}&start_time=${data.start_time}&end_time=${data.end_time}&db_users=${data.db_users}&sql_types=${data.sql_types}&duration=${data.duration}`);
+};

@@ -4,6 +4,8 @@ import { Button, Card, Input, message, Select, Table, Upload, Modal, InputNumber
 import { getItemListInterface, getListIndexAdvisorInterface, getListIndexAdvisorDefaultValue } from '../../api/aiTool';
 import { formatTableTitle } from '../../utils/function';
 import db from '../../utils/storage';
+import '../../assets/css/common.css'
+import '../../assets/css/main/aiToolkit.css';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -81,7 +83,7 @@ export default class IndexAdvisor extends Component {
       min_improved_rate: this.state.minImprovedRate,
       current: pageParams ? pageParams.current : this.state.current,
       pagesize:pageParams ? pageParams.pagesize : this.state.pageSize,
-      instance:db.ss.get('Instance_value'),
+      instance:db.ss.get('Instance_value')
     }
     this.setState({ loadingAdvisor: true });
     const { success, data, msg } = await getListIndexAdvisorInterface(params)
@@ -334,6 +336,9 @@ export default class IndexAdvisor extends Component {
     }
   }
   componentDidMount () {
+    if(this.props.location.state && this.props.location.state.sqltext && this.props.location.state.database){
+      this.setState({textareaVal: this.props.location.state.sqltext,selValue: this.props.location.state.database})
+    }
     this.getItemList()
     this.getDefaultValue()
   }
@@ -349,6 +354,7 @@ export default class IndexAdvisor extends Component {
       onChange: (current,pageSize) => this.changePage(current,pageSize)
     };
     return (
+      <div className="contentWrap">
       <div className='indexadvisor bordmargin'>
         <Card className="mb-20" extra={<SettingFilled className="more_link" onClick={() => { this.handleSetting() }} />} title="Smart Index Recommendation" bordered={false} style={{ width: '100%', height: 430 }}>
           <div className="flexbox">
@@ -406,6 +412,7 @@ export default class IndexAdvisor extends Component {
           <p><label style={labelStyle}>Max_index_num: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeNum(e)}  value={this.state.maxIndexNum} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum number of advised indexes</label></p>
           <p><label style={labelStyle}>Max_index_storage: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeStorage(e)}  value={this.state.maxIndexStorage} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum index storage (Mb)</label></p>
         </Modal>
+      </div>
       </div>
     )
   }

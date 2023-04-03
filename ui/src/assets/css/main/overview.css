@@ -52,7 +52,7 @@
   color: #737a80 ;
   padding: 0 20px;
 }
-.ant-col-5 {
+.antclopercent_20 {
   display: block;
   flex: 0 0 20%;
   max-width: 20%;
@@ -63,7 +63,7 @@
 .bgcolor .ant-card-extra{
   padding: 12px 0 0 0;
 }
-.textstyle {
+.bgcolor .textstyle {
   font-size:18px;
   color:#272727;
   font-family:Arial;
@@ -90,13 +90,13 @@
   padding:0px 30px 10px 30px
 }
 .procolorblue .ant-progress-inner{
-  border : 1px solid #5990fdff;
+  border : 1px solid #5990fd;
 }
 .procolorred .ant-progress-inner{
   border : 1px solid #e54545;
 }
 .overviewTable .ant-table-thead > tr > th{
-  background:#f2f5fcff;
+  background:#f2f5fc;
 }
 .overviewTable .ant-table.ant-table-bordered > .ant-table-container{
   border-left: none;
