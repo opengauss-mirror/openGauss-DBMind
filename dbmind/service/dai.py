@@ -743,7 +743,8 @@ def check_instance_status():
     # notes: if the scope is not specified, the global_var.agent_proxy.current_cluster_instances() 
     #        may return 'None' in most scenarios, therefore this method is limited to 
     #        calling when implementing the API for front-end or we only have one agent
-    detail = {'status': 'unknown', 'deployment_mode': 'unknown', 'primary': '', 'standby':[], 'abnormal': []}
+    detail = {'status': 'unknown', 'deployment_mode': 'unknown', 'primary': '',
+              'standby': [], 'abnormal': [], 'normal': []}
     cluster = global_vars.agent_proxy.current_cluster_instances()
     if len(cluster) == 1:
         detail['deployment_mode'] = 'single'

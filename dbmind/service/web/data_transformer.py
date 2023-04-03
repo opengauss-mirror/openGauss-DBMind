@@ -1221,11 +1221,12 @@ def get_agent_status():
 def get_current_instance_status():
     detail = {'header': ['instance', 'role', 'state'], 'rows': []}
     instance_status = dai.check_instance_status()
-    detail['rows'].append([instance_status['primary'], 'primary', True if
-    instance_status['primary'] not in
-    instance_status['abnormal'] else False])
+    detail['rows'].append([instance_status['primary'], 'primary',
+                           True if instance_status['primary'] in instance_status['normal'] else False])
     for instance in instance_status['standby']:
-        detail['rows'].append([instance, 'standby', True if instance not in instance_status['abnormal'] else False])
+        detail['rows'].append([instance, 'standby', True if instance in instance_status['normal'] else False])
+    for instance in instance_status['abnormal']:
+        detail['rows'].append([instance, '', 'abnormal'])
     return detail
 
 
