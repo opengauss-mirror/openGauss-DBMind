@@ -124,13 +124,12 @@ class DynamicParams(DynamicConfigDbBase):
         ('detection_interval_seconds', 600,
          'The interval for performing health examination on '
          'the openGauss through monitoring metrics.'),
-        ('detection_window_seconds', 600, 'Unit is second. The time for last detection.'),
+        ('detection_window_seconds', 600, 'The time for last detection. Unit is second.'),
         ('forecasting_seconds', 0,
-         'Unit is second. How long the KPI in the future for forecasting. '
-         'Meanwhile, this is the period for the forecast.'),
+         'How long the KPI in the future for forecasting. '
+         'Meanwhile, this is the period for the forecast. Unit is second.'),
         ('result_retention_seconds', 604800,
-         'Unit is second. How long should the results retain? '
-         'If retention is more than the threshold, DBMind will delete them.'),
+         'Storage time of metadata database data. If retention is more than the threshold, DBMind will delete them.'),
         ('golden_kpi', 'os_cpu_usage, os_mem_usage, os_disk_usage, gaussdb_qps_by_instance',
          'DBMind only measures and detects the golden metrics in the anomaly detection processing.')
     ]}

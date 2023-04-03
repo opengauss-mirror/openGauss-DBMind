@@ -22,6 +22,7 @@ from .schema.config_dynamic_params import DynamicParams
 from .result_db_session import get_session
 from .result_db_session import session_clz
 from .result_db_session import update_session_clz_from_configs
+from .dao.dynamic_config import Table
 from .utils import create_dsn
 
 
@@ -60,7 +61,7 @@ def create_dynamic_config_schema():
     # Batch insert default values into config tables.
     with sessionmaker(engine, autocommit=True, autoflush=True)() as session:
         try:
-            session.bulk_save_objects(table.default_values())
+            session.bulk_save_objects(Table.default_values())
         except sqlalchemy.exc.IntegrityError as e:
             # May be duplicate, ignore it.
             raise DuplicateTableError(e)

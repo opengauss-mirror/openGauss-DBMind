@@ -103,5 +103,5 @@ def dynamic_configs_list():
             if tuple_item.category in __no_need_for_showing__:
                 continue
 
-            rv[tuple_item.category].append((tuple_item.name, tuple_item.value))
+            rv[tuple_item.category].append((tuple_item.name, tuple_item.value, tuple_item.annotation))
     return rv
