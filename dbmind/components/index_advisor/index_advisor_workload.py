@@ -153,7 +153,8 @@ def is_valid_statement(conn, statement):
     if not res:
         return False
     for _tuple in res:
-        if _tuple[0].upper().startswith(ERROR_KEYWORD) or f' {ERROR_KEYWORD}: ' in _tuple[0].upper():
+        if isinstance(_tuple[0], str) and \
+                (_tuple[0].upper().startswith(ERROR_KEYWORD) or f' {ERROR_KEYWORD}: ' in _tuple[0].upper()):
             return False
     return True
 
