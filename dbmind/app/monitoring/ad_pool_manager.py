@@ -69,7 +69,7 @@ def add_detector(name, json_dict):
             detector_info
         )
         add_yaml({name: proc_dict})
-        logging.info("AD_PoolManager: Successfully add detector {name}.")
+        logging.info(f"AD_PoolManager: Successfully add detector {name}.")
         return f"Success: add {name}"
     except Exception as e:
         logging.error(e)

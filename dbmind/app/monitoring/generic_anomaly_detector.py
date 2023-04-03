@@ -103,7 +103,7 @@ class GenericAnomalyDetector:
         alarm_info.alarm_level = ALARM_LEVEL[alarm_info.alarm_level]
         self.alarm_info = alarm_info
         self.detector_info = detector_info if isinstance(detector_info, Iterable) else [detector_info]
-        self.anomaly_types = [di.detector.__class__.__name__ for di in self.detector_info]
+        self.anomaly_types = [di.detector.__class__.__name__[:-8] for di in self.detector_info]
         if forecasting_seconds and fit_once:
             self.models = [None for _ in self.detector_info]
             self.fit_once = fit_once
