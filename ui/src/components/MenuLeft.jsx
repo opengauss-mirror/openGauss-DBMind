@@ -11,6 +11,8 @@ class MenuLeft extends Component {
     super(props)
     this.state = {
       collapsed: false,
+      selectedKey:this.props.location.pathname,
+      openKey: ''
     };
   }
   toggle = () => {
@@ -18,16 +20,38 @@ class MenuLeft extends Component {
       collapsed: !this.state.collapsed,
     });
   };
+  componentDidMount(){
+    this.openHierarchy()
+  }
+  openHierarchy(){
+    const {pathname} = this.props.location;
+    let path = pathname.split('/');
+    if(pathname.split('/').length>2){
+      path = path[path.length-2];
+      this.setState(()=>({openKey:'/'+path}))
+    }
+  }
+  onOpenChange = (k) => {
+    if(k.length>1){
+      this.setState({openKey:k[k.length-1],})
+    } else{
+      this.setState({openKey:'',})
+    }}
+  componentDidUpdate(prevProps) {
+    if (prevProps.location.pathname !== this.props.location.pathname) {
+      this.openHierarchy()
+      this.setState({selectedKey:this.props.location.pathname})
+    }
+  }
   render () {
-    let path = this.props.location.pathname
-    path = '/' + path.split('/')[1]
     const { history } = this.props
     const onClick = (MenuItem) => {
       history.push(MenuItem.key)
+      this.setState({selectedKey:MenuItem.key})
     }
     return (
       <Sider collapsible collapsed={this.state.collapsed} onCollapse={this.toggle} width={this.state.collapsed ? '40px' : '260px'}>
-        <Menu theme="dark" mode="inline" selectedKeys={[path]} items={menuList} onClick={onClick}></Menu>
+        <Menu theme="dark" mode="inline" selectedKeys={[this.state.selectedKey]} items={menuList} onClick={onClick}  onOpenChange={this.onOpenChange} openKeys={[this.state.openKey]}></Menu>
       </Sider >
     )
   }

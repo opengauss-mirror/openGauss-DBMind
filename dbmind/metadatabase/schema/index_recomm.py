@@ -12,10 +12,10 @@
 # See the Mulan PSL v2 for more details.
 from sqlalchemy import Column, Integer, String, Numeric, TEXT
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class IndexRecommendation(Base):
+class IndexRecommendation(ResultDbBase):
     __tablename__ = "tb_index_recommendation"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

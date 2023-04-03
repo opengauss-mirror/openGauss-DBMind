@@ -54,7 +54,6 @@ export default class CollectionTable extends Component {
         tabledata[header[i]] = item[i]
       }
       tabledata['key'] = index + ''
-      debugger
       res.push(tabledata)
     });
     this.setState(() => ({

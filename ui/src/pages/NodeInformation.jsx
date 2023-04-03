@@ -1,10 +1,9 @@
 import React, { Component } from 'react';
 import { Tabs } from 'antd';
-import { CheckOutlined, DesktopOutlined, PieChartOutlined } from '@ant-design/icons';
 import '../assets/css/common.css';
+import '../assets/css/main/nodeinformation.css';
 import Node from '../components/NodeInformation/Node';
 import Host from '../components/NodeInformation/Host';
-import Statistic from '../components/NodeInformation/Statistics';
 
 const { TabPane } = Tabs;
 export default class Cluster extends Component {
@@ -14,13 +13,12 @@ export default class Cluster extends Component {
   }
   render () {
     return (
-      <div className="contentWrap">
-        <Tabs tabBarGutter={0} type="card" size={'small'}>
+      <div className="contentWrap nodestyle">
+        <Tabs   size={'large'}>
           <TabPane
             tab={
               <span>
-                <CheckOutlined />
-                Node
+                System resource
               </span>
             }
             key="1"
@@ -30,24 +28,12 @@ export default class Cluster extends Component {
           <TabPane
             tab={
               <span>
-                <DesktopOutlined />
-                Host
+                DB
               </span>
             }
             key="2"
           >
             <Host />
-          </TabPane>
-          <TabPane
-            tab={
-              <span>
-                <PieChartOutlined />
-                Statistics
-              </span>
-            }
-            key="3"
-          >
-            <Statistic />
           </TabPane>
         </Tabs>
       </div>

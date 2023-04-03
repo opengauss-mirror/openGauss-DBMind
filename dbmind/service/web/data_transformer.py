@@ -26,6 +26,7 @@ from itertools import groupby
 import sqlparse
 
 from dbmind import global_vars
+from dbmind.app.monitoring import ad_pool_manager
 from dbmind.app.optimization import get_database_schemas, TemplateArgs
 from dbmind.app.optimization.index_recommendation import rpc_index_advise, is_rpc_available
 from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
@@ -1228,6 +1229,38 @@ def get_current_instance_status():
     for instance in instance_status['abnormal']:
         detail['rows'].append([instance, '', 'abnormal'])
     return detail
+
+
+def get_detector_init_defaults():
+    return ad_pool_manager.get_detector_init_defaults()
+
+
+def add_detector(name, json_dict):
+    return ad_pool_manager.add_detector(name, json_dict)
+
+
+def delete_detector(name):
+    return ad_pool_manager.delete_detector(name)
+
+
+def pause_detector(name):
+    return ad_pool_manager.pause_detector(name)
+
+
+def resume_detector(name):
+    return ad_pool_manager.resume_detector(name)
+
+
+def view_detector(name):
+    return ad_pool_manager.view_detector(name)
+
+
+def rebuild_detector():
+    return ad_pool_manager.rebuild_detector()
+
+
+def clear_detector():
+    return ad_pool_manager.clear_detector()
 
 
 def get_collection_system_status():

@@ -17,7 +17,7 @@ from dbmind.common.types import Alarm, ALARM_TYPES, ALARM_LEVEL
 from dbmind.common.types import RootCause
 from dbmind.common.types import Sequence
 from dbmind.app.diagnosis.query.slow_sql import SlowQuery
-from dbmind.metadatabase import create_metadatabase_schema
+from dbmind.metadatabase.ddl import create_metadatabase_schema
 from dbmind.service import dai
 from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
 from dbmind.service.utils import SequenceUtils

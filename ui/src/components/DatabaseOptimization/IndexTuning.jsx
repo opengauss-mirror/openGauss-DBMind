@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Col, message, Row, Spin } from 'antd';
+import '../../assets/css/common.css';
 import TopShowList from './IndexTuningModules/TopShowList';
 import SuggestionsChangeChart from './IndexTuningModules/SuggestionsChangeChart';
 import ImprovementRateChart from './IndexTuningModules/ImprovementRateChart';
@@ -132,30 +133,32 @@ export default class IndexTuning extends Component {
   }
   render () {
     return (
-      <div style={{ textAlign: 'center' }}>
-        {this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> :
-          <>
-            <TopShowList topList={this.state.topList} />
-            <SuggestionsChangeChart suggestions={this.state.suggestions} />
-            <Row gutter={16} className="mb-20">
-              <Col className="gutter-row" span={6} >
-                <ImprovementRateChart promoteSqlRate={this.state.promoteSqlRate} />
-              </Col>
-              <Col className="gutter-row" span={6}>
-                <InvalidIndexChart invalidIndexData={this.state.invalidIndexData} />
-              </Col>
-              <Col className="gutter-row" span={6}>
-                <InvalidIndexesChange invalidIndexes={this.state.invalidIndexes} />
-              </Col>
-              <Col className="gutter-row" span={6}>
-                <RedundantIndexesChangeChart redundantIndexes={this.state.redundantIndexes} />
-              </Col>
-            </Row>
-            <AdvisedIndexes advisedIndexes={this.state.advisedIndexes} />
-            <PositiveSql positiveSQL={this.state.positiveSQL} />
-            <ExistingIndexes existing_indexes={this.state.existing_indexes} />
-          </>
-        }
+      <div className="contentWrap">
+        <div style={{ textAlign: 'center' }}>
+          {this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> :
+            <>
+              <TopShowList topList={this.state.topList} />
+              <SuggestionsChangeChart suggestions={this.state.suggestions} />
+              <Row gutter={16} className="mb-20">
+                <Col className="gutter-row" span={6} >
+                  <ImprovementRateChart promoteSqlRate={this.state.promoteSqlRate} />
+                </Col>
+                <Col className="gutter-row" span={6}>
+                  <InvalidIndexChart invalidIndexData={this.state.invalidIndexData} />
+                </Col>
+                <Col className="gutter-row" span={6}>
+                  <InvalidIndexesChange invalidIndexes={this.state.invalidIndexes} />
+                </Col>
+                <Col className="gutter-row" span={6}>
+                  <RedundantIndexesChangeChart redundantIndexes={this.state.redundantIndexes} />
+                </Col>
+              </Row>
+              <AdvisedIndexes advisedIndexes={this.state.advisedIndexes} />
+              <PositiveSql positiveSQL={this.state.positiveSQL} />
+              <ExistingIndexes existing_indexes={this.state.existing_indexes} />
+            </>
+          }
+        </div>
       </div>
     )
   }

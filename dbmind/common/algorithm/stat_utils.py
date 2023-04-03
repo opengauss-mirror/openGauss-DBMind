@@ -194,3 +194,21 @@ def sequence_interpolate(sequence: Sequence, fit_method="linear", strip_details=
             step=sequence.step,
             labels=sequence.labels
         )
+
+
+def approximatively_merge(s1, s2):
+    if not s2:
+        return s1
+    s1_end = s1.timestamps[-1]
+    s2_start = s2.timestamps[0]
+    delta = s2_start - s1_end
+    if delta % s1.step == 0:
+        return s1 + s2
+    new_s2 = Sequence(
+        name=s2.name,
+        labels=s2.labels,
+        step=s2.step,
+        timestamps=tuple(map(lambda s: s - delta, s2.timestamps)),
+        values=s2.values,
+    )
+    return s1 + new_s2

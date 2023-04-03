@@ -12,10 +12,10 @@
 # See the Mulan PSL v2 for more details.
 from sqlalchemy import Column, String, BigInteger, Integer, Float, Index, TEXT, CHAR, Boolean
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class SlowQueries(Base):
+class SlowQueries(ResultDbBase):
     __tablename__ = "tb_slow_queries"
 
     slow_query_id = Column(

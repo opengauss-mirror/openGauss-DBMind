@@ -62,11 +62,13 @@ export default class Alarms extends Component {
         data.header.forEach((item) => {
           operationColumObj = {
             sorter: (a, b) => {
-              let aVal = a[item]
-              let bVal = b[item]
-              let c = isFinite(aVal),
-                d = isFinite(bVal);
-              return (c !== d && d - c) || (c && d ? aVal - bVal : aVal.localeCompare(bVal));
+              if(Object.keys(a).includes(item)){
+                let aVal = a[item]
+                let bVal = b[item]
+                let c = isFinite(aVal),
+                  d = isFinite(bVal);
+                return (c !== d && d - c) || (c && d ? aVal - bVal : aVal.localeCompare(bVal));
+              }
             }
           }
           historyColumObj = {
@@ -86,14 +88,18 @@ export default class Alarms extends Component {
             },
             ...(item !== 'operation' ? operationColumObj: '')
           }
-          tableHeader.push(historyColumObj)
+          if(item !== 'history_alarm_id' && item !== 'metric_filter'){
+            tableHeader.push(historyColumObj)
+          }
         })
         let res = []
         data.rows.forEach((item, index) => {
           let tabledata = {}
           for (let i = 0; i < data.header.length; i++) {
-            tabledata[data.header[i]] = item[i]
-            tabledata['key'] = index
+            if(data.header[i] !== 'history_alarm_id' && data.header[i] !== 'metric_filter'){
+              tabledata[data.header[i]] = item[i]
+              tabledata['key'] = index
+            }
             if (data.header[i] && (data.header[i] === 'start_at' || data.header[i] === 'end_at')) {
               tabledata[data.header[i]] = formatTimestamp(item[i] + '')
             }

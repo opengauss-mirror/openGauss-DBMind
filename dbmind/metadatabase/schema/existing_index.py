@@ -12,10 +12,10 @@
 # See the Mulan PSL v2 for more details.
 from sqlalchemy import Column, Integer, String, TEXT
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class ExistingIndexes(Base):
+class ExistingIndexes(ResultDbBase):
     __tablename__ = "tb_existing_indexes"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

@@ -23,7 +23,7 @@ from dbmind.constants import __description__, __version__
 from dbmind import constants
 from dbmind import global_vars
 
-from dbmind.cmd.configs import config_utils
+from .configs import config_utils
 from . import edbmind
 from . import setup
 

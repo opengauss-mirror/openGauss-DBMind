@@ -54,18 +54,20 @@ slow_sql_instance = SlowQuery(db_host='127.0.0.1', db_port='8080', db_name='data
 slow_sql_instance.tables_name = {'schema1': ['table1']}
 
 
-def mock_get_param(param):
+def mock_get_detection_threshold(param):
     return configs.getfloat('detection_threshold', param)
 
 
-def mock_get_threshold(param):
+def mock_get_slow_sql_param(param):
     return configs.getfloat('slow_sql_threshold', param)
 
 
 @pytest.fixture
 def mock_get_funcntion(monkeypatch):
-    monkeypatch.setattr(monitoring, 'get_param', mock.Mock(side_effect=lambda x: mock_get_param(param=x)))
-    monkeypatch.setattr(monitoring, 'get_threshold', mock.Mock(side_effect=lambda x: mock_get_threshold(param=x)))
+    monkeypatch.setattr(monitoring, 'get_detection_threshold',
+                        mock.Mock(side_effect=lambda x: mock_get_detection_threshold(param=x)))
+    monkeypatch.setattr(monitoring, 'get_slow_sql_param',
+                        mock.Mock(side_effect=lambda x: mock_get_slow_sql_param(param=x)))
 
 
 class MockedComplexQueryContext(query_info_source.QueryContext):

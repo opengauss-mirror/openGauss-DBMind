@@ -13,10 +13,10 @@
 
 from sqlalchemy import Column, String, Integer, BigInteger, CHAR, Index, Boolean
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class HealingRecords(Base):
+class HealingRecords(ResultDbBase):
     __tablename__ = "tb_healing_records"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
