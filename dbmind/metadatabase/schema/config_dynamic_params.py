@@ -10,12 +10,10 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
-from dbmind.metadatabase import DynamicConfig
-from dbmind.cmd.configs.config_constants import IV_TABLE
+from dbmind.metadatabase import DynamicConfigDbBase
 
 
-class DynamicParams(DynamicConfig):
+class DynamicParams(DynamicConfigDbBase):
     __tablename__ = "dynamic_params"
 
     detection_params = {'detection_params': [
@@ -74,7 +72,8 @@ class DynamicParams(DynamicConfig):
         ('thread_pool_usage_threshold', 0.95, 'The alarm threshold of thread pool usage.'),
     ]}
 
-    iv_table = {IV_TABLE: [
+    # the same as `dbmind.cmd.configs.config_constants`
+    iv_table = {'iv_table': [
         ('cipher_s1', '', ''),
         ('cipher_s2', '', '')
     ]}

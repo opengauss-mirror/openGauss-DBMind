@@ -26,7 +26,7 @@ import pytest
 
 from dbmind import global_vars
 from dbmind.constants import DYNAMIC_CONFIG
-from dbmind.metadatabase import create_dynamic_config_schema
+from dbmind.metadatabase.ddl import create_dynamic_config_schema
 from dbmind.cmd.configs.configurators import DynamicConfig
 from dbmind.cmd.edbmind import get_worker_instance
 from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory

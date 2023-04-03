@@ -12,10 +12,10 @@
 # See the Mulan PSL v2 for more details.
 from sqlalchemy import Column, Integer, String
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class KnobRecommendationMetricSnapshot(Base):
+class KnobRecommendationMetricSnapshot(ResultDbBase):
     __tablename__ = "tb_knob_recommendation_metric_snapshot"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

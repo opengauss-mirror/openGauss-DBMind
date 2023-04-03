@@ -16,7 +16,7 @@ from sqlalchemy.engine import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from dbmind.constants import DYNAMIC_CONFIG
-from ._utils import create_dsn
+from .utils import create_dsn
 
 _session_maker = None
 

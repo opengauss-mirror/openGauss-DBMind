@@ -12,10 +12,10 @@
 # See the Mulan PSL v2 for more details.
 from sqlalchemy import Column, BigInteger, Integer, Float, Index, String
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class SlowQueriesJournal(Base):
+class SlowQueriesJournal(ResultDbBase):
     __tablename__ = "tb_slow_queries_journal"
 
     journal_id = Column(BigInteger().with_variant(Integer, 'sqlite'), primary_key=True, autoincrement=True)

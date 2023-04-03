@@ -10,14 +10,12 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-import time
-
 from sqlalchemy import Column, Integer, String, BigInteger
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class IndexRecommendationStats(Base):
+class IndexRecommendationStats(ResultDbBase):
     __tablename__ = "tb_index_recommendation_stats"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

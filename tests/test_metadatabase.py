@@ -18,8 +18,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, session
 
 from dbmind.constants import DYNAMIC_CONFIG
-from dbmind.metadatabase import business_db, Base
-from dbmind.metadatabase import create_dynamic_config_schema
+from dbmind.metadatabase import result_db_session, ResultDbBase
+from dbmind.metadatabase.ddl import create_dynamic_config_schema
 from dbmind.metadatabase.dao.alarms import *
 from dbmind.metadatabase.dao.dynamic_config import dynamic_config_get, dynamic_config_set
 from dbmind.metadatabase.dao.slow_queries import *
@@ -34,13 +34,13 @@ def initialize_metadb():
     engine = create_engine('sqlite:///' + dbname)
     session_maker = sessionmaker(autoflush=False, bind=engine)
 
-    business_db.session_clz.update(
+    result_db_session.session_clz.update(
         engine=engine,
         session_maker=session_maker,
         db_type='sqlite'
     )
 
-    Base.metadata.create_all(engine)
+    ResultDbBase.metadata.create_all(engine)
 
     yield
 

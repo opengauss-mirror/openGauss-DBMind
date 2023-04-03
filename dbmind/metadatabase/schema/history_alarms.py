@@ -12,12 +12,12 @@
 # See the Mulan PSL v2 for more details.
 
 
-from sqlalchemy import Column, String, Integer, BigInteger, CHAR, JSON, Index, TEXT
+from sqlalchemy import Column, String, Integer, BigInteger, CHAR, Index, TEXT
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class HistoryAlarms(Base):
+class HistoryAlarms(ResultDbBase):
     __tablename__ = "tb_history_alarms"
 
     history_alarm_id = Column(Integer, primary_key=True, autoincrement=True)

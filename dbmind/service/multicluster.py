@@ -20,8 +20,8 @@ import threading
 from dbmind.common.http.requests_utils import create_requests_session
 from dbmind.common.rpc import RPCClient
 from dbmind.common.rpc.server import DEFAULT_URI
-from dbmind.common.utils import TTLOrderedDict
 from dbmind.common.tsdb import TsdbClientFactory
+from dbmind.common.utils.base import FixedDict
 
 
 class RPCAddressError(ValueError):
@@ -34,8 +34,8 @@ class _ClusterDetails:
         for fast lookups."""
         self._clusters = list()
         # This data structure can evict its own element
-        # using TTL.
-        self._location_map = TTLOrderedDict()
+        # according to max length.
+        self._location_map = FixedDict(max_len=16)
 
     def record_one(self, cluster):
         self._clusters.append(cluster)
@@ -102,7 +102,7 @@ class AgentProxy:
     def autodiscover(self, tsdb=None):
         if not self._autodiscover_args:
             logging.warning(
-                "AgentProxy performed autodiscover function but "
+                "[AgentProxy] AgentProxy performed autodiscover function but "
                 "hadn't set connection information."
             )
             return
@@ -118,7 +118,7 @@ class AgentProxy:
         for url in urls.keys():
             if url.startswith('https') and not enable_ssl:
                 logging.warning(
-                    "Remove %s from agent URL list since "
+                    "[AgentProxy] Remove %s from agent URL list since "
                     "SSL information didn't set or set incorrectly." % url
                 )
                 continue
@@ -172,7 +172,8 @@ class AgentProxy:
                     'Cannot ping the agent %s.', agent.url
                 )
             i += 1
-        logging.info('Valid monitoring instances and exporter addresses are: %s.',
+        logging.info('[AgentProxy] Valid monitoring instances '
+                     'and exporter addresses are: %s.',
                      list(map(lambda e: (e[0], e[1].url), self._agents.items())))
         self._finalized = True
 
@@ -287,10 +288,13 @@ class AgentProxy:
     def current_agent_addr(self):
         if self.current_rpc():
             return self._thread_context.agent_addr
+        # Caller should handle this return value.
+        return None
 
     def current_cluster_instances(self):
         if self.current_rpc():
             return self._thread_context.cluster
+        return ()
 
     def call(self, funcname, *args, **kwargs):
         """If a caller directly use this

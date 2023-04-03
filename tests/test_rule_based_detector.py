@@ -12,7 +12,7 @@
 # See the Mulan PSL v2 for more details.
 from dbmind.app.monitoring import detect_future
 from dbmind.common.types import Sequence
-from dbmind.metadatabase import create_dynamic_config_schema
+from dbmind.metadatabase.ddl import create_dynamic_config_schema
 
 
 def test_disk_spill():

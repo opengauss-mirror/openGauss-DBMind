@@ -15,7 +15,7 @@ from sqlalchemy.orm import declarative_base
 
 # To storage at remote database server, mainly saving large scale data business, such as
 # the result of time-series forecasting and slow query analysis.
-Base = declarative_base()
+ResultDbBase = declarative_base()
 
 
 # To record dynamic config not likes static text-based file.
@@ -41,4 +41,6 @@ class DynamicConfigCommon:
         return rows
 
 
-DynamicConfig = declarative_base(name='DynamicConfig', cls=DynamicConfigCommon)
+DynamicConfigDbBase = declarative_base(
+    name='DynamicConfig', cls=DynamicConfigCommon
+)

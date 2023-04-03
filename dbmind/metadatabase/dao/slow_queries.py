@@ -26,8 +26,8 @@ from sqlalchemy.sql import text, desc, and_
 
 from dbmind.common.parser import sql_parsing
 
-from ._common import truncate_table
-from ..business_db import get_session
+from dbmind.metadatabase.ddl import truncate_table
+from ..result_db_session import get_session
 from ..schema import SlowQueries
 from ..schema import SlowQueriesJournal
 from ..schema import SlowQueriesKilled
