@@ -37,7 +37,7 @@ DBMIND_UI_DIRECTORY = os.path.join(DBMIND_PATH, '../ui/build')
 # The default timed-task when the service is not started with only-run.
 # User should not stop the 'DISCARD_EXPIRED_RESULTS' to avoid excessive disk usage.
 DISCARD_EXPIRED_RESULTS = 'discard_expired_results'
-ANOMALY_DETECTION_NAME = 'self_monitoring'
+ANOMALY_DETECTION_NAME = 'anomaly_detection'
 DAILY_INSPECTION = 'daily_inspection'
 WEEKLY_INSPECTION = 'weekly_inspection'
 MONTHLY_INSPECTION = 'monthly_inspection'

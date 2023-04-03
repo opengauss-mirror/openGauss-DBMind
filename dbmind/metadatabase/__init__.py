@@ -14,4 +14,3 @@
 from .base import ResultDbBase, DynamicConfigDbBase
 from .schema import load_all_schema_models
 
-

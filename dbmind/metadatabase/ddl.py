@@ -60,10 +60,10 @@ def create_dynamic_config_schema():
     # Batch insert default values into config tables.
     with sessionmaker(engine, autocommit=True, autoflush=True)() as session:
         try:
-            session.bulk_save_objects(DynamicParams.default_values())
-        except sqlalchemy.exc.IntegrityError:
+            session.bulk_save_objects(table.default_values())
+        except sqlalchemy.exc.IntegrityError as e:
             # May be duplicate, ignore it.
-            pass
+            raise DuplicateTableError(e)
 
 
 def truncate_table(table_name):

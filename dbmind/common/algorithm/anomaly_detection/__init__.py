@@ -10,6 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 from ._utils import pick_out_anomalies
 from .detector_params import *
 from .gradient_detector import GradientDetector
@@ -23,3 +24,17 @@ from .volatility_shift_detector import VolatilityShiftDetector
 from .quantile_detector import QuantileDetector
 from .esd_test_detector import EsdTestDetector
 from .spike_detector import remove_spike
+
+
+detectors = {
+    "GradientDetector": GradientDetector,
+    "IncreaseDetector": IncreaseDetector,
+    "InterQuartileRangeDetector": InterQuartileRangeDetector,
+    "LevelShiftDetector": LevelShiftDetector,
+    "SeasonalDetector": SeasonalDetector,
+    "SpikeDetector": SpikeDetector,
+    "ThresholdDetector": ThresholdDetector,
+    "VolatilityShiftDetector": VolatilityShiftDetector,
+    "QuantileDetector": QuantileDetector,
+    "EsdTestDetector": EsdTestDetector,
+}
