@@ -43,6 +43,20 @@ export default class CacheInformation extends Component {
       message.error(msg)
     }
   }
+  async getCacheInformationData3 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_blks_access',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
   compare(property){
     return function(a,b){
         var value1 = a.labels[property];
@@ -53,7 +67,8 @@ export default class CacheInformation extends Component {
   async getCacheInformationDataAll () {
     Promise.all([
       this.getCacheInformationData1(),
-      this.getCacheInformationData2()
+      this.getCacheInformationData2(),
+      this.getCacheInformationData3()
     ]).then((result)=>{
       if(result[0]){
         result.forEach((item,index) => {
@@ -75,7 +90,8 @@ export default class CacheInformation extends Component {
                 let chartData = []
                 let data1 = {'legend':[{image: '', description: 'Disk Read/Write'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description: 'Disk Read/Write', colors: '#2DA769'}],'flg':0,'legendFlg':2,title:'Disk Read/Write', 'unit':'','fixedflg':0}
                 let data2 = {'legend':[{image: '', description: 'Cache Read/Write'}],'xAxisData':item[1].timestamps,'seriesData':[{data:item[1].values,description: 'Cache Read/Write', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Cache Read/Write','unit':'','fixedflg':0}
-                chartData.push(data1,data2)
+                let data3 = {'legend':[{image: '', description: 'Hit Rate/Write'}],'xAxisData':item[2].timestamps,'seriesData':[{data:item[2].values,description: 'Hit Rate/Write', colors: '#9185F0'}],'flg':0,'legendFlg':2,title:'Hit Rate/Write','unit':'','fixedflg':0}
+                chartData.push(data1,data2,data3)
                 serviceAllArray.push(chartData)
               })
             this.setState(() => ({
@@ -121,6 +137,9 @@ export default class CacheInformation extends Component {
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
                     <NodeEchartFormWork echartData={item[1]} />
+                  </Col>
+                  <Col className="gutter-row cpuborder" span={24}>
+                    <NodeEchartFormWork echartData={item[2]} />
                   </Col>
                 </Row>
               </Panel>

@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { Card, Table, message } from 'antd';
 import ResizeableTitle from '../common/ResizeableTitle';
 import { getNode } from '../../api/overview';
-import iconok from '../../assets/imgs/iconok.png';
+import iconokgreen from '../../assets/imgs/iconokgreen.png';
 import iconstop from '../../assets/imgs/iconstop.png';
 
 export default class NodeTable extends Component {
@@ -39,7 +39,7 @@ export default class NodeTable extends Component {
         width:item === 'state' ? '20%' : '40%',
         render: (row, record) => {
           if(item === 'state'){
-            return <img src={record.state ? iconok : iconstop} alt="" className='iconstyle'></img>
+            return <img src={record.state ? iconokgreen : iconstop} alt="" className='iconstyle'></img>
           } else {
             return row
           }

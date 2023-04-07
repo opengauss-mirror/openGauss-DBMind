@@ -100,9 +100,11 @@ export default class MetricData extends Component {
       return { columns: nextColumns };
     });
   };
-  UNSAFE_componentWillReceiveProps (props) {
-    this.props=props
-    this.handleTableData(props.metricData.header, props.metricData.rows, props.metricData.total)
+  componentDidMount () {
+    this.getKnobRecommendationSnapshot({
+      current: 1,
+      pagesize: 10,
+    })
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({

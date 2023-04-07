@@ -101,7 +101,7 @@ export default class Host extends Component {
         <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange}
          tabBarExtraContent={
           <div>
-          <Select value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
+          <Select disabled value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
           optionFilterProp="children"  filterOption={(input, option) =>
             option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 124, marginRight: 10 }} className='mb-10' >
           {

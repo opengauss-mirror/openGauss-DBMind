@@ -19,8 +19,8 @@ export default class IntelligentSqlCondition extends Component {
       columns: [],
       loading: false,
       options: [],
-      optionsSource: ['pg_stat_activity','dbe_perf.statement_history'],
-      selValue: '',
+      optionsSource: ['pg_stat_activity','dbe_perf.statement_history','asp'],
+      selValue: 'pg_stat_activity',
       isCreateVisible:false,
       routeTo:0,
       sqlText:'',
@@ -41,16 +41,17 @@ export default class IntelligentSqlCondition extends Component {
   }
   onFinish = (values) => {
     let newData = Object.assign(values)
-    let stime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[0]._d) : ''
-    let etime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[1]._d) : ''
+    let stime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[0]._d) : 0
+    let etime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[1]._d) : 0
     let paramsVal = {
-      data_source: newData.dataSource,
-      databases: newData.database,
-      start_time: stime,
-      end_time: etime,
+      data_source: newData.dataSource ? newData.dataSource:'',
+      databases:  newData.database ? newData.database:'',
       db_users: newData.users,
       sql_types: newData.types,
-      duration:  Number(newData.duration)
+      start_time: stime,
+      end_time: etime,
+      duration: newData.duration ? Number(newData.duration):0,
+      schemas: newData.schemas ? newData.schemas:0,
     }
     console.log(paramsVal)
     this.getIntelligentSqlAnalysis(paramsVal)
@@ -94,7 +95,7 @@ export default class IntelligentSqlCondition extends Component {
           }
           tableHeader.push(historyColumObj)
         })
-        let res = [],textData = '',textArr = []
+        let res = [],textArr = []
         data.rows.forEach((item, index) => {
           let tabledata = {}
           for (let i = 0; i < data.header.length; i++) {
@@ -104,7 +105,6 @@ export default class IntelligentSqlCondition extends Component {
               tabledata[data.header[i]] = item[i].split(".")[0]
             }
             if ((data.header[i] && data.header[i] === 'query')) {
-              textData += item[i]+';'+'\n'
               textArr.push(item[i])
             }
           }
@@ -115,7 +115,7 @@ export default class IntelligentSqlCondition extends Component {
           dataSource: res,
           columns: tableHeader,
           current: this.state.current,
-          sqlText: [...new Set(textArr)].join(';\n'),
+          sqlText:textArr.join('\n'),
           database:params.databases
         }))
       } else {
@@ -203,6 +203,7 @@ export default class IntelligentSqlCondition extends Component {
                       message: 'Please select an option!',
                     }
                   ]}
+                  initialValue={this.state.selValue}
                 >
                   <Select value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
                     optionFilterProp="children" filterOption={(input, option) =>
@@ -217,7 +218,7 @@ export default class IntelligentSqlCondition extends Component {
                   </Select>
                 </Form.Item>
               </Col>
-              <Col span={24} className='timeblue'>
+              {this.state.selValue !== 'pg_stat_activity' && <Col span={24} className='timeblue'>
                 <Form.Item
                   label="Time Limit"
                   name="timePeriod"
@@ -237,8 +238,8 @@ export default class IntelligentSqlCondition extends Component {
                   }}
                   />
                 </Form.Item>
-              </Col>
-              <Col span={24}>
+              </Col>}
+              {this.state.selValue !== 'asp' && <Col span={24}>
                 <Form.Item
                   label="Execution Duration"
                   name="duration"
@@ -251,7 +252,7 @@ export default class IntelligentSqlCondition extends Component {
                 >
                   <InputNumber  min={0} placeholder="10ms" style={{ width: 260 }} />
                 </Form.Item>
-              </Col>
+              </Col>}
               <Col span={24}>
                 <Form.Item
                   label="User"
@@ -263,7 +264,7 @@ export default class IntelligentSqlCondition extends Component {
                     }
                   ]}
                 >
-                  <Input placeholder="user1" style={{ width: 600 }} />
+                  <Input placeholder="user" style={{ width: 600 }} />
                 </Form.Item>
               </Col>
               <Col span={24} className="errorinvalid">
@@ -277,8 +278,7 @@ export default class IntelligentSqlCondition extends Component {
                     }
                   ]}
                 >
-                  <Select value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
-                    optionFilterProp="children" filterOption={(input, option) =>
+                  <Select showSearch optionFilterProp="children" filterOption={(input, option) =>
                       option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 600 }}>
                     {
                       this.state.options.map(item => {
@@ -290,8 +290,16 @@ export default class IntelligentSqlCondition extends Component {
                   </Select>
                 </Form.Item>
               </Col>
+              {this.state.selValue === 'dbe_perf.statement_history' && <Col span={24}>
+                <Form.Item
+                  label="Schemas"
+                  name="schemas"
+                >
+                  <Input placeholder="schemas" style={{ width: 600 }} />
+                </Form.Item>
+              </Col>}
               <Col span={24}>
-              <Form.Item name="types" label="Radio" rules={[{ required: true,message: 'Please select at least one item'}]}>
+              <Form.Item name="types" label="SQL Type" rules={[{ required: true,message: 'Please select at least one item'}]}>
                 <Checkbox.Group>
                 <Checkbox value="SELECT" style={{lineHeight: '32px',}} >SELECT</Checkbox>
                 <Checkbox value="INSERT" style={{lineHeight: '32px',}} >INSERT</Checkbox>
