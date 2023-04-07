@@ -63,6 +63,16 @@ class _ClusterDetails:
         self._location_map.clear()
 
 
+def _get_remote_instance_addresses_from_tsdb(instance):
+    tsdb = TsdbClientFactory.get_tsdb_client()
+    cluster_sequence = tsdb.get_current_metric_value('gaussdb_cluster_state')
+
+    for _sequence in cluster_sequence:
+        if _sequence.labels['primary'] == instance:
+            return True, _sequence.labels['standby'].strip(',').split(',')
+    return False, None
+
+
 class AgentProxy:
     def __init__(self):
         """Control available agents
@@ -160,7 +170,9 @@ class AgentProxy:
                 self._agents[addr] = agent
 
                 # Record cluster each node addresses.
-                cluster_instances = _get_remote_instance_addresses(agent)
+                success, cluster_instances = _get_remote_instance_addresses_from_tsdb(addr)
+                if not success:
+                    cluster_instances = _get_remote_instance_addresses(agent)
                 # put primary instance first
                 cluster_instances.insert(0, addr)
                 self._cluster.record_one(cluster_instances)
