@@ -220,7 +220,8 @@ def get_detector_init_defaults():
 
 def init_specific_detections():
     for name, json_dict in SpecificDetection.detections.items():
-        add_detector(name, json_dict)
+        if name not in _anomaly_detector_pool:
+            add_detector(name, json_dict)
 
 
 def write_yaml(yaml_path, yaml_obj):

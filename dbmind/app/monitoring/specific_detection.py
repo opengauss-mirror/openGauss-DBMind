@@ -25,15 +25,21 @@ class SpecificDetection:
         )
         disk_usage_threshold = monitoring.get_detection_threshold('disk_usage_threshold')
         mem_usage_threshold = monitoring.get_detection_threshold('mem_usage_threshold')
+        mem_high_usage_percent = monitoring.get_detection_threshold('mem_high_usage_percent')
         cpu_usage_threshold = monitoring.get_detection_threshold('cpu_usage_threshold')
         cpu_high_usage_percent = monitoring.get_detection_threshold('cpu_high_usage_percent')
+        spike_outliers_1 = monitoring.get_detection_param("spike_outliers_1")
+        spike_outliers_2 = monitoring.get_detection_param("spike_outliers_2")
     except AttributeError:
         detection_window_seconds = 600
         forecasting_seconds = 0
         disk_usage_threshold = 0.8
         mem_usage_threshold = 0.8
+        mem_high_usage_percent = 0.8
         cpu_usage_threshold = 0.8
         cpu_high_usage_percent = 0.8
+        spike_outliers_1 = None
+        spike_outliers_2 = 3
 
     detections = {
         "high_disk_usage_detector": {
@@ -78,7 +84,7 @@ class SpecificDetection:
                     "metric_filter": {},
                     "detector_kwargs": {
                         "high": mem_usage_threshold,
-                        "percentage": 0.8,
+                        "percentage": mem_high_usage_percent,
                     },
                 },
             ]
@@ -97,7 +103,7 @@ class SpecificDetection:
             },
             "detector_info": [
                 {
-                    "metric_name": "os_cpu_usage",
+                    "metric_name": "os_cpu_user_usage",
                     "detector_name": "ThresholdDetector",
                     "metric_filter": {},
                     "detector_kwargs": {
@@ -121,7 +127,9 @@ class SpecificDetection:
                     "metric_name": "os_mem_usage",
                     "detector_name": "SpikeDetector",
                     "metric_filter": {},
-                    "detector_kwargs": {},
+                    "detector_kwargs": {
+                        "outliers": (spike_outliers_1, spike_outliers_2)
+                    },
                 },
             ]
         },
@@ -139,7 +147,9 @@ class SpecificDetection:
                     "metric_name": "gaussdb_qps_by_instance",
                     "detector_name": "SpikeDetector",
                     "metric_filter": {},
-                    "detector_kwargs": {},
+                    "detector_kwargs": {
+                        "outliers": (spike_outliers_1, spike_outliers_2)
+                    },
                 },
             ]
         }

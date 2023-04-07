@@ -65,6 +65,7 @@ class DynamicParams(DynamicConfigDbBase):
         ('disk_usage_threshold', 0.7, 'The alarm threshold of disk usage.'),
         ('handler_occupation_threshold', 0.7, 'The alarm threshold of fds usage.'),
         ('mem_usage_threshold', 0.6, 'The alarm threshold of memory usage.'),
+        ('mem_high_usage_percent', 0.8, 'The proportion of abnormal memory usage in the time window.'),
         ('network_bandwidth_usage_threshold', 0.8, 'The alarm threshold of bandwidth usage.'),
         ('other_used_memory_threshold', 5120, "The alarm threshold of other_used_memory. Default is 5GB."),
         ('package_drop_rate_threshold', 0.01, 'The alarm threshold of network drop rate.'),

@@ -32,7 +32,7 @@ from dbmind.metadatabase.ddl import create_metadatabase_schema, destroy_metadata
 
 
 def initialize_and_check_config(confpath, interactive=False, quiet=False):
-    """Returns true while configration procedure is successful. Otherwise,
+    """Returns true while configuration procedure is successful. Otherwise,
     returns default value None."""
     if not os.path.exists(confpath):
         raise SetupError('Not found the directory %s.' % confpath)

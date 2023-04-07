@@ -38,4 +38,4 @@ class ThresholdDetector(AbstractDetector):
         elif np.count_nonzero(predicted_values) >= self.percentage * n:
             return Sequence(timestamps=s.timestamps, values=(True,) * n)
         else:
-            return Sequence(timestamps=s.timestamps, values=(True,) * n)
+            return Sequence(timestamps=s.timestamps, values=(False,) * n)
