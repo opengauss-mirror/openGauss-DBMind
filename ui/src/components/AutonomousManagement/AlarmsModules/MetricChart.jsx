@@ -32,9 +32,10 @@ export default class MetricChart extends Component {
     this.setState({ loading: true })
     let params = {
       metric_name: this.props.metric_name,
-      host: this.props.host,
+      instance: this.props.host,
       start_time: this.props.start_time,
-      end_time: this.props.end_time
+      end_time: this.props.end_time,
+      metric_filter: this.props.metric_filter
     }
     const { success, data, msg } = await getRegularInspections(params)
     if (success) {

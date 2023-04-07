@@ -74,9 +74,7 @@ export default class Overview extends Component {
               <Card title="Node" className='instancename' style={{ height: 288}} >
               <NodeTable />
               </Card>
-              <Card title="Collection" className='instancename' style={{ height: 288}} >
               <CollectionTable />
-              </Card>
             </Col>
         </Row>
         <Card title="Scheduled Task" className='instancename' style={{ height: 520}} extra={<div><Tooltip placement="left" color={'#ffffff'} title={<span style={{ color: '#000' }}>The current status needs to be modified in the background. The front-end setting is temporarily unavailable.</span>}><img src={Help} alt="" className='iconstyle' ></img></Tooltip><img src={Refresh} alt="" className='iconstyle' onClick={() => this.ScheduledTaskTableRef.refresh()} ></img></div>}>

@@ -27,7 +27,7 @@ export default class NodeIO extends Component {
       instance:this.state.selValue,
       minutes:this.state.selTimeValue,
       label:'os_disk_io_read_bytes',
-      fetch:false
+      fetch:true
     }
     const { success, data, msg }= await getCommonMetric(param)
     if (success) {
@@ -41,7 +41,7 @@ export default class NodeIO extends Component {
       instance:this.state.selValue,
       minutes:this.state.selTimeValue,
       label:'os_disk_io_write_bytes',
-      fetch:false
+      fetch:true
     }
     const { success, data, msg }= await getCommonMetric(param)
     if (success) {
@@ -55,7 +55,7 @@ export default class NodeIO extends Component {
       instance:this.state.selValue,
       minutes:this.state.selTimeValue,
       label:'os_disk_io_read_delay',
-      fetch:false
+      fetch:true
     }
     const { success, data, msg }= await getCommonMetric(param)
     if (success) {
@@ -69,7 +69,7 @@ export default class NodeIO extends Component {
       instance:this.state.selValue,
       minutes:this.state.selTimeValue,
       label:'os_disk_io_write_delay',
-      fetch:false
+      fetch:true
     }
     const { success, data, msg }= await getCommonMetric(param)
     if (success) {
@@ -83,7 +83,7 @@ export default class NodeIO extends Component {
       instance:this.state.selValue,
       minutes:this.state.selTimeValue,
       label:'os_disk_iops',
-      fetch:false
+      fetch:true
     }
     const { success, data, msg }= await getCommonMetric(param)
     if (success) {
@@ -97,7 +97,7 @@ export default class NodeIO extends Component {
       instance:this.state.selValue,
       minutes:this.state.selTimeValue,
       label:'os_disk_io_queue_length',
-      fetch:false
+      fetch:true
     }
     const { success, data, msg }= await getCommonMetric(param)
     if (success) {
@@ -111,7 +111,7 @@ export default class NodeIO extends Component {
       instance:this.state.selValue,
       minutes:this.state.selTimeValue,
       label:'os_disk_ioutils',
-      fetch:false
+      fetch:true
     }
     const { success, data, msg }= await getCommonMetric(param)
     if (success) {

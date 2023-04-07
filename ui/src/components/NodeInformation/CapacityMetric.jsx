@@ -142,7 +142,7 @@ export default class CapacityMetric extends Component {
               expandIcon={(props) => this.customExpandIcon(props)}
               expandable={{
                 expandedRowRender: (record,index) => (
-                  <NodeEchartFormWork  echartData={this.state.echartData[index]}/>
+                  <NodeEchartFormWork  echartData={this.state.echartData[record.key]}/>
                 ),
                 // rowExpandable: (record) => record.name !== 'Not Expandable',
               }}

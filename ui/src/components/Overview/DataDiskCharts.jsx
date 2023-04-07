@@ -26,7 +26,7 @@ export default class DataDiskCharts extends Component {
       ],[
         { value: db.ss.get('tilt_rate_Max'), name: 'Max' },
         { value: db.ss.get('tilt_rate_Min'), name: 'Min' },
-      ],[{totalLeft:data.usage_rate.toFixed(2),totalRight:data.tilt_rate}]]
+      ],[{totalLeft:data.usage_rate,totalRight:data.tilt_rate}]]
       this.setState(() => ({
         chartData: allData,
         instance:db.ss.get('Instance_value')
@@ -105,7 +105,7 @@ export default class DataDiskCharts extends Component {
               position: 'center',
               show: true,
               formatter:() => {
-                  let str = (flg === 'one' ? (this.state.chartData[2][0].totalLeft*100+'%') : (this.state.chartData[2][0].totalRight+'MB/s'))
+                  let str = (flg === 'one' ? ((this.state.chartData[2][0].totalLeft*100).toFixed(2)+'%') : (this.state.chartData[2][0].totalRight+'MB/s'))
                   return str
               },
               color: '#5990fdff ',

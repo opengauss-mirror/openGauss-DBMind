@@ -81,25 +81,21 @@ export default class Alarms extends Component {
             fixed:item === 'operation' ? 'right' : 'false',
             render: (row, record) => {
               if(item === 'operation'){
-                return <Button type="primary" disabled={(record.anomaly_type === "THRESHOLD" || record.anomaly_type === "GRADIENT")} onClick={() => this.isModal(row, record)}>analyze</Button>
+                return <Button type="primary" disabled={(record.anomaly_type === "ThresholdDetector" || record.anomaly_type === "GRADIENT")} onClick={() => this.isModal(row, record)}>analyze</Button>
               } else {
                 return row
               }
             },
             ...(item !== 'operation' ? operationColumObj: '')
           }
-          if(item !== 'history_alarm_id' && item !== 'metric_filter'){
             tableHeader.push(historyColumObj)
-          }
         })
         let res = []
         data.rows.forEach((item, index) => {
           let tabledata = {}
           for (let i = 0; i < data.header.length; i++) {
-            if(data.header[i] !== 'history_alarm_id' && data.header[i] !== 'metric_filter'){
               tabledata[data.header[i]] = item[i]
               tabledata['key'] = index
-            }
             if (data.header[i] && (data.header[i] === 'start_at' || data.header[i] === 'end_at')) {
               tabledata[data.header[i]] = formatTimestamp(item[i] + '')
             }
@@ -234,7 +230,8 @@ export default class Alarms extends Component {
       host:record.instance.replace(/(\s*$)/g, ''),
       start_time:new Date(record.start_at).getTime(),
       end_time:new Date(record.end_at).getTime(),
-      isModalVisible: true
+      isModalVisible: true,
+      metric_filter:record.metric_filter
     })
   }
   // 回调函数，切换下一页
@@ -433,11 +430,11 @@ export default class Alarms extends Component {
               <Button type="primary" onClick={() => this.handleSearch()}>Search</Button>
             </Col>
           </Row>
-          <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loadingHistory} scroll={{ x: '100%' }} />
+          <Table bordered showSorterTooltip={false} components={this.components} columns={columns.filter((item) => item.dataIndex !== 'history_alarm_id' && item.dataIndex !== 'metric_filter')} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loadingHistory} scroll={{ x: '100%' }} />
         </Card>
         <Modal title="Abnormal Root Cause Analysis" style={{maxWidth: "80vw"}} bodyStyle={{overflowY: "auto",height: "80vh", background: '#f1f1f1'}} width="80vw" okButtonProps={{ style: { display: 'none' } }} 
          destroyOnClose='true' visible={this.state.isModalVisible} maskClosable = {false} centered='true' onCancel={() => this.handleCancel()}>
-          <MetricChart metric_name={this.state.metric_name} host={this.state.host} start_time={this.state.start_time} end_time={this.state.end_time}/>
+          <MetricChart metric_name={this.state.metric_name}  metric_filter={this.state.metric_filter} host={this.state.host} start_time={this.state.start_time} end_time={this.state.end_time}/>
         </Modal>
       </div>
     )
