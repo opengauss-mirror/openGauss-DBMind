@@ -708,3 +708,13 @@ def get_current_instance_status():
 @standardized_api_output
 def get_agent_status():
     return data_transformer.get_agent_status()
+
+
+@request_mapping('/api/workloads/collect', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def collect_workloads(data_source: str = None, databases: str = None, schemas: str = None, start_time: int = None, end_time: int = None, db_users: str = None, sql_types: str = None, duration: int = 60):
+    username, password = oauth2.credential
+    return data_transformer.collect_workloads(username, password, data_source, 
+                                              databases, schemas, start_time, end_time, 
+                                              db_users, sql_types, duration=duration)
