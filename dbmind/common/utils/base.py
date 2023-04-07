@@ -458,6 +458,7 @@ def string_to_dict(values, delimiter=','):
             name, value = pair.split('=')
             d[name.strip()] = value.strip()
     except Exception:
+        logging.error("error occured when transfer %s to dict", values)
         return d
     return d
 
