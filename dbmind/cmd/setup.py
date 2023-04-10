@@ -28,14 +28,11 @@ from dbmind.cmd.configs.config_utils import (
 from dbmind.cmd.configs.configurators import UpdateConfig, DynamicConfig, GenerationConfig
 from dbmind.common import utils, security
 from dbmind.common.exceptions import SetupError, SQLExecutionError, DuplicateTableError
-from dbmind.metadatabase import (
-    create_metadatabase_schema,
-    destroy_metadatabase
-)
+from dbmind.metadatabase.ddl import create_metadatabase_schema, destroy_metadatabase
 
 
 def initialize_and_check_config(confpath, interactive=False, quiet=False):
-    """Returns true while configration procedure is successful. Otherwise,
+    """Returns true while configuration procedure is successful. Otherwise,
     returns default value None."""
     if not os.path.exists(confpath):
         raise SetupError('Not found the directory %s.' % confpath)

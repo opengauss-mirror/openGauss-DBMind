@@ -1,0 +1,141 @@
+.nodestyle{
+  padding-top: 0px;
+}
+.nodestyle .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn{
+  color: #272727;
+  font-weight: 500;
+}
+.nodestyle .ant-tabs-ink-bar {
+  background: #191919ff;
+}
+.childstyle .ant-tabs-ink-bar {
+  width: 0 !important;
+}
+.childstyle .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn{
+  padding: 6px 12px;
+  background: #5990fdff;
+  border-radius: 3px;
+  color: #ffffff;
+  font-weight: 500;
+}
+.childstyle .ant-tabs-tab {
+  padding: 0;
+}
+.childstyle .ant-tabs-tab + .ant-tabs-tab{
+  margin: 0px;
+  border-radius: 3px;
+}
+.childstyle .ant-tabs-ink-bar{
+  width: 0;
+}
+.nodestyle .ant-tabs-content-holder {
+  /* padding: 0 20px 0 !important; */
+  padding: 0 !important;
+}
+/* .cpuborder .echarts-for-react{
+  border: 1px solid #e8e8e8ff;
+} */
+.nodeselect{
+  padding:14px 20px 20px 20px;
+  background:#ffffff
+}
+.nodeselect .ant-select-single:not(.ant-select-customize-input) .ant-select-selector{
+  height: 26px !important;
+  align-items: center;
+}
+.nodeselect .ant-select-single:not(.ant-select-customize-input) .ant-select-selector .ant-select-selection-search-input{
+  height: 26px;
+}
+.formworkp {
+  text-align: end;
+  margin-bottom: 0;
+  padding-right: 5px;
+}
+.formworkp .spanstyle {
+  padding-right: 25px;
+  color: #4d5964;
+  font-size: 12px;
+  font-family:Arial, Helvetica, sans-serif;
+}
+.formworkp .descriptionstyle {
+  font-weight:normal;
+}
+.formworkp .titlestyle {
+  font-weight:bold;
+}
+
+.nodeNetwork .panelTitleSize {
+  margin-Left: 10px;
+  font-size: 12px;
+  color: #4E4E4E;
+}
+
+.nodeNetwork .panelCircle {
+  width: 7px;
+  height: 7px;
+  display: inline-block;
+  border-radius: 50%;
+  margin-left: 10px
+}
+
+.nodeNetwork .circleColorGreen {
+  background-color: #2DA769;
+}
+
+.nodeNetwork .circleColorPurple {
+  background-color: #9185F0;
+}
+
+.nodeNetwork .circleColorBlue {
+  background-color: #5990FD
+}
+
+.nodeNetwork .panelTitleBold {
+  font-weight: bold;
+  margin-left: 10px;
+  font-size: 12px;
+}
+
+.Memoryclass .Memorystyle{
+  width: 100%;
+  float: right;
+}
+.Memoryclass .Memorystyle span{
+  display: block;
+  height: 10px;
+  float: left;
+  margin-right: 0;
+}
+
+.lockinformation .lockstyle{
+  display: flex;
+  align-items: center;
+  padding:14px 20px;
+  border-radius: 6px;
+  background: #fbf9ff;
+}
+.lockinformation .spanleft{
+  text-align: left;
+  width: 70%;
+  color: #737A80;
+  font-size: 12px; 
+}
+.lockinformation .spanright{
+  text-align: right;
+  width: 30%;
+  font-size: 18px;
+  font-weight: Bold;
+}
+.networkPanelheader{
+  background-color: #5990FD;
+  color: #ffffff;
+  border-radius: 4px 4px 0 0;
+  font-size: 12px;
+  padding: 2px 10px;
+  font-weight : bold ;
+}
+.nodeNetwork .ant-collapse > .ant-collapse-item > .ant-collapse-header .ant-collapse-header-text{
+  flex: auto;
+  background-color: #f5f5f5;
+  color: rgba(0, 0, 0, 0.85);
+}

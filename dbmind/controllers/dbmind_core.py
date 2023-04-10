@@ -15,6 +15,7 @@
  And some implementations are only demonstrations.
 """
 import time
+from typing import Dict, Union, List, Optional
 
 from pydantic import BaseModel
 
@@ -556,10 +557,10 @@ def get_regular_inspections_count(inspection_type: str = None):
 @request_mapping('/api/summary/correlation_result', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_correlation_result(metric_name: str = None, host: str = None,
+def get_correlation_result(metric_name: str = None, instance: str = None,
                            start_time: str = None, end_time: str = None,
                            metric_filter: str = None):
-    return data_transformer.get_correlation_result(metric_name, host,
+    return data_transformer.get_correlation_result(metric_name, instance,
                                                    start_time, end_time,
                                                    metric_filter=metric_filter)
 
@@ -593,6 +594,94 @@ def get_collection_system_status():
     return data_transformer.get_collection_system_status()
 
 
+@request_mapping('/api/anomaly_detection/defaults', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_detector_init_defaults():
+    return data_transformer.get_detector_init_defaults()
+
+
+class AlarmInfo(BaseModel):
+    alarm_type: str
+    alarm_level: str
+    alarm_content: Optional[str]
+    alarm_cause: Optional[str]
+    extra: Optional[str]
+
+
+class DetectorInfo(BaseModel):
+    metric_name: str
+    detector_name: str
+    metric_filter: Dict[str, str]
+    detector_kwargs: Dict[
+        str,
+        Optional[
+            Union[
+                float,
+                List[Optional[float]],
+                str
+            ]
+        ]
+    ]
+
+
+class JsonDict(BaseModel):
+    running: int
+    duration: int
+    forecasting_seconds: int
+    alarm_info: AlarmInfo
+    detector_info: List[DetectorInfo]
+
+
+@request_mapping('/api/anomaly_detection/detectors/{name}/addition', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def add_detector(name, json_dict: JsonDict):
+    return data_transformer.add_detector(name, json_dict.dict())
+
+
+@request_mapping('/api/anomaly_detection/detectors/{name}/deletion', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def del_detector(name):
+    return data_transformer.delete_detector(name)
+
+
+@request_mapping('/api/anomaly_detection/detectors/{name}/pause', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def pause_detector(name):
+    return data_transformer.pause_detector(name)
+
+
+@request_mapping('/api/anomaly_detection/detectors/{name}/resumption', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def resume_detector(name):
+    return data_transformer.resume_detector(name)
+
+
+@request_mapping('/api/anomaly_detection/detectors/{name}/view', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def view_detector(name):
+    return data_transformer.view_detector(name)
+
+
+@request_mapping('/api/anomaly_detection/detectors/reconstruction', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def rebuild_detector():
+    return data_transformer.rebuild_detector()
+
+
+@request_mapping('/api/anomaly_detection/detectors/clearance', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def clear_detector():
+    return data_transformer.clear_detector()
+
+
 @request_mapping('/api/data-directory/status', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
@@ -619,3 +708,13 @@ def get_current_instance_status():
 @standardized_api_output
 def get_agent_status():
     return data_transformer.get_agent_status()
+
+
+@request_mapping('/api/workloads/collect', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def collect_workloads(data_source: str = None, databases: str = None, schemas: str = None, start_time: int = None, end_time: int = None, db_users: str = None, sql_types: str = None, duration: int = 60):
+    username, password = oauth2.credential
+    return data_transformer.collect_workloads(username, password, data_source, 
+                                              databases, schemas, start_time, end_time, 
+                                              db_users, sql_types, duration=duration)

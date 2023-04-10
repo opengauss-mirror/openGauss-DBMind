@@ -1,103 +1,129 @@
 import React, { Component } from 'react';
-import { Card, message, Progress, Table } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
-import { getHostListInterface } from '../../api/clusterInformation';
-import { formatTableTime, formatTableTitle } from '../../utils/function';
-import ResizeableTitle from '../common/ResizeableTitle';
+import { Tabs, Select, message } from 'antd';
+import DBServiceCapability from '../NodeInformation/DBServiceCapability';
+import DBPerformanceIndicators from '../NodeInformation/DBPerformanceIndicators';
+import DBLockingAndCaching from '../NodeInformation/DBLockingAndCaching';
+import DBResourceUsage from '../NodeInformation/DBResourceUsage';
+import CapacityMetric from '../NodeInformation/CapacityMetric';
+import SessionTopQuery from '../NodeInformation/SessionTopQuery';
+import DBMemory from '../NodeInformation/DBMemory';
+import { getAgentListInterface } from '../../api/common';
+import db from '../../utils/storage';
 
+const { Option } = Select;
 export default class Host extends Component {
   constructor() {
     super()
     this.state = {
-      data: [],
-      columns: [],
-      pagination: {
-        total: 0,
-        defaultCurrent: 1
-      },
-      loading: false,
+      ifShow: false,
+      selValue:'',
+      selTimeValue:5,
+      options:[],
+      tabkey:"1",
+      minoptions:[{name:'5min',value:5},{name:'10min',value:10},{name:'30min',value:30},{name:'1hour',value:60},{name:'3hours',value:180},
+      {name:'6hours',value:360},{name:'12hours',value:720},{name:'1days',value:1440},{name:'3days',value:4320},{name:'7days',value:10080},{name:'15days',value:21600}],
     }
   }
-  components = {
-    header: {
-      cell: ResizeableTitle,
-    },
+  onChange = (key) => {
+    this.setState(() => ({tabkey: key}))
   };
-  async getHostList () {
-    this.setState({ loading: true })
-    const { success, data, msg } = await getHostListInterface()
+  changeSelVal (value) {
+    this.setState({selValue: value})
+  }
+  changeTimeSelVal (value) {
+    this.setState({selTimeValue: value})
+  }
+  async getItemList () {
+    const { success, data, msg } = await getAgentListInterface()
+    let optionArr = [],newOptionArr = []
+    Object.keys(data).forEach((item) => {
+      if(item === db.ss.get('Instance_value')){
+        optionArr = data[item]
+      }
+    })
+    optionArr.forEach((item) => {
+      newOptionArr.push(item)
+    })
     if (success) {
-      if(JSON.stringify(data) !== '{}'){
-      let arr = []
-      let columnArr = []
-      Object.keys(data).forEach(function (key) {
-        data[key]['ip'] = key
-        arr.push(data[key])
-      })
-      let columnName = {}
-      Object.keys(arr[0]).forEach(function (key) {
-        columnName = {
-          title: formatTableTitle(key),
-          dataIndex: key,
-          key: key,
-          ellipsis: true,
-        }
-        columnArr.push(columnName)
-      })
-      columnArr.forEach((item) => {
-        if (item.key === 'os_cpu_usage' || item.key === 'os_mem_usage' || item.key === 'os_disk_usage') {
-          item.render = (num) => {
-            return (
-              <Progress percent={(num * 100).toFixed(2)} strokeColor="#ff4d4f" size="small" />
-            )
-          }
-        }
-        item.width = 160
-      })
-      formatTableTime(arr)
       this.setState(() => ({
-        loading: false,
-        data: arr,
-        columns: columnArr,
-        pagination: {
-          total: arr.length,
-          defaultCurrent: 1
-        },
+        options: newOptionArr,
+        selValue:newOptionArr[0],
+        ifShow: true
       }))
-    }else{
-      this.setState({ loading: false })
-    }
     } else {
-      this.setState({ loading: false })
       message.error(msg)
     }
   }
-  handleResize = index => (e, { size }) => {
-    this.setState(({ columns }) => {
-      const nextColumns = [...columns];
-      nextColumns[index] = {
-        ...nextColumns[index],
-        width: size.width,
-      };
-      return { columns: nextColumns };
-    });
-  };
   componentDidMount () {
-    this.getHostList()
+    this.getItemList()
   }
-  render () {
-    const columns = this.state.columns.map((col, index) => ({
-      ...col,
-      onHeaderCell: column => ({
-        width: column.width,
-        onResize: this.handleResize(index)
-      })
-    }))
+  render() {
+    let items = [
+      {
+        key: '1',
+        label: `DBServiceCapability`,
+        children: <DBServiceCapability ref={(e) => {this.DBServiceCapabilityRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+      },
+      {
+        key: '2',
+        label: `DBPerformanceIndicators`,
+        children: <DBPerformanceIndicators ref={(e) => {this.DBPerformanceIndicatorsRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+      },
+      {
+        key: '3',
+        label: `DBLockingAndCaching`,
+        children: <DBLockingAndCaching ref={(e) => {this.DBLockingAndCachingRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+      },
+      {
+        key: '4',
+        label: `DBResourceUsage`,
+        children: <DBResourceUsage ref={(e) => {this.DBResourceUsageRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+      },
+      {
+        key: '5',
+        label: `Capacity Metric`,
+        children: <CapacityMetric ref={(e) => {this.DBCapacityMetricRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+      },
+      {
+        key: '6',
+        label: `Session/Top Query`,
+        children: <SessionTopQuery ref={(e) => {this.DBSessionTopQueryRef = e}} tabkey={this.state.tabkey} />,
+      },
+      {
+        key: '7',
+        label: `Memory`,
+        children: <DBMemory ref={(e) => {this.DBMemoryRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+      }
+    ]
     return (
-      <div>
-        <Card title="Node Information" extra={<ReloadOutlined className="more_link" onClick={() => { this.getHostList() }} />} style={{ height: 800 }}>
-          <Table bordered loading={this.state.loading} components={this.components} columns={columns} dataSource={this.state.data} rowKey={record => record.ip} pagination={this.state.pagination} scroll={{ x: '100%' }} />
-        </Card>
+      <div className='nodeselect'>
+        {this.state.ifShow ? 
+        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange}
+         tabBarExtraContent={
+          <div>
+          <Select disabled value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
+          optionFilterProp="children"  filterOption={(input, option) =>
+            option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 124, marginRight: 10 }} className='mb-10' >
+          {
+            this.state.options.map(item => {
+              return (
+                <Option value={item} key={item}>{item}</Option>
+              )
+            })
+          }
+        </Select>
+        <Select value={this.state.selTimeValue} onChange={(val) => { this.changeTimeSelVal(val) }}
+           style={{ width: 100}} className='mb-10' >
+              {
+            this.state.minoptions.map((item,index) => {
+              return (
+                <Option value={item.value} key={index}>{item.name}</Option>
+              )
+            })
+          }
+        </Select>
+          </div>
+         } /> : ''}
       </div>
     )
   }

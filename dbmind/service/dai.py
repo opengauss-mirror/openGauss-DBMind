@@ -763,12 +763,12 @@ def check_instance_status():
             if not is_sequence_valid(cluster_sequence):
                 cluster_sequence = get_latest_metric_value('gaussdb_cluster_state').filter(primary=instance).fetchone()
             if is_sequence_valid(cluster_sequence):
+                labels = cluster_sequence.labels
                 detail['status'] = 'normal' if cluster_sequence.values[-1] == 1 else 'abnormal'
-                detail['primary'] = cluster_sequence.labels['primary']
-                detail['standby'] = cluster_sequence.labels['standby'].strip(',').split(',')
-                normal = cluster_sequence.labels['normal'].strip(',').split(',')
-                detail['abnormal'] = list(set([detail['primary']] + detail['standby']) - set(normal))
-                detail['status'] = 'abnormal' if detail['abnormal'] else 'normal'
+                detail['primary'] = labels.get('primary', '')
+                detail['standby'] = labels.get('standby').strip(',').split(',') if labels else []
+                detail['normal'] = labels.get('normal').strip(',').split(',') if labels else []
+                detail['abnormal'] = list(set([detail['primary']] + detail['standby']) - set(detail['normal']))
                 break
     return detail
 

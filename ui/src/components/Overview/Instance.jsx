@@ -35,27 +35,27 @@ export default class Instance extends Component {
   render () {
     return (
       <Row gutter={10} className="bgcolor">
-      <Col className="gutter-row ant-col-5" >
+      <Col className="gutter-row antclopercent_20" >
         <Card title="Instance Status" className='instancefontsize' style={{ height: 100}} extra={<img src={icon1} alt="" ></img>}>
           <span className='textstyle'><img src={icon6} alt="" className='iconstyle'></img>{this.state.alertData.status}</span>
         </Card>
       </Col>
-      <Col className="gutter-row ant-col-5" >
+      <Col className="gutter-row antclopercent_20" >
         <Card title="Deployment Mode" className='instancefontsize' style={{ height: 100}} extra={<img src={icon2} alt="" ></img>}>
           <span className='textstyle'>{this.state.alertData.deployment_mode}</span>
         </Card>
       </Col>
-      <Col className="gutter-row ant-col-5" >
+      <Col className="gutter-row antclopercent_20" >
         <Card title="Strength Version" className='instancefontsize' style={{ height: 100}} extra={<img src={icon3} alt="" ></img>}>
         <span className='textstyle' title={this.state.alertData.strength_version}>{this.state.alertData.strength_version}</span>
         </Card>
       </Col>
-      <Col className="gutter-row ant-col-5" >
+      <Col className="gutter-row antclopercent_20" >
         <Card title="Operating System" className='instancefontsize' style={{ height: 100}}  extra={<img src={icon4} alt="" ></img>}>
         <span className='textstyle' >{this.state.alertData.operating_system}</span>
         </Card>
       </Col>
-      <Col className="gutter-row ant-col-5" >
+      <Col className="gutter-row antclopercent_20" >
         <Card title="Alarm List" className='instancefontsize' style={{ height: 100}}  extra={<img src={icon5} alt="" ></img>}>
             <Row gutter={2}>
                 <Col className="gutter-row" span={6}>

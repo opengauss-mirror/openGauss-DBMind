@@ -82,3 +82,12 @@ ul,li{
 .contentBag::-webkit-scrollbar{
   display:none;
 }
+.ant-table-thead > tr > th{
+  background:#f2f5fc;
+}
+.ant-table.ant-table-bordered > .ant-table-container{
+  border-left: none;
+}
+.ant-table.ant-table-bordered > .ant-table-container > .ant-table-content > table > tbody > tr > td{
+  border-right: none;
+}

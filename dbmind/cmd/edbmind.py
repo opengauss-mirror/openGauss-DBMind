@@ -77,6 +77,8 @@ def signal_handler(signum, frame):
             # if it is found that the task does not exist in the specified_timed_tasks,
             # it will be forcibly added to global_vars.backend_timed_task.
             TimedTaskManager.specified_timed_task.append(constants.DISCARD_EXPIRED_RESULTS)
+        if constants.ANOMALY_DETECTION_NAME in TimedTaskManager.specified_timed_task:
+            init_anomaly_detection_pool()
         # refresh timed-tasks
         TimedTaskManager.flush()
     elif signum == signal.SIGUSR2:
@@ -251,6 +253,12 @@ def init_tsdb_with_config():
     return TsdbClientFactory.get_tsdb_client()
 
 
+def init_anomaly_detection_pool():
+    from dbmind.app.monitoring import ad_pool_manager
+    ad_pool_manager.rebuild_detector()
+    ad_pool_manager.init_specific_detections()
+
+
 class DBMindMain(Daemon):
     def __init__(self, confpath):
         if not _check_confpath(confpath):
@@ -329,6 +337,8 @@ class DBMindMain(Daemon):
 
         # Start timed tasks.
         app.register_timed_app()
+        if constants.ANOMALY_DETECTION_NAME in TimedTaskManager.timers:
+            init_anomaly_detection_pool()
         if global_vars.is_dry_run_mode:
             TimedTaskManager.run_once()
             return

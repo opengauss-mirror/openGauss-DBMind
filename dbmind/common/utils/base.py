@@ -153,6 +153,18 @@ class TTLOrderedDict(OrderedDict):
                 return default
 
 
+class FixedDict(OrderedDict):
+    def __init__(self, max_len=16):
+        super().__init__()
+        self.max_len = max_len
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if len(self) > self.max_len:
+            # FIFO
+            self.popitem(last=False)
+
+
 class NaiveQueue:
     def __init__(self, maxsize=10):
         """Unlike the Queue that Python builds in,
@@ -446,6 +458,7 @@ def string_to_dict(values, delimiter=','):
             name, value = pair.split('=')
             d[name.strip()] = value.strip()
     except Exception:
+        logging.error("error occured when transfer %s to dict", values)
         return d
     return d
 

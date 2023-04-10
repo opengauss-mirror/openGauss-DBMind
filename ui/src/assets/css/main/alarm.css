@@ -1,0 +1,60 @@
+.selfhealing .ant-card-head {
+  border-bottom: none;
+}
+.selfhealing .ant-card-body {
+  padding: 0 24px 24px 24px;
+}
+.selfhealing .ant-card-head-title {
+  padding: 11px 0;
+}
+.selfhealing .childstyle .ant-card-head-title {
+  padding: 4px 0;
+}
+.selfhealing .childstyle .ant-card-extra {
+  padding: 4px 0;
+}
+.selfhealing .childstyle .ant-card-head {
+  min-height: 36px;
+}
+.selfhealing .ant-switch {
+  height: 2px;
+  line-height: 2px;
+}
+.selfhealing .ant-switch {
+  height: 2px;
+  line-height: 2px;
+  min-width: 32px;
+}
+.selfhealing .ant-switch-checked .ant-switch-handle {
+  left: calc(100% - 8px - 2px);
+}
+.selfhealing .ant-switch-handle {
+  position: absolute;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border: 1px solid #5990FD;
+  border-radius: 50%;
+}
+.selfhealing  .lockstyle{
+  display: flex;
+  align-items: center;
+}
+.selfhealing  .spanleft{
+  text-align: left;
+  width: 75%;
+  color: #272727;
+  font-size: 14px; 
+  font-weight : 400 ;
+  cursor:pointer;
+}
+.selfhealing  .spanright{
+  text-align: right;
+  width: 25%;
+  font-size: 18px;
+  font-weight: Bold;
+  cursor:pointer;
+}
+.formlistclass .ant-row {
+  justify-content: space-around;
+}

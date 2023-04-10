@@ -26,6 +26,7 @@ from itertools import groupby
 import sqlparse
 
 from dbmind import global_vars
+from dbmind.app.monitoring import ad_pool_manager
 from dbmind.app.optimization import get_database_schemas, TemplateArgs
 from dbmind.app.optimization.index_recommendation import rpc_index_advise, is_rpc_available
 from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
@@ -45,6 +46,11 @@ from dbmind.common.dispatcher import TimedTaskManager
 from dbmind.components.forecast import early_warning
 from dbmind.service import dai
 from dbmind.service.utils import SequenceUtils
+from dbmind.components.fetch_statement.collect_workloads import (
+                          collect_statement_from_statement_history, 
+                          collect_statement_from_activity, 
+                          collect_statement_from_asp
+)
 
 from .context_manager import ACCESS_CONTEXT_NAME, get_access_context
 from .jsonify_utils import (
@@ -801,7 +807,7 @@ def get_slow_query_summary(pagesize=None, current=None):
         .filter(name='log_min_duration_statement') \
         .fetchone()
     # fix the error which occurs in the interface of DBMind
-    if not dai.is_sequence_valid(sequence):
+    if dai.is_sequence_valid(sequence):
         threshold = sequence.values[-1]
     else:
         threshold = 'Nan'
@@ -1221,13 +1227,48 @@ def get_agent_status():
 def get_current_instance_status():
     detail = {'header': ['instance', 'role', 'state'], 'rows': []}
     instance_status = dai.check_instance_status()
-    detail['rows'].append([instance_status['primary'], 'primary',
-                           True if instance_status['primary'] in instance_status['normal'] else False])
-    for instance in instance_status['standby']:
-        detail['rows'].append([instance, 'standby', True if instance in instance_status['normal'] else False])
-    for instance in instance_status['abnormal']:
-        detail['rows'].append([instance, '', 'abnormal'])
+    if instance_status['deployment_mode'] == 'centralized':
+        detail['rows'].append([instance_status['primary'], 'primary',
+                               True if instance_status['primary'] in instance_status['normal'] else False])
+        for instance in instance_status['standby']:
+            detail['rows'].append([instance, 'standby', True if instance in instance_status['normal'] else False])
+        for instance in instance_status['abnormal']:
+            detail['rows'].append([instance, '', 'abnormal'])
+    elif instance_status['deployment_mode'] == 'single':
+        detail['rows'].append([instance_status['primary'], 'primary', True if instance_status['status'] == 'normal' else False])
     return detail
+
+
+def get_detector_init_defaults():
+    return ad_pool_manager.get_detector_init_defaults()
+
+
+def add_detector(name, json_dict):
+    return ad_pool_manager.add_detector(name, json_dict)
+
+
+def delete_detector(name):
+    return ad_pool_manager.delete_detector(name)
+
+
+def pause_detector(name):
+    return ad_pool_manager.pause_detector(name)
+
+
+def resume_detector(name):
+    return ad_pool_manager.resume_detector(name)
+
+
+def view_detector(name):
+    return ad_pool_manager.view_detector(name)
+
+
+def rebuild_detector():
+    return ad_pool_manager.rebuild_detector()
+
+
+def clear_detector():
+    return ad_pool_manager.clear_detector()
 
 
 def get_collection_system_status():
@@ -1244,3 +1285,21 @@ def get_collection_system_status():
                                       tsdb_status['listen_address'],
                                       True if tsdb_status['status'] == 'up' else False])
     return collection_detail
+
+
+def collect_workloads(username, password, data_source, databases, schemas, start_time, end_time, db_users, sql_types, duration=10):
+    # transfer timestamps to string format
+    if start_time:
+        start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time // 1000))
+    if end_time:
+        end_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time // 1000))
+    else:
+        end_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+    if data_source == 'pg_stat_activity':
+        stmts = collect_statement_from_activity(databases, db_users, sql_types, duration=duration)
+    elif data_source == 'dbe_perf.statement_history':
+        stmts = collect_statement_from_statement_history(databases, schemas, start_time, end_time, db_users, sql_types, duration=duration)
+    else:
+        stmts = collect_statement_from_asp(databases, start_time, end_time, db_users, sql_types)
+    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmts)
+    return psycopg2_dict_jsonify(res)

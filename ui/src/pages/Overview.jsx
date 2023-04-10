@@ -17,7 +17,7 @@ import CollectionTable from '../components/Overview/CollectionTable';
 import ScheduledTaskTable from '../components/Overview/ScheduledTaskTable';
 
 
-export default class Overview1 extends Component {
+export default class Overview extends Component {
   constructor(props) {
     super(props)
     this.state = {
@@ -39,7 +39,7 @@ export default class Overview1 extends Component {
                 </Card>
                 </Col>
                 <Col className="gutter-row" span={12}>
-                  <Card title="Connection" className='instancename' style={{ height: 158}} >
+                  <Card title="Total Connection" className='instancename' style={{ height: 158}} >
                     <ConnectionCharts />
                   </Card>
                 </Col>
@@ -74,13 +74,11 @@ export default class Overview1 extends Component {
               <Card title="Node" className='instancename' style={{ height: 288}} >
               <NodeTable />
               </Card>
-              <Card title="Collection" className='instancename' style={{ height: 288}} >
               <CollectionTable />
-              </Card>
             </Col>
         </Row>
         <Card title="Scheduled Task" className='instancename' style={{ height: 520}} extra={<div><Tooltip placement="left" color={'#ffffff'} title={<span style={{ color: '#000' }}>The current status needs to be modified in the background. The front-end setting is temporarily unavailable.</span>}><img src={Help} alt="" className='iconstyle' ></img></Tooltip><img src={Refresh} alt="" className='iconstyle' onClick={() => this.ScheduledTaskTableRef.refresh()} ></img></div>}>
-          {this.state.showFlag === 0 ?               
+          {this.state.showFlag === 0 ?
           <ScheduledTaskTable ref={(e) => {this.ScheduledTaskTableRef = e}}/> 
           : <div style={{ textAlign: 'center' }}><Spin style={{ margin: '100px auto' }} /> </div>}
         </Card>

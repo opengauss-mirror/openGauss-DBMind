@@ -11,7 +11,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import os
-from configparser import ConfigParser
 from configparser import NoSectionError, NoOptionError
 
 from dbmind import constants
@@ -22,8 +21,8 @@ from dbmind.cmd.configs.configurators import ReadonlyConfig, UpdateConfig
 from dbmind.common import security, utils
 from dbmind.common.exceptions import ConfigSettingError
 from dbmind.common.utils.cli import write_to_terminal
-from dbmind.metadatabase import create_dynamic_config_schema
 from dbmind.metadatabase.dao.dynamic_config import dynamic_config_get, dynamic_config_set
+from dbmind.metadatabase.ddl import create_dynamic_config_schema
 
 
 def load_sys_configs(confile):

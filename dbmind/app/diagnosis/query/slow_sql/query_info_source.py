@@ -648,7 +648,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                so currently only support for obtaining thread waiting event information at runtime.
         """
         thread_info = ThreadInfo()
-        if self.slow_sql_instance.query_id <= 0:
+        if not self.slow_sql_instance.query_id:
             return thread_info
         stmt = """
         select tid, wait_status, wait_event, block_sessionid, lockmode from pg_catalog.pg_thread_wait_status where 
@@ -1043,7 +1043,7 @@ class QueryContextFromDriver(QueryContext):
     @exception_catcher
     def acquire_wait_event_info(self) -> ThreadInfo:
         thread_info = ThreadInfo()
-        if self.slow_sql_instance.query_id <= 0:
+        if not self.slow_sql_instance.query_id:
             return thread_info
         stmt = """
         select tid, wait_status, wait_event, block_sessionid, lockmode from pg_catalog.pg_thread_wait_status where 

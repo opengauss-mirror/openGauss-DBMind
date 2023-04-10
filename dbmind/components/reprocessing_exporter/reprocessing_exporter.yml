@@ -1334,7 +1334,7 @@ gaussdb_statement_sort_spill:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 

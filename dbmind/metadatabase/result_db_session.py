@@ -15,9 +15,10 @@ import contextlib
 from sqlalchemy.engine import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import SingletonThreadPool
+from sqlalchemy.exc import DatabaseError
 
 from dbmind import global_vars
-from ._utils import create_dsn
+from .utils import create_dsn
 
 session_clz = dict()
 
@@ -66,8 +67,10 @@ def get_session():
     try:
         yield session
         session.commit()
+
     except Exception as exception:
         session.rollback()
         raise exception
     finally:
         session.close()
+

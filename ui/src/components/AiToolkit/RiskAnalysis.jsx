@@ -6,6 +6,8 @@ import { getForecastInterface, getSearchMetricInterface } from '../../api/autono
 import { getAgentListInterface } from '../../api/common';
 import { formatTimestamp } from '../../utils/function';
 import db from '../../utils/storage';
+import '../../assets/css/common.css'
+import '../../assets/css/main/aiToolkit.css';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -216,6 +218,7 @@ export default class RiskAnalysis extends Component {
         data: item.xdata
       },
       yAxis: {
+        scale:true,
         type: 'value',
         nameLocation: 'end',
         nameTextStyle: {
@@ -337,7 +340,7 @@ export default class RiskAnalysis extends Component {
   }
   render () {
     return (
-      <div>
+      <div className="contentWrap">
         <Card title="Risk Analysis" extra={<ReloadOutlined className="more_link " onClick={() => { this.handleRefresh() }}  style={{height: "100%"}} />}>
           <Row className="analysis" style={{ width: '90%'}} justify="space-between">
             <Col>

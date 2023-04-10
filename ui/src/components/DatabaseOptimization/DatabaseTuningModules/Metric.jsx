@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Card, Table, message } from 'antd';
+import '../../../assets/css/common.css';
 import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTitle } from '../../../utils/function';
@@ -99,9 +100,11 @@ export default class MetricData extends Component {
       return { columns: nextColumns };
     });
   };
-  UNSAFE_componentWillReceiveProps (props) {
-    this.props=props
-    this.handleTableData(props.metricData.header, props.metricData.rows, props.metricData.total)
+  componentDidMount () {
+    this.getKnobRecommendationSnapshot({
+      current: 1,
+      pagesize: 10,
+    })
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -122,10 +125,12 @@ export default class MetricData extends Component {
       onChange: (current,pageSize) => this.changePage(current,pageSize)
     };
     return (
-      <div className="mb-20">
-        <Card title="Metric Snapshot" className="mb-20 formlabel-160">
-          <Table bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={metricProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
-        </Card>
+      <div className="contentWrap">
+        <div className="mb-20">
+          <Card title="Metric Snapshot" className="mb-20 formlabel-160">
+            <Table size="small" bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={metricProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
+          </Card>
+        </div>
       </div>
     )
   }

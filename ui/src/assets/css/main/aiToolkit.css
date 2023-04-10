@@ -72,16 +72,20 @@
   min-height: 28px;
   color: #393939;
 }
-.indexadvisor .backcolor .ant-table-tbody>tr>td,.ant-table-thead>tr>th,.ant-table tfoot>tr>td,.ant-table tfoot>tr>th{
-  padding: 1px 20px;
-}
-.indexadvisor .backcolor .ant-table thead>tr>th{
-  background-color: #F2F5FC;
-  color: #404B55;
-}
-.indexadvisor .backcolor .ant-table-thead>tr>th:not(:last-child):not(.ant-table-selection-column):not(.ant-table-row-expand-icon-cell):not([colspan]):before{
-  width: 0px;
-}
 .indexadvisor .backcolor .ant-btn{
   padding: 0;
 }
+
+/* card改下划线样式
+.ant-card-head{
+  min-height: 50px;
+  padding: 0;
+  margin: 0px 20px;
+  border-bottom: 1px solid #dddddd;
+}
+.ant-card-head-title{
+  padding: 12px 0px;
+}
+.ant-card-body{
+  padding: 8px 20px;
+} */

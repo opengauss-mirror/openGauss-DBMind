@@ -13,8 +13,8 @@
 
 from sqlalchemy import func
 
-from ._common import truncate_table
-from ..business_db import get_session
+from dbmind.metadatabase.ddl import truncate_table
+from ..result_db_session import get_session
 from ..schema import ExistingIndexes
 from ..schema import IndexRecommendation
 from ..schema import IndexRecommendationStats
