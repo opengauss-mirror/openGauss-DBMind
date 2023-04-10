@@ -228,7 +228,7 @@ def write_yaml(yaml_path, yaml_obj):
     yaml_obj = {name: preprocessing_dict(params)
                 for name, params in yaml_obj.items()}
     with open(yaml_path, "w+") as f:
-        yaml.dump(yaml_obj, f)
+        yaml.safe_dump(yaml_obj, f)
 
 
 def read_yaml(yaml_path):

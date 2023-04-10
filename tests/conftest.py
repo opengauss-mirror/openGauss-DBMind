@@ -31,7 +31,7 @@ from dbmind.cmd.configs.configurators import DynamicConfig
 from dbmind.cmd.edbmind import get_worker_instance
 from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
 from dbmind.common.types import Sequence
-from dbmind.metadatabase import create_dynamic_config_schema
+from dbmind.metadatabase.ddl import create_dynamic_config_schema
 from dbmind.metadatabase.schema.config_dynamic_params import DynamicParams
 
 metadatabase_name = 'test_metadatabase.db'
