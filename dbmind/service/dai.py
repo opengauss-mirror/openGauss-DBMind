@@ -660,7 +660,7 @@ def diagnosis_exporter_status(exporter_status):
     if number_of_reprocessing_number > 1:
         suggestions.append("Only need to start one reprocessing exporter component.")
     if number_of_reprocessing_number < 1:
-        suggestions.append("Is is found that the instance has not deployed reprocessing_exporter or some exception occurs.")
+        suggestions.append("It is found that the instance has not deployed reprocessing_exporter or some exception occurs.")
     # 5) check whether too many node_exporters are deployed
     number_of_alive_node_exporter = len(set([item['instance'] for item in
                                         exporter_status['node_exporter'] if item['status'] == 'up']))
@@ -669,8 +669,14 @@ def diagnosis_exporter_status(exporter_status):
                            "it is recommended to deploy one node_exporter on each instance.")
     # 6) check if some nodes do not deploy exporter
     if number_of_alive_node_exporter < len(instance_with_no_port):
-        suggestions.append("Is it found that some node has not deployed node_exporter, "
+        suggestions.append("It is found that some node has not deployed node_exporter, "
                            "it is recommended to deploy one node_exporter on each instance.")
+    # 7) check whether the cmd_exporter is deployed or not
+    cluster = global_vars.agent_proxy.current_cluster_instances()
+    number_of_cmd_exproter = len(set((item['listen_address'] for item in
+                                      exporter_status['cmd_exporter'])))
+    if len(cluster) > 1 and number_of_cmd_exproter == 0:
+        suggestions.append("It is found that cmd_exporter is not deployed on each instance.")
     return suggestions
 
 
