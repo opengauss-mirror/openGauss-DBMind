@@ -879,7 +879,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
     def acquire_total_memory_detail(self) -> TotalMemoryDetail:
         memory_detail = TotalMemoryDetail()
         stmt = """
-        select memorytype, memorybytes from pg_catalog.gs_total_memory_detail 
+        select memorytype, memorymbytes from pg_catalog.gs_total_memory_detail 
         where memorytype in ('max_process_memory', 'process_used_memory', 'max_dynamic_memory', 
         'dynamic_used_memory', 'other_used_memory')"""
         rows = global_vars.agent_proxy.call('query_in_database',
