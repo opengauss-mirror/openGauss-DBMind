@@ -104,7 +104,7 @@ class Operator:
 
     def _parse_header(self, line):
         if re.search(ABO_FLAG_PATTERN, line):
-            name, start_cost, total_cost, rows, width = re.findall(ABO_HEADER_PATTERN, line)[0]
+            name, start_cost, total_cost, rows, _, _, width = re.findall(ABO_HEADER_PATTERN, line)[0]
         else:
             name, start_cost, total_cost, rows, width = re.findall(HEADER_PATTERN, line)[0]
         self.name = name.strip()
