@@ -291,6 +291,7 @@ def test_generate_tasks(monkeypatch, deploy_configs):
             ],
             'chmod 600 /prometheus.log',
             'chmod +x /media/sdb/deploy/node_exporter-1.3.1.linux-amd64/node_exporter',
+            'chmod +x /media/sdb/deploy/python/bin/*',
             'chmod +x /media/sdb/deploy/gs_dbmind',
             [
                 '/media/sdb/deploy/node_exporter-1.3.1.linux-amd64/node_exporter '
@@ -316,6 +317,7 @@ def test_generate_tasks(monkeypatch, deploy_configs):
                 'opengauss-exporter of 10.90.56.172:9187'
             ],
             'chmod +x /media/sdb/deploy/node_exporter-1.3.1.linux-amd64/node_exporter',
+            'chmod +x /media/sdb/deploy/python/bin/*',
             'chmod +x /media/sdb/deploy/gs_dbmind',
             [
                 '/media/sdb/deploy/node_exporter-1.3.1.linux-amd64/node_exporter '

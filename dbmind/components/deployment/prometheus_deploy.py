@@ -733,6 +733,7 @@ def generate_tasks(configs):
         dbmind_path = os.path.join(path, 'gs_dbmind')
         # Authorize to make the file executable
         tasks[executor].append(f'chmod +x {os.path.join(node_exporter_path, "node_exporter")}')
+        tasks[executor].append(f'chmod +x {os.path.join(path, "python/bin/*")}')
         tasks[executor].append(f'chmod +x {dbmind_path}')
         if configs.get(SSL, 'enable_ssl') == "True":
             cert_permission(executor)
