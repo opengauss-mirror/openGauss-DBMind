@@ -70,6 +70,7 @@ pg_sql_statement_history:
       version: '>=0.0.0'
       timeout: 9
       status: enable
+      dbRole: primary
   metrics:
     - name: datname
       description: Name of database
@@ -234,7 +235,6 @@ pg_sql_statement_statistics:
       sql: |-
         WITH db_time_top10 AS (SELECT node_name,
                                       unique_sql_id,
-                                      lower(regexp_replace(dbe_perf.STATEMENT.query, E'[\\n\\r\\s]+', ' ', 'g')) as query,
                                       n_calls,
                                       db_time,
                                       sort_spill_count,
@@ -247,7 +247,6 @@ pg_sql_statement_statistics:
                                limit 10),
              n_calls_top10 AS (SELECT node_name,
                                       unique_sql_id,
-                                      lower(regexp_replace(dbe_perf.STATEMENT.query, E'[\\n\\r\\s]+', ' ', 'g')) as query,
                                       n_calls,
                                       db_time,
                                       sort_spill_count,
@@ -272,9 +271,6 @@ pg_sql_statement_statistics:
       usage: LABEL
     - name: unique_sql_id
       description: unique SQL id
-      usage: LABEL
-    - name: query
-      description: query text
       usage: LABEL
     - name: n_calls
       description: query plan text

@@ -17,15 +17,13 @@ pg_db:
   query:
     - name: pg_db
       sql: |-
-        SELECT d.datid,d.datname,
+       SELECT d.datid,d.datname,
           xact_commit,xact_rollback,xact_rollback + xact_commit AS xact_total,
           blks_read,blks_hit,(blks_hit / (blks_read+blks_hit+0.001)) AS blks_access,
           tup_returned,tup_fetched,tup_inserted,tup_updated,tup_deleted,tup_inserted + tup_updated + tup_deleted AS tup_modified,
           conflicts,temp_files,temp_bytes,deadlocks,
-          blk_read_time,blk_write_time, extract(epoch from stats_reset) as stats_reset,
-          confl_tablespace,confl_lock,confl_snapshot,confl_bufferpin,confl_deadlock,
-          tup_returned / (extract (epoch from (pg_catalog.now() - stats_reset))) AS read_tup_speed,
-        (tup_inserted + tup_updated + tup_deleted) / (extract (epoch from (pg_catalog.now() - stats_reset))) AS write_tup_speed
+          blk_read_time,blk_write_time,
+          case when (stats_reset is null) then -1 else extract(epoch from pg_catalog.now() - stats_reset)::bigint end as reset_delay, confl_tablespace,confl_lock,confl_snapshot,confl_bufferpin,confl_deadlock
         FROM pg_stat_database d,pg_stat_database_conflicts pdc
         WHERE pdc.datname = d.datname and d.datname NOT IN ('postgres', 'template0', 'template1');
       version: '>=0.0.0'
@@ -88,9 +86,9 @@ pg_db:
     - name: blk_write_time
       description: Time spent writing data file blocks by backends in this database, in milliseconds
       usage: COUNTER
-    - name: stats_reset
+    - name: reset_delay
       description: Time at which these statistics were last reset
-      usage: COUNTER
+      usage: GAUGE
     - name: confl_tablespace
       description: Number of queries in this database that have been canceled due to dropped tablespaces
       usage: COUNTER
@@ -105,12 +103,6 @@ pg_db:
       usage: COUNTER
     - name: confl_deadlock
       description: Number of queries in this database that have been canceled due to deadlocks
-      usage: COUNTER
-    - name: read_tup_speed
-      description: read_tup_speed
-      usage: COUNTER
-    - name: write_tup_speed
-      description: write_tup_speed
       usage: COUNTER
   status: enable
   ttl: -1
@@ -338,6 +330,7 @@ pg_stat_replication:
       timeout: 1
       ttl: 60
       status: enable
+      dbRole: primary
 
   metrics:
     - name: pid
@@ -430,7 +423,7 @@ pg_replication_slots:
             active,
             coalesce(xmin,'_') as xmin,
             coalesce(catalog_xmin,'_') as catalog_xmin,
-            CASE WHEN pg_is_in_recovery() THEN null ELSE pg_xlog_location_diff(pg_current_xlog_location(),restart_lsn) END
+            CASE WHEN pg_is_in_recovery() THEN -1 ELSE pg_xlog_location_diff(pg_current_xlog_location(),restart_lsn) END
             as delay_lsn,
             dummy_standby,
             pg_xlog_location_diff(restart_lsn ,'0/0'::text)        AS restart_lsn,
@@ -847,7 +840,7 @@ pg_lock_sql:
         where ts.locktag=tt.locktag order by 1;
       version: '>=0.0.0'
       timeout: 9
-      status: enable
+      status: disable
   metrics:
     - name: locker_user
       description: locker user
@@ -1084,6 +1077,7 @@ pg_recovery_status:
       timeout: 1
       ttl: 10
       status: enable
+      dbRole: primary
 
   metrics:
     - name: standby_node_name
@@ -1264,7 +1258,7 @@ pg_autovacuum_worker:
       version: '>=0.0.0'
       timeout: 9
       ttl: 10
-      status: enable
+      status: disable
 
   metrics:
     - name: datname
