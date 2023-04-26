@@ -14,14 +14,11 @@ import logging
 import time
 
 from dbmind.app import monitoring
-from dbmind.common.algorithm.anomaly_detection.spike_detector import SpikeDetector
 from dbmind.common.parser import sql_parsing
-from dbmind.common.types import Sequence
 from ..slow_sql.query_info_source import QueryContext
 
 PROPERTY_LENGTH = 40
-
-spike_detector = SpikeDetector(side="positive")
+MINIMAL_HIT_RATE = 0.98
 
 
 def _search_table_structures(table_structures, table_name):
@@ -69,14 +66,6 @@ def _hashjoin_adaptor(node):
     return False
 
 
-def _existing_spike(data):
-    sequence = Sequence(values=data, timestamps=list(range(len(data))))
-    result = spike_detector.fit_predict(sequence)
-    if True in result.values:
-        return True
-    return False
-
-
 def _get_node_rows(table_structures, node):
     if 'Seq Scan' in node.name:
         if node.properties.get('Filter'):
@@ -91,12 +80,11 @@ class QueryFeature:
     Feature processing factory
     """
 
-    def __init__(self, query_context: QueryContext = None):
+    def __init__(self, query_context: QueryContext):
         """
         :param query_context context including the necessary information of metrics when SQL occurs
 
         self.table_structure: data structure to save table structure
-        self.lock_info: data structure to save lock information of slow query
         self.database_info: data structure to save lock information of database info such as QPS, CONNECTION, etc
         self.system_info: data structure to save system information
         self.detail: data structure to save diagnosis information
@@ -104,7 +92,6 @@ class QueryFeature:
         self.slow_sql_instance = query_context.slow_sql_instance
         self.query_context = query_context
         self.table_structure = None
-        self.lock_info = None
         self.database_info = None
         self.system_info = None
         self.network_info = None
@@ -113,27 +100,28 @@ class QueryFeature:
         self.recommend_index_info = None
         self.rewritten_sql_info = None
         self.timed_task_info = None
-        self.threads_info = None
-        self.sort_condition_info = None
+        self.wait_event_info = None
         self.unused_index_info = None
         self.redundant_index_info = None
+        self.total_memory_detail = None
         self.detail = {}
         self.suggestion = {}
 
     def initialize_metrics(self):
-        """Initialize the data structure such as database_info, table_structure, lock_info, etc"""
+        """Initialize the data structure such as database_info, table_structure, etc"""
         self.database_info = self.query_context.acquire_database_info()
         self.table_structure = self.query_context.acquire_tables_structure_info()
-        self.lock_info = self.query_context.acquire_lock_info()
         self.system_info = self.query_context.acquire_system_info()
         self.network_info = self.query_context.acquire_network_info()
         self.rewritten_sql_info = self.query_context.acquire_rewritten_sql()
-        self.recommend_index_info, self.redundant_index_info = self.query_context.acquire_index_analysis_info()
+        index_analysis_info = self.query_context.acquire_index_analysis_info()
+        if index_analysis_info:
+            self.recommend_index_info, self.redundant_index_info = index_analysis_info
         self.plan_parse_info = self.query_context.acquire_plan_parse()
-        self.threads_info = self.query_context.acquire_thread_info()
+        self.wait_event_info = self.query_context.acquire_wait_event_info()
         self.pg_setting_info = self.query_context.acquire_pg_settings()
-        self.sort_condition_info = self.query_context.acquire_sort_condition()
         self.unused_index_info = self.query_context.acquire_unused_index()
+        self.total_memory_detail = self.query_context.acquire_total_memory_detail()
 
     @property
     def select_type(self) -> bool:
@@ -170,8 +158,11 @@ class QueryFeature:
     @property
     def lock_contention(self) -> bool:
         """Determine whether the query is blocked during execution."""
-        if self.lock_info.locker_query:
-            self.detail['lock_contention'] = "SQL was blocked by: '%s'." % self.lock_info.locker_query
+        if self.wait_event_info.block_sessionid is not None:
+            self.detail['lock_contention'] = "SQL was blocked by session: %s, lockmode: %s, locktag: %s" % \
+                                             (self.wait_event_info.block_sessionid,
+                                              self.wait_event_info.lockmode,
+                                              self.wait_event_info.locktag)
             return True
         return False
 
@@ -190,9 +181,9 @@ class QueryFeature:
                        for item in self.table_structure}
         self.detail['large_table'] = {}
         for table_name, table_info in tuples_info.items():
-            if table_info['live_tuples'] + table_info['dead_tuples'] >= monitoring.get_threshold(
+            if table_info['live_tuples'] + table_info['dead_tuples'] >= monitoring.get_slow_sql_param(
                     'tuple_number_threshold') or \
-                    table_info['table_size'] >= monitoring.get_threshold('table_total_size_threshold'):
+                    table_info['table_size'] >= monitoring.get_slow_sql_param('table_total_size_threshold'):
                 table_info['table_size'] = "%sMB" % table_info['table_size']
                 self.detail['large_table'][table_name] = table_info
         if self.detail.get('large_table'):
@@ -208,19 +199,19 @@ class QueryFeature:
         if not self.table_structure or self.insert_type:
             return False
         table_info = {f"{item.schema_name}:{item.table_name}": {'dead_rate': item.dead_rate,
-                                                                'live_tup': item.live_tuples,
-                                                                'dead_tup': item.dead_tuples,
-                                                                'table_size': item.table_size} for item in
-                      self.table_structure}
+                                                                'live_tuples': item.live_tuples,
+                                                                'dead_tuples': item.dead_tuples,
+                                                                'table_size': item.table_size}
+                      for item in self.table_structure}
         self.detail['dead_rate'] = {}
         abnormal_dead_rate = ''
         if self.plan_parse_info is None:
             for table_name, detail in table_info.items():
-                if detail['live_tuples'] + detail['dead_tuples'] <= monitoring.get_threshold(
+                if detail['live_tuples'] + detail['dead_tuples'] <= monitoring.get_slow_sql_param(
                         'tuple_number_threshold') and \
-                        detail['table_size'] <= monitoring.get_threshold('table_total_size_threshold'):
+                        detail['table_size'] <= monitoring.get_slow_sql_param('table_total_size_threshold'):
                     continue
-                if detail['dead_rate'] >= monitoring.get_threshold('dead_rate_threshold'):
+                if detail['dead_rate'] >= monitoring.get_slow_sql_param('dead_rate_threshold'):
                     abnormal_dead_rate += '%s: live_tup(%s) dead_tup(%s) dead_rate(%s)  ' % (table_name,
                                                                                              detail['live_tuples'],
                                                                                              detail['dead_tuples'],
@@ -236,7 +227,7 @@ class QueryFeature:
                 for table_info in self.table_structure:
                     # The plan can not reflect schema information, so table may be under other schema.
                     if table_info.table_name == table and \
-                            table_info.dead_rate >= monitoring.get_threshold('dead_rate_threshold') and \
+                            table_info.dead_rate >= monitoring.get_slow_sql_param('dead_rate_threshold') and \
                             self.large_table:
                         abnormal_dead_rate += '%s: live_tup(%s) dead_tup(%s) dead_rate(%s)  ' % (table_info.table_name,
                                                                                                  table_info.live_tuples,
@@ -250,65 +241,85 @@ class QueryFeature:
         return False
 
     @property
-    def fetch_large_data(self) -> bool:
-        """Determine whether the query related table has too many fetched tuples."""
+    def heavy_scan_operator(self) -> bool:
+        """Determine whether the query related table has too many fetched tuples and the hit rate is normal."""
+        if self.update_large_data or self.delete_large_data:
+            return False
+        hit_rate = self.slow_sql_instance.hit_rate
         fetched_tuples = self.slow_sql_instance.n_tuples_fetched
         returned_tuples = self.slow_sql_instance.n_tuples_returned
         returned_rows = self.slow_sql_instance.n_returned_rows
-        if fetched_tuples + returned_tuples >= monitoring.get_threshold('fetch_tuples_threshold') or \
-                returned_rows >= monitoring.get_threshold('returned_rows_threshold'):
-            self.detail['fetch_large_data'] = "Existing large scan situation. " \
-                                              "Detail: fetch_tuples(%s), returned_rows(%s)" % \
-                                              (fetched_tuples + returned_tuples, returned_rows)
-            self.suggestion['fetch_large_data'] = "According to business adjustments, try to avoid large scans"
-            return True
-        else:
-            if self.plan_parse_info is None:
-                return False
-            suggestions = []
-            plan_total_cost = self.plan_parse_info.root_node.total_cost
-            seq_scan_operators = [operator for operator in
-                                  self.plan_parse_info.find_operators('Seq Scan', accurate=False)
-                                  if _get_operator_cost(operator) / plan_total_cost >=
-                                  monitoring.get_threshold('cost_rate_threshold')]
-            index_scan_operators = [operator for operator in
-                                    self.plan_parse_info.find_operators('Index Scan', accurate=False)
-                                    if _get_operator_cost(operator) / plan_total_cost >=
-                                    monitoring.get_threshold('cost_rate_threshold')]
-            heap_scan_operators = [operator for operator in
-                                   self.plan_parse_info.find_operators('Heap Scan', accurate=False)
-                                   if _get_operator_cost(operator) / plan_total_cost >=
-                                   monitoring.get_threshold('cost_rate_threshold')]
-            if seq_scan_operators and not (index_scan_operators or heap_scan_operators):
-                self.detail['fetch_large_data'] = "Existing expensive seq scans"
-            elif not seq_scan_operators and (index_scan_operators or heap_scan_operators):
-                self.detail['fetch_large_data'] = "Existing expensive index scans"
-            elif seq_scan_operators and (index_scan_operators or heap_scan_operators):
-                self.detail['fetch_large_data'] = "Existing expensive index and seq scans"
-            detail = ','.join("(name: %s, parent: %s, rows:%s(%s), cost rate: %s%%)" %
-                              (operator.name,
-                               operator.parent.name if operator.parent is not None else "None",
-                               operator.table, _get_node_rows(self.table_structure, operator),
-                               round(_get_operator_cost(operator) * 100 / plan_total_cost, 2)) for operator in
-                              seq_scan_operators + index_scan_operators + heap_scan_operators)
-            if all(item in detail for item in ('Hash', 'Join')):
-                suggestions.append("HashJoin and SeqScan related, normally it is acceptable")
-            if 'Nested Loop' in detail:
-                suggestions.append("Confirm that the inner table has index")
-            if seq_scan_operators and sql_parsing.exists_count_operation(self.slow_sql_instance.query):
-                suggestions.append("Find 'count' operation, try to avoid this behavior")
-            if self.detail.get('fetch_large_data'):
-                self.detail['fetch_large_data'] += ". Detail: %s" % detail
-                if not suggestions:
-                    self.suggestion['fetch_large_data'] = "According to business adjustments, try to avoid it"
+        if self.plan_parse_info is None:
+            if fetched_tuples + returned_tuples >= monitoring.get_slow_sql_param('fetch_tuples_threshold') or \
+                    returned_rows >= monitoring.get_slow_sql_param('returned_rows_threshold'):
+                if hit_rate <= MINIMAL_HIT_RATE:
+                    self.detail['heavy_scan_operator'] = "Existing large scan situation and hit rate is low. " \
+                                                      "Detail: fetch_tuples(%s), returned_rows(%s), hit_rate: %s" % \
+                                                      (fetched_tuples + returned_tuples, returned_rows, hit_rate)
                 else:
-                    self.suggestion['fetch_large_data'] = '; '.join(suggestions)
+                    self.detail['heavy_scan_operator'] = "Existing large scan situation. " \
+                                                      "Detail: fetch_tuples(%s), returned_rows(%s), hit_rate: %s" % \
+                                                      (fetched_tuples + returned_tuples, returned_rows, hit_rate)
+                self.suggestion['heavy_scan_operator'] = "According to business adjustments, try to avoid large scans"
                 return True
             return False
+        suggestions = []
+        plan_total_cost = self.plan_parse_info.root_node.total_cost
+        seq_scan_operators = [operator for operator in
+                              self.plan_parse_info.find_operators('Seq Scan', accurate=False)
+                              if _get_operator_cost(operator) / plan_total_cost >=
+                              monitoring.get_slow_sql_param('cost_rate_threshold')]
+        index_scan_operators = [operator for operator in
+                                self.plan_parse_info.find_operators('Index Scan', accurate=False)
+                                if _get_operator_cost(operator) / plan_total_cost >=
+                                monitoring.get_slow_sql_param('cost_rate_threshold')]
+        heap_scan_operators = [operator for operator in
+                               self.plan_parse_info.find_operators('Heap Scan', accurate=False)
+                               if _get_operator_cost(operator) / plan_total_cost >=
+                               monitoring.get_slow_sql_param('cost_rate_threshold')]
+        if seq_scan_operators and not (index_scan_operators or heap_scan_operators):
+            self.detail['heavy_scan_operator'] = "Existing expensive seq scans"
+        elif not seq_scan_operators and (index_scan_operators or heap_scan_operators):
+            self.detail['heavy_scan_operator'] = "Existing expensive index scans"
+        elif seq_scan_operators and (index_scan_operators or heap_scan_operators):
+            self.detail['heavy_scan_operator'] = "Existing expensive index and seq scans"
+        detail = ','.join("(name: %s, parent: %s, rows:%s(%s), cost rate: %s%%)" %
+                          (operator.name,
+                           operator.parent.name if operator.parent is not None else "None",
+                           operator.table, _get_node_rows(self.table_structure, operator),
+                           round(_get_operator_cost(operator) * 100 / plan_total_cost, 2)) for operator in
+                          seq_scan_operators + index_scan_operators + heap_scan_operators)
+        if all(item in detail for item in ('Hash', 'Join')):
+            suggestions.append("HashJoin and SeqScan related, normally it is acceptable")
+        if 'Nested Loop' in detail:
+            suggestions.append("Confirm that the inner table has index")
+        if seq_scan_operators and sql_parsing.exists_count_operation(self.slow_sql_instance.query):
+            suggestions.append("Find 'count' operation, try to avoid this behavior")
+        # if there are many random scan tuples, iit ndicates a problem with index filter ability
+        if index_scan_operators and \
+                self.slow_sql_instance.n_tuples_fetched > self.slow_sql_instance.n_tuples_returned:
+            suggestions.append("consider that index filter ability is not strong")
+        if self.detail.get('heavy_scan_operator'):
+            self.detail['heavy_scan_operator'] += ". Detail: %s" % detail
+            if not suggestions:
+                self.suggestion['heavy_scan_operator'] = "According to business adjustments, try to avoid it"
+            else:
+                self.suggestion['heavy_scan_operator'] = '; '.join(suggestions)
+            return True
+        return False
 
     @property
-    def unreasonable_database_knob(self):
-        """Unreasonable GUC parameters lead to poor database performance."""
+    def abnormal_plan_time(self):
+        """Determinate whether the parse status is normal."""
+        n_soft_parse = self.slow_sql_instance.n_soft_parse
+        n_hard_parse = self.slow_sql_instance.n_hard_parse
+        plan_time = self.slow_sql_instance.plan_time
+        exc_time = self.slow_sql_instance.duration_time
+        if plan_time / exc_time >= monitoring.get_slow_sql_param('plan_time_rate_threshold') \
+                and n_hard_parse > n_soft_parse:
+            self.detail['abnormal_plan_time'] = "There exists some hard parses in the execution plan generation process"
+            self.suggestion['abnormal_plan_time'] = "Modify business to support PBE"
+            return True
         return False
 
     @property
@@ -335,40 +346,38 @@ class QueryFeature:
         Determine whether the query related table has large update tuples.
         Note: it will be deleted in the future
         """
-        if self.fetch_large_data:
-            return False
         updated_tuples = self.slow_sql_instance.n_tuples_updated
-        if updated_tuples >= monitoring.get_threshold('updated_tuples_threshold'):
+        if updated_tuples >= monitoring.get_slow_sql_param('updated_tuples_threshold'):
             self.detail['updated_tuples'] = updated_tuples
             if len(self.table_structure) == 1 and self.table_structure[0].live_tuples > 0:
                 self.detail['update_large_data'] = "Update a large number of tuples(%s rows)" % \
                                                    round(updated_tuples / self.table_structure[0].live_tuples, 4)
             self.detail['update_large_data'] = 'UNKNOWN'
             return True
-        else:
-            if self.plan_parse_info is None:
-                return False
-            update_operator = self.plan_parse_info.find_operators("Update on", accurate=False)
-            for operator in update_operator:
-                table = operator.table
-                rows = operator.rows
-                if rows > monitoring.get_threshold('updated_tuples_threshold'):
-                    self.detail["update_large_data"] = "Update a large number of tuples: %s(%s rows)" % (table, rows)
-                    self.suggestion["update_large_data"] = "Make adjustments to the business"
-            if self.detail.get("update_large_data"):
-                return True
+        if self.plan_parse_info is None:
+            return False
+        update_operator = self.plan_parse_info.find_operators("Update on", accurate=False)
+        for operator in update_operator:
+            table = operator.table
+            rows = operator.rows
+            if rows > monitoring.get_slow_sql_param('updated_tuples_threshold'):
+                self.detail["update_large_data"] = "Update a large number of tuples: %s(%s rows)" % (table, rows)
+                self.suggestion["update_large_data"] = "Make adjustments to the business"
+        if self.detail.get("update_large_data"):
+            return True
         return False
 
     @property
     def insert_large_data(self) -> bool:
         """Determine whether the query related table has large insert tuples."""
         inserted_tuples = self.slow_sql_instance.n_tuples_inserted
-        if inserted_tuples >= monitoring.get_threshold('inserted_tuples_threshold'):
+        if inserted_tuples >= monitoring.get_slow_sql_param('inserted_tuples_threshold'):
             self.detail['inserted_tuples'] = inserted_tuples
             if len(self.table_structure) == 1 and self.table_structure[0].live_tuples > 0:
                 self.detail["insert_large_data"] = "Insert a large number of tuples(%s rows)" % \
                                                    round(inserted_tuples / self.table_structure[0].live_tuples, 4)
                 self.suggestion["insert_large_data"] = "Make adjustments to the business"
+            self.detail['update_large_data'] = 'UNKNOWN'
             return True
         else:
             if self.plan_parse_info is None:
@@ -377,7 +386,7 @@ class QueryFeature:
             for operator in insert_operator:
                 table = operator.table
                 rows = operator.rows
-                if rows > monitoring.get_threshold('inserted_tuples_threshold'):
+                if rows > monitoring.get_slow_sql_param('inserted_tuples_threshold'):
                     self.detail["insert_large_data"] = "Insert a large number of tuples: %s(%s rows)" % (table, rows)
                     self.suggestion["insert_large_data"] = "Make adjustments to the business"
             if self.detail.get("insert_large_data"):
@@ -390,10 +399,8 @@ class QueryFeature:
         Determine whether the query related table has too many delete tuples.
         Note: it will be deleted in the future
         """
-        if self.fetch_large_data:
-            return False
         deleted_tuples = self.slow_sql_instance.n_tuples_deleted
-        if deleted_tuples >= monitoring.get_threshold('deleted_tuples_threshold'):
+        if deleted_tuples >= monitoring.get_slow_sql_param('deleted_tuples_threshold'):
             self.detail['deleted_tuples'] = deleted_tuples
             if len(self.table_structure) == 1 and self.table_structure[0].live_tuples > 0:
                 self.detail['deleted_tuples_rate'] = "Delete a large number of tuples(%s rows)" % \
@@ -407,7 +414,7 @@ class QueryFeature:
             for operator in delete_operator:
                 table = operator.table
                 rows = operator.rows
-                if rows > monitoring.get_threshold('deleted_tuples_threshold'):
+                if rows > monitoring.get_slow_sql_param('deleted_tuples_threshold'):
                     self.detail["delete_large_data"] = "Delete a large number of tuples: %s(%s rows)" % (table, rows)
                     self.suggestion["delete_large_data"] = "Make adjustments to the business"
             if self.detail.get("delete_large_data"):
@@ -422,7 +429,7 @@ class QueryFeature:
         self.detail['too_many_index'] = {}
         related_tables = ''
         for table in self.table_structure:
-            if len(table.index) >= monitoring.get_threshold('index_number_threshold'):
+            if len(table.index) >= monitoring.get_slow_sql_param('index_number_threshold'):
                 related_tables += "%s(%s) " % (table.table_name, len(table.index))
         if related_tables:
             self.detail['too_many_index'] = "Found a large number of indexes in the table. Detail: %s" % related_tables
@@ -434,12 +441,9 @@ class QueryFeature:
     @property
     def disk_spill(self) -> bool:
         """Determine whether existing disk spill during the execution of SQL."""
-        sort_rate_threshold = 0.6
         if self.plan_parse_info is None:
-            if self.sort_condition_info.get('sort_spill') or \
-                    self.sort_condition_info.get('hash_spill') or \
-                    self.slow_sql_instance.hash_spill_count >= sort_rate_threshold or \
-                    self.slow_sql_instance.sort_spill_count >= sort_rate_threshold:
+            if self.slow_sql_instance.sort_spill_count >= monitoring.get_slow_sql_param('sort_rate_threshold') or \
+                    self.slow_sql_instance.hash_spill_count >= monitoring.get_slow_sql_param('sort_rate_threshold'):
                 self.detail['disk_spill'] = "Disk-Spill may occur during SORT or Hash operation"
         else:
             plan_total_cost = self.plan_parse_info.root_node.total_cost
@@ -449,11 +453,13 @@ class QueryFeature:
             hash_operators = [item for item in self.plan_parse_info.find_operators('Hash', accurate=True)]
             abnormal_operator_detail = ','.join("(parent: %s, rows: %s, cost rate: %s%%)" %
                                                 (operator.parent.name if operator.parent is not None else "None",
-                                                 operator.rows, round(_get_operator_cost(operator) * 100 / plan_total_cost, 2))
+                                                 operator.rows,
+                                                 round(_get_operator_cost(operator) * 100 / plan_total_cost, 2))
                                                 for operator in sort_operators + hash_operators
                                                 if round(_get_operator_cost(operator) / plan_total_cost, 2) >=
-                                                monitoring.get_threshold('cost_rate_threshold'))
-            if abnormal_operator_detail:
+                                                monitoring.get_slow_sql_param('cost_rate_threshold'))
+            if abnormal_operator_detail and \
+                    (self.slow_sql_instance.sort_spill_count > 0 or self.slow_sql_instance.hash_spill_count > 0):
                 self.detail['disk_spill'] = "The SORT/HASH operation may spill to disk. Detail: %s" % \
                                             abnormal_operator_detail
         if self.detail.get('disk_spill'):
@@ -467,9 +473,9 @@ class QueryFeature:
         """Determine whether the query related table has vacuum operation."""
         if not self.table_structure:
             return False
-        probable_time_interval = monitoring.get_threshold('analyze_operation_probable_time_interval')
-        vacuum_info = {f"{item.schema_name}:{item.table_name}":
-                           int(time.time() * 1000) - item.vacuum_delay * 1000 for item in self.table_structure}
+        probable_time_interval = monitoring.get_slow_sql_param('analyze_operation_probable_time_interval')
+        vacuum_info = {f"{item.schema_name}:{item.table_name}": int(time.time() * 1000) - item.vacuum_delay * 1000
+                       for item in self.table_structure}
         self.detail['vacuum'] = {}
         for table_name, vacuum_time in vacuum_info.items():
             if self.slow_sql_instance.start_at <= vacuum_time <= self.slow_sql_instance.start_at + \
@@ -482,12 +488,12 @@ class QueryFeature:
 
     @property
     def analyze_event(self) -> bool:
-        """Determine whether the query related table has an analyze operation."""
+        """Determine whether the query related table has an analyzing operation."""
         if not self.table_structure:
             return False
-        probable_time_interval = monitoring.get_threshold('analyze_operation_probable_time_interval')
-        analyze_info = {f"{item.schema_name}:{item.table_name}":
-                            int(time.time() * 1000) - item.analyze_delay * 1000 for item in self.table_structure}
+        probable_time_interval = monitoring.get_slow_sql_param('analyze_operation_probable_time_interval')
+        analyze_info = {f"{item.schema_name}:{item.table_name}": int(time.time() * 1000) - item.analyze_delay * 1000
+                        for item in self.table_structure}
         self.detail['analyze'] = {}
         for table_name, analyze_time in analyze_info.items():
             if self.slow_sql_instance.start_at <= analyze_time <= self.slow_sql_instance.start_at + \
@@ -502,66 +508,99 @@ class QueryFeature:
     def workload_contention(self) -> bool:
         """
         Determine whether it is caused by the load of the database itself, which includes:
-          case1: The TPS of instance is abnormal compared to the historical value.
-          case2: The CPU resource occupied by the database is abnormal.
-          case3: The MEMORY resource occupied by the database is abnormal.
-          case4: Insufficient space in database data directory.
-          case5: The connections of database accounts for too much of the total connections.
+          case1: The CPU resource occupied by the database is abnormal.
+          case2: The MEMORY resource occupied by the database is abnormal.
+          case3: Insufficient space in database data directory.
+          case4: The connections of database accounts for too much of the total connections.
         """
-        if not self.database_info.current_tps:
-            return False
-        indexes = ['a', 'b', 'c', 'd', 'e']
-        tps_threshold = max(monitoring.get_param('tps_threshold'),
-                            self.pg_setting_info['max_connections'].setting * 10)
+        indexes = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']
+        wk_expansion_factor = 10
         self.detail['workload_contention'], self.suggestion['workload_contention'] = '', ''
-        if isinstance(self.database_info.current_tps, (list, tuple)):
-            if _existing_spike(self.database_info.current_tps):
-                self.detail['workload_contention'] += "%s. Found a positive spike in TPS\n" % indexes.pop(0)
-        else:
-            if self.database_info.current_tps > tps_threshold:
-                self.detail['workload_contention'] += '%s. The current TPS  of the database is large: %s\n' \
-                                                      % (indexes.pop(0), self.database_info.current_tps)
-        if isinstance(self.system_info.db_cpu_usage, (list, tuple)):
-            if _existing_spike(self.system_info.db_cpu_usage):
-                self.detail['work_contention'] += "%s. Found a positive spike in DB_CPU_USAGE" % indexes.pop(0)
-        else:
-            # The result type is a float.
-            if self.system_info.db_cpu_usage >= monitoring.get_param('cpu_usage_threshold'):
-                self.detail['workload_contention'] += "%s. The current database CPU load is significant: %s\n" \
-                                                      % (indexes.pop(0), self.system_info.db_cpu_usage)
-        if isinstance(self.system_info.db_mem_usage, (list, tuple)):
-            if _existing_spike(self.system_info.db_mem_usage):
-                self.detail['workload_contention'] += "%s. Found a positive spike in DB_MEM_USAGE" % indexes.pop(0)
-        else:
-            if self.system_info.db_mem_usage >= monitoring.get_param('mem_usage_threshold'):
-                self.detail['workload_contention'] += "%s. The current database memory load is significant: %s\n" \
-                                                      % (indexes.pop(0), self.system_info.db_mem_usage)
-        if self.system_info.db_data_occupy_rate >= monitoring.get_param('disk_usage_threshold'):
+
+        # determine whether the process_used_memory occupancy rate is too high
+        if self.total_memory_detail.process_used_memory / self.total_memory_detail.max_process_memory >= \
+                monitoring.get_detection_threshold('db_memory_rate_threshold'):
+            self.detail['workload_contention'] += "%s. The rate of max_process_memory is too high: %s" % \
+                                                  (indexes.pop(0),
+                                                   round(self.total_memory_detail.process_used_memory /
+                                                         self.total_memory_detail.max_process_memory, 2))
+
+        # determine whether the dynamic_used_memory occupancy rate is too high
+        if self.total_memory_detail.dynamic_used_memory / self.total_memory_detail.max_dynamic_memory >= \
+                monitoring.get_detection_threshold('db_memory_rate_threshold'):
+            self.detail['workload_contention'] += "%s. The rate of max_dynamic_memory is too high: %s" % \
+                                                  (indexes.pop(0),
+                                                   round(self.total_memory_detail.dynamic_used_memory /
+                                                         self.total_memory_detail.max_dynamic_memory, 2))
+
+        # determine whether the other_used_memory is too large
+        if self.total_memory_detail.other_used_memory >= \
+                monitoring.get_detection_threshold('other_used_memory_threshold'):
+            self.detail['workload_contention'] += "%s. The other_used_memory is high: %s" % \
+                                                  (indexes.pop(0),
+                                                   self.total_memory_detail.other_used_memory)
+
+        # determine whether the TPS is too large
+        if self.database_info.tps and 'max_connections' in self.pg_setting_info and \
+                self.database_info.tps >= self.pg_setting_info['max_connections'].setting * wk_expansion_factor:
+            self.detail['workload_contention'] += "%s. Current business is heavy \n" % indexes.pop(0)
+
+        # determine whether the db_cpu_usage is too high
+        if self.system_info.db_cpu_usage and \
+                max(self.system_info.db_cpu_usage) >= monitoring.get_detection_threshold('cpu_usage_threshold'):
+            self.detail['workload_contention'] += "%s. The current database CPU usage is significant: %s\n" \
+                                                  % (indexes.pop(0), max(self.system_info.db_cpu_usage))
+
+        # determine whether the db_mem_usage is too high
+        if self.system_info.db_mem_usage and \
+                max(self.system_info.db_mem_usage) >= monitoring.get_detection_threshold('mem_usage_threshold'):
+            self.detail['workload_contention'] += "%s. The current database memory usage is significant: %s\n" \
+                                                  % (indexes.pop(0), max(self.system_info.db_mem_usage))
+
+        # determine whether the disk usage which data directory located is too high
+        if self.system_info.disk_usage and \
+                max(self.system_info.disk_usage) >= monitoring.get_detection_threshold('disk_usage_threshold'):
             self.detail['workload_contention'] += "%s. Insufficient free space in the database directory\n" % \
                                                   indexes.pop(0)
-        if isinstance(self.database_info.current_connection, (list, tuple)):
-            if _existing_spike(self.database_info.current_connection):
-                self.detail['workload_contention'] += "%s. Found a positive spike in CONNECTION" % indexes.pop(0)
-        else:
-            if self.database_info.current_connection / self.pg_setting_info['max_connections'].setting >= \
-                    monitoring.get_param('connection_usage_threshold'):
-                self.detail['workload_contention'] += "%s. The rate of connection usage is too high\n" % indexes.pop(0)
+
+        # determine whether the connection occupancy rate is too high
+        if 'max_connections' in self.pg_setting_info and \
+                self.database_info.connection / self.pg_setting_info['max_connections'].setting >= \
+                monitoring.get_detection_threshold('connection_usage_threshold'):
+            self.detail['workload_contention'] += "%s. The rate of connection usage is high: %s\n" % \
+                                                  (indexes.pop(0),
+                                                   self.database_info.connection /
+                                                   self.pg_setting_info['max_connections'].setting)
+
+        # determine whether the thread pool occupancy rate is too high
+        if (
+            'enable_thread_pool' in self.pg_setting_info and
+            self.pg_setting_info['enable_thread_pool'].setting and
+            self.database_info.thread_pool_rate >= monitoring.get_detection_threshold('thread_pool_usage_threshold')
+        ):
+            self.detail['workload_contention'] += "%s. The rate of thread pool usage is high: %s\n" % \
+                                                  (indexes.pop(0), self.database_info.thread_pool_rate)
+        indexes = ['a', 'b', 'c']
         if self.detail.get('workload_contention'):
-            self.suggestion['workload_contention'] = "The current workload is heavy. " \
-                                                     "Check SLOW-SQL or whether the request is concentrated"
+            if 'other_used_memory' in self.detail['workload_contention']:
+                self.suggestion['workload_contention'] += \
+                    "%s. Detecting whether exists third-party memory usage heaps" % indexes.pop(0)
+            if 'max_dynamic_memory' in self.detail.get('workload_contention') or \
+                    'max_process_memory' in self.detail.get('workload_contention'):
+                self.suggestion['workload_contention'] += "%s. Detecting whether exists memory context " \
+                                                          "consuming too much dynamic memory" % indexes.pop(0)
+            self.suggestion['workload_contention'] += "%s. Current workload is heavy. Determine whether it is caused " \
+                                                      "by abnormal transaction or just busy business" % indexes.pop(0)
             return True
         return False
 
     @property
     def cpu_resource_contention(self) -> bool:
         """Determine whether other processes outside the database occupy too many CPU resources."""
-        if isinstance(self.system_info.system_cpu_usage, (list, tuple)):
-            if _existing_spike(self.system_info.system_cpu_usage):
-                self.detail['system_cpu_contention'] = "Found positive spike in SYSTEM_CPU_USAGE"
-        else:
-            if self.system_info.system_cpu_usage >= monitoring.get_param('cpu_usage_threshold'):
-                self.detail['system_cpu_contention'] = "The current system cpu usage is significant: %s." \
-                                                       % self.system_info.system_cpu_usage
+        if self.system_info.user_cpu_usage and \
+                max(self.system_info.user_cpu_usage) >= monitoring.get_detection_threshold('cpu_usage_threshold'):
+            self.detail['system_cpu_contention'] = "The current user cpu usage is significant: %s." \
+                                                   % max(self.system_info.user_cpu_usage)
         if self.detail.get('system_cpu_contention'):
             self.suggestion['system_cpu_contention'] = "Handle exception processes in system"
             return True
@@ -571,23 +610,20 @@ class QueryFeature:
     def io_resource_contention(self) -> bool:
         """
         Determine whether the current IO resources are tight,
-        currently wen cant not distinguish whether it is occupied by database or other processes.
+        currently we can not distinguish whether it is occupied by database or other processes.
         """
         io_utils_dict = {}
-        indexes = ['a', 'b']
         self.detail['system_io_contention'], self.suggestion['system_io_contention'] = '', ''
         for device, io_utils in self.system_info.ioutils.items():
-            if io_utils >= monitoring.get_param('disk_ioutils_threshold'):
-                io_utils_dict[device] = io_utils
-        if isinstance(self.system_info.iops, (list, tuple)):
-            if _existing_spike(self.system_info.iops):
-                self.detail['system_io_contention'] += "%s. Found a positive spike in IOPS" % indexes.pop(0)
+            if max(io_utils) >= monitoring.get_detection_threshold('disk_ioutils_threshold'):
+                io_utils_dict[device] = max(io_utils)
         if io_utils_dict:
-            self.detail['system_io_contention'] += '%s. The IO-Utils exceeds the threshold %s' \
-                                                   % (indexes.pop(0), monitoring.get_param('disk_ioutils_threshold'))
-        self.suggestion['system_io_contention'] = "a. Detect whether processes outside the database " \
-                                                  "compete for resources " \
-                                                  "b. Check SLOW-SQL in database"
+            self.detail['system_io_contention'] = 'The IO-Utils exceeds the threshold %s during execution. Detail: %s' \
+                                                  % (monitoring.get_detection_threshold('disk_ioutils_threshold'),
+                                                     io_utils_dict)
+            self.suggestion['system_io_contention'] = "a. Detect whether processes outside the database " \
+                                                      "compete for resources " \
+                                                      "b. Detect current long transaction in database"
         if self.detail['system_io_contention']:
             return True
         return False
@@ -595,47 +631,59 @@ class QueryFeature:
     @property
     def memory_resource_contention(self) -> bool:
         """Determine whether other processes outside the database occupy too much memory resources."""
-        if isinstance(self.system_info.system_mem_usage, (list, tuple)):
-            if _existing_spike(self.system_info.system_mem_usage):
-                self.detail['system_mem_contention'] = "Found positive spike in SYSTEM_MEM_USAGE"
-        else:
-            if self.system_info.system_mem_usage >= monitoring.get_param('mem_usage_threshold'):
-                self.detail['system_mem_contention'] = "The current system mem usage" \
-                                                       " is significant: %s;" \
-                                                       % self.system_info.system_mem_usage
+        if self.system_info.system_mem_usage and \
+                max(self.system_info.system_mem_usage) >= monitoring.get_detection_threshold('mem_usage_threshold'):
+            self.detail['system_mem_contention'] = "The current system mem usage" \
+                                                   " is significant: %s;" \
+                                                   % max(self.system_info.system_mem_usage)
         if self.detail.get('system_mem_contention'):
-            self.suggestion['system_mem_contention'] = "Stop unnecessary external processes in system"
+            self.suggestion['system_mem_contention'] = "Check whether there exists external " \
+                                                       "process which snatch resources"
             return True
         return False
 
     @property
-    def large_network_drop_rate(self):
-        """Determine whether the current network packet loss is serious."""
-        node_network_transmit_drop = self.network_info.transmit_drop
-        node_network_receive_drop = self.network_info.receive_drop
-        node_network_transmit_packets = self.network_info.transmit_packets
-        node_network_receive_packets = self.network_info.receive_packets
-        if isinstance(node_network_transmit_drop, (list, tuple)) and \
-                isinstance(node_network_receive_drop, (list, tuple)):
-            if _existing_spike(node_network_receive_drop) or _existing_spike(node_network_transmit_drop):
-                self.detail['network_drop'] = "Found a positive spike in NETWORK-PACKET-DROP"
-        else:
-            if node_network_receive_drop / node_network_receive_packets >= \
-                    monitoring.get_param('package_drop_rate_threshold') or \
-                    node_network_transmit_drop / node_network_transmit_packets >= \
-                    monitoring.get_param('package_drop_rate_threshold'):
-                self.detail['network_drop'] = "The current network packet loss rate is abnormal"
-        if self.detail.get('network_drop'):
-            self.suggestion['network_drop'] = "Diagnose the current network situation in time."
+    def abnormal_network_status(self):
+        details = []
+        # determine whether the current network packet loss rate is abnormal
+        # format is: [{'device': 'ens2f0', 'drop': 0.02}, {...}, ...]
+        for item in self.network_info.receive_drop:
+            if item['drop'] >= monitoring.get_detection_threshold('package_drop_rate_threshold'):
+                details.append('The receive drop rate is abnormal on device: %s, rate: %s' %
+                               (item['device'], item['drop']))
+        for item in self.network_info.transmit_drop:
+            if item['drop'] >= monitoring.get_detection_threshold('package_drop_rate_threshold'):
+                details.append('The transmit drop rate is abnormal on device: %s, rate: %s' %
+                               (item['device'], item['drop']))
+        # determine whether the current network bandwidth usage is abnormal
+        for device, bandwidth_info in self.network_info.bandwidth_usage.items():
+            if isinstance(bandwidth_info, dict):
+                if max(bandwidth_info['transmit']) >= \
+                        monitoring.get_detection_threshold('network_bandwidth_usage_threshold'):
+                    details.append('The transmit bandwidth rate is abnormal on device: %s, rate: %s' %
+                                   (device, max(bandwidth_info['transmit'])))
+                if max(bandwidth_info['receive']) >= \
+                        monitoring.get_detection_threshold('network_bandwidth_usage_threshold'):
+                    details.append('The receive bandwidth rate is abnormal on device: %s, rate: %s' %
+                                   (device, max(bandwidth_info['receive'])))
+            elif isinstance(bandwidth_info, list):
+                if max(bandwidth_info) >= monitoring.get_detection_threshold('network_bandwidth_usage_threshold'):
+                    details.append('The bandwidth rate is abnormal on device: %s, rate: %s' %
+                                   (device, max(bandwidth_info)))
+        if details:
+            self.detail['network_status'] = ';'.join(details)
+            self.suggestion['network_status'] = "Diagnose the current network situation in time."
             return True
         return False
 
     @property
     def os_resource_contention(self) -> bool:
         """Determine whether other processes outside the database occupy too many handle resources."""
-        if self.system_info.process_fds_rate >= monitoring.get_param('handler_occupation_threshold'):
+        if self.system_info.process_fds_rate and \
+                max(self.system_info.process_fds_rate) >= \
+                monitoring.get_detection_threshold('handler_occupation_threshold'):
             self.detail['os_resource_contention'] = "The system fds occupation rate is significant: %s;" \
-                                                    % self.system_info.process_fds_rate
+                                                    % max(self.system_info.process_fds_rate)
             self.suggestion['os_resource_contention'] = "Determine the handle resource is occupied " \
                                                         "by database or other processes"
             return True
@@ -643,20 +691,10 @@ class QueryFeature:
 
     @property
     def database_wait_event(self) -> bool:
-        """To be optimized"""
-        self.detail['wait_event'] = []
-        block_detail = ''
-        if self.threads_info:
-            if self.threads_info.event:
-                block_detail += 'wait event(%s) ' % self.threads_info.event
-            if self.threads_info.wait_status:
-                block_detail += 'wait_status(%s) ' % self.threads_info.wait_status
-            if self.threads_info.block_sessionid:
-                block_detail += 'block_sessionid(%s), lockmode(%s), locktag(%s)' % \
-                                (self.threads_info.block_sessionid,
-                                 self.threads_info.lockmode,
-                                 self.threads_info.locktag)
-        if block_detail:
+        if self.wait_event_info and self.wait_event_info.wait_event:
+            self.detail['wait_event'] = "wait_status: %s, wait_event: %s" % \
+                                        (self.wait_event_info.wait_status, self.wait_event_info.wait_event)
+        if self.detail.get('wait_event'):
             self.suggestion['wait_event'] = "No Suggestion"
             return True
         return False
@@ -672,7 +710,7 @@ class QueryFeature:
             if table_info.data_changed_delay == -1:
                 continue
             if table_info.tuples_diff > \
-                    monitoring.get_threshold('tuples_diff_threshold'):
+                    monitoring.get_slow_sql_param('tuples_diff_threshold'):
                 abnormal_tables.append("%s:%s(%s tuples)" % (table_info.schema_name,
                                                              table_info.table_name,
                                                              table_info.tuples_diff))
@@ -731,11 +769,11 @@ class QueryFeature:
         if plan_total_cost <= 0:
             return False
         abnormal_nestloop_info = [item for item in nestloop_info if _get_operator_cost(item) / plan_total_cost >=
-                                  monitoring.get_threshold('cost_rate_threshold')]
+                                  monitoring.get_slow_sql_param('cost_rate_threshold')]
         abnormal_hashjoin_info = [item for item in hashjoin_info if _get_operator_cost(item) / plan_total_cost >=
-                                  monitoring.get_threshold('cost_rate_threshold')]
+                                  monitoring.get_slow_sql_param('cost_rate_threshold')]
         abnormal_mergejoin_info = [item for item in merge_join_info if _get_operator_cost(item) /
-                                   plan_total_cost >= monitoring.get_threshold('cost_rate_threshold')]
+                                   plan_total_cost >= monitoring.get_slow_sql_param('cost_rate_threshold')]
         enable_hashjoin = self.pg_setting_info['enable_hashjoin'].setting
         large_join_node_cond, inappropriate_join_node_cond, expensive_join_cond = [], [], []
         for node in abnormal_nestloop_info + abnormal_hashjoin_info + abnormal_mergejoin_info:
@@ -763,14 +801,14 @@ class QueryFeature:
                              round(_get_operator_cost(node) * 100 / plan_total_cost, 2),
                              merge_cond)
             if 'Nested Loop' in node.name and _hashjoin_adaptor(node) and \
-                    min(child1.rows, child2.rows) >= monitoring.get_threshold('nestloop_rows_threshold'):
+                    min(child1.rows, child2.rows) >= monitoring.get_slow_sql_param('nestloop_rows_threshold'):
                 # If the number of outer-table rows of the nest-loop is large,
                 # the join node is considered inappropriate, in addition,
                 # the inner table needs to establish an efficient data access method.
                 inappropriate_join_node_cond.append(node_cond)
             elif 'Merge Join' in node.name:
                 inappropriate_join_node_cond.append(node_cond)
-            elif max(child1.rows, child2.rows) >= monitoring.get_threshold('large_join_threshold'):
+            elif max(child1.rows, child2.rows) >= monitoring.get_slow_sql_param('large_join_threshold'):
                 # The amount of data in the join child node is too large
                 large_join_node_cond.append(node_cond)
             else:
@@ -812,7 +850,7 @@ class QueryFeature:
         boolean_expressions = sql_parsing.exists_bool_clause(self.slow_sql_instance.query)
         for expression in boolean_expressions:
             expression_number = len(expression) if isinstance(expression, list) else 0
-            if expression_number >= monitoring.get_threshold('large_in_list_threshold'):
+            if expression_number >= monitoring.get_slow_sql_param('large_in_list_threshold'):
                 self.detail['complex_boolean_expression'] = "Large IN-Clause, length is %s. Detail: %s" % \
                                                             (len(expression),
                                                              ','.join(expression)[:PROPERTY_LENGTH] + '...')
@@ -830,8 +868,9 @@ class QueryFeature:
           case2: select id from table where info like '%x';
           case3: select id from table where info like '%x%';
           case4: select id from table where info like 'x%';
+          case5: order by random()
         """
-        indexes = ['a', 'b']
+        indexes = ['a', 'b', 'c']
         abnormal_functions, abnormal_regulations = [], []
         self.detail['string_matching'], self.suggestion['string_matching'] = '', ''
         matching_results = sql_parsing.exists_regular_match(self.slow_sql_instance.query)
@@ -865,6 +904,18 @@ class QueryFeature:
             self.suggestion['string_matching'] += "%s. Avoid using functions or expression " \
                                                   "operations on indexed columns or " \
                                                   "create expression index for it" % index
+        if self.plan_parse_info is not None:
+            sort_operators = self.plan_parse_info.find_operators('Sort', accurate=True)
+            if sql_parsing.regular_match(r"order\s+by\s+random()", self.slow_sql_instance.query.lower()) and \
+                    sort_operators:
+                index = indexes.pop(0)
+                for sort_operator in sort_operators:
+                    if 'random' in sort_operator.properties.get('Sort Key'):
+                        self.detail['string_matching'] += "%s. Suspected to use 'order by random()' " \
+                                                          "which may cause index failure" % index
+                        self.suggestion['string_matching'] += "%s. Confirm whether the scene requires " \
+                                                              "this operation" % index
+                        break
         if self.detail['string_matching']:
             return True
         return False
@@ -881,15 +932,17 @@ class QueryFeature:
         if self.plan_parse_info is None:
             return False
         self.detail['complex_execution_plan'], self.suggestion['complex_execution_plan'] = '', ''
-        join_operator = self.plan_parse_info.find_operators('Hash Join', accurate=False) + \
-                        self.plan_parse_info.find_operators('Nested Loop', accurate=False) + \
-                        self.plan_parse_info.find_operators('Merge Join', accurate=False)
-        if len(join_operator) >= monitoring.get_threshold('complex_operator_threshold'):
+        join_operator = (
+                self.plan_parse_info.find_operators('Hash Join', accurate=False) +
+                self.plan_parse_info.find_operators('Nested Loop', accurate=False) +
+                self.plan_parse_info.find_operators('Merge Join', accurate=False)
+        )
+        if len(join_operator) >= monitoring.get_slow_sql_param('complex_operator_threshold'):
             self.detail['complex_execution_plan'] = "The SQL statements involves " \
                                                     "%s JOIN operators" % \
                                                     len(join_operator)
             self.suggestion['complex_execution_plan'] = "It is not recommended to have too many table join operations"
-        elif self.plan_parse_info.height >= monitoring.get_threshold('plan_height_threshold'):
+        elif self.plan_parse_info.height >= monitoring.get_slow_sql_param('plan_height_threshold'):
             self.detail['complex_execution_plan'] = "The execution plan is too complex"
             self.suggestion['complex_execution_plan'] = "No Suggestion"
         if self.detail.get('complex_execution_plan'):
@@ -938,9 +991,9 @@ class QueryFeature:
             special_scene = True
         abnormal_groupagg_info = [item for item in groupagg_info if item.children[0].name == 'Sort' and
                                   _get_operator_cost(item) / plan_total_cost >=
-                                  monitoring.get_threshold('cost_rate_threshold')]
+                                  monitoring.get_slow_sql_param('cost_rate_threshold')]
         abnormal_hashagg_info = [item for item in hashagg_info if _get_operator_cost(item) / plan_total_cost >=
-                                 monitoring.get_threshold('cost_rate_threshold')]
+                                 monitoring.get_slow_sql_param('cost_rate_threshold')]
         enable_hashagg = self.pg_setting_info['enable_hashagg'].setting
         indexes = ['a', 'b', 'c', 'd']
         self.detail['poor_aggregation_performance'], self.suggestion['poor_aggregation_performance'] = '', ''
@@ -1007,12 +1060,11 @@ class QueryFeature:
     def __call__(self):
         self.detail['system_cause'] = {}
         self.detail['plan'] = {}
-        self.detail['existing_exception'] = False
         feature_names = (
             'lock_contention',
             'many_dead_tuples',
-            'fetch_large_data',
-            'unreasonable_database_knob',
+            'heavy_scan_operator',
+            'abnormal_plan_time',
             'unused_and_redundant_index',
             'update_large_data',
             'insert_large_data',
@@ -1025,7 +1077,7 @@ class QueryFeature:
             'cpu_resource_contention',
             'io_resource_contention',
             'memory_resource_contention',
-            'large_network_drop_rate',
+            'abnormal_network_status',
             'os_resource_contention',
             'database_wait_event',
             'lack_of_statistics',
@@ -1047,6 +1099,5 @@ class QueryFeature:
                 logging.error(
                     'Cannot get the feature %s, for details: %s.', feature_name, e, exc_info=True
                 )
-                self.detail['existing_exception'] = True
                 feature_vector.append(0)
         return feature_vector, self.detail, self.suggestion

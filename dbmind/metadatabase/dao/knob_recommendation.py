@@ -12,8 +12,8 @@
 # See the Mulan PSL v2 for more details.
 import logging
 
-from ._common import truncate_table
-from ..business_db import get_session
+from dbmind.metadatabase.ddl import truncate_table
+from ..result_db_session import get_session
 from ..schema import KnobRecommendationDetails
 from ..schema import KnobRecommendationMetricSnapshot
 from ..schema import KnobRecommendationWarnings

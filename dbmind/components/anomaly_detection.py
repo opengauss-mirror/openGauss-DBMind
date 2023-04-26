@@ -20,9 +20,10 @@ import numpy as np
 from prettytable import PrettyTable
 from scipy import interpolate
 
-from dbmind import global_vars
-from dbmind.app.monitoring.generic_detection import AnomalyDetections
-from dbmind.cmd.edbmind import init_tsdb_with_config, init_global_configs
+from dbmind.app import monitoring
+from dbmind.cmd.edbmind import init_global_configs
+from dbmind.common.algorithm import anomaly_detection
+from dbmind.common.utils.component import initialize_tsdb_param
 from dbmind.common.algorithm.stat_utils import sequence_interpolate
 from dbmind.common.utils.checking import date_type, path_type
 from dbmind.common.utils.cli import (
@@ -36,25 +37,38 @@ PLOT_WIDTH = 100
 PLOT_HEIGHT = 20
 
 ANOMALY_DETECTORS = {
-    'level_shift': AnomalyDetections.do_level_shift_detect,
-    'seasonal': AnomalyDetections.do_seasonal_detect,
-    'spike': AnomalyDetections.do_spike_detect,
-    'volatile_shift': AnomalyDetections.do_volatility_shift_detect,
+    'level_shift': anomaly_detection.LevelShiftDetector(
+        outliers=(
+            monitoring.get_detection_param("level_shift_outliers_1"),
+            monitoring.get_detection_param("level_shift_outliers_2"),
+        ),
+        side=monitoring.get_detection_param("level_shift_side"),
+        window=monitoring.get_detection_param("level_shift_window")
+    ),
+    'seasonal': anomaly_detection.SeasonalDetector(
+        outliers=(
+            monitoring.get_detection_param("seasonal_outliers_1"),
+            monitoring.get_detection_param("seasonal_outliers_2")
+        ),
+        side=monitoring.get_detection_param("seasonal_side"),
+        window=monitoring.get_detection_param("seasonal_window")
+    ),
+    'spike': anomaly_detection.SpikeDetector(
+        outliers=(
+            monitoring.get_detection_param("spike_outliers_1"),
+            monitoring.get_detection_param("spike_outliers_2")
+        ),
+        side=monitoring.get_detection_param("spike_side")
+    ),
+    'volatility_shift': anomaly_detection.VolatilityShiftDetector(
+        outliers=(
+            monitoring.get_detection_param("volatility_shift_outliers_1"),
+            monitoring.get_detection_param("volatility_shift_outliers_2")
+        ),
+        side=monitoring.get_detection_param("volatility_shift_side"),
+        window=monitoring.get_detection_param("volatility_shift_window")
+    ),
 }
-
-
-def get_param(name: str):
-    value = global_vars.dynamic_configs.get('detection_params', name)
-    if value is None:
-        from dbmind.metadatabase.schema import config_detection_params
-        value = config_detection_params.DetectionParams.__default__.get(name)
-
-    try:
-        value = float(value)
-    except TypeError:
-        value = None
-
-    return value
 
 
 def coloring(col, color_fmt):
@@ -194,20 +208,21 @@ def plot(sequences_set, anomalies_set, metric, start_time, end_time):
     output_table = PrettyTable(title='Anomalies')
     output_table.field_names = ('time', 'value')
     output_table.align = "l"
-    output_table.add_rows(table.values())
+    for r in table.values():
+        output_table.add_row(r)
     print(output_table)
 
 
-def anomaly_detect(sequence, anomaly):
-    try:
-        detector = ANOMALY_DETECTORS[anomaly]
-        return detector(sequence)
-
-    except Exception as e:
-        raise_fatal_and_exit(str(e))
-
-
 def main(argv):
+
+    def anomaly_detect(sequence, anomaly):
+        try:
+            detector = ANOMALY_DETECTORS[anomaly]
+            return detector.fit_predict(sequence)
+
+        except Exception as e:
+            raise_fatal_and_exit(str(e))
+
     parser = argparse.ArgumentParser(description="Workload Anomaly detection: "
                                                  "Anomaly detection of monitored metric.")
     parser.add_argument('--action', required=True, choices=('overview', 'plot'),
@@ -224,14 +239,15 @@ def main(argv):
                              'supporting UNIX-timestamp with microsecond or datetime format')
     parser.add_argument('-H', '--host',
                         help='set a host of the metric, ip only or ip and port.')
-    parser.add_argument('-a', '--anomaly', choices=tuple(ANOMALY_DETECTORS.keys()),
-                        help='set a anomaly detector of the metric'
-                             f'{tuple(ANOMALY_DETECTORS.keys())}')
+    parser.add_argument('-a', '--anomaly', choices=("level_shift", "spike", "seasonal", "volatility_shift"),
+                        help='set a anomaly detector of the metric from: '
+                             '"level_shift", "spike", "seasonal", "volatility_shift"')
     args = parser.parse_args(argv)
     # Initialize
     os.chdir(args.conf)
     init_global_configs(args.conf)
-    init_tsdb_with_config()
+    if not initialize_tsdb_param():
+        parser.exit(1, "TSDB service does not exist, exiting...")
 
     metric = args.metric
     start_time = args.start_time
@@ -277,7 +293,7 @@ def main(argv):
 
             anomalies_set[metric_host][anomaly] = anomaly_detect(sequence, anomaly)
         else:
-            for anomaly_type, detector in ANOMALY_DETECTORS.items():
+            for anomaly_type in ANOMALY_DETECTORS:
                 anomalies_set[metric_host][anomaly_type] = anomaly_detect(sequence, anomaly_type)
 
     if args.action == 'overview':

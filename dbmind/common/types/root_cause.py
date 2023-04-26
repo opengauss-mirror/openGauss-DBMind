@@ -79,13 +79,13 @@ class RootCause:
     MANY_DEAD_TUPLES = _Define('[SLOW QUERY][TABLE EXPANSION]',
                                '{many_dead_tuples}.',
                                '{many_dead_tuples}.')
-    FETCH_LARGE_DATA = _Define('[SLOW QUERY][FETCHED TUPLES]',
-                               '{fetch_large_data}',
-                               '{fetch_large_data}')
-    UNREASONABLE_DATABASE_KNOB = _Define('[SLOW SQL][DATABASE KNOB]',
-                                         'Unreasonable parameters affect database performance, '
-                                         'detail: {unreasonable_database_knob}.',
-                                         'Recommend knob: {unreasonable_database_knob}.')
+    HEAVY_SCAN_OPERATOR = _Define('[SLOW QUERY][SCAN]',
+                                  '{heavy_scan_operator}',
+                                  '{heavy_scan_operator}')
+    ABNORMAL_PLAN_TIME = _Define('[SLOW SQL][PLAN]',
+                                 'hard parse cost too much time, '
+                                 'detail: {abnormal_plan_time}.',
+                                 '{abnormal_plan_time}.')
     UNUSED_AND_REDUNDANT_INDEX = _Define('[SLOW SQL][UNUSED_AND_REDUNDANT_INDEX]',
                                          '{unused_and_redundant_index}.',
                                          '{unused_and_redundant_index}.')
@@ -133,9 +133,9 @@ class RootCause:
                                          '{system_mem_contention}.',
                                          '{system_mem_contention}.'
                                          )
-    LARGE_NETWORK_DROP_RATE = _Define('[SLOW SQL][NETWORK]',
-                                      '{network_drop}.',
-                                      '{network_drop}.'
+    ABNORMAL_NETWORK_STATUS = _Define('[SLOW SQL][NETWORK]',
+                                      '{network_status}.',
+                                      '{network_status}.'
                                       )
     OS_RESOURCE_CONTENTION = _Define('[SLOW SQL][FILE HANDLER]',
                                      '{os_resource_contention}.',
@@ -190,6 +190,8 @@ class RootCause:
                           'Confirm the schema and database is correct')
     UNSUPPORTED_TYPE = _Define('[SLOW SQL][TYPE]',
                                'The SQL type is not supported.')
+    LACK_INFORMATION = _Define('[LACK INFORMATION]',
+                               'LACK NECESSARY INFORMATION.')
     # security
     TOO_MANY_ERRORS = _Define(
         '[SECURITY][RISK]',

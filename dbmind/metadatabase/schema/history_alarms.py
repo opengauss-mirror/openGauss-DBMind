@@ -12,23 +12,24 @@
 # See the Mulan PSL v2 for more details.
 
 
-from sqlalchemy import Column, String, Integer, BigInteger, CHAR, JSON, Index, TEXT
+from sqlalchemy import Column, String, Integer, BigInteger, CHAR, Index, TEXT
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class HistoryAlarms(Base):
+class HistoryAlarms(ResultDbBase):
     __tablename__ = "tb_history_alarms"
 
     history_alarm_id = Column(Integer, primary_key=True, autoincrement=True)
     instance = Column(CHAR(24), nullable=False)
     metric_name = Column(String(64), nullable=False)
+    metric_filter = Column(TEXT)
     alarm_type = Column(String(16), nullable=False)
     alarm_level = Column(Integer, nullable=False)
     start_at = Column(BigInteger, nullable=False)  # unix timestamp
     end_at = Column(BigInteger, nullable=False)  # unix timestamp
     alarm_content = Column(String(1024))
     extra_info = Column(TEXT)
-    anomaly_type = Column(String(16), nullable=False)
+    anomaly_type = Column(String(64), nullable=False)
 
     idx_history_alarms = Index("idx_history_alarms", alarm_type, instance, start_at, alarm_level)

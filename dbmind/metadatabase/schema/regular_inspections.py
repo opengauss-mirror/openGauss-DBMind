@@ -12,10 +12,10 @@
 # See the Mulan PSL v2 for more details.
 from sqlalchemy import Column, String, Integer, BigInteger, Index, TEXT, JSON
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class RegularInspection(Base):
+class RegularInspection(ResultDbBase):
     __tablename__ = "tb_regular_inspections"
     id = Column(Integer, primary_key=True, autoincrement=True)
     instance = Column(String(24), nullable=False)

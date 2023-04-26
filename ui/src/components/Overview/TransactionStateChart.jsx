@@ -1,222 +1,183 @@
 import React, { Component } from 'react';
-import { Card, message, Select, Empty, Spin } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons'; 
-import * as echarts from 'echarts';
-import { getTransactionStateInterface } from '../../api/overview';
+import { Card, Empty, Modal, message } from 'antd';
+import ReactEcharts from 'echarts-for-react';
+import { getTransaction } from '../../api/overview';
+import db from '../../utils/storage';
 
-const { Option } = Select;
-const style = 'position:absolute;z-index:100;color:#fff;font-size:12px;padding:5px;display:inline;border-radius:4px;background-color:#303133;box-shadow:rgba(0,0,0,0.3) 2px 2px 8px'
 export default class TransactionStateChart extends Component {
   constructor() {
     super()
     this.state = {
-      ydata: [],
-      chartData: [],
-      searchOptionList: [],
-      chartArrFlag: [],
-      defaultValue: '',
-      showFlag: 0
+      xpartData: [],
+      ypartData: [],
+      xallData: [],
+      yallData: [],
+      ifShow: true,
+      isModalVisible:false,
     }
   }
-  initChart = () => {
-    let myChart = echarts.init(document.getElementById('transactionchart'))
-    let option = {
+  getOption (flg) {
+    return {
       tooltip: {
         trigger: 'axis',
+        axisPointer: {
+          type: 'cross',
+          crossStyle: {
+            color: '#999'
+          }
+        }
       },
       legend: {
-        left: -5,
-        top: -5,
-        itemWidth:20,
-        itemHeight:13
+        data: ['commit', 'abort'],
+        x: 'right',
+        y:-5
       },
       grid: {
-        left: '0%',
-        right: '4%',
-        top: '10%',
-        bottom: 10,
-        width: '100%',
-        containLabel: true
+        x:60,
+        y: '12%',
       },
-      xAxis: {
-        type: 'value',
-        axisLabel: {
-          show: true,
-          rotate: 10
-        },
-      },
-      yAxis: {
-        type: 'category',
-        axisLabel: {
-          show: true,
-          interval: 0,
-          color: '#6e7079',
-          formatter: function (value) {
-            if (value.length > 3) {
-              return value.substring(0, 3) + '...'
-            } else {
-              return value
-            }
+      xAxis: [
+        {
+          type: 'category',
+          data: flg ? this.state.xpartData : this.state.xallData,
+          axisPointer: {
+            type: 'shadow'
+          },
+          axisTick: {
+            show: false
           }
-        },
-        triggerEvent: true,
-        data: this.state.ydata
-      },
-      dataZoom: {
-        type: 'slider',
-        start: 0,
-        end: 100,
-        disabled: false,
-        yAxisIndex: [0],
-        width: 15,
-        textStyle: {
-          width: 20,
-          overflow: 'truncate',
-          ellipsis: '...'
-        },
-      },
-      series: this.state.chartData,
-    }
-    myChart.setOption(option)
-    this.extension(myChart)
-  }
-  // Y轴文字太长鼠标悬浮显示
-  extension (chart) {
-    let elementDiv = document.getElementById('transactionchart')
-    if (elementDiv) {
-      let div = document.createElement('div')
-      div.setAttribute('id', 'chartdiv')
-      div.style.display = 'block'
-      document.querySelector('html').appendChild(div)
-    }
-    chart.on('mouseover', function (params) {
-      if (params.componentType === 'yAxis') {
-        let elementDiv = document.querySelector('#chartdiv')
-        let elementStyle = style
-        elementDiv.style.cssText = elementStyle
-        elementDiv.innerHTML = params.value
-        document.querySelector('html').onmousemove = function (event) {
-          let elementDiv = document.querySelector('#chartdiv')
-          let xx = event.pageX - 10
-          let yy = event.pageY + 15
-          elementDiv.style.top = yy + 'px'
-          elementDiv.style.left = xx + 'px'
         }
-      }
-    })
-    chart.on('mouseout', function (params) {
-      if (params.componentType === 'yAxis') {
-        let elementDiv = document.querySelector('#chartdiv')
-        elementDiv.style.cssText = 'display:none'
-      }
-    })
+      ],
+      yAxis: [
+        {
+          type: 'value',
+        },
+        {
+          type: 'value',
+        }
+      ],
+      color:['#5990fdff','#fecd03ff'],
+      series: [
+        {
+          name: 'commit',
+          type: 'bar',
+          barWidth:flg ? 18 : 36,
+          barGap:'60%',/*多个并排柱子设置柱子之间的间距*/
+          data: flg ? this.state.ypartData[1] : this.state.yallData[1],
+        },
+        {
+          name: 'abort',
+          type: 'bar',
+          yAxisIndex: 1,
+          barWidth:flg ? 18 : 36,
+          data: flg ? this.state.ypartData[0] : this.state.yallData[0],
+        },
+      ]
+    };
   }
-  async getTransactionState () {
-    const { success, data, msg } = await getTransactionStateInterface()
+  async getTransaction1 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_db_xact_commit'
+    }
+    const { success, data, msg }= await getTransaction(param)
     if (success) {
-      let vdata = []
-      if (JSON.stringify(data) !== '{}') {
-        let arr = []
-        Object.keys(data).forEach(function (key, i, v) {
-          vdata = v
-          let arrt = []
-          Object.keys(data[key]).forEach(function (keyt, it, vt) {
-            let objt = {
-              name: vt[it],
-              value: data[key][keyt]
-            }
-            arrt.push(objt)
-          })
-          let obj = {
-            name: key,
-            value: arrt
-          }
-          arr.push(obj)
-        })
-        this.setState({
-          showFlag: 0,
-          searchOptionList: vdata,
-          defaultValue: vdata[0],
-          chartArrFlag: arr
-        }, () => {
-          this.handleChangeChart(this.state.searchOptionList[0])
-        })
-      } else {
-        this.setState({showFlag: 1})
-      }
+      return data
     } else {
-      this.setState({showFlag: 1})
       message.error(msg)
     }
   }
-  handleChangeChart (selval) {
-    let seriesType = ['commit', 'abort']
-    let yArr = []
-    let commitSeriesData = []
-    let abortSeriesData = []
-    this.state.chartArrFlag.forEach((item) => {
-      if (selval === item.name) {
-        yArr = []
-        commitSeriesData = []
-        abortSeriesData = []
-        item.value.forEach((it) => {
-          yArr.push(it.name)
-          commitSeriesData.push(it.value.commit)
-          abortSeriesData.push(it.value.abort)
-        })
-      }
-    })
-    let arrflag = []
-    let finaData = []
-    seriesType.forEach((item) => {
-      if (item === 'commit') {
-        arrflag = commitSeriesData
+  async getTransaction2 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_db_xact_rollback'
+    }
+    const { success, data, msg }= await getTransaction(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  getTransactionAll(flg){
+    Promise.all([
+      this.getTransaction1(),
+      this.getTransaction2()
+    ]).then((result)=>{
+      if(result[0].length){
+        let xData = [],commitData = [],abortData = []
+        result[0].forEach((item, index) => {
+          xData.push(item.labels.datname)
+          commitData.push(item.values[0])
+        });
+        result[1].forEach((item, index) => {
+          abortData.push(item.values[0])
+        });
+        if(flg){
+          if(xData.length > 5){
+            xData = xData.slice(0,5)
+            commitData = commitData.slice(0,5)
+            abortData = abortData.slice(0,5)
+          }
+          this.setState(() => ({
+            ifShow: true,
+            xpartData: xData,
+            ypartData: [abortData,commitData],
+          }))
+        } else {
+          this.setState(() => ({
+            ifShow: true,
+            xallData: xData,
+            yallData: [abortData,commitData],
+          }))
+        }
       } else {
-        arrflag = abortSeriesData
+        this.setState({ifShow: false})
       }
-      let objt = {
-        name: item,
-        type: 'bar',
-        data: arrflag
-      }
-      finaData.push(objt)
+    }).catch((error) => {
+      console.log('error', error)
     })
+  }
+  isMore() {
     this.setState({
-      chartData: finaData,
-      ydata: yArr
-    }, () => {
-      this.initChart()
+      isModalVisible: true
+    },()=>{
+      this.getTransactionAll(false)
     })
   }
-  handleChange (value) {
-    this.setState({defaultValue: value}, () => {
-      this.handleChangeChart(this.state.defaultValue)
-    })
-  }
-  handleRefresh () {
-    this.setState({showFlag: 2}, () => {
-      this.getTransactionState()
+  handleCancel = () => {
+    this.setState({
+      isModalVisible: false,
     })
   }
   componentDidMount () {
-    this.getTransactionState()
+    this.getTransactionAll(true)
   }
   render () {
     return (
       <div>
-        <Card title="Transaction State" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />} style={{ height: 350, position: 'relative' }}>
-          {this.state.showFlag === 0 ? <>
-            <Select size="small" value={this.state.defaultValue} onChange={(val) => this.handleChange(val)} style={{ position: 'absolute', width: 140, right: 24, top: 74 }}>
-              {this.state.searchOptionList.map((item, index) => {
-                return (
-                  <Option value={item} key={index}>{item}</Option>
-                )
-              })}
-            </Select>
-            <div id="transactionchart" style={{ width: '100%', minHeight: 270, overflowY: 'auto' }}></div>
-          </> : this.state.showFlag === 1 ? <Empty description={false} style={{ paddingTop: 50 }} /> : <div style={{ textAlign: 'center' }}><Spin style={{ margin: '100px auto' }} /> </div>}
-        </Card >
-      </div >
+        {this.state.ifShow ? <ReactEcharts
+            ref={(e) => {
+              this.echartsElement = e
+            }}
+            option={this.getOption(true)}
+            style={{ width: '100%', height: '258px' }}
+            lazyUpdate={true}
+          >
+          </ReactEcharts> : <Empty description={this.state.ifShow} style={{ height: 200, paddingTop: 50 }} />}
+          <Modal title="Transaction State" style={{maxWidth: "70vw"}} bodyStyle={{overflowY: "auto",height: "60vh",}} width="70vw" okButtonProps={{ style: { display: 'none' } }} 
+         destroyOnClose='true' visible={this.state.isModalVisible} maskClosable = {false} centered='true' onCancel={() => this.handleCancel()}>
+          <ReactEcharts
+            ref={(e) => {
+              this.echartsElement = e
+            }}
+            option={this.getOption(false)}
+            style={{ width: 1296, height: 500 }}
+            lazyUpdate={true}
+          >
+          </ReactEcharts>
+        </Modal>
+      </div>
     )
   }
 }

@@ -10,12 +10,12 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from sqlalchemy import Column, Integer, String, Numeric, Boolean
+from sqlalchemy import Column, Integer, String, Boolean
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class KnobRecommendationDetails(Base):
+class KnobRecommendationDetails(ResultDbBase):
     __tablename__ = "tb_knob_recommendation_details"
 
     id = Column(Integer, primary_key=True, autoincrement=True)

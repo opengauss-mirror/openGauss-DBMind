@@ -4,6 +4,8 @@ import { Button, Card, Input, message, Select, Table, Upload, Modal, InputNumber
 import { getItemListInterface, getListIndexAdvisorInterface, getListIndexAdvisorDefaultValue } from '../../api/aiTool';
 import { formatTableTitle } from '../../utils/function';
 import db from '../../utils/storage';
+import '../../assets/css/common.css'
+import '../../assets/css/main/aiToolkit.css';
 
 const { TextArea } = Input;
 const { Option } = Select;
@@ -40,6 +42,7 @@ export default class IndexAdvisor extends Component {
       maxIndexStorage: 100,
       minImprovedRate: '3.0',
       isDetailsVisible:false,
+      isSettingVisible:false,
       selValue: '',
       textareaVal: '',
       options: [],
@@ -79,14 +82,15 @@ export default class IndexAdvisor extends Component {
       max_index_storage: this.state.maxIndexStorage,
       min_improved_rate: this.state.minImprovedRate,
       current: pageParams ? pageParams.current : this.state.current,
-      pagesize:pageParams ? pageParams.pagesize : this.state.pageSize
+      pagesize:pageParams ? pageParams.pagesize : this.state.pageSize,
+      instance:db.ss.get('Instance_value')
     }
     this.setState({ loadingAdvisor: true });
     const { success, data, msg } = await getListIndexAdvisorInterface(params)
     if (success) {
       let advisorColumObj = {},advisorHeader = ["index","improve_rate","index_size","templates","select","delete","update","insert"],advisorTableHeader = [],
-      redundantColumObj = [],redundantHeader = ["schemaName","tbname","columns","statement","related_indexes"],redundantTableHeader = [],
-      uselessColumObj = [],uselessHeader = ["schemaName","tbname","columns","statement"],uselessTableHeader = [],widthArray = ['34%','12%','12%','12%','5%','5%','5%','15%']
+      redundantColumObj = [],redundantHeader = ["schemaName","tbName","columns","statement","existingIndex"],redundantTableHeader = [],
+      uselessColumObj = [],uselessHeader = ["schemaName","tbName","columns","statement"],uselessTableHeader = [],widthArray = ['34%','12%','12%','12%','5%','5%','5%','15%']
       advisorHeader.forEach((item,Index) => {
         advisorColumObj = {
           title: formatTableTitle(item),
@@ -112,6 +116,13 @@ export default class IndexAdvisor extends Component {
           dataIndex: item,
           key: item,
           ellipsis: true,
+          render: (row, record) => {
+            if(item === 'existingIndex'){
+              return row.toString()
+            } else {
+              return row
+            }
+          }
         }
         redundantTableHeader.push(redundantColumObj)
       })
@@ -325,6 +336,9 @@ export default class IndexAdvisor extends Component {
     }
   }
   componentDidMount () {
+    if(this.props.location.state && this.props.location.state.sqltext && this.props.location.state.database){
+      this.setState({textareaVal: this.props.location.state.sqltext,selValue: this.props.location.state.database})
+    }
     this.getItemList()
     this.getDefaultValue()
   }
@@ -340,6 +354,7 @@ export default class IndexAdvisor extends Component {
       onChange: (current,pageSize) => this.changePage(current,pageSize)
     };
     return (
+      <div className="contentWrap">
       <div className='indexadvisor bordmargin'>
         <Card className="mb-20" extra={<SettingFilled className="more_link" onClick={() => { this.handleSetting() }} />} title="Smart Index Recommendation" bordered={false} style={{ width: '100%', height: 430 }}>
           <div className="flexbox">
@@ -373,7 +388,7 @@ export default class IndexAdvisor extends Component {
 # SELECT * FROM t1 WHERE t1.id > 100`} />
           </div>
           <div className="flexbox">
-          <Button type="primary" size="small" style={{ margin: '20px 0px 20px 120px' }} onClick={() => this.addTableData('type1')}>Advise Index</Button>
+          <Button type="primary" size="small" style={{ margin: '20px 0px 20px 120px' }} onClick={() => this.addTableData('type1')}>Adivse Index</Button>
           </div>
         </Card>
         <Card title="Recommended Set" className='recommended bordmargin' bordered={false} style={{ width: '100%', height: 'auto' }}>
@@ -397,6 +412,7 @@ export default class IndexAdvisor extends Component {
           <p><label style={labelStyle}>Max_index_num: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeNum(e)}  value={this.state.maxIndexNum} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum number of advised indexes</label></p>
           <p><label style={labelStyle}>Max_index_storage: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeStorage(e)}  value={this.state.maxIndexStorage} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum index storage (Mb)</label></p>
         </Modal>
+      </div>
       </div>
     )
   }

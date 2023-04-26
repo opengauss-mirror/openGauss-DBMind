@@ -12,10 +12,10 @@
 # See the Mulan PSL v2 for more details.
 from sqlalchemy import Column, String, TEXT, Integer, Float, Boolean, BigInteger
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class SlowQueriesKilled(Base):
+class SlowQueriesKilled(ResultDbBase):
     __tablename__ = "tb_killed_slow_queries"
 
     killed_query_id = Column(Integer, primary_key=True, autoincrement=True)

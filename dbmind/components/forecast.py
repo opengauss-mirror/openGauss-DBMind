@@ -11,7 +11,6 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import argparse
-import logging
 import os
 import sys
 import time
@@ -22,7 +21,8 @@ from math import inf
 
 from prettytable import PrettyTable
 
-from dbmind.cmd.edbmind import init_tsdb_with_config, init_global_configs
+from dbmind.cmd.edbmind import init_global_configs
+from dbmind.common.utils.component import initialize_tsdb_param
 from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.utils import write_to_terminal
 from dbmind.common.utils.checking import path_type
@@ -39,15 +39,6 @@ def _get_sequences(metric, instance, labels, start_datetime, end_datetime):
         sequences = dai.get_metric_sequence(metric, start_datetime, end_datetime). \
             from_server(instance).filter(**labels).fetchall()
     return sequences
-
-
-def _initialize_tsdb_param():
-    try:
-        tsdb = init_tsdb_with_config()
-        return tsdb.check_connection()
-    except Exception as e:
-        logging.error(e)
-        return False
 
 
 def risk_analysis(sequence, upper, lower, warning_minutes):
@@ -160,7 +151,7 @@ def main(argv):
     init_global_configs(args.conf)
     try:
         if args.action == 'early-warning':
-            if not _initialize_tsdb_param():
+            if not initialize_tsdb_param():
                 write_to_terminal("TSDB initialization failed.", color='red')
                 return 0
             warnings = early_warning(args.metric_name, args.instance, args.retroactive_period, args.warning_hours,

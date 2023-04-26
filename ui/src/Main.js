@@ -6,10 +6,16 @@ import HeaderTop from './components/Header.jsx';
 import MenuLeft from './components/MenuLeft.jsx';
 import Overview from './pages/Overview';
 import NodeInformation from './pages/NodeInformation.jsx';
-import AutonomousManagement from './pages/AutonomousManagement.jsx';
-import DatabaseOptimization from './pages/DatabaseOptimization';
-import SecurityManagement from './pages/SecurityManagement';
-import AiToolkit from './pages/AiToolkit.jsx';
+import Alarms from './components/AutonomousManagement/Alarms';
+import SecurityManagement from './components/AutonomousManagement/SecurityManagement';
+import Metric from './components/DatabaseOptimization/DatabaseTuningModules/Metric';
+import SlowQueryAnalysis from './components/DatabaseOptimization/SlowQueryAnalysis';
+import RegularInspections from './components/DatabaseOptimization/RegularInspections';
+import IndexAdvisor from './components/AiToolkit/IndexAdvisor';
+import QueryTuning from './components/AiToolkit/QueryTuning';
+import IntelligentSqlAnalysis from './components/AiToolkit/IntelligentSqlAnalysis';
+import IntelligentSqlCondition from './components/DatabaseOptimization/IntelligentSqlCondition';
+import RiskAnalysis from './components/AiToolkit/RiskAnalysis';
 import DbmindSettings from './pages/DbmindSettings';
 import Foot from './components/Foot';
 import 'antd/dist/antd.css';
@@ -35,12 +41,18 @@ class Main extends React.Component {
             <Content className="contentBag" style={{ overflowY: 'auto', overflowX: 'hidden', marginBottom: 40 }}>
               <Switch>
                 <Route path="/overview" component={Overview}></Route>
-                <Route path="/nodeinfor" component={NodeInformation}></Route>
-                <Route path="/autonomousmanagement" component={AutonomousManagement}></Route>
-                <Route path="/databaseoptimization" component={DatabaseOptimization}></Route>
-                <Route path="/securitymanagement" component={SecurityManagement}></Route>
+                <Route path="/AutonomouseManagement/nodeinfor" component={NodeInformation}></Route>
+                <Route path="/AutonomouseManagement/alarms" component={Alarms}></Route>
+                <Route path="/AutonomouseManagement/securitymanagement" component={SecurityManagement}></Route>
+                <Route path="/DatabaseOptimization/metric" component={Metric}></Route>
+                <Route path="/DatabaseOptimization/slowqueryanalysis" component={SlowQueryAnalysis}></Route>
+                <Route path="/DatabaseOptimization/regularinspections" component={RegularInspections}></Route>
+                <Route path="/DatabaseOptimization/intelligentsqlcondition" component={IntelligentSqlCondition}></Route>
+                <Route path="/Aitoolkit/indexadvisor" component={IndexAdvisor}></Route>
+                <Route path="/Aitoolkit/querytuning" component={QueryTuning}></Route>
+                <Route path="/Aitoolkit/intelligentsqlanalysis" component={IntelligentSqlAnalysis}></Route>
+                <Route path="/Aitoolkit/riskanalysis" component={RiskAnalysis}></Route>
                 <Route path="/dbmind-settings" component={DbmindSettings}></Route>
-                <Route path="/aitoolkit" component={AiToolkit}></Route>
                 <Redirect to="/login"></Redirect>
               </Switch>
               <Foot />

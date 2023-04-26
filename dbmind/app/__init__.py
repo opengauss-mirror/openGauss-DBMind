@@ -13,4 +13,6 @@
 
 
 def register_timed_app():
+    """A dummy function.
+    We guess this `timed_app` has already been imported."""
     from . import timed_app

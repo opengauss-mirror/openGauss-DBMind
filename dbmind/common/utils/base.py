@@ -153,6 +153,18 @@ class TTLOrderedDict(OrderedDict):
                 return default
 
 
+class FixedDict(OrderedDict):
+    def __init__(self, max_len=16):
+        super().__init__()
+        self.max_len = max_len
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if len(self) > self.max_len:
+            # FIFO
+            self.popitem(last=False)
+
+
 class NaiveQueue:
     def __init__(self, maxsize=10):
         """Unlike the Queue that Python builds in,
@@ -284,7 +296,7 @@ class MultiProcessingRFHandler(RotatingFileHandler):
         except (KeyboardInterrupt, SystemExit):
             raise
         except:
-            self.handleError(record)
+            pass
 
     def format(self, record):
         s = super().format(record)
@@ -390,13 +402,18 @@ def is_integer_string(s):
     return False
 
 
-def cast_to_int_or_float(value):
+def cast_to_int_or_float(value, precision=-1):
+    # cast value to int or float
+    # notes: precision only works when converting to float
     if isinstance(value, (int, float)):
         return value
     try:
         if isinstance(value, str) and is_integer_string(value):
             return int(value)
-        return float(value)
+        if precision <= 0:
+            return float(value)
+        else:
+            return round(float(value), precision)
     except (ValueError, TypeError):
         logging.warning('The value: %s cannot be converted to int or float.', value, exc_info=True)
         return float('nan')
@@ -440,6 +457,15 @@ def string_to_dict(values, delimiter=','):
         for pair in values.split(delimiter):
             name, value = pair.split('=')
             d[name.strip()] = value.strip()
-    except Exception as e:
-        raise e
+    except Exception:
+        logging.error("error occured when transfer %s to dict", values)
+        return d
     return d
+
+
+def try_to_get_an_element(l, idx):
+    if len(l) == 0:
+        return None
+    if len(l) <= idx:
+        return l[0]  # default to return the first one
+    return l[idx]

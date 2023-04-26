@@ -13,11 +13,11 @@
 import logging
 
 from dbmind import global_vars
+from dbmind.service.multicluster import RPCAddressError
 from dbmind.components.xtuner.tuner.character import AbstractMetric
 from dbmind.components.xtuner.tuner.recommend import recommend_knobs as rk
 from dbmind.components.xtuner.tuner.utils import cached_property
 from dbmind.service import dai
-from dbmind.service.utils import get_agent_instance_address
 from dbmind.service.utils import SequenceUtils
 
 
@@ -85,7 +85,7 @@ def recommend_knobs():
                 metric.set_address()
                 knobs = rk("recommend", metric)
                 result[address] = [knobs, metric.to_dict()]
-        except global_vars.agent_proxy.RPCAddressError as e:
+        except RPCAddressError as e:
             logging.warning(
                 'Cannot recommend knobs for the address %s because %s.',
                 address, str(e)

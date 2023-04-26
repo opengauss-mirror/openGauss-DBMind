@@ -69,24 +69,24 @@ class ForecastingFactory:
         return ForecastingFactory._get('arima')
 
 
-def _check_forecasting_minutes(forecasting_minutes):
+def _check_forecasting_time(forecasting_time):
     """
-    check whether input params forecasting_minutes is valid.
-    :param forecasting_minutes: int or float
+    check whether input params forecasting_time is valid.
+    :param forecasting_time: int or float
     :return: None
     :exception: raise ValueError if given parameter is invalid.
     """
     check_result = True
     message = ""
-    if not isinstance(forecasting_minutes, (int, float)):
+    if not isinstance(forecasting_time, (int, float)):
         check_result = False
-        message = "forecasting_minutes value type must be int or float"
-    elif forecasting_minutes < 0:
+        message = "forecasting_time value type must be int or float"
+    elif forecasting_time < 0:
         check_result = False
-        message = "forecasting_minutes value must >= 0"
-    elif forecasting_minutes in (np.inf, -np.inf, np.nan, None):
+        message = "forecasting_time value must >= 0"
+    elif forecasting_time in (np.inf, -np.inf, np.nan, None):
         check_result = False
-        message = f"forecasting_minutes value must not be:{forecasting_minutes}"
+        message = f"forecasting_time value must not be:{forecasting_time}"
 
     if not check_result:
         raise ValueError(message)
@@ -138,55 +138,67 @@ def compose_sequence(seasonal_data, train_sequence, forecast_values):
     return forecast_timestamps, forecast_values
 
 
-def quickly_forecast(sequence, forecasting_minutes, lower=0, upper=float('inf')):
+def quickly_forecast(sequence, forecasting_minutes, lower=0, upper=float('inf'),
+                     given_model=None, return_model=False):
     """
     Return forecast sequence in forecasting_minutes from raw sequence.
     :param sequence: type->Sequence
     :param forecasting_minutes: type->int or float
     :param lower: The lower limit of the forecast result
     :param upper: The upper limit of the forecast result.
+    :param given_model: type->ARIMA or SimpleLinearFitting
+    :param return_model: type->bool
     :return: forecast sequence: type->Sequence
     """
 
-    if len(sequence) <= 1:
-        return Sequence()
+    try:
+        # 1. check for sequence length and forecasting minutes
+        if len(sequence) <= 1:
+            raise ValueError("The sequence length is too short.")
+        _check_forecasting_time(forecasting_minutes)
+        forecasting_length = int(forecasting_minutes * 60 * 1000 / sequence.step)
+        if forecasting_length == 0 or forecasting_minutes == 0:
+            raise ValueError("The forecasting minutes is too short.")
 
-    # 1. check for forecasting minutes
-    _check_forecasting_minutes(forecasting_minutes)
-    forecasting_length = int(forecasting_minutes * 60 * 1000 / sequence.step)
-    if forecasting_length == 0 or forecasting_minutes == 0:
-        return Sequence()
+        # 2. interpolate
+        interpolated_sequence = sequence_interpolate(sequence)
 
-    # 2. interpolate
-    interpolated_sequence = sequence_interpolate(sequence)
+        # 3. decompose sequence
+        seasonal_data, train_sequence = decompose_sequence(interpolated_sequence)
 
-    # 3. decompose sequence
-    seasonal_data, train_sequence = decompose_sequence(interpolated_sequence)
+        # 4. get model from ForecastingFactory or given model
+        if given_model is None:
+            model = ForecastingFactory.get_instance(train_sequence)
+            model.fit(train_sequence)
+        else:
+            model = given_model
 
-    # 4. get model from ForecastingFactory
-    model = ForecastingFactory.get_instance(train_sequence)
+        forecast_data = model.forecast(forecasting_length)
+        forecast_data = trim_head_and_tail_nan(forecast_data)
+        dbmind_assert(len(forecast_data) == forecasting_length)
 
-    # 5. fit and forecast
-    model.fit(train_sequence)
+        # 5. compose sequence
+        forecast_timestamps, forecast_values = compose_sequence(
+            seasonal_data,
+            train_sequence,
+            forecast_data
+        )
 
-    forecast_data = model.forecast(forecasting_length)
-    forecast_data = trim_head_and_tail_nan(forecast_data)
-    dbmind_assert(len(forecast_data) == forecasting_length)
+        for i in range(len(forecast_values)):
+            forecast_values[i] = min(forecast_values[i], upper)
+            forecast_values[i] = max(forecast_values[i], lower)
 
-    # 6. compose sequence
-    forecast_timestamps, forecast_values = compose_sequence(
-        seasonal_data,
-        train_sequence,
-        forecast_data
-    )
+        result_sequence = Sequence(
+            timestamps=forecast_timestamps,
+            values=forecast_values,
+            name=sequence.name,
+            labels=sequence.labels
+        )
+    except ValueError as e:
+        logging.warning(f"An Exception was raised while quickly forecasting: {e}")
+        result_sequence, model = Sequence(), None
 
-    for i in range(len(forecast_values)):
-        forecast_values[i] = min(forecast_values[i], upper)
-        forecast_values[i] = max(forecast_values[i], lower)
-
-    return Sequence(
-        timestamps=forecast_timestamps,
-        values=forecast_values,
-        name=sequence.name,
-        labels=sequence.labels
-    )
+    if not return_model:
+        return result_sequence
+    else:
+        return result_sequence, model

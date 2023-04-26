@@ -124,7 +124,7 @@ export default class PositiveSql extends Component {
     return (
       <div className="mb-20">
         <Card title="Positive SQL" className="mb-20">
-          <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
+          <Table size="small" bordered components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
         </Card>
       </div>
     )

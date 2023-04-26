@@ -29,3 +29,95 @@
   margin-bottom: 6px;
   color:#ff4d4f
 }
+.instancename .ant-card-head {
+  font-size: 18px;
+  border-bottom: none;
+  padding: 0 20px;
+}
+.instancename .ant-card-head-title {
+  padding: 18px 0 10px 0;
+}
+.instancename .ant-card-body {
+  padding: 0 20px 20px 20px;
+}
+.instancename .ant-card-bordered{
+  border: none;
+}
+.instancefontsize{
+  border-radius: 6px ;
+  background: #fbf9ffff ;
+}
+.instancefontsize .ant-card-head{
+  font-size: 14px ;
+  color: #737a80 ;
+  padding: 0 20px;
+}
+.antclopercent_20 {
+  display: block;
+  flex: 0 0 20%;
+  max-width: 20%;
+}
+.bgcolor{
+  background: #ffffff;
+}
+.bgcolor .ant-card-extra{
+  padding: 12px 0 0 0;
+}
+.bgcolor .textstyle {
+  font-size:18px;
+  color:#272727;
+  font-family:Arial;
+  text-align:left;
+  font-weight:Bold;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  width: 200px;
+  display: inline-block;
+}
+.iconstyle{
+  padding: 2px 4px 4px 0;
+}
+.alarmstyle{
+  padding: 0px 0px 6px 0;
+}
+.textstyle .numstyle{
+  width: 30px;
+  display: inline-block;
+  text-align: center;
+}
+.proxystyle{
+  padding:0px 30px 10px 30px
+}
+.procolorblue .ant-progress-inner{
+  border : 1px solid #2DA769;
+}
+.procolorred .ant-progress-inner{
+  border : 1px solid #e54545;
+}
+.overviewTable .ant-table-thead > tr > th{
+  background:#f2f5fc;
+}
+.overviewTable .ant-table.ant-table-bordered > .ant-table-container{
+  border-left: none;
+}
+.overviewTable .ant-table.ant-table-bordered > .ant-table-container > .ant-table-content > table > tbody > tr > td{
+  border-right: none;
+}
+.point {
+  width: 4px;      
+  height: 4px;     
+  border: 1px solid #ff6c04;      
+  border-radius: 50%;      
+  background-color: #ff6c04;
+  display: inline-block;
+  margin: 0 4px 2px 0;
+}
+.grayimg {
+  -webkit-filter: grayscale(100%);
+  -moz-filter: grayscale(100%);
+  -ms-filter: grayscale(100%);
+  -o-filter: grayscale(100%);
+  filter: grayscale(100%);
+  filter: gray;
+}

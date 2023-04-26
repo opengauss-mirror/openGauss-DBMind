@@ -29,18 +29,18 @@ from dbmind.common.platform import LINUX
 from dbmind.common.sequence_buffer import SequenceBufferPool
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.types import Sequence
-from dbmind.common.utils import dbmind_assert
+from dbmind.common.utils import dbmind_assert, cast_to_int_or_float
 from dbmind.metadatabase import dao
 from dbmind.service.utils import SequenceUtils
 from dbmind.constants import (DISTINGUISHING_INSTANCE_LABEL,
                               EXPORTER_INSTANCE_LABEL)
+from dbmind.common.algorithm.anomaly_detection.gradient_detector import linear_fitting
 
 if LINUX:
     mp_shared_buffer = get_mp_sync_manager().defaultdict(dict)
 else:
     mp_shared_buffer = None
 buff = SequenceBufferPool(600, vacuum_timeout=300, buffer=mp_shared_buffer)
-MERGE_INTERVAL = 60 * 1000  # Alarm merge interval, unit is ms
 
 
 def datetime_to_timestamp(t: datetime):
@@ -240,7 +240,7 @@ def get_latest_metric_value(metric_name):
     return LazyFetcher(metric_name)
 
 
-def save_history_alarms(history_alarms):
+def save_history_alarms(history_alarms, detection_interval):
     if not history_alarms:
         return
     func = dao.alarms.get_batch_insert_history_alarms_functions()
@@ -259,7 +259,9 @@ def save_history_alarms(history_alarms):
             pre_alarm_end_at = result[1]
             cur_alarm_start_at = alarm.start_timestamp
             cur_alarm_end_at = alarm.end_timestamp
-            if cur_alarm_start_at - pre_alarm_end_at < MERGE_INTERVAL:
+            delay = (cur_alarm_start_at - pre_alarm_end_at) / 1000
+            # timestamp unit is 'ms'
+            if delay <= detection_interval + 1:  # tolerance in 1 second:
                 dao.alarms.update_history_alarm(alarm_id=pre_alarm_id, end_at=cur_alarm_end_at)
                 continue
         func.add(
@@ -390,37 +392,42 @@ def get_all_slow_queries(minutes):
         track_parameter = True if 'parameters: $1' in sequence.labels['query'].lower() else False
         query = sequence.labels['query']
         query_plan = sequence.labels['query_plan'] if sequence.labels['query_plan'] != 'None' else None
-        start_timestamp = int(sequence.labels['start_time'])  # unit: microsecond
-        duration_time = int(sequence.labels['finish_time']) - int(sequence.labels['start_time'])  # unit: microsecond
-        hit_rate = round(float(sequence.labels['hit_rate']), 4)
-        fetch_rate = round(float(sequence.labels['fetch_rate']), 4)
-        cpu_time = round(float(sequence.labels['cpu_time']), 4)
-        plan_time = round(float(sequence.labels['plan_time']), 4)
-        parse_time = round(float(sequence.labels['parse_time']), 4)
-        db_time = round(float(sequence.labels['db_time']), 4)
-        data_io_time = round(float(sequence.labels['data_io_time']), 4)
+        # unit: microsecond
+        start_timestamp = cast_to_int_or_float(sequence.labels['start_time'])
+        # unit: microsecond
+        duration_time = cast_to_int_or_float(sequence.labels['finish_time']) - \
+                        cast_to_int_or_float(sequence.labels['start_time'])
+        hit_rate = cast_to_int_or_float(sequence.labels['hit_rate'], precision=4)
+        fetch_rate = cast_to_int_or_float(sequence.labels['fetch_rate'], precision=4)
+        cpu_time = cast_to_int_or_float(sequence.labels['cpu_time'], precision=4)
+        plan_time = cast_to_int_or_float(sequence.labels['plan_time'], precision=4)
+        parse_time = cast_to_int_or_float(sequence.labels['parse_time'], precision=4)
+        db_time = cast_to_int_or_float(sequence.labels['db_time'], precision=4)
+        data_io_time = cast_to_int_or_float(sequence.labels['data_io_time'], precision=4)
         template_id = sequence.labels['unique_query_id']
         query_id = sequence.labels['debug_query_id']
-        lock_wait_count = int(sequence.labels['lock_wait_count'])
-        lwlock_wait_count = int(sequence.labels['lwlock_wait_count'])
-        n_returned_rows = int(sequence.labels['n_returned_rows'])
-        n_tuples_returned = int(sequence.labels['n_tuples_returned'])
-        n_tuples_fetched = int(sequence.labels['n_tuples_fetched'])
-        n_tuples_inserted = int(sequence.labels['n_tuples_inserted'])
-        n_tuples_updated = int(sequence.labels['n_tuples_updated'])
-        n_tuples_deleted = int(sequence.labels['n_tuples_deleted'])
+        n_returned_rows = cast_to_int_or_float(sequence.labels['n_returned_rows'])
+        n_tuples_returned = cast_to_int_or_float(sequence.labels['n_tuples_returned'])
+        n_tuples_fetched = cast_to_int_or_float(sequence.labels['n_tuples_fetched'])
+        n_tuples_inserted = cast_to_int_or_float(sequence.labels['n_tuples_inserted'])
+        n_tuples_updated = cast_to_int_or_float(sequence.labels['n_tuples_updated'])
+        n_tuples_deleted = cast_to_int_or_float(sequence.labels['n_tuples_deleted'])
+        n_soft_parse = cast_to_int_or_float(sequence.labels['n_soft_parse'])
+        n_hard_parse = cast_to_int_or_float(sequence.labels['n_hard_parse'])
+        hash_spill_count = cast_to_int_or_float(sequence.labels['hash_spill_count'])
+        sort_spill_count = cast_to_int_or_float(sequence.labels['sort_spill_count'])
         slow_sql_info = SlowQuery(
             db_host=db_host, db_port=db_port, query_plan=query_plan,
             schema_name=schema_name, db_name=db_name, query=query,
             start_timestamp=start_timestamp, duration_time=duration_time,
             hit_rate=hit_rate, fetch_rate=fetch_rate, track_parameter=track_parameter,
             cpu_time=cpu_time, data_io_time=data_io_time, plan_time=plan_time,
-            parse_time=parse_time, db_time=db_time,
-            template_id=template_id, lock_wait_count=lock_wait_count,
-            lwlock_wait_count=lwlock_wait_count, n_returned_rows=n_returned_rows,
+            parse_time=parse_time, db_time=db_time, n_hard_parse=n_hard_parse,
+            n_soft_parse=n_soft_parse, template_id=template_id,  n_returned_rows=n_returned_rows,
             n_tuples_returned=n_tuples_returned, n_tuples_fetched=n_tuples_fetched,
             n_tuples_inserted=n_tuples_inserted, n_tuples_updated=n_tuples_updated,
-            n_tuples_deleted=n_tuples_deleted, query_id=query_id
+            n_tuples_deleted=n_tuples_deleted, query_id=query_id, hash_spill_count=hash_spill_count,
+            sort_spill_count=sort_spill_count
         )
 
         slow_queries.append(slow_sql_info)
@@ -573,28 +580,40 @@ def check_tsdb_status():
 
 
 def check_exporter_status():
-    detail = {'opengauss_exporter': [], 'reprocessing_exporter': [], 'node_exporter': []}
+    # notes: if the scope is not specified, the global_var.agent_proxy.current_cluster_instances() 
+    #        may return 'None' in most scenarios, therefore this method is limited to 
+    #        calling when implementing the API for front-end one agent or we only have one agent
+    detail = {'opengauss_exporter': [], 'reprocessing_exporter': [], 'node_exporter': [], 'cmd_exporter': []}
     client = TsdbClientFactory.get_tsdb_client()
     if not client.check_connection():
         detail['opengauss_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
         detail['reprocessing_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
         detail['node_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
+        detail['cmd_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
         return detail
     self_exporters = {'opengauss_exporter': 'pg_node_info_uptime', 'reprocessing_exporter': 'os_cpu_usage',
-                      'node_exporter': 'node_boot_time_seconds'}
+                      'node_exporter': 'node_boot_time_seconds', 'cmd_exporter': 'gaussdb_cluster_state'}
     instance_with_port = global_vars.agent_proxy.current_cluster_instances()
     instance_with_no_port = [item.split(':')[0] for item in instance_with_port]
     for exporter, metric in self_exporters.items():
-        # add cmd_exporter here later
-        if exporter in ('opengauss_exporter', ):
+        if exporter in ('opengauss_exporter', 'cmd_exporter'):
             instances = instance_with_port
         else:
             instances = instance_with_no_port
         for instance in instances:
             if exporter == 'node_exporter':
                 instance_regex = instance + ':?.*'
-                sequences = get_latest_metric_value('node_boot_time_seconds').\
+                sequences = get_latest_metric_value(metric).\
                     from_server_like(instance_regex).fetchall()
+            elif exporter == 'cmd_exporter':
+                instance_regrex = instance.split(':')[0] + ':?.*'
+                # since the cluster state may change, it will be matched again
+                # on the 'primary' after the matching fails on the 'standby' to ensure not miss exporter
+                sequences = get_latest_metric_value(metric).\
+                    filter_like(instance=instance_regrex, standby=f".*{instance}.*").fetchall()
+                if not is_sequence_valid(sequences):
+                    sequences = get_latest_metric_value(metric).\
+                        filter_like(instance=instance_regrex).filter(primary=instance).fetchall()
             else:
                 sequences = get_latest_metric_value(metric).from_server(instance).fetchall()
             if is_sequence_valid(sequences):
@@ -609,7 +628,7 @@ def check_exporter_status():
                             {'instance': instance, 'listen_address': listen_address, 'status': 'up'})
             else:
                 if exporter == 'node_exporter':
-                    detail['node_exporter'].append({'instance': instance, 'status': 'down'})
+                    detail['node_exporter'].append({'instance': instance, 'listen_address': '', 'status': 'down'})
     return detail
 
 
@@ -640,16 +659,24 @@ def diagnosis_exporter_status(exporter_status):
                                              exporter_status['reprocessing_exporter'])))
     if number_of_reprocessing_number > 1:
         suggestions.append("Only need to start one reprocessing exporter component.")
-
+    if number_of_reprocessing_number < 1:
+        suggestions.append("It is found that the instance has not deployed reprocessing_exporter or some exception occurs.")
+    # 5) check whether too many node_exporters are deployed
     number_of_alive_node_exporter = len(set([item['instance'] for item in
                                         exporter_status['node_exporter'] if item['status'] == 'up']))
-    # 5) check whether too many node_exporters are deployed
     if number_of_alive_node_exporter > len(instance_with_no_port):
         suggestions.append("Too many node_exporter on instance, "
-                           "it is recommended to deploy at most one opengauss_exporter on each instance.")
+                           "it is recommended to deploy one node_exporter on each instance.")
     # 6) check if some nodes do not deploy exporter
     if number_of_alive_node_exporter < len(instance_with_no_port):
-        suggestions.append("Is is recommended to deploy one node_exporter on each instance node.")
+        suggestions.append("It is found that some node has not deployed node_exporter, "
+                           "it is recommended to deploy one node_exporter on each instance.")
+    # 7) check whether the cmd_exporter is deployed or not
+    cluster = global_vars.agent_proxy.current_cluster_instances()
+    number_of_cmd_exproter = len(set((item['listen_address'] for item in
+                                      exporter_status['cmd_exporter'])))
+    if len(cluster) > 1 and number_of_cmd_exproter == 0:
+        suggestions.append("It is found that cmd_exporter is not deployed on each instance.")
     return suggestions
 
 
@@ -664,3 +691,107 @@ def is_driver_result_valid(s):
     if isinstance(s, list) and len(s) > 0:
         return True
     return False
+
+
+def get_data_directory_mountpoint_info(instance):
+    # return the mountpoint and total size of the disk where the instance data directory is located
+    data_directory_sequence = get_latest_metric_value('pg_node_info_uptime').from_server(instance).fetchone()
+    if not is_sequence_valid(data_directory_sequence):
+        return
+    data_directory = data_directory_sequence.labels['datapath']
+    instance_with_no_port = instance.split(':')[0]
+    instance_regrex = instance_with_no_port + ':?.*'
+    filesystem_total_size_sequences = get_latest_metric_value('node_filesystem_size_bytes'). \
+        filter_like(instance=instance_regrex).fetchall()
+    if not is_sequence_valid(filesystem_total_size_sequences):
+        return
+    filesystem_total_size_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
+    for sequence in filesystem_total_size_sequences:
+        if data_directory.startswith(sequence.labels['mountpoint']):
+            return sequence.labels['mountpoint'], \
+                   sequence.labels['device'], round(sequence.values[-1] / 1024 / 1024 / 1024, 2)
+
+
+def get_database_data_directory_status(instance, latest_minutes):
+    # return the data-directory information of current cluster
+    # note: now the node of instance should be deployed opengauss_exporter
+    mountpoint, total_size = '', 0.0
+    detail = {'total_space': '', 'tilt_rate': '', 'usage_rate': '', 'used_space': ''}
+    instance_with_no_port = instance.split(':')[0]
+    cluster_instance = global_vars.agent_proxy.agent_get_all()[instance]
+    for instance in cluster_instance:
+        # get data_directory of any node in cluster, because all the node have the same data-directory.
+        mountpoint_info = get_data_directory_mountpoint_info(instance)
+        if mountpoint_info is not None:
+            mountpoint, _, total_size = mountpoint_info
+        break
+    disk_usage_sequence = get_latest_metric_sequence('os_disk_usage', latest_minutes).\
+        from_server(instance_with_no_port).filter(mountpoint=mountpoint).fetchone()
+    if not is_sequence_valid(disk_usage_sequence):
+        return detail
+    usage_rate = disk_usage_sequence.values
+    tile_rate, _ = linear_fitting(range(0, len(usage_rate)), usage_rate)
+    # replace tile rate with disk absolute size(unit: mbytes)
+    tile_rate = round(total_size * tile_rate * 1024, 2)
+    used_space = round(total_size * usage_rate[-1], 2)
+    free_space = round(total_size - used_space, 2)
+    detail = {'total_space': total_size,
+              'tilt_rate': tile_rate,
+              'usage_rate': round(usage_rate[-1], 2) if usage_rate else '',
+              'used_space': used_space, 'free_space': free_space}
+    return detail
+
+
+def check_instance_status():
+    # there are two scenarios, which are 'centralized' and 'single', the judgment method is as follows:
+    #   1) centralized: judging by 'gaussdb_cluster_state which is fetched by 'cmd_exporter'
+    #   2) single: judging by 'pg_node_info_uptime' which is fetched by 'opengauss_exporter'
+    # notes: if the scope is not specified, the global_var.agent_proxy.current_cluster_instances() 
+    #        may return 'None' in most scenarios, therefore this method is limited to 
+    #        calling when implementing the API for front-end or we only have one agent
+    detail = {'status': 'unknown', 'deployment_mode': 'unknown', 'primary': '',
+              'standby': [], 'abnormal': [], 'normal': []}
+    cluster = global_vars.agent_proxy.current_cluster_instances()
+    if len(cluster) == 1:
+        detail['deployment_mode'] = 'single'
+        detail['primary'] = cluster[0]
+        sequence = get_latest_metric_value('pg_node_info_uptime').from_server(cluster[0]).fetchone()
+        if is_sequence_valid(sequence):
+            detail['status'] = 'normal'
+        else:
+            detail['status'] = 'abnormal'
+    elif len(cluster) > 1:
+        detail['deployment_mode'] = 'centralized'
+        # since the state of cluster may change and we do not know the latest situation of instance, 
+        # therefore we try all nodes in turn to ensure not miss key information
+        for instance in cluster:
+            cluster_sequence = get_latest_metric_value('gaussdb_cluster_state').filter_like(standby=f'.*{instance}.*').fetchone()
+            if not is_sequence_valid(cluster_sequence):
+                cluster_sequence = get_latest_metric_value('gaussdb_cluster_state').filter(primary=instance).fetchone()
+            if is_sequence_valid(cluster_sequence):
+                labels = cluster_sequence.labels
+                detail['status'] = 'normal' if cluster_sequence.values[-1] == 1 else 'abnormal'
+                detail['primary'] = labels.get('primary', '')
+                detail['standby'] = labels.get('standby').strip(',').split(',') if labels else []
+                detail['normal'] = labels.get('normal').strip(',').split(',') if labels else []
+                detail['abnormal'] = list(set([detail['primary']] + detail['standby']) - set(detail['normal']))
+                break
+    return detail
+
+
+def check_agent_status():
+    # we judge the status of agent by executing statement, if the result is correct then 
+    # it prove the status of agent is normal, otherwise it is abnormal
+    # notes: if the scope is not specified, the global_var.agent_proxy.current_agent_addr() 
+    #        may return 'None' in most scenarios, therefore this method is limited to 
+    #        calling when implementing the API for front-end or we only have one agent 
+    detail = {'status': 'unknown'}
+    detail['agent_address'] = global_vars.agent_proxy.current_agent_addr()
+    try:
+        res = global_vars.agent_proxy.call('query_in_database', 'select 1', None, return_tuples=True)
+        if res and res[0] and res[0][0] == 1:
+            detail['status'] = 'up'
+    except Exception:
+        detail['status'] = 'down'
+    return detail
+

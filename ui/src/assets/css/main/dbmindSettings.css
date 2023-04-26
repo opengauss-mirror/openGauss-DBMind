@@ -17,9 +17,9 @@
   border: 1px solid #434343;
 }
 /* dbmind-settings表格列宽 */
-.tablecellclass .ant-table-cell-fix-left{
+/* .tablecellclass .ant-table-cell-fix-left{
   width:200px;
-}
+} */
 @keyframes blink{
   0%{opacity: 1;}
   100%{opacity: 0;}
@@ -31,4 +31,33 @@
 }
 .dbmindTable .ant-table-pagination.ant-pagination {
   padding-right: 300px;
+}
+.ant-collapse-icon-position-end > .ant-collapse-item > .ant-collapse-header {
+  padding: 8px 40px 0 8px;
+}
+.ant-collapse > .ant-collapse-item > .ant-collapse-header .ant-collapse-header-text{
+  flex: none;
+  background-color: #5990FD;
+  color: #ffffff;
+  border-radius: 4px 4px 0 0;
+  font-size: 12px;
+  padding: 2px 10px;
+  font-weight : bold ;
+}
+.ant-collapse-content {
+  border-top: none;
+}
+.panelStyle{
+  margin-bottom: 15px;
+  background-color: #f6f6f6;
+  border-radius:4px 4px 0 0;
+}
+.settingstyle .ant-card-head {
+  border-bottom: none;
+}
+.settingstyle .ant-card-body {
+  padding: 0 24px 24px 24px;
+}
+.settingstyle .ant-card-head-title {
+  padding: 11px 0;
 }

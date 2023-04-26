@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
 import { Col, message, Row, Spin, Select, DatePicker } from 'antd';
+import '../../assets/css/common.css';
 import moment from 'moment';
 import RegularInspectionsDay from './RegularInspectionsDay';
 import RegularInspectionsWeek from './RegularInspectionsWeek';
@@ -87,35 +88,37 @@ export default class RegularInspections extends Component {
   }
   render () {
     return (
-      <div style={{ textAlign: 'center' }}>
-              <Row style={{ width: '60%' }} justify="space-around">
-                <Col>
-                  <span>type: </span>
-                  <Select value={this.state.checkType} onChange={(val) => { this.changeTypeVal(val) }}
-                  style={{ width: 200 }} className="mb-20">
-                    {
-                      this.state.typeOptionsFilter.map((item, index) => {
-                        return (
-                          <Option value={item} key={index}>{item}</Option>
-                        )
-                      })
-                    }
-                  </Select>
-                </Col>
-                <Col>
-                  <span>start: </span>
-                  <DatePicker format="YYYY-MM-DD HH:mm:ss" showTime value={moment(this.state.startTime)} disabled style={{ width: 200 }} />
-                </Col>
-                <Col>
-                  <span>end: </span>
-                  <DatePicker format="YYYY-MM-DD HH:mm:ss" showTime value={moment(this.state.endTime)} disabled style={{ width: 200 }} />
-                </Col>
-              </Row>
-        {this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> : 
-        (this.state.checkType === 'daily_check' ? <RegularInspectionsDay regularInspectionsDay={this.state.regularInspectionsDay} /> : 
-        (this.state.checkType === 'weekly_check' ? <RegularInspectionsWeek regularInspectionsWeek={this.state.regularInspectionsWeek} />:
-        <RegularInspectionsWeek regularInspectionsWeek={this.state.regularInspectionsWeek} />))
-        }
+      <div className="contentWrap">
+        <div style={{ textAlign: 'center' }}>
+                <Row style={{ width: '60%' }} justify="space-around">
+                  <Col>
+                    <span>type: </span>
+                    <Select value={this.state.checkType} onChange={(val) => { this.changeTypeVal(val) }}
+                    style={{ width: 200 }} className="mb-20">
+                      {
+                        this.state.typeOptionsFilter.map((item, index) => {
+                          return (
+                            <Option value={item} key={index}>{item}</Option>
+                          )
+                        })
+                      }
+                    </Select>
+                  </Col>
+                  <Col>
+                    <span>start: </span>
+                    <DatePicker format="YYYY-MM-DD HH:mm:ss" showTime value={moment(this.state.startTime)} disabled style={{ width: 200 }} />
+                  </Col>
+                  <Col>
+                    <span>end: </span>
+                    <DatePicker format="YYYY-MM-DD HH:mm:ss" showTime value={moment(this.state.endTime)} disabled style={{ width: 200 }} />
+                  </Col>
+                </Row>
+          {this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> : 
+          (this.state.checkType === 'daily_check' ? <RegularInspectionsDay regularInspectionsDay={this.state.regularInspectionsDay} /> : 
+          (this.state.checkType === 'weekly_check' ? <RegularInspectionsWeek regularInspectionsWeek={this.state.regularInspectionsWeek} />:
+          <RegularInspectionsWeek regularInspectionsWeek={this.state.regularInspectionsWeek} />))
+          }
+        </div>
       </div>
     )
   }

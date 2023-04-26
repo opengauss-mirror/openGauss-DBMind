@@ -6,7 +6,7 @@ import { getRegularInspections } from '../../../api/autonomousManagement';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 
 const columnsTable = ['name','address','corr','delay'];
-export default class ThroughputChart extends Component {
+export default class MetricChart extends Component {
   constructor(props) {
     super(props)
     this.state = {
@@ -32,13 +32,14 @@ export default class ThroughputChart extends Component {
     this.setState({ loading: true })
     let params = {
       metric_name: this.props.metric_name,
-      host: this.props.host,
+      instance: this.props.host,
       start_time: this.props.start_time,
-      end_time: this.props.end_time
+      end_time: this.props.end_time,
+      metric_filter: this.props.metric_filter
     }
     const { success, data, msg } = await getRegularInspections(params)
     if (success) {
-      if (data && data[`${Object.keys(data)[0]}`].length > 0) {
+      if (data && data[`${Object.keys(data)}`].length > 0) {
         let arrayData = [],dataSourceData = [],columnsArr = [], colors = ['#5470c6', '#91cc75', '#fac858']
         columnsTable.forEach(item => {
           let obj = {
@@ -50,7 +51,7 @@ export default class ThroughputChart extends Component {
           }
           columnsArr.push(obj)
         })
-        data[`${params.metric_name} from ${params.host}`].forEach((item, index) => {
+        data[`${Object.keys(data)}`].forEach((item, index) => {
           let dataSourceArray = {
             'name':item[0].replace(/(\s*$)/g, '').split("from")[0],'address':item[0].replace(/(\s*$)/g, '').split("from")[1],'corr':item[1],'delay':item[2]
           }
@@ -129,6 +130,7 @@ export default class ThroughputChart extends Component {
         data: item.xdata
       },
       yAxis: {
+        scale:true,
         type: 'value',
         nameLocation: 'end',
         nameTextStyle: {

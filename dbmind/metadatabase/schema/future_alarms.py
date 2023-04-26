@@ -11,12 +11,12 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from sqlalchemy import Column, String, Integer, BigInteger, CHAR, JSON, Index, TEXT
+from sqlalchemy import Column, String, Integer, BigInteger, CHAR, Index, TEXT
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class FutureAlarms(Base):
+class FutureAlarms(ResultDbBase):
     __tablename__ = "tb_future_alarms"
 
     future_alarm_id = Column(Integer, primary_key=True, autoincrement=True)

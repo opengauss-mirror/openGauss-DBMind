@@ -4,7 +4,7 @@ import { Card, message, Table } from 'antd';
 import PropTypes from 'prop-types';
 import { getMetricStatisticInterface } from '../../../api/clusterInformation';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
-export default class Statistics extends React.PureComponent {
+export default class MetricStatistics extends React.PureComponent {
   static propTypes={
     metricStatisticCount:PropTypes.object.isRequired
   }

@@ -27,7 +27,7 @@ from prometheus_client.parser import text_string_to_metric_families
 
 from dbmind import constants
 from dbmind.cmd import setup
-from dbmind.cmd.config_utils import ConfigUpdater
+from dbmind.cmd.configs.configurators import UpdateConfig
 from dbmind.common.parser.others import parse_dsn
 from dbmind.components.deployment.prometheus_deploy import PROMETHEUS, SSL, EXPORTERS
 from dbmind.components.deployment.prometheus_deploy import edit_prometheus_yaml
@@ -296,7 +296,7 @@ def start_grafana():
 def config_dbmind_service(confpath):
     setup.setup_directory(confpath)
     dbmind_conf = os.path.join(DBMIND_PATHS_CONFIG, constants.CONFILE_NAME)
-    with ConfigUpdater(dbmind_conf) as config:
+    with UpdateConfig(dbmind_conf) as config:
         # TSDB
         config.set('TSDB', 'name', 'prometheus')
         config.set('TSDB', 'host', '127.0.0.1')

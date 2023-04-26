@@ -24,7 +24,7 @@ from dbmind.components.fetch_statement import fetch_statement
 from dbmind.components.fetch_statement.fetch_statement import is_valid_statement
 from dbmind.service import dai
 from dbmind.service.utils import SequenceUtils
-
+from dbmind.service.multicluster import RPCAddressError
 from .index_recommendation_rpc_executor import RpcExecutor
 
 process_bar.print = lambda *args, **kwargs: None
@@ -85,7 +85,7 @@ def get_database_schemas():
                 )
 
                 rv[address][db_name] = ','.join(map(lambda l: l[0], schemas))
-        except global_vars.agent_proxy.RPCAddressError as e:
+        except RPCAddressError as e:
             logging.warning(e)
             continue
 
@@ -107,12 +107,14 @@ def is_rpc_available(db_name):
 
 def rpc_index_advise(executor,
                      templates,
-                     max_index_num=global_vars.dynamic_configs.get_int_or_float(
-                         'SELF-OPTIMIZATION', 'max_index_num', fallback=10
-                     ),
-                     max_index_storage=global_vars.dynamic_configs.get_int_or_float(
-                         'SELF-OPTIMIZATION', 'max_index_storage', fallback=100
-                     )):
+                     max_index_num=None,
+                     max_index_storage=None):
+    if max_index_num is None:
+        max_index_num = global_vars.dynamic_configs.get_int_or_float(
+            'SELF-OPTIMIZATION', 'max_index_num', fallback=10)
+    if max_index_storage is None:
+        max_index_storage = global_vars.dynamic_configs.get_int_or_float(
+            'SELF-OPTIMIZATION', 'max_index_storage', fallback=100)
     # only single threads can be used
     index_advisor_workload.MAX_INDEX_NUM = max_index_num
     index_advisor_workload.MAX_INDEX_STORAGE = max_index_storage
@@ -136,7 +138,7 @@ def do_index_recomm(templatization_args, instance, db_name, schemas, database_te
     if (not global_vars.agent_proxy.switch_context(instance)
             or not is_rpc_available(db_name)):
         return
-    executor = RpcExecutor(db_name, None, None, None, None, '"$user",public,' + schemas)
+    executor = RpcExecutor(db_name, None, None, None, None, schemas)
     database_templates, source = get_queries(database_templates, instance, db_name, schemas, optimization_interval,
                                              templatization_args)
 

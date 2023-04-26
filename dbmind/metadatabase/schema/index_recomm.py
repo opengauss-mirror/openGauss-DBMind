@@ -10,12 +10,12 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from sqlalchemy import Column, Integer, String, Numeric
+from sqlalchemy import Column, Integer, String, Numeric, TEXT
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class IndexRecommendation(Base):
+class IndexRecommendation(ResultDbBase):
     __tablename__ = "tb_index_recommendation"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -35,4 +35,4 @@ class IndexRecommendation(Base):
     insert_ratio = Column(Numeric(10, 6))
     update_ratio = Column(Numeric(10, 6))
     delete_ratio = Column(Numeric(10, 6))
-    index_stmt = Column(String(512), nullable=False)
+    index_stmt = Column(TEXT, nullable=False)

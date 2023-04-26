@@ -5,3 +5,64 @@
 .formlabel-160 .ant-form-inline .ant-form-item > .ant-form-item-label {
   width: 160px;
 }
+.IntelligentSqlCondition .ant-card-body {
+  padding: 0 24px 24px 24px;
+}
+.IntelligentSqlCondition .ant-card-head-title {
+  padding: 11px 0;
+}
+.IntelligentSqlCondition .ant-card-head{
+  padding: 0;
+  margin: 0 24px;
+}
+.errorinvalid .ant-form-item-explain-error{
+  width: 200px;
+}
+.IntelligentSqlCondition .ant-form-horizontal .ant-form-item-label {
+  width: 140px!important;
+}
+.IntelligentSqlCondition .ant-checkbox-checked .ant-checkbox-inner::after {
+  border-color: #1677FF;
+}
+.IntelligentSqlCondition .ant-checkbox-checked .ant-checkbox-inner {
+  background: #ffffff;
+}
+.IntelligentSqlCondition .timeblue .ant-picker-separator,.ant-picker-suffix{
+  color: #5990FD;
+}
+.SlowQueryAnalysis .buttonstyle{
+  text-align: right;
+  height: 36px;
+  line-height: 36px;
+}
+.SlowQueryAnalysis .ant-card-head-title{
+  padding:  5px 5px 5px 0px;
+  text-align: left;
+}
+.SlowQueryAnalysis .ant-card-extra{
+  padding: 0;
+}
+.SlowQueryAnalysis .ant-card-head{
+  font-size: 14px;
+  color: #737a80;
+  padding: 0 30px;
+  min-height: 42px;
+  line-height: 36px;
+}
+.SlowQueryAnalysis .ant-card-body{
+  padding: 0 0 0 30px;
+}
+.SlowQueryAnalysis .textstyle{
+  font-size: 18px;
+  color: #272727;
+  font-family: Arial;
+  text-align: left;
+  font-weight: Bold;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  width: 100%;
+}
+.SlowQueryAnalysis .ant-card-head {
+  border-bottom: none;
+}

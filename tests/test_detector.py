@@ -17,6 +17,7 @@ import random
 from configparser import ConfigParser
 from unittest import mock
 
+from dbmind.app.monitoring import ad_pool_manager, generic_anomaly_detector
 from dbmind.common import utils
 from dbmind.common.algorithm import anomaly_detection
 from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
@@ -388,6 +389,23 @@ test_spike_data = [50.49714285714286, 27.55818181818182, 17.876666666666665, 17.
                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 
+def test_threshold_detector():
+    detector = anomaly_detection.ThresholdDetector(high=10)
+    sequence = Sequence([1, 2, 3, 4, 5, 6], [1, 1, 12, 2, 2, 2])
+    anomalies = detector.fit_predict(sequence)
+    assert anomalies.values == (False, False, True, False, False, False)
+
+    detector = anomaly_detection.ThresholdDetector(low=3)
+    sequence = Sequence([1, 2, 3, 4, 5, 6], [1, 1, 12, 2, 2, 2])
+    anomalies = detector.fit_predict(sequence)
+    assert anomalies.values == (True, True, False, True, True, True)
+
+    detector = anomaly_detection.ThresholdDetector(high=10, percentage=0.6)
+    sequence = Sequence([1, 2, 3, 4, 5, 6], [11, 11, 12, 12, 2, 2])
+    anomalies = detector.fit_predict(sequence)
+    assert all(anomalies.values)
+
+
 def test_seasonal_detector():
     input_data = [10, 20, 30, 40] * 20 + [1, 1, 1, 1] * 5 + [10, 20, 30, 40] * 20
     raw_data = Sequence(timestamps=list(range(len(input_data))), values=input_data)
@@ -465,7 +483,7 @@ def test_increase_detector():
     # test case: the increasing sequence.
     input_data = [i * 0.05 + 0.7 * random.randint(1, 5) for i in list(range(50))]
     raw_data = Sequence(timestamps=list(range(len(input_data))), values=input_data)
-    detector = anomaly_detection.IncreaseDetector(side="positive", alpha=0.05)
+    detector = anomaly_detection.IncreaseDetector(side="positive")
     res = detector.fit_predict(raw_data)
     correct_data = (True,) * 50
     assert res.values == correct_data
@@ -508,14 +526,14 @@ def test_pick_out_anomalies():
 
 def test_gradient_detector():
     sequence = Sequence(test_spike_timestamps[300:500], test_spike_data[300:500])
-    detector = anomaly_detection.GradientDetector(side='positive', max_coef=0.001, timed_window=300)
+    detector = anomaly_detection.GradientDetector(side='positive', max_coef=0.001)
     anomalies = detector.fit_predict(sequence)
-    assert True not in anomalies.values
+    assert all(anomalies.values)
 
     sequence = Sequence(test_spike_timestamps[500:700], test_spike_data[500:700])
-    detector = anomaly_detection.GradientDetector(side='positive', max_coef=0.001, timed_window=300)
+    detector = anomaly_detection.GradientDetector(side='positive', max_coef=0.001)
     anomalies = detector.fit_predict(sequence)
-    assert True in anomalies.values
+    assert not any(anomalies.values)
 
 
 def test_quantile_detector():
@@ -566,4 +584,166 @@ def test_detection_interface(monkeypatch):
     ad_main(['--action', 'plot'] + args + ['--anomaly', 'level_shift'])
     ad_main(['--action', 'plot'] + args + ['--anomaly', 'seasonal'])
     ad_main(['--action', 'plot'] + args + ['--anomaly', 'spike'])
-    ad_main(['--action', 'plot'] + args + ['--anomaly', 'volatile_shift'])
+    ad_main(['--action', 'plot'] + args + ['--anomaly', 'volatility_shift'])
+
+
+def mock_get_metric_sequence_beta(metric_name, start_time, end_time):
+
+    class MockFetcher(dai.LazyFetcher):
+        def _read_buffer(self):
+            instance_label = dai._get_data_source_flag(self.metric_name)
+            self.step = self.step or 5
+
+            timestamps = list(range(
+                int(self.start_time.timestamp()),
+                int(self.end_time.timestamp()) + self.step,
+                self.step
+            ))
+            values = timestamps.copy()
+
+            if instance_label in self.labels_like:
+                instance = self.labels_like.pop(instance_label).split(":")[0]
+            elif instance_label in self.labels:
+                instance = self.labels[instance_label]
+            else:
+                instance = "some_ip:some_port"
+
+            self.labels[instance_label] = instance
+
+            seq = Sequence(
+                timestamps=timestamps,
+                values=values,
+                name=self.metric_name,
+                labels=self.labels,
+                step=self.step
+            )
+            return [seq]
+
+    return MockFetcher(metric_name, start_time, end_time)
+
+
+def test_anomaly_detector_pool(monkeypatch):
+
+    def timed_app():
+        alarm_list = []  # timed app
+        for detection in ad_pool_manager.get_anomaly_detectors():
+            running = detection.get(ad_pool_manager.DetectorParam.RUNNING)
+            detector = detection.get(ad_pool_manager.DetectorParam.DETECTOR)
+            if running and detector:
+                alarm_list.extend(detector.detect())
+        return alarm_list
+
+    instance_label = dai._get_data_source_flag("os_cpu_usage")
+
+    monkeypatch.setattr(dai, 'get_metric_sequence', mock_get_metric_sequence_beta)
+
+    try:  # Unknown detector
+        generic_anomaly_detector.DetectorInfo("os_cpu_usage", "WhatDetector", {}, {})
+    except Exception as e:
+        assert str(e) == "'Detector name: WhatDetector was not found.'"
+
+    ad_pool_manager.clear_detector()
+
+    ad_pool_manager.init_specific_detections()
+    assert ad_pool_manager.view_detector("all").keys() == \
+           {'high_disk_usage_detector', 'high_mem_usage_detector',
+            'high_cpu_usage_detector', 'mem_usage_spike_detector',
+            'qps_spike_detector'}
+
+    ad_pool_manager.clear_detector()
+
+    json_dict = (
+        {
+            "running": 1,
+            "duration": 180,
+            "forecasting_seconds": 0,
+            "alarm_info": {
+                "alarm_info": "cpu usage is too high.",
+                "alarm_content": "cpu usage is too high."
+            },
+            "detector_info": [
+                {
+                    "metric_name": "os_cpu_usage",
+                    "detector_name": "ThresholdDetector",
+                    "metric_filter": {instance_label: "ip1:port1"},
+                    "detector_kwargs": {"high": 0.8}
+                }
+            ]
+        }
+    )
+    ad_pool_manager.add_detector("test1", json_dict)
+    assert ad_pool_manager.view_detector("all").keys() == {"test1"}
+
+    json_dict = (
+        {
+            "running": 1,
+            "duration": 180,
+            "forecasting_seconds": 0,
+            "alarm_info": {
+                "alarm_content": "cpu usage is too low."
+            },
+            "detector_info": [
+                {
+                    "metric_name": "os_cpu_usage",
+                    "detector_name": "ThresholdDetector",
+                    "metric_filter": {instance_label: "ip1:port1"},
+                    "detector_kwargs": {"low": 0},
+                    "what": "nothing"
+                },
+                {
+                    "metric_name": "os_cpu_usage",
+                    "detector_name": "GradientDetector",
+                    "metric_filter": {instance_label: "ip2:port2"},
+                    "detector_kwargs": {"max_coef": 0.8},
+                    "how": "nothing"
+                }
+            ]
+        }
+    )
+    ad_pool_manager.add_detector("test2", json_dict)
+    assert ad_pool_manager.view_detector("all").keys() == {"test1", "test2"}
+
+    alarms = timed_app()
+    assert [alarm.alarm_content for alarm in alarms] == ['test1: cpu usage is too high.']
+
+    json_dict = (
+        {
+            "running": 1,
+            "duration": 180,
+            "forecasting_seconds": 0,
+            "alarm_info": {
+                "alarm_info": "cpu usage is too low.",
+                "alarm_content": "cpu usage is too low."
+            },
+            "detector_info": [
+                {
+                    "metric_name": "os_cpu_usage",
+                    "detector_name": "ThresholdDetector",
+                    "metric_filter": {},
+                    "detector_kwargs": {"low": 1e11}
+                }
+            ]
+        }
+    )
+    ad_pool_manager.add_detector("test3", json_dict)
+    alarms = timed_app()
+    assert [alarm.alarm_content for alarm in alarms] == ['test1: cpu usage is too high.',
+                                                         'test3: cpu usage is too low.']
+    ad_pool_manager.pause_detector('test1')
+    alarms = timed_app()
+    assert [alarm.alarm_content for alarm in alarms] == ['test3: cpu usage is too low.']
+    ad_pool_manager.resume_detector('test1')
+    alarms = timed_app()
+    assert [alarm.alarm_content for alarm in alarms] == ['test1: cpu usage is too high.',
+                                                         'test3: cpu usage is too low.']
+
+    ad_pool_manager.delete_detector("test1")
+    assert ad_pool_manager.view_detector("all").keys() == {"test2", "test3"}
+
+    alarms = timed_app()
+    assert [alarm.alarm_content for alarm in alarms] == ['test3: cpu usage is too low.']
+    assert ad_pool_manager.view_detector("all").keys() == {"test2", "test3"}
+    ad_pool_manager.rebuild_detector()
+
+    ad_pool_manager.clear_detector()
+    assert not ad_pool_manager.view_detector("all")

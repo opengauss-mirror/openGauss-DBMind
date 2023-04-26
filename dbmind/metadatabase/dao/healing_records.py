@@ -11,8 +11,8 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from ._common import truncate_table
-from ..business_db import get_session
+from dbmind.metadatabase.ddl import truncate_table
+from ..result_db_session import get_session
 from ..schema import HealingRecords
 
 

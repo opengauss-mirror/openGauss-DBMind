@@ -10,15 +10,15 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, TEXT
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class IndexRecommendationStmtTemplates(Base):
+class IndexRecommendationStmtTemplates(ResultDbBase):
     __tablename__ = 'tb_index_recommendation_stmt_templates'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     instance = Column(String(24), nullable=False)
     db_name = Column(String(32), nullable=False)
-    template = Column(String(4096))
+    template = Column(TEXT)

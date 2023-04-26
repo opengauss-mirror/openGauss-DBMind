@@ -1,10 +1,11 @@
 import React from 'react';
-import { Table, Input, Button, Card, Space, Modal, message } from 'antd';
+import { Table, Input, Button, Card, Space, Modal, message, Collapse} from 'antd';
 import '../../src/assets/css/main/dbmindSettings.css';
 import { getSettingListInterface, putSettingDetailInterface } from '../api/dbmindSettings';
 let saveArr = []
 let timer = null
 let ifChanged = 0
+const { Panel } = Collapse;
 export default class EditableTable extends React.Component {
   constructor(props) {
     super(props);
@@ -14,20 +15,26 @@ export default class EditableTable extends React.Component {
         title: 'name',
         dataIndex: 'name',
         fixed: true,
+        width: 200,
       }, {
         title: 'value',
         dataIndex: 'value',
         editable: true,
+        width: 200,
         render: (data, list, index) => {
           return <Input style={{width:200}} defaultValue={data} key={String(list.key) + String(Date.now())} onChange={(e) => this.inputChange(e, list, index, 'value')} onBlur={(e) => this.onBlurChange(e, list, index, 'value')} />
         },
         shouldCellUpdate: () => {
           return true
         },
+      },{
+        title: 'explain',
+        dataIndex: 'explain',
       }],
       allDataSource: [],
       isModalVisible: false,
       editTableData: [],
+      vectorKey:''
     };
   }
   inputChange = (e, record, index, field) => {
@@ -55,7 +62,8 @@ export default class EditableTable extends React.Component {
           let obj = {
             key: index + '@' + key,
             name: it[0],
-            value: it[1]
+            value: it[1],
+            explain: it[2]
           }
           tableKeyData.push(obj)
         })
@@ -69,7 +77,7 @@ export default class EditableTable extends React.Component {
       this.setState({
         allDataSource: [...tableAll],
         isModalVisible: false,
-
+        vectorKey:0,
       })
     } else {
       message.error(msg)
@@ -104,7 +112,7 @@ export default class EditableTable extends React.Component {
       }
     }
     this.setState({
-      editTableData: result
+      editTableData: result,
     })
   }
   handleSave () {
@@ -177,18 +185,22 @@ export default class EditableTable extends React.Component {
       return <span style={{ color: '#87d068' }}>saved</span>
     }
   }
+  onChange = (key) => {
+    this.setState({vectorKey:key})
+  };
   render () {
     return (
-      <div className="contentWrap">
-        <Card title="Dynamic Settings" extra={<Space>{this.handleRender()}<Button type="primary" onClick={() => this.showModal()}>Save</Button><Button type="primary" onClick={() => this.handleDiscard()}>Discard</Button></Space>} style={{ minHeight: 790 }}>
-          <div className="dbmindTable" style={{display:'flex'}}>
+      <div className="contentWrap settingstyle">
+        <Card title="Dynamic Settings" extra={<Space>{this.handleRender()}<Button type="primary" size='small' onClick={() => this.showModal()}>Save</Button><Button size='small' type="primary" onClick={() => this.handleDiscard()}>Discard</Button></Space>} style={{ minHeight: 790 }}>
+          <div className="dbmindTable">
           {
-            this.state.allDataSource.map((item) => {
+            this.state.allDataSource.map((item,index) => {
               return (
-                <div key={item.tableName} style={{display:'block',marginBottom:20,width:'50%'}}>
-                  <h3> {item.tableName.replace(/_/g, ' ')}</h3>
-                  <Table bordered dataSource={item.tableSource} columns={this.state.columns} rowKey={record => record.key} rowClassName="tablecellclass"  pagination={{defaultPageSize:20}}/>
-                </div>
+                <Collapse  activeKey={this.state.vectorKey}  onChange={(key)=>{this.onChange(key)}} expandIconPosition='end' >
+                <Panel header={item.tableName.replace(/_/g, ' ')} key={index} forceRender={true} className='panelStyle'>
+                  <Table size='small' bordered dataSource={item.tableSource} columns={this.state.columns} rowKey={record => record.key} rowClassName="tablecellclass"  pagination={false}/>
+              </Panel>
+              </Collapse>
               )
             })
           }

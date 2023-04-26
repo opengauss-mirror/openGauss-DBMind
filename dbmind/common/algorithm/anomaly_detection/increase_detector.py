@@ -17,6 +17,8 @@ import scipy.stats
 from ._abstract_detector import AbstractDetector
 from ...types import Sequence
 
+CDF_THRESHOLD = 1e-5
+
 
 class IncreaseDetector(AbstractDetector):
     """
@@ -45,34 +47,57 @@ class IncreaseDetector(AbstractDetector):
     alpha (float, optional): the significant level to accept the hypothesis that the
         data sequence has a trend. Defaults to 0.05.
     """
-    def __init__(self, side="positive", alpha=0.05):
+    def __init__(self, side="positive", alpha=None):
         self.side = side
         self.alpha = alpha
+        self.cdfs = None
 
-    def _fit(self, sequence: Sequence):
-        """Nothing to impl"""
+    def _fit(self, s: Sequence):
+        self.length = len(s.values)
+        self.half_n = int(self.length / 2)
+        if self.alpha is None:
+            if self.half_n > 0:
+                self.cdfs = 2 * scipy.stats.binom.cdf(range(self.half_n + 1), self.length, 0.5)
+                idx = np.where(np.diff(self.cdfs) > CDF_THRESHOLD)[0][0]
+                self.alpha = self.cdfs[idx]
+            else:
+                self.alpha = 0
 
     def _predict(self, s: Sequence) -> Sequence:
         x, y = s.timestamps, s.values
         coef = np.polyfit(x, y, deg=1)[0]
-        half_n = int(len(y) / 2)
+
         n_pos = n_neg = 0
-        for i in range(half_n):
-            diff = y[i + half_n] - y[i]
+        for i in range(self.half_n):
+            diff = y[i + self.half_n] - y[i]
             if diff > 0:
                 n_pos += 1
             elif diff < 0:
                 n_neg += 1
-
         n_diff = n_pos + n_neg
+
         if self.side == "positive":
-            p_value = 2 * scipy.stats.binom.cdf(n_neg, n_diff, 0.5)
+            if n_neg > n_pos:
+                return Sequence(timestamps=s.timestamps, values=[False] * self.length)
+
+            if self.cdfs is None:
+                p_value = 2 * scipy.stats.binom.cdf(n_neg, n_diff, 0.5)
+            else:
+                p_value = self.cdfs[n_neg]
+
             if p_value < self.alpha and coef > 0:
-                return Sequence(timestamps=s.timestamps, values=[True] * len(y))
+                return Sequence(timestamps=s.timestamps, values=[True] * self.length)
 
         elif self.side == "negative":
-            p_value = 2 * scipy.stats.binom.cdf(n_pos, n_diff, 0.5)
-            if p_value < self.alpha and coef < 0:
-                return Sequence(timestamps=s.timestamps, values=[True] * len(y))
+            if n_pos > n_neg:
+                return Sequence(timestamps=s.timestamps, values=[False] * self.length)
 
-        return Sequence(timestamps=s.timestamps, values=[False] * len(y))
+            if self.cdfs is None:
+                p_value = 2 * scipy.stats.binom.cdf(n_pos, n_diff, 0.5)
+            else:
+                p_value = self.cdfs[n_pos]
+
+            if p_value < self.alpha and coef < 0:
+                return Sequence(timestamps=s.timestamps, values=[True] * self.length)
+
+        return Sequence(timestamps=s.timestamps, values=[False] * self.length)

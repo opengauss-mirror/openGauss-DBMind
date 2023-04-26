@@ -10,6 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import configparser
 import glob
 import logging
@@ -26,11 +27,12 @@ import pytest
 
 from dbmind import global_vars
 from dbmind.constants import DYNAMIC_CONFIG
-from dbmind.metadatabase import create_dynamic_config_schema
-from dbmind.cmd.config_utils import DynamicConfig
+from dbmind.cmd.configs.configurators import DynamicConfig
 from dbmind.cmd.edbmind import get_worker_instance
 from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
 from dbmind.common.types import Sequence
+from dbmind.metadatabase.ddl import create_dynamic_config_schema
+from dbmind.metadatabase.schema.config_dynamic_params import DynamicParams
 
 metadatabase_name = 'test_metadatabase.db'
 prom_addr = os.environ.get('PROMETHEUS_ADDR', 'hostname:9090')
@@ -55,41 +57,16 @@ configs.set('SELF-DIAGNOSIS', 'diagnosis_time_window', '300')
 configs.set('SELF-HEALING', 'enable_self_healing', 'False')
 
 create_dynamic_config_schema()
-DynamicConfig.set(
-    'self_monitoring', 'detection_interval', '600'
-)
-DynamicConfig.set(
-    'self_monitoring', 'last_detection_time', '600'
-)
-DynamicConfig.set(
-    'self_monitoring', 'forecasting_future_time', '86400'
-)
-
-DynamicConfig.set(
-    'self_monitoring', 'result_storage_retention', '600'
-)
-DynamicConfig.set(
-    'self_optimization', 'max_index_storage', '100'
-)
-DynamicConfig.set(
-    'self_optimization', 'max_reserved_period', '100'
-)
-DynamicConfig.set(
-    'self_optimization', 'max_template_num', '10'
-)
-DynamicConfig.set(
-    'self_optimization', 'optimization_interval', '86400'
-)
-DynamicConfig.set(
-    'self_optimization', 'kill_slow_query', 'true'
-)
+for section, param_list in DynamicParams.__default__.items():
+    for option, value, _, in param_list:
+        DynamicConfig.set(section, option, str(value))
 
 global_vars.must_filter_labels = {}
 if os.path.exists(metadatabase_name):
     os.unlink(metadatabase_name)
 
 global_vars.configs = configs
-global_vars.dynamic_configs = DynamicConfig
+global_vars.dynamic_configs = DynamicConfig()
 global_vars.worker = get_worker_instance('local', -1)
 TsdbClientFactory.set_client_info(
     global_vars.configs.get('TSDB', 'name'),

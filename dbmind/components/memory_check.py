@@ -23,21 +23,25 @@ from psycopg2.extensions import parse_dsn
 
 from dbmind import constants
 from dbmind import global_vars
-from dbmind.service.dai import is_sequence_valid, is_driver_result_valid
-from dbmind.app.monitoring.generic_detection import AnomalyDetections
+from dbmind.app import monitoring
 from dbmind.cmd.edbmind import init_global_configs
+from dbmind.common.algorithm import anomaly_detection
 from dbmind.common.opengauss_driver import Driver
 from dbmind.common.types import Sequence
-from dbmind.common.types.sequence import EMPTY_SEQUENCE
+from dbmind.common.types import EMPTY_SEQUENCE
 from dbmind.common.utils.checking import path_type, date_type
 from dbmind.common.utils.cli import write_to_terminal
 from dbmind.common.utils import cached_property
 from dbmind.common.utils.exporter import set_logger
-from dbmind.components.slow_query_diagnosis import initialize_rpc_service, initialize_tsdb_param
+from dbmind.common.utils.component import initialize_rpc_service, initialize_tsdb_param
 from dbmind.service import dai
+from dbmind.service.dai import is_sequence_valid, is_driver_result_valid
 
 ONE_DAY = 24 * 60 * 60
-continuous_increasing_detector = AnomalyDetections.do_increase_detect
+
+continuous_increasing_detector = anomaly_detection.IncreaseDetector(
+    side=monitoring.get_detection_param("increasing_side")
+)
 
 
 def try_to_initialize_rpc_and_tsdb():
@@ -395,7 +399,7 @@ class MemoryChecker:
         other_used_memory_detail['data']['timestamps'] = other_used_memory_sequence.timestamps
         other_used_memory_detail['data']['values'] = other_used_memory_sequence.values
         if len(other_used_memory_sequence) >= self.minimal_elem_of_series_analysis:
-            increase_anomalies = continuous_increasing_detector(other_used_memory_sequence, side="positive")
+            increase_anomalies = continuous_increasing_detector.fit_predict(other_used_memory_sequence)
             if True in increase_anomalies.values:
                 other_used_memory_detail['status'] = 'abnormal'
         else:
@@ -414,7 +418,7 @@ class MemoryChecker:
         process_used_memory_detail['data']['timestamps'] = process_used_memory_sequence.timestamps
         process_used_memory_detail['data']['values'] = process_used_memory_sequence.values
         if len(process_used_memory_sequence) >= self.minimal_elem_of_series_analysis:
-            increase_anomalies = continuous_increasing_detector(process_used_memory_sequence, side="positive")
+            increase_anomalies = continuous_increasing_detector.fit_predict(process_used_memory_sequence)
             if True in increase_anomalies.values:
                 process_used_memory_detail['status'] = 'abnormal'
         else:
@@ -433,7 +437,7 @@ class MemoryChecker:
         dynamic_used_memory_detail['data']['timestamps'] = dynamic_used_memory_sequence.timestamps
         dynamic_used_memory_detail['data']['values'] = dynamic_used_memory_sequence.values
         if len(dynamic_used_memory_sequence) >= self.minimal_elem_of_series_analysis:
-            increase_anomalies = continuous_increasing_detector(dynamic_used_memory_sequence, side="positive")
+            increase_anomalies = continuous_increasing_detector.fit_predict(dynamic_used_memory_sequence)
             if True in increase_anomalies.values:
                 dynamic_used_memory_detail['status'] = 'abnormal'
         else:
@@ -452,7 +456,7 @@ class MemoryChecker:
         dynamic_used_shrctx_detail['data']['timestamps'] = dynamic_used_shrctx_sequence.timestamps
         dynamic_used_shrctx_detail['data']['values'] = dynamic_used_shrctx_sequence.values
         if len(dynamic_used_shrctx_sequence) >= self.minimal_elem_of_series_analysis:
-            increase_anomalies = continuous_increasing_detector(dynamic_used_shrctx_sequence, side="positive")
+            increase_anomalies = continuous_increasing_detector.fit_predict(dynamic_used_shrctx_sequence)
             if True in increase_anomalies.values:
                 dynamic_used_shrctx_detail['status'] = 'abnormal'
 
@@ -475,7 +479,7 @@ class MemoryChecker:
                 topk_session_memory_detail[context]['status'] = 'unknown'
                 topk_session_memory_detail[context]['remark'] = \
                     'too little data for calculations to judge trend'
-            increase_anomalies = continuous_increasing_detector(sequence, side='positive')
+            increase_anomalies = continuous_increasing_detector.fit_predict(sequence)
             if True in increase_anomalies.values:
                 topk_session_memory_detail[context]['status'] = 'abnormal'
             else:
@@ -498,7 +502,7 @@ class MemoryChecker:
                 topk_shared_memory_detail[context]['status'] = 'unknown'
                 topk_shared_memory_detail[context]['remark'] = \
                     'too little data for calculations to judge trend'
-            increase_anomalies = continuous_increasing_detector(sequence, side='positive')
+            increase_anomalies = continuous_increasing_detector.fit_predict(sequence)
             if True in increase_anomalies.values:
                 topk_shared_memory_detail[context]['status'] = 'abnormal'
             else:
@@ -516,7 +520,7 @@ class MemoryChecker:
         os_mem_usage_detail['data']['timestamps'] = os_mem_usage_sequence.timestamps
         os_mem_usage_detail['data']['values'] = os_mem_usage_sequence.values
         if len(os_mem_usage_sequence) >= self.minimal_elem_of_series_analysis:
-            increase_anomalies = continuous_increasing_detector(os_mem_usage_sequence, side='positive')
+            increase_anomalies = continuous_increasing_detector.fit_predict(os_mem_usage_sequence)
             if True in increase_anomalies.values:
                 os_mem_usage_detail['status'] = 'abnormal'
         else:

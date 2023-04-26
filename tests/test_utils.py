@@ -116,3 +116,32 @@ def test_naive_queue():
     assert len(q) == 8
 
     assert list(q) == [0, 1, 2, 3, 0, 1, 2, 3]
+
+
+def test_fixed_dict():
+    d = utils.base.FixedDict(max_len=3)
+    d['a'] = 1
+    d['b'] = 2
+    d['c'] = 3
+
+    # Test case 1: Add elements up to maximum length
+    assert len(d) == 3
+    assert list(d.items()) == [('a', 1), ('b', 2), ('c', 3)]
+
+    # Test case 2: Add elements beyond maximum length
+    d['d'] = 4
+    assert len(d) == 3
+    assert list(d.items()) == [('b', 2), ('c', 3), ('d', 4)]
+
+    # Test case 3: Add elements with different types of keys and values
+    d['e'] = 'five'
+    d[6] = 'six'
+    assert len(d) == 3
+    assert list(d.items()) == [('d', 4), ('e', 'five'), (6, 'six')]
+
+    # Test case 4: Access elements by key
+    assert d['d'] == 4
+    assert d[6] == 'six'
+
+    # Test case 5: Check maximum length attribute
+    assert d.max_len == 3

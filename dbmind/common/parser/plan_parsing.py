@@ -23,6 +23,9 @@ CHILD_NODE_FLAG = '->'
 
 HEADER_PATTERN = re.compile(
     r'(.*?)%s\(cost=(.*?)\.\.(.*?) rows=(.*?) width=(.*?)\)' % INDENT_BLANK)
+ABO_FLAG_PATTERN = re.compile(r'p-time=(.*?) p-rows=(.*?) ')
+ABO_HEADER_PATTERN = re.compile(
+    r'(.*?)%s\(cost=(.*?)\.\.(.*?) rows=(.*?) p-time=(.*?) p-rows=(.*?) width=(.*?)\)' % INDENT_BLANK)
 PROPERTY_PATTERN = re.compile(
     r'(.*?): (.*)')
 IDX_SCAN_PATTERN = re.compile(
@@ -100,7 +103,10 @@ class Operator:
         return True  # Not thrown exception means successful.
 
     def _parse_header(self, line):
-        name, start_cost, total_cost, rows, width = re.findall(HEADER_PATTERN, line)[0]
+        if re.search(ABO_FLAG_PATTERN, line):
+            name, start_cost, total_cost, rows, _, _, width = re.findall(ABO_HEADER_PATTERN, line)[0]
+        else:
+            name, start_cost, total_cost, rows, width = re.findall(HEADER_PATTERN, line)[0]
         self.name = name.strip()
         self.start_cost = float(start_cost)
         self.total_cost = float(total_cost)
@@ -228,6 +234,9 @@ class Plan:
 
     def parse(self, text: str):
         # Remove redundant text to interference with the parsing process.
+        if not text:
+            return
+
         tidy_text = text.strip('\n')
         lines = tidy_text.splitlines()
         if len(lines) == 0:

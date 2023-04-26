@@ -13,27 +13,26 @@
 import getpass
 import os
 import shutil
-from configparser import ConfigParser
 
 from dbmind import constants, global_vars
-from dbmind.cmd.config_utils import (
-    ConfigUpdater, check_config_validity,
-    DynamicConfig, load_sys_configs,
-    NULL_TYPE, ENCRYPTED_SIGNAL, DBMIND_CONF_HEADER
-)
-from dbmind.cmd.edbmind import SKIP_LIST
+from dbmind.cmd.configs.config_utils import (
+    load_sys_configs,
+    check_config_validity,
+    config_is_null_value,
+    config_set_value_encrypted_flag,
+    config_is_encrypted_value,
+    config_standardize_null_value,
+    get_config_security_keys,
+    set_config_encryption_iv,
+    create_dynamic_configs)
+from dbmind.cmd.configs.configurators import UpdateConfig, DynamicConfig, GenerationConfig
 from dbmind.common import utils, security
 from dbmind.common.exceptions import SetupError, SQLExecutionError, DuplicateTableError
-from dbmind.metadatabase import (
-    create_dynamic_config_schema,
-    create_metadatabase_schema,
-    destroy_metadatabase
-)
-from dbmind.metadatabase.dao.dynamic_config import dynamic_config_set, dynamic_config_get
+from dbmind.metadatabase.ddl import create_metadatabase_schema, destroy_metadatabase
 
 
 def initialize_and_check_config(confpath, interactive=False, quiet=False):
-    """Returns true while configration procedure is successful. Otherwise,
+    """Returns true while configuration procedure is successful. Otherwise,
     returns default value None."""
     if not os.path.exists(confpath):
         raise SetupError('Not found the directory %s.' % confpath)
@@ -42,34 +41,24 @@ def initialize_and_check_config(confpath, interactive=False, quiet=False):
     dbmind_conf_path = os.path.join(confpath, constants.CONFILE_NAME)
     dynamic_config_path = os.path.join(confpath, constants.DYNAMIC_CONFIG)
 
-    def _create_dynamic_config_schema_and_generate_keys():
-        utils.cli.write_to_terminal('Starting to generate a dynamic config file...', color='green')
-        create_dynamic_config_schema()
-        s1_ = security.safe_random_string(16)
-        s2_ = security.safe_random_string(16)
-        dynamic_config_set('dbmind_config', 'cipher_s1', s1_)
-        dynamic_config_set('dbmind_config', 'cipher_s2', s2_)
-        return s1_, s2_
-
     if not os.path.exists(dynamic_config_path):
         # If dynamic config file does not exist, create a new one.
-        s1, s2 = _create_dynamic_config_schema_and_generate_keys()
+        s1, s2 = create_dynamic_configs()
     else:
         # If exists, need not create a new dynamic config file
         # and directly load hash key s1 and s2 from it.
-        s1 = dynamic_config_get('dbmind_config', 'cipher_s1')
-        s2 = dynamic_config_get('dbmind_config', 'cipher_s2')
+        s1, s2 = get_config_security_keys()
         if not (s1 and s2):
             # If s1 or s2 is invalid, it indicates that an broken event may occurred while generating
             # the dynamic config file. Hence, the whole process of generation is unreliable and we have to
             # generate a new dynamic config file.
             os.unlink(dynamic_config_path)
-            s1, s2 = _create_dynamic_config_schema_and_generate_keys()
+            s1, s2 = create_dynamic_configs()
 
     # Check some configurations and encrypt passwords.
-    with ConfigUpdater(dbmind_conf_path) as config:
+    with UpdateConfig(dbmind_conf_path) as config:
         if not interactive:
-            for section, section_comment in config.sections(SKIP_LIST):
+            for section, section_comment in config.sections():
                 for option, value, inline_comment in config.items(section):
                     valid, invalid_reason = check_config_validity(
                         section, option, value
@@ -83,24 +72,23 @@ def initialize_and_check_config(confpath, interactive=False, quiet=False):
 
         utils.cli.write_to_terminal('Starting to encrypt the plain-text passwords in the config file...',
                                     color='green')
-        for section, section_comment in config.sections(SKIP_LIST):
+        for section, section_comment in config.sections():
             for option, value, inline_comment in config.items(section):
-                if 'password' in option and value != NULL_TYPE:
+                if 'password' in option and not config_is_null_value(value):
                     # Skip when the password has encrypted.
-                    if value.startswith(ENCRYPTED_SIGNAL):
+                    if config_is_encrypted_value(value):
                         continue
                     # Every time a new password is generated, update the IV.
                     iv = security.generate_an_iv()
-                    dynamic_config_set('iv_table', '%s-%s' % (section, option), iv)
+                    set_config_encryption_iv(iv, section, option)
                     cipher_text = security.encrypt(s1, s2, iv, value)
-                    # Use a signal ENCRYPTED_SIGNAL to mark the password that has been encrypted.
-                    decorated_cipher_text = ENCRYPTED_SIGNAL + cipher_text
+                    decorated_cipher_text = config_set_value_encrypted_flag(cipher_text)
                     config.set(section, option, decorated_cipher_text, inline_comment)
 
     # config and initialize meta-data database.
     utils.cli.write_to_terminal('Starting to initialize and check the essential variables...',
                                 color='green')
-    global_vars.dynamic_configs = DynamicConfig
+    global_vars.dynamic_configs = DynamicConfig()
     global_vars.configs = load_sys_configs(
         constants.CONFILE_NAME
     )
@@ -146,7 +134,7 @@ def initialize_and_check_config(confpath, interactive=False, quiet=False):
         utils.cli.write_to_terminal('The setup process finished successfully.', color='green')
         return True  # return true in this branch
     except Exception as e:
-        utils.cli.write_to_terminal('Failed to link metadatabase due to unknown error (%s), '
+        utils.cli.write_to_terminal('Failed to connect to metadatabase due to unknown error (%s), '
                                     'please check the database and its configuration.' % e, color='red')
 
 
@@ -165,67 +153,64 @@ def setup_directory_interactive(confpath):
 
     utils.cli.write_to_terminal('Starting to configure...', color='green')
     # Generate an initial configuration file.
-    config_src = os.path.join(constants.MISC_PATH, constants.CONFILE_NAME)
-    config_dst = os.path.join(confpath, constants.CONFILE_NAME)
-    # read configurations
-    config = ConfigParser(inline_comment_prefixes=None)
-    with open(file=config_src, mode='r', errors='ignore') as fp:
-        config.read_file(fp)
-
-    try:
-        # Modify configuration items by user's typing.
-        for section in config.sections():
-            if section in SKIP_LIST:
-                continue
-            section_comment = config.get('COMMENT', section, fallback='')
-            utils.cli.write_to_terminal('[%s]' % section, color='white')
-            utils.cli.write_to_terminal(section_comment, color='yellow')
-            # Get each configuration item.
-            for option, values in config.items(section):
-                try:
-                    default_value, inline_comment = map(str.strip, values.rsplit('#', 1))
-                except ValueError:
-                    default_value, inline_comment = values.strip(), ''
-                # If not set default value, the default value is null.
-                if default_value.strip() == '':
-                    default_value = NULL_TYPE
-                # hidden password
-                input_value = ''
-                if 'password' in option:
-                    input_func = getpass.getpass
-                else:
-                    input_func = input
-
-                while input_value.strip() == '':
-                    # Ask for options.
-                    input_value = input_func('%s (%s) [default: %s]:' % (option, inline_comment, default_value))
-                    # If user does not set the option, set default target.
-                    if input_value.strip() == '':
-                        input_value = default_value
-
-                    valid, invalid_reason = check_config_validity(
-                        section, option, input_value
+    with GenerationConfig(
+        filepath_src=os.path.join(
+            constants.MISC_PATH, constants.CONFILE_NAME),
+        filepath_dst=os.path.join(
+            confpath, constants.CONFILE_NAME)
+    ) as config:
+        try:
+            # Modify configuration items by user's typing.
+            for section in config.sections():
+                section_comment = config.get('COMMENT', section, fallback='')
+                utils.cli.write_to_terminal('[%s]' % section, color='white')
+                utils.cli.write_to_terminal(section_comment, color='yellow')
+                # Get each configuration item.
+                for option, values in config.items(section):
+                    try:
+                        default_value, inline_comment = map(str.strip, values.rsplit('#', 1))
+                    except ValueError:
+                        default_value, inline_comment = values.strip(), ''
+                    default_value = config_standardize_null_value(
+                        default_value
                     )
-                    if not valid:
-                        utils.cli.write_to_terminal(
-                            "Please retype due to '%s'." % invalid_reason,
-                            level='error',
-                            color='red'
-                        )
-                        input_value = ''
-                config.set(section, option, '%s  # %s' % (input_value, inline_comment))
-    except (KeyboardInterrupt, EOFError):
-        utils.cli.write_to_terminal('Removing generated files due to keyboard interrupt.')
-        shutil.rmtree(
-            path=confpath
-        )
-        return
+                    # hidden password
+                    input_value = ''
+                    if 'password' in option:
+                        input_func = getpass.getpass
+                    else:
+                        input_func = input
 
-    # output configurations
-    with open(file=config_dst, mode='w+') as fp:
-        # Add header comments (including license and notice).
-        fp.write(DBMIND_CONF_HEADER)
-        config.write(fp)
+                    while input_value.strip() == '':
+                        # Ask for options.
+                        input_value = input_func(
+                            '%s\n'
+                            '  [default: %s]\n'
+                            '  (%s)\n' %
+                            (option, default_value, inline_comment))
+                        # If user does not set the option, set default target.
+                        if input_value.strip() == '':
+                            input_value = default_value
+
+                        valid, invalid_reason = check_config_validity(
+                            section, option, input_value
+                        )
+                        if not valid:
+                            utils.cli.write_to_terminal(
+                                "Please retype due to '%s'." % invalid_reason,
+                                level='error',
+                                color='red'
+                            )
+                            input_value = ''
+                    config.set(section, option, '%s  # %s' % (
+                        input_value, inline_comment))
+        except (KeyboardInterrupt, EOFError, ValueError):
+            utils.cli.write_to_terminal('Removing generated files due '
+                                        'to exception.')
+            shutil.rmtree(
+                path=confpath
+            )
+            return
 
     initialize_and_check_config(confpath, interactive=True)
 
@@ -236,9 +221,11 @@ def setup_directory(confpath):
         raise SetupError("Given setup directory '%s' already exists." % confpath)
 
     utils.cli.write_to_terminal(
-        "You are not in the interactive mode so you must modify configurations manually.\n"
+        "You are not in the interactive mode so you must modify "
+        "configurations manually.\n"
         "The file you need to modify is '%s'.\n"
-        "After configuring, you should continue to set up and initialize the directory with --initialize option, "
+        "After configuring, you should continue to set up and initialize "
+        "the directory with --initialize option, "
         "e.g.,\n "
         "'... service setup -c %s --initialize'"
         % (os.path.join(confpath, constants.CONFILE_NAME), confpath),
@@ -251,12 +238,12 @@ def setup_directory(confpath):
         dst=confpath
     )
     utils.base.chmod_r(confpath, 0o700, 0o600)
-    # output configurations
-    with open(file=os.path.join(confpath, constants.CONFILE_NAME), mode='r+') as fp:
-        old = fp.readlines()
-        # Add header comments (including license and notice).
-        fp.seek(0)
-        fp.write(DBMIND_CONF_HEADER)
-        fp.writelines(old)
-    utils.cli.write_to_terminal("Configuration directory '%s' has been created successfully." % confpath,
+    with GenerationConfig(
+        filepath_src=os.path.join(confpath, constants.CONFILE_NAME),
+        filepath_dst=os.path.join(confpath, constants.CONFILE_NAME),
+    ):
+        pass
+
+    utils.cli.write_to_terminal("Configuration directory '%s' has "
+                                "been created successfully." % confpath,
                                 color='green')

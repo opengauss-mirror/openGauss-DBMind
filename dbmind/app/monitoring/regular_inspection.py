@@ -18,8 +18,8 @@ from dbmind import global_vars
 from dbmind.common.algorithm.data_statistic import get_statistic_data, box_plot
 from dbmind.metadatabase import dao
 from dbmind.service import dai
-from dbmind.service.web import _sqlalchemy_query_jsonify_for_multiple_instances as \
-    sqlalchemy_query_jsonify_for_multiple_instances
+from dbmind.service.web.jsonify_utils import \
+    sqlalchemy_query_jsonify_for_multiple_instances as sqlalchemy_query_jsonify_for_multiple_instances
 from dbmind.service.dai import is_sequence_valid
 
 ONE_DAY = 24 * 60
@@ -71,7 +71,7 @@ class DailyInspection:
         self._start = start
         self._end = end
         self._agent_instance = instance
-        all_agents = global_vars.agent_proxy.get_all_agents()
+        all_agents = global_vars.agent_proxy.agent_get_all()
         self._instances_with_port = all_agents.get(instance)
         self._instances_with_no_port = [i.split(':')[0] for i in self._instances_with_port]
 
@@ -143,8 +143,8 @@ class DailyInspection:
                 datname = sequence.labels.get('datname', 'UNKNOWN')
                 indexsize_seq = dai.get_metric_sequence('pg_tables_size_indexsize', self._start, self._end).\
                     from_server(self._agent_instance).filter(nspname=schema, relname=relname).fetchone()
-                rv['rows'].append((datname, schema, relname, round(get_sequence_value(sequence, max) / 1024 / 1024, 2),
-                                   round(get_sequence_value(indexsize_seq, max) / 1024 / 1024, 2)))
+                rv['rows'].append((datname, schema, relname, round(get_sequence_value(sequence, max), 2),
+                                   round(get_sequence_value(indexsize_seq, max), 2)))
         return rv
 
     @property
@@ -289,7 +289,7 @@ class MultipleDaysInspection:
         self._start = int(start.timestamp() * 1000)
         self._end = int(end.timestamp() * 1000)
         self._agent_instance = instance
-        all_agents = global_vars.agent_proxy.get_all_agents()
+        all_agents = global_vars.agent_proxy.agent_get_all()
         self._instances_with_port = all_agents.get(instance)
         self._instances_with_no_port = [i.split(':')[0] for i in self._instances_with_port]
         self._existing_data = True

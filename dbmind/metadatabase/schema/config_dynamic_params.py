@@ -10,105 +10,127 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+from dbmind.metadatabase import DynamicConfigDbBase
 
-from dbmind.metadatabase import DynamicConfig
 
-
-class DynamicParams(DynamicConfig):
+class DynamicParams(DynamicConfigDbBase):
     __tablename__ = "dynamic_params"
 
     detection_params = {'detection_params': [
-        ('high_ac_threshold', 0.1, ''),
-        ('min_seasonal_freq', 2, ''),
-        ('disk_usage_threshold', 0.1, ''),
-        ('disk_usage_max_coef', 2.5e-08, ''),  # window, 5 minutes
-        ('mem_usage_threshold', 0.2, ''),
-        ('mem_usage_max_coef', 8e-08, ''),  # window, 5 minutes
-        ('cpu_usage_threshold', 0.05, ''),
-        ('cpu_high_usage_percent', 0.8, ''),
-        ('tps_threshold', 2, ''),
-        ('qps_max_coef', 8e-03, ''),  # window, 5 minutes
-        ('connection_max_coef', 4e-04, ''),  # window, 5 minutes
-        ('p80_threshold', 260, ''),
-        ('io_capacity_threshold', 25, ''),
-        ('io_delay_threshold', 50, ''),
-        ('io_wait_threshold', 0.1, ''),
-        ('load_average_threshold', 0.6, ''),
-        ('iops_threshold', 2000, ''),
-        ('handler_occupation_threshold', 0.7, ''),
-        ('disk_ioutils_threshold', 0.7, ''),
-        ('connection_rate_threshold', 0.1, ''),
-        ('connection_usage_threshold', 0.9, ''),
-        ('package_drop_rate_threshold', 0.01, ''),
-        ('package_error_rate_threshold', 0.01, ''),
-        ('bgwriter_rate_threshold', 0.1, ''),
-        ('replication_write_diff_threshold', 100000, ''),
-        ('replication_sent_diff_threshold', 100000, ''),
-        ('replication_replay_diff_threshold', 1000000, ''),
-        ('thread_occupy_rate_threshold', 0.95, ''),
-        ('idle_session_occupy_rate_threshold', 0.3, ''),
-        ('double_write_file_wait_threshold', 100, ''),
-        ('data_file_wait_threshold', 100000, ''),
-        ('os_cpu_usage_low', 0, ''),
-        ('os_cpu_usage_high', 0.8, ''),
-        ('os_cpu_usage_percent', 0.8, ''),
-        ('os_mem_usage_low', 0, ''),
-        ('os_mem_usage_high', 0.8, ''),
-        ('os_mem_usage_percent', 0.8, ''),
-        ('os_disk_usage_low', 0, ''),
-        ('os_disk_usage_high', 0.8, ''),
-        ('os_disk_usage_percent', 0, ''),
-        ('io_write_bytes_low', 0, ''),
-        ('io_write_bytes_high', 2, ''),
-        ('io_write_bytes_percent', 0, ''),
-        ('pg_replication_replay_diff_low', 0, ''),
-        ('pg_replication_replay_diff_high', 70, ''),
-        ('pg_replication_replay_diff_percent', 0, ''),
-        ('gaussdb_qps_by_instance_low', 0, ''),
-        ('gaussdb_qps_by_instance_high', 100, ''),
-        ('gaussdb_qps_by_instance_percent', 0, '')]
-    }
+        ('esd_test_alpha', 0.05, 'The Significance level.'),
+        ('gradient_side', "positive", 'The side of anomaly for detector to warn.'),
+        ('gradient_max_coef', 1, 'The warning level of the gradient.'),
+        ('increasing_side', 'positive', 'The side of anomaly for detector to warn.'),
+        ('increasing_alpha', 0.05, 'The Significance level'),  # to be determined
+        ('iqr_outliers_1', 3, 'The lower limit for the times of iqr below q1.'),
+        ('iqr_outliers_2', 3, 'The upper limit for the times of iqr above q3.'),
+        ('level_shift_outliers_1', 'None', 'The lower limit for the times of iqr below q1.'),
+        ('level_shift_outliers_2', 6, 'The upper limit for the times of iqr above q3.'),
+        ('level_shift_side', 'both', 'The side of anomaly for detetcor to warn.'),
+        ('level_shift_window', 5, 'The length of sliding window for aggregation method.'),
+        ('level_shift_agg', 'median', 'The aggregation method for the detector.'),
+        ('mad_threshold', 3, 'The MAD threshold to decide a anomaly data.'),
+        ('mad_scale_factor', 1.4826, 'The relationship between std and mad.'),
+        ('quantile_high', 1, 'The upper limit of quantile for quantile detector.'),
+        ('quantile_low', 0, 'The lower limit of quantile for quantile detector.'),
+        ('seasonal_outliers_1', 'None', 'The lower limit for the times of iqr below q1.'),
+        ('seasonal_outliers_2', 3, 'The upper limit for the times of iqr above q3.'),
+        ('seasonal_side', 'positive', 'The side of anomaly for detetcor to warn.'),
+        ('seasonal_window', 10, 'The length of sliding window for aggregation method.'),
+        ('seasonal_period', 'None', 'The given period to skip the period calculation.'),
+        ('seasonal_high_ac_threshold', 0.1, 'The parameter to calculate the period.'),
+        ('seasonal_min_seasonal_freq', 2, 'The parameter to calculate the period.'),
+        ('spike_outliers_1', 'None', 'The lower limit for the times of iqr below q1.'),
+        ('spike_outliers_2', 3, 'The upper limit for the times of iqr above q3.'),
+        ('spike_side', 'both', 'The side of anomaly for detetcor to warn.'),
+        ('spike_window', 1, 'The length of sliding window for aggregation method.'),
+        ('spike_agg', 'median', 'The aggregation method for the detector.'),
+        ('threshold_high', 'inf', 'The lower threshold.'),
+        ('threshold_low', '-inf', 'The upper threshold.'),
+        ('threshold_percentage', 'None', 'The warning percentage for outliers.'),
+        ('volatility_shift_outliers_1', 'None', 'The lower limit for the times of iqr below q1.'),
+        ('volatility_shift_outliers_2', 6, 'The upper limit for the times of iqr above q3.'),
+        ('volatility_shift_side', 'both', 'The side of anomaly for detetcor to warn.'),
+        ('volatility_shift_window', 10, 'The length of sliding window for aggregation method.'),
+        ('volatility_shift_agg', 'std', 'The aggregation method for the detector.'),
+    ]}
 
+    detection_threshold = {'detection_threshold': [
+        ('connection_usage_threshold', 0.9, 'The alarm threshold for the number of '
+                                            'connections and the maximum number of allowed connections.'),
+        ('cpu_usage_threshold', 0.6, 'The alarm threshold of CPU(User) usage.'),
+        ('cpu_high_usage_percent', 0.8, 'The proportion of abnormal CPU usage in the time window.'),
+        ('db_memory_rate_threshold', 0.8, "The threshold of memory occupy in gs_total_memory_detail."),
+        ('disk_ioutils_threshold', 0.7, 'The alarm threshold of IO-Utils.'),
+        ('disk_usage_threshold', 0.7, 'The alarm threshold of disk usage.'),
+        ('handler_occupation_threshold', 0.7, 'The alarm threshold of fds usage.'),
+        ('mem_usage_threshold', 0.6, 'The alarm threshold of memory usage.'),
+        ('mem_high_usage_percent', 0.8, 'The proportion of abnormal memory usage in the time window.'),
+        ('network_bandwidth_usage_threshold', 0.8, 'The alarm threshold of bandwidth usage.'),
+        ('other_used_memory_threshold', 5120, "The alarm threshold of other_used_memory. Default is 5GB."),
+        ('package_drop_rate_threshold', 0.01, 'The alarm threshold of network drop rate.'),
+        ('package_error_rate_threshold', 0.01, 'The alarm threshold of network error rate.'),
+        ('thread_pool_usage_threshold', 0.95, 'The alarm threshold of thread pool usage.'),
+    ]}
+
+    # the same as `dbmind.cmd.configs.config_constants`
     iv_table = {'iv_table': [
         ('cipher_s1', '', ''),
         ('cipher_s2', '', '')
     ]}
 
     slow_sql_threshold = {'slow_sql_threshold': [
-        ('tuple_number_threshold', 5, ''),
-        ('table_total_size_threshold', 3, ''),
-        ('fetch_tuples_threshold', 1000, ''),
-        ('returned_rows_threshold', 1000, ''),
-        ('updated_tuples_threshold', 1000, ''),
-        ('deleted_tuples_threshold', 1000, ''),
-        ('inserted_tuples_threshold', 1000, ''),
-        ('hit_rate_threshold', 0.95, ''),
-        ('dead_rate_threshold', 0.02, ''),
-        ('index_number_threshold', 3, ''),
-        ('column_number_threshold', 2, ''),
-        ('analyze_operation_probable_time_interval', 6, ''),  # unit is second
-        ('max_elapsed_time', 60, ''),
-        ('analyze_threshold', 3, ''),  # unit is second
-        ('nestloop_rows_threshold', 10000, ''),
-        ('large_join_threshold', 10000, ''),
-        ('groupagg_rows_threshold', 5000, ''),
-        ('cost_rate_threshold', 0.02, ''),
-        ('plan_height_threshold', 10, ''),
-        ('complex_operator_threshold', 2, ''),
-        ('large_in_list_threshold', 10, ''),
-        ('tuples_diff_threshold', 1000, ''), ]
-    }
+        ('analyze_operation_probable_time_interval', 6,
+         'The estimated impact time for analyze and vacuum. Unit: second.'),
+        ('tuple_number_threshold', 1000,
+         'The number of tuples threshold to identify large tables.'),
+        ('table_total_size_threshold', 50,
+         'The size of table threshold to identify large tables. Unit: MB.'),
+        ('fetch_tuples_threshold', 1000,
+         'The number of scanned tuples threshold to identify operators with heavy cost.'),
+        ('returned_rows_threshold', 1000,
+         'The number of returned tuples threshold to identify plans that returns large amount of data.'),
+        ('updated_tuples_threshold', 1000,
+         'The number of updated tuples threshold to identify batch update statements.'),
+        ('deleted_tuples_threshold', 1000,
+         'The number of deleted tuples threshold to identify batch delete statements.'),
+        ('inserted_tuples_threshold', 1000,
+         'The number of inserted tuples threshold to identify batch insert statements.'),
+        ('dead_rate_threshold', 0.02,
+         'The rate of dead tuples threshold to determine whether a table has too many dead tuples.'),
+        ('index_number_threshold', 3,
+         'The number of indexes threshold to determine whether a table has too many indexes.'),
+        ('nestloop_rows_threshold', 10000,
+         'The number of tuples threshold for nestloop operator.'),
+        ('large_join_threshold', 50000,
+         'The number of tuples threshold for hashjoin operator.'),
+        ('cost_rate_threshold', 0.02,
+         'The operator cost ratio threshold to identify operators with heavy cost.'),
+        ('plan_height_threshold', 10,
+         'The height of plan trees threshold to identify complex plan trees.'),
+        ('complex_operator_threshold', 2,
+         'The number of join and agg operators threshold to identify complex plans.'),
+        ('large_in_list_threshold', 50,
+         'The number of elements threshold in the in-clause.'),
+        ('tuples_diff_threshold', 1000,
+         'The difference in number of tuples between statistics and reality threshold '
+         'to identify large gap in statistical information.'),
+        ('plan_time_rate_threshold', 0.6,
+         'The rate of SQL execution plan generation time threshold.'),
+        ('sort_rate_threshold', 0.7,
+         'The rate of disk-spill rate in SQL execution history threshold')
+    ]}
 
     self_monitoring = {'self_monitoring': [
-        ('detection_interval', 600,
-         'Unit is second. The interval for performing health examination on the openGauss through monitoring metrics.'),
-        ('last_detection_time', 600, 'Unit is second. The time for last detection.'),
-        ('forecasting_future_time', 3600,
-         'Unit is second. How long the KPI in the future for forecasting. '
-         'Meanwhile, this is the period for the forecast.'),
-        ('result_storage_retention', 604800,
-         'Unit is second. How long should the results retain? '
-         'If retention is more than the threshold, DBMind will delete them.'),
+        ('detection_interval_seconds', 600,
+         'The interval for performing health examination on '
+         'the openGauss through monitoring metrics.'),
+        ('detection_window_seconds', 600, 'The time for last detection. Unit is second.'),
+        ('forecasting_seconds', 0,
+         'How long the KPI in the future for forecasting. '
+         'Meanwhile, this is the period for the forecast. Unit is second.'),
+        ('result_retention_seconds', 604800,
+         'Storage time of metadata database data. If retention is more than the threshold, DBMind will delete them.'),
         ('golden_kpi', 'os_cpu_usage, os_mem_usage, os_disk_usage, gaussdb_qps_by_instance',
          'DBMind only measures and detects the golden metrics in the anomaly detection processing.')
     ]}
@@ -120,12 +142,14 @@ class DynamicParams(DynamicConfig):
         ('max_template_num', 5000, 'Maximum number of templates'),
         ('max_reserved_period', 100, 'Maximum retention time (day)'),
         ('optimization_interval', 86400, 'The interval for index recommendation (second)'),
-        ('kill_slow_query', 0, 'Whether to actively check and kill slow query. '
-                               'The default elapsed time of a slow query to be killed is 1 minute.')
+        ('max_elapsed_time', 60, 'The default elapsed time of a slow query to be killed (second)'),
+        ('expansion_coefficient', 1.2, 'The relationship between interval of some timed-task and the fetch-interval '
+                                       'in each task during execution (second)')
     ]}
 
     __default__ = dict()
     __default__.update(detection_params)
+    __default__.update(detection_threshold)
     __default__.update(iv_table)
     __default__.update(slow_sql_threshold)
     __default__.update(self_optimization)

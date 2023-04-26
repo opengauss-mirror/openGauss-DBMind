@@ -10,12 +10,12 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
-os_cpu_iowait:
+os_cpu_iowait_usage:
   desc: iowait
   promql: "
     label_replace(
-      (avg(irate(node_cpu_seconds_total{mode='iowait'}[5m])) by (job, instance)),
+      sum(irate(node_cpu_seconds_total{mode='iowait'}[3m])) by (job, instance) / 
+      sum(irate(node_cpu_seconds_total[3m])) by (job, instance),
       'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
@@ -31,16 +31,19 @@ os_cpu_iowait:
   ttl: 10
   timeout: 5
 
-
-os_disk_iops:
-  desc: iops
+os_cpu_system_usage:
+  desc: system
   promql: "
     label_replace(
-      sum by (instance) (irate(node_disk_reads_completed_total[3m])) + sum by (instance)
-        (irate(node_disk_writes_completed_total[3m])),
+      sum(irate(node_cpu_seconds_total{mode='system'}[3m])) by (job, instance) / 
+      sum(irate(node_cpu_seconds_total[3m])) by (job, instance),
       'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
     - name: from_instance
       label: instance
       description: from instance
@@ -49,6 +52,70 @@ os_disk_iops:
   ttl: 10
   timeout: 5
 
+os_cpu_user_usage:
+  desc: user
+  promql: "
+    label_replace(
+      sum(irate(node_cpu_seconds_total{mode='user'}[3m])) by (job, instance) / 
+      sum(irate(node_cpu_seconds_total[3m])) by (job, instance),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 10
+  timeout: 5
+
+os_cpu_idle_usage:
+  desc: idle
+  promql: "
+    label_replace(
+      sum(irate(node_cpu_seconds_total{mode='idle'}[3m])) by (job, instance) / 
+      sum(irate(node_cpu_seconds_total[3m])) by (job, instance),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 10
+  timeout: 5
+
+os_disk_iops:
+  desc: iops
+  promql: "
+    label_replace(
+      irate(node_disk_reads_completed_total[3m]) + irate(node_disk_writes_completed_total[3m]),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
+  metrics:
+    - name: device
+      label: device
+      description: device label
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 10
 
 os_disk_ioutils:
   desc: ioutils
@@ -74,37 +141,51 @@ os_disk_ioutils:
   ttl: 10
   timeout: 5
 
-
-os_io_read_bytes:
+os_disk_io_read_bytes:
   desc: io read bytes
   promql: "
   label_replace(
-    sum by (instance) (irate(node_disk_read_bytes_total[1m])) / 1024 / 1024,
+    irate(node_disk_read_bytes_total[3m]) / 1024 / 1024,
     'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
+    - name: device
+      label: device
+      description: device label
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
     - name: from_instance
       label: instance
       description: from instance
       usage: LABEL
-  status: disable
+  status: enable
   ttl: 10
   timeout: 5
 
-
-os_io_write_bytes:
+os_disk_io_write_bytes:
   desc: io write bytes
   promql: "
   label_replace(
-    sum by (instance) (irate(node_disk_written_bytes_total[1m])) / 1024 / 1024,
+    irate(node_disk_written_bytes_total[3m]) / 1024 / 1024,
     'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
+    - name: device
+      label: device
+      description: device label
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
     - name: from_instance
       label: instance
       description: from instance
       usage: LABEL
-  status: disable
+  status: enable
   ttl: 10
   timeout: 5
 
@@ -113,10 +194,18 @@ os_disk_iocapacity:
   desc: os_disk_iocapacity
   promql: "
   label_replace(
-    sum by (instance) (irate(node_disk_read_bytes_total[1m])) / 1024 / 1024 + sum by (instance) (irate(node_disk_written_bytes_total[1m])) / 1024 / 1024,
+    (irate(node_disk_read_bytes_total[3m]) / 1024 / 1024) + (irate(node_disk_written_bytes_total[3m]) / 1024 / 1024),
     'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
+    - name: device
+      label: device
+      description: device label
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
     - name: from_instance
       label: instance
       description: from instance
@@ -124,7 +213,6 @@ os_disk_iocapacity:
   status: disable
   ttl: 10
   timeout: 5
-
 
 os_disk_usage:
   name: os_disk_usage
@@ -159,13 +247,12 @@ os_disk_usage:
   ttl: 10
   timeout: 5
 
-
-os_io_queue_number:
-  name: os_io_queue_number
+os_disk_io_queue_length:
+  name: io queue length
   desc: io queue number
   promql: "
   label_replace(
-    rate(node_disk_io_time_weighted_seconds_total[3m]),
+    irate(node_disk_io_time_weighted_seconds_total[3m]),
     'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
@@ -185,13 +272,12 @@ os_io_queue_number:
   ttl: 10
   timeout: 5
 
-
-os_io_read_delay_time:
-  name: os_io_read_delay_time
+os_disk_io_read_delay:
+  name: io_read_delay_time
   desc: io read delay time
   promql: "
   label_replace(
-    rate(node_disk_read_time_seconds_total[3m]) / (rate(node_disk_reads_completed_total[3m]) + 0.00001) * 1000,
+    irate(node_disk_read_time_seconds_total[3m]) / (irate(node_disk_reads_completed_total[3m]) + 0.00001) * 1000,
     'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
@@ -207,37 +293,34 @@ os_io_read_delay_time:
       label: device
       description: device
       usage: LABEL
-  status: disable
-  ttl: 10
-  timeout: 5
-
-
-os_io_write_delay_time:
-  name: os_io_write_delay_time
-  desc: io write delay time
-  promql: "
-  label_replace(
-    rate(node_disk_write_time_seconds_total[3m]) / (rate(node_disk_writes_completed_total[3m]) + 0.00001) * 1000,
-    'instance', '$1', 'instance', '(.*):.*')
-  "
-  metrics:
-    - name: from_job
-      label: job
-      description: job
-      usage: LABEL
-    - name: from_instance
-      label: instance
-      description: instance
-      usage: LABEL
-    - name: device
-      label: device
-      description: device
-      usage: LABEL
-
   status: enable
   ttl: 10
   timeout: 5
 
+os_disk_io_write_delay:
+  name: io_write_delay_time
+  desc: io write delay time
+  promql: "
+  label_replace(
+    irate(node_disk_write_time_seconds_total[3m]) / (irate(node_disk_writes_completed_total[3m]) + 0.00001) * 1000,
+    'instance', '$1', 'instance', '(.*):.*')
+  "
+  metrics:
+    - name: from_job
+      label: job
+      description: job
+      usage: LABEL
+    - name: from_instance
+      label: instance
+      description: instance
+      usage: LABEL
+    - name: device
+      label: device
+      description: device
+      usage: LABEL
+  status: enable
+  ttl: 10
+  timeout: 5
 
 os_cpu_processor_number:
   name: os_cpu_processor_number
@@ -260,27 +343,6 @@ os_cpu_processor_number:
   ttl: 10
   timeout: 5
 
-
-os_cpu_usage:
-  name: os_cpu_usage
-  desc: used for CPU usage collection
-  promql: "
-    label_replace(
-      1 - (avg by(job, instance) (irate(node_cpu_seconds_total{mode='idle'}[3m]))),
-      'instance', '$1', 'instance', '(.*):.*')
-  "
-  metrics:
-    - name: from_job
-      label: job
-      description: from job
-      usage: LABEL
-    - name: from_instance
-      label: instance
-      description: from instance
-      usage: LABEL
-  status: enable
-  ttl: 1
-  timeout: 5
 
 gaussdb_cpu_usage:
   name: gaussdb_cpu_usage
@@ -358,7 +420,7 @@ gaussdb_errors_rate:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -376,7 +438,7 @@ gaussdb_invalid_logins_rate:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -399,6 +461,9 @@ gaussdb_dlp:
       label: from_instance
       description: from instance
       usage: LABEL
+  status: disable
+  ttl: 10
+  timeout: 5
 
 gaussdb_tup_fetched_rate:
   name: gaussdb_tup_fetched_rate
@@ -715,14 +780,14 @@ gaussdb_table_expansion_rate:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
 gaussdb_cpu_time:
   desc: cpu time in all databases.
   promql: |
-    sum(irate(og_cpu_load_total_cpu[3m])) by (from_instance, job)
+    sum(irate(pg_cpu_load_total_cpu[3m])) by (from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -739,7 +804,7 @@ gaussdb_cpu_time:
 gaussdb_state_memory:
   desc: total memory in all databases.
   promql: |
-    sum(og_state_memory_totalsize{state='active'}) by (from_instance, job)
+    sum(pg_state_memory_totalsize{state='active'}) by (from_instance, job)
   metrics:
     - name: from_job
       label: job
@@ -749,7 +814,7 @@ gaussdb_state_memory:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -766,7 +831,7 @@ gaussdb_connections_used_ratio:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -791,11 +856,12 @@ load_average1:
   timeout: 5
 
 # network
-os_network_receive_drop:
-  desc: os_network_receive_drop
+os_network_receive_error:
+  desc: os_network_receive_error
   promql: "
     label_replace(
-      sum(irate(node_network_receive_drop_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
+      irate(node_network_receive_errs_total{device!~'bond.*?|lo'}[3m]) / 
+      (irate(node_network_receive_packets_total{device!~'bond.*?|lo'}[3m]) > 0),
       'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
@@ -807,15 +873,43 @@ os_network_receive_drop:
       label: job
       description: from job
       usage: LABEL
+    - name: device
+      label: device
+      description: device
+      usage: LABEL
   status: enable
   ttl: 10
 
+os_network_transmit_error:
+  desc: os_network_receive_error
+  promql: "
+    label_replace(
+      irate(node_network_transmit_errs_total{device!~'bond.*?|lo'}[3m]) / 
+      (irate(node_network_transmit_packets_total{device!~'bond.*?|lo'}[3m]) > 0),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
+  metrics:
+    - name: from_instance
+      label: instance
+      description: from instance
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: device
+      label: device
+      description: device
+      usage: LABEL
+  status: enable
+  ttl: 10
 
 os_network_transmit_drop:
   desc: os_network_transmit_drop
   promql: "
     label_replace(
-      sum(irate(node_network_transmit_drop_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
+      irate(node_network_transmit_drop_total{device!~'bond.*?|lo'}[3m]) / 
+      (irate(node_network_transmit_packets_total{device!~'bond.*?|lo'}[3m]) > 0),
       'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
@@ -826,16 +920,44 @@ os_network_transmit_drop:
     - name: from_job
       label: job
       description: from job
+      usage: LABEL
+    - name: device
+      label: device
+      description: device
+      usage: LABEL
+  status: enable
+  ttl: 10
+
+os_network_receive_drop:
+  desc: os_network_receive_drop
+  promql: "
+    label_replace(
+      irate(node_network_receive_drop_total{device!~'bond.*?|lo'}[3m]) / 
+      (irate(node_network_receive_packets_total{device!~'bond.*?|lo'}[3m]) > 0),
+      'instance', '$1', 'instance', '(.*):.*')
+  "
+  metrics:
+    - name: from_instance
+      label: instance
+      description: from instance
+      usage: LABEL
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: device
+      label: device
+      description: device
       usage: LABEL
   status: enable
   ttl: 10
 
 
-os_network_receive_packets:
-  desc: os_network_receive_packets
+os_network_receive_bytes:
+  desc: os_network_receive_bytes
   promql: "
     label_replace(
-      sum(irate(node_network_receive_packets_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
+      irate(node_network_receive_bytes_total{device!~'bond.*?|lo'}[3m]) / 1024 / 1024 > 0,
       'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
@@ -846,15 +968,19 @@ os_network_receive_packets:
     - name: from_job
       label: job
       description: from job
+      usage: LABEL
+    - name: device
+      label: device
+      description: device
       usage: LABEL
   status: enable
   ttl: 10
 
-os_network_transmit_packets:
-  desc: os_network_transmit_packets
+os_network_transmit_bytes:
+  desc: os_network_transmit_bytes
   promql: "
     label_replace(
-      sum(irate(node_network_transmit_packets_total{device!~'bond.*?|lo'}[1m])) by (instance, job),
+      irate(node_network_transmit_bytes_total{device!~'bond.*?|lo'}[3m]) /1024 / 1024 > 0,
       'instance', '$1', 'instance', '(.*):.*')
   "
   metrics:
@@ -865,6 +991,10 @@ os_network_transmit_packets:
     - name: from_job
       label: job
       description: from job
+      usage: LABEL
+    - name: device
+      label: device
+      description: device
       usage: LABEL
   status: enable
   ttl: 10
@@ -932,7 +1062,7 @@ gaussdb_dead_tup_increase_rate:
       label: schemaname
       description: schemaname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -962,7 +1092,7 @@ gaussdb_table_increase_amplitude:
       label: relname
       description: relname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -992,7 +1122,7 @@ gaussdb_table_increase_rate:
       label: relname
       description: relname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1022,7 +1152,7 @@ gaussdb_index_increase_rate:
       label: tablename
       description: tablename
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1044,7 +1174,7 @@ gaussdb_database_increase_rate:
       label: datname
       description: dataname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1066,7 +1196,7 @@ gaussdb_database_increase_amplitude:
       label: datname
       description: dataname
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1096,7 +1226,7 @@ gaussdb_corrosion_index:
       label: index_name
       description: index_name
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1152,7 +1282,7 @@ gaussdb_statement_db_time:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1178,7 +1308,7 @@ gaussdb_statement_calls:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1204,7 +1334,7 @@ gaussdb_statement_sort_spill:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1230,7 +1360,7 @@ gaussdb_statement_hash_spill:
       label: from_instance
       description: from instance
       usage: LABEL
-  status: enable
+  status: disable
   ttl: 10
   timeout: 5
 
@@ -1261,6 +1391,24 @@ gaussdb_active_connection:
   desc: sum of active connection
   promql: |
     sum (pg_stat_activity_count{state='active'}) by (job, from_instance) 
+  metrics:
+    - name: from_job
+      label: job
+      description: from job
+      usage: LABEL
+    - name: from_instance
+      label: from_instance
+      description: from instance
+      usage: LABEL
+  status: enable
+  ttl: 10
+  timeout: 5
+
+
+gaussdb_idle_connection:
+  desc: sum of idle connection
+  promql: |
+    sum (pg_stat_activity_count{state=~'idle.*'}) by (job, from_instance)
   metrics:
     - name: from_job
       label: job

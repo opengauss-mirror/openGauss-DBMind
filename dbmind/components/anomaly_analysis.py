@@ -25,17 +25,17 @@ from datetime import datetime
 from scipy.interpolate import interp1d
 
 from dbmind import global_vars
-from dbmind.common.algorithm.correlation import max_cross_correlation
+from dbmind.cmd.edbmind import init_global_configs
+from dbmind.common.algorithm.correlation import CorrelationAnalysis
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.utils.checking import (
     check_ip_valid, check_port_valid, date_type, path_type
 )
 from dbmind.common.utils.cli import write_to_terminal
-from dbmind.cmd.edbmind import init_global_configs, init_tsdb_with_config
+from dbmind.common.utils.component import initialize_tsdb_param
+from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
 from dbmind.service import dai
 from dbmind.service.utils import SequenceUtils
-from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
-
 
 LEAST_WINDOW = int(7.2e3) * 1000
 LOOK_BACK = 0
@@ -51,25 +51,36 @@ http.client.HTTPConnection._http_vsn_str = "HTTP/1.0"
 def get_sequences(arg):
     metric, instance, start_datetime, end_datetime = arg
     result = []
-    seqs = []
+    host = instance.split(":")[0]
     if global_vars.configs.get('TSDB', 'name') == "prometheus":
-        if ":" in instance and check_ip_valid(instance.split(":")[0]) and check_port_valid(instance.split(":")[1]):
-            seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).from_server(instance).fetchall()
+        if ":" in instance and check_ip_valid(host) and check_port_valid(instance.split(":")[1]):
+            seqs = dai.get_metric_sequence(
+                metric,
+                start_datetime,
+                end_datetime
+            ).from_server(instance).fetchall()
             if not seqs:
-                host = instance.split(":")[0]
-                seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).from_server(host).fetchall()
+                seqs = dai.get_metric_sequence(
+                    metric,
+                    start_datetime,
+                    end_datetime
+                ).from_server(host).fetchall()
         elif check_ip_valid(instance):
-            instance_like = {DISTINGUISHING_INSTANCE_LABEL: instance + "(:[0-9]{4,5}|)"}
-            seqs = dai.get_metric_sequence(metric, start_datetime, end_datetime).filter_like(**instance_like).fetchall()
+            instance_like = instance + "(:[0-9]{4,5}|)"
+            seqs = dai.get_metric_sequence(
+                metric,
+                start_datetime,
+                end_datetime
+            ).from_server_like(instance_like).fetchall()
         else:
             raise ValueError(f"Invalid instance: {instance}.")
     else:
         raise
-    step = dai.get_metric_sequence(metric, start_datetime, end_datetime).step / 1000
+
     start_time = datetime.timestamp(start_datetime)
     end_time = datetime.timestamp(end_datetime)
-    length = (end_time - start_time) // step
     for seq in seqs:
+        length = (end_time - start_time) * 1000 // seq.step
         if DISTINGUISHING_INSTANCE_LABEL not in seq.labels or len(seq) < 0.6 * length:
             continue
 
@@ -99,7 +110,10 @@ def get_correlations(arg):
         fill_value=(sequence.values[0], sequence.values[-1])
     )
     y = f(this_sequence.timestamps)
-    corr, delay = max_cross_correlation(this_sequence.values, y, LOOK_BACK, LOOK_FORWARD)
+    correlation_calculation = CorrelationAnalysis(preprocess_method='diff',
+                                                  analyze_method='pearson')
+    x, y = correlation_calculation.preprocess(this_sequence.values, y)
+    corr, delay = correlation_calculation.analyze(x, y)
     return name, corr, delay, sequence.values, sequence.timestamps
 
 
@@ -114,21 +128,21 @@ def multi_process_correlation_calculation(metric, sequence_args, corr_threshold=
             write_to_terminal('The metric was not found.')
             return
 
-        correlation_result = dict()
+        correlation_results = dict()
         for this_name, this_sequence in these_sequences:
             correlation_args = list()
             for sequences in sequence_result:
                 for name, sequence in sequences:
                     correlation_args.append((name, sequence, this_sequence))
-            correlation_result[this_name] = pool.map(get_correlations, iterable=correlation_args)
+            correlation_results[this_name] = pool.map(get_correlations, iterable=correlation_args)
    
     pool.join()
 
-    for this_name, this_sequence in correlation_result.items():
-        this_sequence.sort(key=lambda item: item[1], reverse=True)
-        del(this_sequence[topk:])
+    for name in correlation_results:
+        correlation_results[name].sort(key=lambda item: item[1], reverse=True)
+        del (correlation_results[name][topk:])
         
-    return correlation_result
+    return correlation_results
 
 
 def single_process_correlation_calculation(metric, sequence_args, corr_threshold=0, topk=100):
@@ -144,15 +158,15 @@ def single_process_correlation_calculation(metric, sequence_args, corr_threshold
         write_to_terminal('The metric was not found.')
         return
 
-    correlation_result = defaultdict(list)
+    correlation_results = defaultdict(list)
     for this_name, this_sequence in these_sequences:
         for name, sequence in sequence_result:
             name, corr, delay, values, timestamps = get_correlations((name, sequence, this_sequence))
             if abs(corr) >= corr_threshold:
-                correlation_result[this_name].append((name, corr, delay, values, timestamps))
-        correlation_result[this_name].sort(key=lambda item: item[1], reverse=True)
-        correlation_result[this_name] = correlation_result[this_name][:topk]
-    return correlation_result
+                correlation_results[this_name].append((name, corr, delay, values, timestamps))
+        correlation_results[this_name].sort(key=lambda item: item[1], reverse=True)
+        correlation_results[this_name] = correlation_results[this_name][:topk]
+    return correlation_results
 
 
 def main(argv):
@@ -181,8 +195,9 @@ def main(argv):
 
     os.chdir(args.conf)
     init_global_configs(args.conf)
-    init_tsdb_with_config()
-  
+    if not initialize_tsdb_param():
+        parser.exit(1, "TSDB service does not exist, exiting...")
+ 
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
     actual_start_time = min(start_time, end_time - LEAST_WINDOW)
@@ -192,14 +207,14 @@ def main(argv):
     sequence_args = [(metric_name, host, start_datetime, end_datetime) for metric_name in all_metrics]
 
     if platform.system() != 'Windows':
-        correlation_result = multi_process_correlation_calculation(metric, sequence_args)
+        correlation_results = multi_process_correlation_calculation(metric, sequence_args)
     else:
-        correlation_result = single_process_correlation_calculation(metric, sequence_args)
+        correlation_results = single_process_correlation_calculation(metric, sequence_args)
 
     result = dict()
-    for this_name in correlation_result:
+    for this_name in correlation_results:
         this_result = defaultdict(tuple)
-        for name, corr, delay, values, timestamps in correlation_result[this_name]:
+        for name, corr, delay, values, timestamps in correlation_results[this_name]:
             this_result[name] = max(this_result[name], (abs(corr), name, corr, delay, values, timestamps))
         result[this_name] = this_result
 
@@ -209,7 +224,8 @@ def main(argv):
             csv_path = os.path.join(args.csv_dump_path, new_name + ".csv")
             with open(csv_path, 'w+', newline='') as f:
                 writer = csv.writer(f)
-                for _, name, corr, delay, values, timestamps in sorted(result[this_name].values(), key=lambda t: (t[3], -t[0])):
+                for _, name, corr, delay, values, timestamps in sorted(result[this_name].values(),
+                                                                       key=lambda t: (-abs(t[2]), t[3])):
                     writer.writerow((name, corr, delay) + values)  # Discard the first element abs(corr) after sorting.
 
 

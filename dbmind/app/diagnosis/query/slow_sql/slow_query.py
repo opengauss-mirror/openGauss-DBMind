@@ -16,11 +16,12 @@ from dbmind.common.types.root_cause import RootCause
 
 class SlowQuery:
     def __init__(self, query, db_host=None, db_port=None, db_name=None, schema_name='public', start_timestamp=0,
-                 duration_time=0, hit_rate=1, fetch_rate=0, cpu_time=0, data_io_time=0, track_parameter=True,
-                 template_id=0, sort_count=0, sort_mem_used=0, sort_spill_count=0, hash_count=0, plan_time=0,
-                 hash_mem_used=0, hash_spill_count=0, lock_wait_count=0, lwlock_wait_count=0, parse_time=0,
+                 duration_time=1, hit_rate=1, fetch_rate=0, cpu_time=0, data_io_time=0, track_parameter=True,
+                 template_id='', sort_count=0, sort_mem_used=0, sort_spill_count=1, hash_count=0, plan_time=0,
+                 hash_mem_used=0, hash_spill_count=1, lock_wait_count=0, lwlock_wait_count=0, parse_time=0,
                  n_returned_rows=0, n_tuples_returned=0, n_tuples_fetched=0, n_tuples_inserted=0, db_time=1,
-                 n_tuples_updated=0, n_tuples_deleted=0, user_name=None, query_plan=None, query_id=-1, **kwargs):
+                 n_tuples_updated=0, n_tuples_deleted=0, user_name=None, query_plan=None, query_id='', n_soft_parse=0,
+                 n_hard_parse=0, **kwargs):
         self.db_host = db_host
         self.db_port = db_port
         self.user_name = user_name
@@ -56,6 +57,8 @@ class SlowQuery:
         self.n_tuples_inserted = n_tuples_inserted
         self.n_tuples_updated = n_tuples_updated
         self.n_tuples_deleted = n_tuples_deleted
+        self.n_soft_parse = n_soft_parse
+        self.n_hard_parse = n_hard_parse
         self.alarm_cause = list()
 
         self._discardable = False

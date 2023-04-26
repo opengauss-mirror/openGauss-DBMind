@@ -1,6 +1,10 @@
 
 import React, { Component } from 'react';
-import { Col, message, Row, Spin } from 'antd';
+import { Col, message, Row, Spin, Card } from 'antd';
+import '../../assets/css/common.css';
+import Refresh from '../../assets/imgs/Refresh.png';
+import Setup from '../../assets/imgs/Setup.png';
+import icon2 from '../../assets/imgs/icon2.png';
 import TopShowList from './SlowQueryAnalysisModules/TopShowList';
 import SystemtableRateChart from './SlowQueryAnalysisModules/SystemtableRateChart';
 import SlowquerycountChart from './SlowQueryAnalysisModules/SlowquerycountChart';
@@ -96,68 +100,71 @@ export default class SlowQueryAnalysis extends Component {
   }
   render () {
     return (
-      <div style={{ textAlign: 'center' }}>
-        {
-          this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> :
-            <>
-              <TopShowList toplist={this.state.topList} statisticsForDatabase={this.state.statisticsForDatabase} statisticsforSchema={this.state.statisticsforSchema} />
-              <Row gutter={16}>
-                <Col className="gutter-row" span={6}>
-                  <div className="cardShow">
-                    <SystemtableRateChart sysInSlowQuery={this.state.sysInSlowQuery} />
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={12}>
-                  <div className="cardShow">
-                    <SlowquerycountChart slowQueryCount={this.state.slowQueryCount} />
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={6}>
-                  <div className="cardShow">
-                    <DistributionChart distribution={this.state.distribution} />
-                  </div>
-                </Col>
-              </Row>
-              <Row gutter={16}>
-                <Col className="gutter-row" span={6}>
-                  <div className="cardShow">
-                    <MeanCpuTimeChart meanCpuTime={this.state.meanCpuTime} />
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={6}>
-                  <div className="cardShow">
-                    <MeanIoTimeChart meanIoTime={this.state.meanIoTime} />
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={6}>
-                  <div className="cardShow">
-                    <MeanBufferHitRateChart meanBufferHitRate={this.state.meanBufferHitRate} />
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={6}>
-                  <div className="cardShow">
-                    <MeanFetchTimeChart meanFetchTime={this.state.meanFetchTime} />
-                  </div>
-                </Col>
-              </Row>
-              {/* ...... */}
-              <Row gutter={16}>
-                <Col className="gutter-row" span={12}>
-                  <div className="cardShow">
-                    <StatisticsChart statistics={this.state.statistics} />
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={12}>
-                  <div className="cardShow">
-                    <SlowQueryTable slowQueryTemplate={this.state.slowQueryTemplate} />
-                  </div>
-                </Col>
-              </Row>
-              {/* ..... */}
-              <TableofSlowQueryTable tableOfSlowQuery={this.state.tableOfSlowQuery} />
-            </>
-        }
+      <div className="contentWrap SlowQueryAnalysis" >
+        <div style={{ textAlign: 'center' }}>
+        {/* <div className='buttonstyle'><img src={Refresh} alt="" style={{marginRight:6}} onClick={() => this.refresh()} ></img><img src={Setup} alt="" onClick={() => this.handleCreate()} ></img></div> */}
+          {
+            this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> :
+              <>
+                <TopShowList toplist={this.state.topList} statisticsForDatabase={this.state.statisticsForDatabase} statisticsforSchema={this.state.statisticsforSchema} />
+                <Row gutter={16}>
+                  <Col className="gutter-row" span={6}>
+                    <div className="cardShow">
+                      <SystemtableRateChart sysInSlowQuery={this.state.sysInSlowQuery} />
+                    </div>
+                  </Col>
+                  <Col className="gutter-row" span={12}>
+                    <div className="cardShow">
+                      <SlowquerycountChart slowQueryCount={this.state.slowQueryCount} />
+                    </div>
+                  </Col>
+                  <Col className="gutter-row" span={6}>
+                    <div className="cardShow">
+                      <DistributionChart distribution={this.state.distribution} />
+                    </div>
+                  </Col>
+                </Row>
+                <Row gutter={16}>
+                  <Col className="gutter-row" span={6}>
+                    <div className="cardShow">
+                      <MeanCpuTimeChart meanCpuTime={this.state.meanCpuTime} />
+                    </div>
+                  </Col>
+                  <Col className="gutter-row" span={6}>
+                    <div className="cardShow">
+                      <MeanIoTimeChart meanIoTime={this.state.meanIoTime} />
+                    </div>
+                  </Col>
+                  <Col className="gutter-row" span={6}>
+                    <div className="cardShow">
+                      <MeanBufferHitRateChart meanBufferHitRate={this.state.meanBufferHitRate} />
+                    </div>
+                  </Col>
+                  <Col className="gutter-row" span={6}>
+                    <div className="cardShow">
+                      <MeanFetchTimeChart meanFetchTime={this.state.meanFetchTime} />
+                    </div>
+                  </Col>
+                </Row>
+                {/* ...... */}
+                <Row gutter={16}>
+                  <Col className="gutter-row" span={12}>
+                    <div className="cardShow">
+                      <StatisticsChart statistics={this.state.statistics} />
+                    </div>
+                  </Col>
+                  <Col className="gutter-row" span={12}>
+                    <div className="cardShow">
+                      <SlowQueryTable slowQueryTemplate={this.state.slowQueryTemplate} />
+                    </div>
+                  </Col>
+                </Row>
+                {/* ..... */}
+                <TableofSlowQueryTable tableOfSlowQuery={this.state.tableOfSlowQuery} />
+              </>
+          }
 
+        </div>
       </div>
     )
   }

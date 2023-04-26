@@ -10,12 +10,12 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, TEXT
 
-from .. import Base
+from .. import ResultDbBase
 
 
-class ExistingIndexes(Base):
+class ExistingIndexes(ResultDbBase):
     __tablename__ = "tb_existing_indexes"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -23,4 +23,4 @@ class ExistingIndexes(Base):
     db_name = Column(String(32), nullable=False)
     tb_name = Column(String(64), nullable=False)
     columns = Column(String(256))
-    index_stmt = Column(String(512), nullable=False)
+    index_stmt = Column(TEXT, nullable=False)

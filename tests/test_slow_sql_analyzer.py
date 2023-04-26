@@ -22,6 +22,7 @@ from dbmind.app.diagnosis.query.slow_sql import query_info_source
 from dbmind.app.diagnosis.query.slow_sql.featurelib import load_feature_lib, get_feature_mapper
 from dbmind.app.diagnosis.query.slow_sql.significance_detection import average_base, ks_base, sum_base
 from dbmind.app.diagnosis.query.slow_sql.slow_query import SlowQuery
+from dbmind.metadatabase.schema.config_dynamic_params import DynamicParams
 
 big_current_data = [10, 10, 10, 10, 10]
 big_history_data = [1, 1, 1, 1, 1]
@@ -33,49 +34,13 @@ ilegal_current_data = []
 ilegal_history_data = [1, 1, 1, 1, 1]
 
 configs = configparser.ConfigParser()
-configs.add_section('detection_params')
-configs.set('detection_params', 'disk_usage_threshold', '0.3')
-configs.set('detection_params', 'mem_usage_threshold', '0.4')
-configs.set('detection_params', 'cpu_usage_threshold', '0.3')
-configs.set('detection_params', 'tps_threshold', '2000')
-configs.set('detection_params', 'p80_threshold', '260')
-configs.set('detection_params', 'io_capacity_threshold', '0.6')
-configs.set('detection_params', 'io_delay_threshold', '0.9')
-configs.set('detection_params', 'io_wait_threshold', '1000')
-configs.set('detection_params', 'load_average_threshold', '0.6')
-configs.set('detection_params', 'iops_threshold', '1000')
-configs.set('detection_params', 'handler_occupation_threshold', '0.6')
-configs.set('detection_params', 'disk_ioutils_threshold', '3')
-configs.set('detection_params', 'connection_rate_threshold', '1000')
-configs.set('detection_params', 'connection_usage_threshold', '0.6')
-configs.set('detection_params', 'package_drop_rate_threshold', '100')
-configs.set('detection_params', 'package_error_rate_threshold', '100')
-configs.set('detection_params', 'bgwriter_rate_threshold', '0.2')
-configs.set('detection_params', 'replication_write_diff_threshold', '100000')
-configs.set('detection_params', 'replication_sent_diff_threshold', '100000')
-configs.set('detection_params', 'replication_replay_diff_threshold', '100000')
-configs.set('detection_params', 'thread_occupy_rate_threshold', '0.95')
-configs.set('detection_params', 'idle_session_occupy_rate_threshold', '0.3')
+configs.add_section('detection_threshold')
+for option, value, _ in DynamicParams.__default__.get('detection_threshold'):
+    configs.set('detection_threshold', option, str(value))
 
 configs.add_section('slow_sql_threshold')
-configs.set('slow_sql_threshold', 'tuple_number_threshold', '5000')
-configs.set('slow_sql_threshold', 'table_total_size_threshold', '2048')
-configs.set('slow_sql_threshold', 'fetch_tuples_threshold', '10000')
-configs.set('slow_sql_threshold', 'returned_rows_threshold', '1000')
-configs.set('slow_sql_threshold', 'updated_tuples_threshold', '1000')
-configs.set('slow_sql_threshold', 'deleted_tuples_threshold', '1000')
-configs.set('slow_sql_threshold', 'inserted_tuples_threshold', '1000')
-configs.set('slow_sql_threshold', 'hit_rate_threshold', '0.95')
-configs.set('slow_sql_threshold', 'dead_rate_threshold', '0.2')
-configs.set('slow_sql_threshold', 'index_number_threshold', '3')
-configs.set('slow_sql_threshold', 'index_number_rate_threshold', '0.6')
-configs.set('slow_sql_threshold', 'update_statistics_threshold', '60')
-configs.set('slow_sql_threshold', 'nestloop_rows_threshold', '10000')
-configs.set('slow_sql_threshold', 'hashjoin_rows_threshold', '10000')
-configs.set('slow_sql_threshold', 'groupagg_rows_threshold', '10000')
-configs.set('slow_sql_threshold', 'cost_rate_threshold', '0.4')
-configs.set('slow_sql_threshold', 'plan_time_occupy_rate_threshold', '0.3')
-configs.set('slow_sql_threshold', 'used_index_tuples_rate_threshold', '0.2')
+for option, value, _ in DynamicParams.__default__.get('slow_sql_threshold'):
+    configs.set('slow_sql_threshold', option, str(value))
 
 slow_sql_instance = SlowQuery(db_host='127.0.0.1', db_port='8080', db_name='database1', schema_name='schema1',
                               query='update schema1.table1 set age=30 where id=3', start_timestamp=1640139691000,
@@ -89,18 +54,20 @@ slow_sql_instance = SlowQuery(db_host='127.0.0.1', db_port='8080', db_name='data
 slow_sql_instance.tables_name = {'schema1': ['table1']}
 
 
-def mock_get_param(param):
-    return configs.getfloat('detection_params', param)
+def mock_get_detection_threshold(param):
+    return configs.getfloat('detection_threshold', param)
 
 
-def mock_get_threshold(param):
+def mock_get_slow_sql_param(param):
     return configs.getfloat('slow_sql_threshold', param)
 
 
 @pytest.fixture
 def mock_get_funcntion(monkeypatch):
-    monkeypatch.setattr(monitoring, 'get_param', mock.Mock(side_effect=lambda x: mock_get_param(param=x)))
-    monkeypatch.setattr(monitoring, 'get_threshold', mock.Mock(side_effect=lambda x: mock_get_threshold(param=x)))
+    monkeypatch.setattr(monitoring, 'get_detection_threshold',
+                        mock.Mock(side_effect=lambda x: mock_get_detection_threshold(param=x)))
+    monkeypatch.setattr(monitoring, 'get_slow_sql_param',
+                        mock.Mock(side_effect=lambda x: mock_get_slow_sql_param(param=x)))
 
 
 class MockedComplexQueryContext(query_info_source.QueryContext):
@@ -112,10 +79,6 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         return {}
 
     @staticmethod
-    def acquire_sort_condition():
-        return {}
-
-    @staticmethod
     def acquire_redundant_index():
         return {}
 
@@ -124,20 +87,8 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         return 5
 
     @staticmethod
-    def acquire_lock_info():
-        lock_info = query_info_source.LockInfo()
-        lock_info.db_host = '127.0.0.1'
-        lock_info.locked_query = ['update schema1.table1 set age=30 where id=3']
-        lock_info.locked_query_start = [1640139691000]
-        lock_info.locker_query = ['update schema1.table1 set age=80 where id=3']
-        lock_info.locker_query_start = [1640139690000]
-        return lock_info
-
-    @staticmethod
     def acquire_tables_structure_info():
         table_info = query_info_source.TableStructure()
-        table_info.db_host = '127.0.0.1'
-        table_info.db_port = '5432'
         table_info.db_name = 'database1'
         table_info.schema_name = 'schema1'
         table_info.table_name = 'table1'
@@ -149,7 +100,6 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
         table_info.analyze = 1640139691000
         table_info.vacuum = 1640139691000
         table_info.table_size = 1000000
-        table_info.skew_ratio = 0.5
         table_info.index = {'index1': ['col1'], 'index2': ['col2'], 'index3': ['col3']}
         table_info.redundant_index = ['redundant_index1', 'redundant_index2', 'redundant_index3', 'redundant_index4']
         return [table_info]
@@ -157,84 +107,38 @@ class MockedComplexQueryContext(query_info_source.QueryContext):
     @staticmethod
     def acquire_database_info():
         db_info = query_info_source.DatabaseInfo()
-        db_info.db_host = '127.0.0.1'
-        db_info.db_port = '8080'
-        db_info.history_tps = [100, 100]
-        db_info.current_tps = [100000, 100000]
-        db_info.max_conn = 100
-        db_info.used_conn = 99
-        db_info.thread_pool = {'worker_info_default': 100, 'worker_info_idle': 90, 'session_info_total': 50,
-                               'session_info_idle': 40}
+        db_info.tps = 100000
+        db_info.connection = 100
+        db_info.thread_pool_rate = 0.6
         return db_info
 
     @staticmethod
     def acquire_wait_event():
-        wait_event_info = query_info_source.WaitEvent()
-        wait_event_info.node_name = 'node1'
-        wait_event_info.type = 'IO_EVENT'
+        wait_event_info = query_info_source.ThreadInfo()
+        wait_event_info.status = 'IO_EVENT'
         wait_event_info.event = 'CopyFileWrite'
-        return [wait_event_info]
+        return wait_event_info
 
     @staticmethod
     def acquire_system_info():
         system_info = query_info_source.SystemInfo()
-        system_info.db_host = '127.0.0.1'
-        system_info.db_port = '8080'
-        system_info.iops = 100000
         system_info.ioutils = {'sdm-0': 0.9}
-        system_info.iocapacity = 100000
-        system_info.iowait = 0.9
-        system_info.cpu_usage = 0.9
-        system_info.mem_usage = 0.9
+        system_info.iowait_cpu_usage = [0.9]
+        system_info.user_cpu_usage = [0.9]
+        system_info.system_mem_usage = [0.9]
         system_info.disk_usage = {'sdm-0': 0.8}
-        system_info.process_fds_rate = 0.8
-        system_info.load_average = 0.9
-        system_info.io_read_delay_time = 1000000
-        system_info.io_write_delay_time = 1000000
-        system_info.io_queue_number = 100000
+        system_info.process_fds_rate = [0.8]
+        system_info.io_read_delay = [1000000]
+        system_info.io_write_delay = [1000000]
         return system_info
 
     @staticmethod
     def acquire_network_info():
         network_info = query_info_source.NetWorkInfo()
-        network_info.receive_bytes = 10000000
-        network_info.transmit_bytes = 10000000
-        network_info.transmit_drop = 0.9
-        network_info.transmit_error = 0.9
-        network_info.transmit_packets = 1000000
-        network_info.receive_drop = 0.9
-        network_info.receive_error = 0.9
-        network_info.receive_packets = 1000000
+        network_info.transmit_drop = [0.9]
+        network_info.receive_drop = [0.9]
+        network_info.bandwidth_usage = 0.8
         return network_info
-
-    @staticmethod
-    def acquire_bgwriter_info():
-        bgwriter_info = query_info_source.BgWriter()
-        bgwriter_info.buffers_checkpoint = 100
-        bgwriter_info.buffers_clean = 100
-        bgwriter_info.buffers_backend = 100000000
-        bgwriter_info.buffers_alloc = 100
-        return bgwriter_info
-
-    @staticmethod
-    def acquire_pg_replication_info():
-        pg_replication_info = query_info_source.PgReplicationInfo()
-        pg_replication_info.application_name = 'WalSender to Standby[dn_6002]'
-        pg_replication_info.pg_replication_lsn = 1667524422792
-        pg_replication_info.pg_replication_write_diff = 10000000
-        pg_replication_info.pg_replication_sent_diff = 100000000
-        pg_replication_info.pg_replication_flush_diff = 10000000
-        pg_replication_info.pg_replication_replay_diff = 10000000
-        return [pg_replication_info]
-
-    @staticmethod
-    def acquire_sql_count_info():
-        gs_sql_count_info = query_info_source.GsSQLCountInfo()
-        gs_sql_count_info.select_count = 1000
-        gs_sql_count_info.delete_count = 1000
-        gs_sql_count_info.insert_count = 1000
-        gs_sql_count_info.update_count = 1000
-        return gs_sql_count_info
 
     @staticmethod
     def acquire_rewritten_sql():
