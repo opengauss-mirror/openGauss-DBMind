@@ -35,6 +35,7 @@ from dbmind.service.utils import SequenceUtils
 from dbmind.constants import (DISTINGUISHING_INSTANCE_LABEL,
                               EXPORTER_INSTANCE_LABEL)
 from dbmind.common.algorithm.anomaly_detection.gradient_detector import linear_fitting
+from dbmind.service.multicluster import replace_sequence_ip
 
 if LINUX:
     mp_shared_buffer = get_mp_sync_manager().defaultdict(dict)
@@ -765,9 +766,13 @@ def check_instance_status():
         # since the state of cluster may change and we do not know the latest situation of instance, 
         # therefore we try all nodes in turn to ensure not miss key information
         for instance in cluster:
-            cluster_sequence = get_latest_metric_value('gaussdb_cluster_state').filter_like(standby=f'.*{instance}.*').fetchone()
-            if not is_sequence_valid(cluster_sequence):
-                cluster_sequence = get_latest_metric_value('gaussdb_cluster_state').filter(primary=instance).fetchone()
+            ip, port = instance.split(':')
+            cluster_sequence = None
+            for cluster_sequence in get_latest_metric_sequence('gaussdb_cluster_state').\
+                filter_like(instance=f'.*{ip}.*').fetchall():
+                replace_sequence_ip(cluster_sequence)
+                if instance in cluster_sequence.labels['standby'] or instance in cluster_sequence.labels['primary']:
+                    break
             if is_sequence_valid(cluster_sequence):
                 labels = cluster_sequence.labels
                 detail['status'] = 'normal' if cluster_sequence.values[-1] == 1 else 'abnormal'

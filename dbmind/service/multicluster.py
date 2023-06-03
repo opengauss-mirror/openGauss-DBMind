@@ -22,6 +22,8 @@ from dbmind.common.rpc import RPCClient
 from dbmind.common.rpc.server import DEFAULT_URI
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.utils.base import FixedDict
+from dbmind.common.utils import split
+from dbmind import global_vars
 
 
 class RPCAddressError(ValueError):
@@ -63,11 +65,36 @@ class _ClusterDetails:
         self._location_map.clear()
 
 
+def get_ip_map():
+    ip_map = dict()
+
+    for cluster_ip_pair in split(global_vars.configs.get('IP_MAP', 'ip_map'), ';'):
+        ip_pairs_dict = dict([tuple(ip_pairs_str.split(':')[::-1]) for ip_pairs_str in cluster_ip_pair])
+        for connection_ip in ip_pairs_dict.values():
+            ip_map[connection_ip] = ip_pairs_dict.copy()
+
+    return ip_map
+
+
+def replace_sequence_ip(sequence):
+    ip_map = get_ip_map()
+    if 'instance' not in sequence.labels:
+        return
+
+    from_instance_ip, from_instance_port = sequence.labels['instance'].split(":")
+
+    if from_instance_ip in ip_map:
+        for database_ip, floating_ip in ip_map[from_instance_ip]:
+            for label in sequence.labels.keys():
+                sequence.labels[label] = sequence.labels[label].replace(f'{database_ip}:', f'{floating_ip}:')
+
+
 def _get_remote_instance_addresses_from_tsdb(instance):
     tsdb = TsdbClientFactory.get_tsdb_client()
     cluster_sequence = tsdb.get_current_metric_value('gaussdb_cluster_state')
 
     for _sequence in cluster_sequence:
+        replace_sequence_ip(_sequence)
         if _sequence.labels['primary'] == instance:
             return True, _sequence.labels['standby'].strip(',').split(',')
     return False, None
