@@ -69,7 +69,7 @@ def get_ip_map():
     ip_map = dict()
 
     for cluster_ip_pair in split(global_vars.configs.get('IP_MAP', 'ip_map'), ';'):
-        ip_pairs_dict = dict([tuple(ip_pairs_str.split(':')[::-1]) for ip_pairs_str in cluster_ip_pair])
+        ip_pairs_dict = dict([tuple(ip_pairs_str.split(':')[::-1]) for ip_pairs_str in split(cluster_ip_pair)])
         for connection_ip in ip_pairs_dict.values():
             ip_map[connection_ip] = ip_pairs_dict.copy()
 
