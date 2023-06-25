@@ -345,14 +345,14 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         self.query_type = 'raw'
         self.fetch_interval = self.acquire_fetch_interval()
         self.expansion_factor = kwargs.get('expansion_factor', 2)
-        self.query_start_time = datetime.fromtimestamp(self.slow_sql_instance.start_at / 1000)
+        self.query_start_time = datetime.fromtimestamp(self.slow_sql_instance.start_time / 1000)
         if self.slow_sql_instance.duration_time / 1000 >= self.fetch_interval:
             self.query_end_time = datetime.fromtimestamp(
-                self.slow_sql_instance.start_at / 1000 + self.slow_sql_instance.duration_time / 1000
+                self.slow_sql_instance.start_time / 1000 + self.slow_sql_instance.duration_time / 1000
             )
         else:
             self.query_end_time = datetime.fromtimestamp(
-                self.slow_sql_instance.start_at / 1000 + int(self.expansion_factor * self.acquire_fetch_interval())
+                self.slow_sql_instance.start_time / 1000 + int(self.expansion_factor * self.acquire_fetch_interval())
             )
         logging.debug('[SLOW QUERY] fetch start time: %s, fetch end time: %s', self.query_start_time,
                       self.query_end_time)
@@ -648,11 +648,11 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                so currently only support for obtaining thread waiting event information at runtime.
         """
         thread_info = ThreadInfo()
-        if not self.slow_sql_instance.query_id:
+        if not self.slow_sql_instance.debug_query_id:
             return thread_info
         stmt = """
         select tid, wait_status, wait_event, block_sessionid, lockmode from pg_catalog.pg_thread_wait_status where 
-        query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.query_id)
+        query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.debug_query_id)
         rows = global_vars.agent_proxy.call('query_in_database',
                                             stmt,
                                             self.slow_sql_instance.db_name,
@@ -709,11 +709,12 @@ class QueryContextFromTSDBAndRPC(QueryContext):
             system_info.disk_usage = _get_sequence_values(disk_usage_info, precision=4)
         # add the consumption of all gaussdb related processes as the total consumption,
         # it is suitable for situations where only one instance exists on a machine, db_mem_usage is the same as him.
-        if is_sequence_valid(db_cpu_usage_info):
+        if is_sequence_valid(db_cpu_usage_info) and is_sequence_valid(cpu_process_number_info):
             system_info.db_cpu_usage = [item / (system_info.cpu_core_number * 100) for item
                                         in _get_sequences_sum_value(db_cpu_usage_info, precision=4, method='all')]
         if is_sequence_valid(db_mem_usage_info):
             system_info.db_mem_usage = _get_sequences_sum_value(db_mem_usage_info, precision=4, method='all')
+            system_info.db_mem_usage = round(system_info.db_mem_usage / 100, 4)
         if is_sequence_valid(user_cpu_usage_info):
             system_info.user_cpu_usage = _get_sequence_values(user_cpu_usage_info, precision=4)
         if is_sequence_valid(mem_usage_info):
@@ -879,7 +880,7 @@ class QueryContextFromTSDBAndRPC(QueryContext):
     def acquire_total_memory_detail(self) -> TotalMemoryDetail:
         memory_detail = TotalMemoryDetail()
         stmt = """
-        select memorytype, memorymbytes from pg_catalog.gs_total_memory_detail 
+        select memorytype, memorybytes from pg_catalog.gs_total_memory_detail 
         where memorytype in ('max_process_memory', 'process_used_memory', 'max_dynamic_memory', 
         'dynamic_used_memory', 'other_used_memory')"""
         rows = global_vars.agent_proxy.call('query_in_database',
@@ -1043,11 +1044,11 @@ class QueryContextFromDriver(QueryContext):
     @exception_catcher
     def acquire_wait_event_info(self) -> ThreadInfo:
         thread_info = ThreadInfo()
-        if not self.slow_sql_instance.query_id:
+        if not self.slow_sql_instance.debug_query_id:
             return thread_info
         stmt = """
         select tid, wait_status, wait_event, block_sessionid, lockmode from pg_catalog.pg_thread_wait_status where 
-        query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.query_id)
+        query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.debug_query_id)
         rows = self.driver.query(stmt, force_connection_db=self.slow_sql_instance.db_name, return_tuples=False)
         if is_driver_result_valid(rows):
             thread_info.event = _get_driver_value(rows, 'event', precision=-1)

@@ -23,9 +23,6 @@ CHILD_NODE_FLAG = '->'
 
 HEADER_PATTERN = re.compile(
     r'(.*?)%s\(cost=(.*?)\.\.(.*?) rows=(.*?) width=(.*?)\)' % INDENT_BLANK)
-ABO_FLAG_PATTERN = re.compile(r'p-time=(.*?) p-rows=(.*?) ')
-ABO_HEADER_PATTERN = re.compile(
-    r'(.*?)%s\(cost=(.*?)\.\.(.*?) rows=(.*?) p-time=(.*?) p-rows=(.*?) width=(.*?)\)' % INDENT_BLANK)
 PROPERTY_PATTERN = re.compile(
     r'(.*?): (.*)')
 IDX_SCAN_PATTERN = re.compile(
@@ -103,10 +100,7 @@ class Operator:
         return True  # Not thrown exception means successful.
 
     def _parse_header(self, line):
-        if re.search(ABO_FLAG_PATTERN, line):
-            name, start_cost, total_cost, rows, _, _, width = re.findall(ABO_HEADER_PATTERN, line)[0]
-        else:
-            name, start_cost, total_cost, rows, width = re.findall(HEADER_PATTERN, line)[0]
+        name, start_cost, total_cost, rows, width = re.findall(HEADER_PATTERN, line)[0]
         self.name = name.strip()
         self.start_cost = float(start_cost)
         self.total_cost = float(total_cost)
@@ -328,6 +322,32 @@ class Plan:
                     break
 
         self.traverse(finder)
+        return opts
+
+    def plan_tree(self):
+        opts = []
+
+        def recursive_helper(node: Operator, opt: list):
+            if node is None:
+                return
+            temp_dict = {'name': node.name,
+                         'level': node.level,
+                         'detail': {'properties': node.properties,
+                                    'start_cost': node.start_cost,
+                                    'total_cost': node.total_cost,
+                                    'exec_cost': node.exec_cost,
+                                    'rows': node.rows,
+                                    'width': node.width,
+                                    'table': node.table,
+                                    'index': node.index}}
+            if node.children:
+                temp_dict['children'] = []
+                for child in node.children:
+                    recursive_helper(child, temp_dict['children'])
+                opt.append(temp_dict)
+            else:
+                opt.append(temp_dict)
+        recursive_helper(self.root_node, opts)
         return opts
 
     def __repr__(self):

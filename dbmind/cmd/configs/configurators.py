@@ -26,7 +26,7 @@ from dbmind.common.utils import (ExceptionCatcher,
                                  cast_to_int_or_float)
 from dbmind.metadatabase.dao.dynamic_config import (
     dynamic_config_get, dynamic_config_set,
-    dynamic_configs_list)
+    dynamic_configs_list, dynamic_category_configs_get)
 
 from .base_configurator import BaseConfig
 
@@ -218,3 +218,8 @@ class DynamicConfig:
     @staticmethod
     def list():
         return dynamic_configs_list()
+
+    @staticmethod
+    def get_category_values(category):
+        return dynamic_category_configs_get(category)
+

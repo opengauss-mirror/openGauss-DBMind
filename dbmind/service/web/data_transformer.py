@@ -26,16 +26,15 @@ from itertools import groupby
 import sqlparse
 
 from dbmind import global_vars
-from dbmind.app.monitoring import ad_pool_manager
+from dbmind.app.monitoring import ad_pool_manager, regular_inspection
 from dbmind.app.optimization import get_database_schemas, TemplateArgs
 from dbmind.app.optimization.index_recommendation import rpc_index_advise, is_rpc_available
 from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
-from dbmind.app.timed_app import get_timed_app_records
 from dbmind.common.algorithm.forecasting import quickly_forecast
 from dbmind.common.types import ALARM_TYPES, ALARM_LEVEL
 from dbmind.common.types import Sequence
 from dbmind.components.extract_log import get_workload_template
-from dbmind.components.slow_query_diagnosis import analyze_slow_query_with_rpc
+from dbmind.components.slow_query_diagnosis import analyze_slow_query_with_rpc, get_query_plan
 from dbmind.components.sql_rewriter.sql_rewriter import rewrite_sql_api
 from dbmind.metadatabase import dao
 from dbmind.common.tsdb import TsdbClientFactory
@@ -114,12 +113,39 @@ def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=
     return fetcher
 
 
-def get_metric_sequence(metric_name, from_timestamp=None, to_timestamp=None, step=None):
+def get_metric_sequence(metric_name, instance, from_timestamp=None, to_timestamp=None, step=None, fetch_all=False,
+                        regrex=False, labels=None, regrex_labels=None):
     # notes: 1) this method must ensure that the front-end and back-end time are consistent
     #        2) this method will return the data of all nodes in the cluster, which is not friendly to some scenarios
-    fetcher = get_metric_sequence_internal(metric_name, from_timestamp, to_timestamp, step)
-    result = fetcher.fetchall()
-    result.sort(key=lambda s: str(s.labels))  # Sorted by labels.
+    if to_timestamp is None:
+        to_timestamp = int(time.time() * 1000)
+    if from_timestamp is None:
+        from_timestamp = to_timestamp - 0.5 * 60 * 60 * 1000  # It defaults to show a half of hour.
+    from_datetime = datetime.datetime.fromtimestamp(from_timestamp / 1000)
+    to_datetime = datetime.datetime.fromtimestamp(to_timestamp / 1000)
+    fetcher = dai.get_metric_sequence(metric_name, from_datetime, to_datetime, step=step)
+    if instance is None:
+        from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
+        if from_server_predicate:
+            fetcher.from_server_like(from_server_predicate)
+    else:
+        if regrex:
+            instance = instance + ':?.*'
+            fetcher.from_server_like(instance)
+        else:
+            fetcher.from_server(instance)
+
+    if labels is not None:
+        labels = string_to_dict(labels, delimiter=',')
+        fetcher.filter(**labels)
+    if regrex_labels is not None:
+        regrex_labels = string_to_dict(regrex_labels, delimiter=',')
+        fetcher.filter_like(**regrex_labels)
+
+    if fetch_all:
+        result = fetcher.fetchall()
+    else:
+        result = [fetcher.fetchone()]
     return list(map(lambda s: s.jsonify(), result))
 
 
@@ -364,10 +390,6 @@ def get_database_list():
     return list(rv)
 
 
-def get_latest_alert():
-    return get_timed_app_records()
-
-
 def get_cluster_summary():
     node_status = get_cluster_node_status()['node_list']
     nb_node = len(node_status)
@@ -569,14 +591,27 @@ def get_advised_index():
         row = [schema_name, db_name, tb_name,
                ';'.join([x.columns for x in group_result]),
                len(group_result),
-               int(group_result[0].select_ratio * group_result[0].stmt_count / 100),
-               int(group_result[0].update_ratio * group_result[0].stmt_count / 100),
-               int(group_result[0].delete_ratio * group_result[0].stmt_count / 100),
-               int(group_result[0].insert_ratio * group_result[0].stmt_count / 100),
+               float(group_result[0].select_ratio), 
+               float(group_result[0].update_ratio), 
+               float(group_result[0].delete_ratio), 
+               float(group_result[0].insert_ratio), 
                sum(float(x.optimized) / len(group_result) for x in group_result)]
         advised_indexes['rows'].append(row)
 
     return {'advised_indexes': advised_indexes}
+
+
+def get_index(index_type):
+    indexes = dict()
+    index_type_map = {1:'advised_indexes', 3:'invalid_indexes', 2:'redundant_indexes'}
+    _indexes = dao.index_recommendation.get_advised_index(
+        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT), index_type=index_type)
+    indexes['header'] = ['schema', 'database', 'table', index_type_map[index_type]]
+    indexes['rows'] = []
+    for _index in _indexes:
+        indexes['rows'].append([_index.schema_name, _index.db_name, _index.tb_name, _index.columns])
+
+    return {index_type_map[index_type]: indexes}
 
 
 def get_positive_sql(pagesize, current):
@@ -596,7 +631,7 @@ def get_positive_sql(pagesize, current):
                positive_sql_result[0].stmt_count]
         positive_sql['rows'].append(row)
 
-    return {'positive_sql': positive_sql}
+    return positive_sql
 
 
 def get_existing_indexes(pagesize, current):
@@ -631,14 +666,19 @@ def get_index_advisor_summary(positive_pagesize, positive_current,
     index_advisor_summary.update(latest_indexes_stat)
     index_advisor_summary.update(get_index_change())
     advised_index = get_advised_index()
-    positive_sql = get_positive_sql(positive_pagesize, positive_current)
+    redundant_index = get_index(index_type=2)
+    invalid_index = get_index(index_type=3)
+    positive_sql = {'positive_sql': get_positive_sql(positive_pagesize, positive_current)}
     index_advisor_summary.update(advised_index)
+    index_advisor_summary.update(redundant_index)
+    index_advisor_summary.update(invalid_index)
     index_advisor_summary.update(positive_sql)
     index_advisor_summary.update(
         {'improvement_rate': 100 * float(
             latest_indexes_stat['positive_sql_count'] / latest_indexes_stat['stmt_count']) if latest_indexes_stat[
             'stmt_count'] else 0})
     index_advisor_summary.update({'existing_indexes': get_existing_indexes(existing_pagesize, existing_current)})
+    logging.error('index_summary_advisor is: %s', str(index_advisor_summary))
     return index_advisor_summary
 
 
@@ -851,19 +891,38 @@ def get_top_queries(username, password):
            n_calls,
            min_elapse_time,
            max_elapse_time,
-           total_elapse_time / ( n_calls + 0.001 ) AS avg_elapse_time,
+           total_elapse_time / n_calls AS avg_elapse_time,
            n_returned_rows,
+           n_tuples_fetched,
+           n_tuples_returned,
+           n_tuples_inserted,
+           n_tuples_updated,
+           n_tuples_deleted,
+           n_blocks_fetched,
+           n_blocks_hit,
+           n_soft_parse,
+           n_hard_parse,
            db_time,
            cpu_time,
            execution_time,
            parse_time,
-           last_updated,
+           plan_time,
+           rewrite_time,
+           sort_count,
+           sort_time,
+           sort_mem_used,
            sort_spill_count,
-           hash_spill_count
+           sort_spill_size,
+           hash_count,
+           hash_time,
+           hash_mem_used,
+           hash_spill_count,
+           hash_spill_size,
+           last_updated
     FROM   dbe_perf.statement
-    ORDER  BY n_calls,
+    ORDER  BY n_calls DESC,
               avg_elapse_time DESC
-    LIMIT  10;
+    LIMIT  50;
     """
     res = global_vars.agent_proxy.current_rpc().call_with_another_credential(
         username, password, 'query_in_postgres', stmt
@@ -891,53 +950,31 @@ def get_top_queries(username, password):
 def get_active_query(username, password):
     stmt = """\
     SELECT datname,
+           pid, 
+           sessionid, 
+           query_id, 
            usename,
            application_name,
-           client_addr,
+           backend_start,
+           xact_start,
            query_start,
            waiting,
            state,
-           query,
-           connection_info
-    FROM   pg_stat_activity; 
+           query
+    FROM   pg_stat_activity where query_id != '0'
+    order by query_start desc;
     """
     res = global_vars.agent_proxy.current_rpc().call_with_another_credential(
         username, password, 'query_in_postgres', stmt
     )
-    sorted_fields = [
-        'datname',
-        'usename',
-        'application_name',
-        'client_addr',
-        'query_start',
-        'waiting',
-        'state',
-        'query',
-        'connection_info'
-    ]
-    return psycopg2_dict_jsonify(res, sorted_fields)
+    return psycopg2_dict_jsonify(res)
 
 
 def get_holding_lock_query(username, password):
-    stmt = """\
-    SELECT d.datname,
-           s.application_name,
-           s.sessionid,
-           c.relname,
-           c.relkind,
-           l.locktype,
-           l.mode,
-           l.granted,
-           s.xact_start,
-           extract(epoch
-               FROM pg_catalog.now() - s.xact_start) AS holding_time,
-           s.query
-    FROM pg_locks AS l
-    INNER JOIN pg_database AS d ON l.database = d.oid
-    INNER JOIN pg_class AS c ON l.relation = c.oid
-    INNER JOIN pg_stat_activity AS s ON l.pid = s.pid
-    WHERE s.pid != pg_catalog.pg_backend_pid();
-    """
+    stmt = """
+    select datname, pid, sessionid, usename, application_name, backend_start, xact_start, query_start, waiting, state, query from pg_catalog.pg_stat_activity where waiting = 't';
+
+"""
     res = global_vars.agent_proxy.current_rpc().call_with_another_credential(
         username, password, 'query_in_postgres', stmt
     )
@@ -970,6 +1007,13 @@ def toolkit_index_advise(current, pagesize, instance, database, sqls, max_index_
         database_templates = dict()
         get_workload_template(database_templates, result, TemplateArgs(10, 5000))
         executor = RpcExecutor(database, None, None, None, None, schema_names)
+        executor2 = RpcExecutor(database, None, None, None, None, schema_names)
+
+        def execute_sqls(sqls):
+            with global_vars.agent_proxy.context(instance):
+                return executor2.execute_sqls(sqls)
+
+        executor.execute_sqls = execute_sqls
         detail_info = rpc_index_advise(executor, database_templates, max_index_num, max_index_storage)
         if detail_info is None:
             return []
@@ -990,6 +1034,7 @@ def index_advise_final_result(detail_info, current, pagesize):
             redundant_list.append(element)
     final_result['redundant_indexes'] = redundant_list
     final_result['useless_indexes'] = useless_list
+    logging.error('recommend_indexes: %s', recommend_indexes)
     for item in recommend_indexes:
         advise_index = dict()
         advise_index['index'] = item['statement']
@@ -1026,30 +1071,22 @@ def pagination(data, page, size):
         return result
 
 
-def toolkit_index_advise_default_value():
-    opt_default_value = dict()
-    opt_default_value['max_index_num'] = global_vars.dynamic_configs.get_int_or_float(
-        'SELF-OPTIMIZATION', 'max_index_num', fallback=10
-    )
-    opt_default_value['max_index_storage'] = global_vars.dynamic_configs.get_int_or_float(
-        'SELF-OPTIMIZATION', 'max_index_storage', fallback=100
-    )
-    opt_default_value['min_improved_rate'] = global_vars.dynamic_configs.get_int_or_float(
-        'SELF-OPTIMIZATION', 'min_improved_rate', fallback=100
-    )
-    return opt_default_value
-
-
 def toolkit_rewrite_sql(instance, database, sqls):
     with global_vars.agent_proxy.context(instance):
         return rewrite_sql_api(database, sqls)
 
 
-def toolkit_slow_sql_rca(query, dbname=None, schema=None, start_time=None, end_time=None):
-    return analyze_slow_query_with_rpc(
-        query=query, dbname=dbname, schema=schema,
-        start_time=start_time, end_time=end_time
-    )
+def toolkit_slow_sql_rca(**params):
+    query = params.pop('query')
+    db_name = params.pop('db_name')
+    return analyze_slow_query_with_rpc(query, db_name, **params)
+
+
+def toolkit_get_query_plan(**params):
+    query = params.pop("query")
+    db_name = params.pop("db_name")
+    schema_name = params.pop("schema_name", "public")
+    return get_query_plan(query, db_name, schema_name)
 
 
 def search_slow_sql_rca_result(sql, start_time=None, end_time=None, limit=None):
@@ -1074,13 +1111,53 @@ def get_regular_inspections(inspection_type):
     return sqlalchemy_query_jsonify(dao.regular_inspections.select_metric_regular_inspections(
         instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
         inspection_type=inspection_type, limit=1),
-        field_names=['instance', 'report', 'start', 'end'])
+        field_names=['instance', 'report', 'start', 'end', 'id', 'state', 'cost_time', 'inspection_type'])
 
 
 def get_regular_inspections_count(inspection_type):
     return dao.regular_inspections.count_metric_regular_inspections(
         instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
         inspection_type=inspection_type)
+
+
+def exec_real_time_inspections(inspection_type, start_time, end_time, select_metrics):
+    if inspection_type not in ('daily_check', 'weekly_check', 'monthly_check', 'real_time_check'):
+        raise ValueError('Incorrect value for parameter inspection_type: {}.'.format(inspection_type))
+    if not (isinstance(start_time, str) and start_time.isnumeric() and len(start_time) == 13):
+        raise ValueError('Incorrect value for parameter start_time: {}.'.format(start_time))
+    if not (isinstance(end_time, str) and end_time.isnumeric() and len(end_time) == 13):
+        raise ValueError('Incorrect value for parameter end_time: {}.'.format(end_time))
+    start_time = datetime.datetime.fromtimestamp(int(start_time)/1000)
+    end_time = datetime.datetime.fromtimestamp(int(end_time)/1000)
+    cur_instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
+    inspect_state = regular_inspection.real_time_inspection(cur_instance, start_time, end_time, select_metrics)
+    return {'success': True if inspect_state == 'success' else False}
+
+
+def list_real_time_inspections():
+    cur_instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
+    
+    return sqlalchemy_query_jsonify(dao.regular_inspections.select_metric_regular_inspections(
+        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT), show_report=False),
+        field_names=['instance', 'start', 'end', 'id', 'state', 'cost_time', 'inspection_type'])
+
+def report_real_time_inspections(spec_id):
+    if not (isinstance(spec_id, str) and spec_id.isnumeric()):
+        raise ValueError('Incorrect value for parameter spec_id: {}.'.format(spec_id))
+    cur_instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
+    
+    return sqlalchemy_query_jsonify(dao.regular_inspections.select_metric_regular_inspections(
+        instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT), spec_id=int(spec_id)),
+        field_names=['instance', 'report', 'start', 'end', 'id', 'state', 'cost_time', 'inspection_type'])
+
+
+def delete_real_time_inspections(spec_id):
+    spec_ids = spec_id.split(",")
+    for s_id in spec_ids:
+        if not (isinstance(s_id, str) and s_id.isnumeric()):
+            raise ValueError('Incorrect value for parameter spec_id: {}.'.format(s_id))
+        inspect_state = dao.regular_inspections.delete_metric_regular_inspections(int(s_id))
+    return {'success': True if inspect_state == 'success' else False}
 
 
 def get_correlation_result(metric_name, instance, start_time, end_time, topk=10,
@@ -1272,22 +1349,24 @@ def clear_detector():
 
 
 def get_collection_system_status():
-    collection_detail = {'header': ['component', 'listen_address', 'is_alive'], 'rows': [], 'suggestions': []}
+    collection_detail = {'header': ['component', 'instance', 'listen_address', 'is_alive'], 'rows': [], 'suggestions': []}
     tsdb_status = dai.check_tsdb_status()
     exporter_status = dai.check_exporter_status()
     collection_detail['suggestions'] = dai.diagnosis_exporter_status(exporter_status)
     for component, details in exporter_status.items():
         for detail in details:
             listen_address = detail['listen_address']
+            instance = detail['instance']
             status = True if detail['status'] == 'up' else False
-            collection_detail['rows'].append([component, listen_address, status])
+            collection_detail['rows'].append([component, instance, listen_address, status])
     collection_detail['rows'].append([tsdb_status['name'],
+                                      tsdb_status['instance'],
                                       tsdb_status['listen_address'],
                                       True if tsdb_status['status'] == 'up' else False])
     return collection_detail
 
 
-def collect_workloads(username, password, data_source, databases, schemas, start_time, end_time, db_users, sql_types, duration=10):
+def collect_workloads(username, password, data_source, databases, schemas, start_time, end_time, db_users, sql_types, duration=0):
     # transfer timestamps to string format
     if start_time:
         start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time // 1000))
@@ -1298,8 +1377,72 @@ def collect_workloads(username, password, data_source, databases, schemas, start
     if data_source == 'pg_stat_activity':
         stmts = collect_statement_from_activity(databases, db_users, sql_types, duration=duration)
     elif data_source == 'dbe_perf.statement_history':
+        schemas = None
         stmts = collect_statement_from_statement_history(databases, schemas, start_time, end_time, db_users, sql_types, duration=duration)
     else:
         stmts = collect_statement_from_asp(databases, start_time, end_time, db_users, sql_types)
     res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmts)
     return psycopg2_dict_jsonify(res)
+
+
+
+def get_detail_statement(username, password, unique_sql_id, start_time, end_time):
+    start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time // 1000))
+    end_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time // 1000))
+    stmts = f"""
+    select user_name, db_name, schema_name, application_name, case when (client_addr is null) then '7.194.130.42' else client_addr end as client_addr, client_port, unique_query_id,
+    start_time, finish_time, extract(epoch from finish_time - start_time) as duration,
+    n_returned_rows, n_tuples_fetched, n_tuples_returned, n_tuples_inserted, n_tuples_updated,
+    n_tuples_deleted, n_blocks_fetched, n_blocks_hit, n_soft_parse, n_hard_parse, db_time,
+    cpu_time, parse_time, plan_time, data_io_time, lock_wait_time, lwlock_wait_time,
+    regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g') as query from dbe_perf.statement_history 
+    where unique_query_id = '{unique_sql_id}' and upper(split_part(trim(query), ' ', 1)) not in ('PREPARE')
+"""
+    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmts)
+    return psycopg2_dict_jsonify(res)
+
+
+def pg_terminate_pid(username, password, pid):
+    stmt = f"select PG_TERMINATE_BACKEND({pid})"
+    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmt)
+    return psycopg2_dict_jsonify(res)
+
+
+def get_wait_status(username, password, pid, sessionid):
+    stmt = f"""
+    SELECT wait_status,
+           wait_event,
+           locktag,
+           lockmode,
+           block_sessionid
+    FROM PG_THREAD_WAIT_STATUS
+    WHERE tid = {pid} and sessionid={sessionid};
+    """
+    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmt)
+    return psycopg2_dict_jsonify(res)
+
+
+def get_wait_tree(username, password, sessionid):
+    stmt = f"""
+    SELECT query,
+           PG_STAT_ACTIVITY.query_id as query_id,
+           wait_status,
+           wait_event,
+           locktag,
+           lockmode,
+           block_sessionid
+    FROM PG_STAT_ACTIVITY
+    LEFT JOIN PG_THREAD_WAIT_STATUS
+    ON PG_THREAD_WAIT_STATUS.sessionid = PG_STAT_ACTIVITY.sessionid
+    WHERE PG_STAT_ACTIVITY.sessionid={sessionid}
+    """
+    if not sessionid:
+        return []
+    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmt)
+    for _tuple in res:
+        return [{'name': _tuple['query_id'],
+                 'details': _tuple, 
+                 'children': get_wait_tree(username, password, _tuple['block_sessionid']),
+                 }]
+    return [] 
+    

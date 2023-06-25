@@ -135,7 +135,7 @@ class SlowSQLAnalyzer:
         # In fact, we should implement a LRU-based buffer instead of an ordinary list.
         # But for the interaction among multiple processes, an LRU-based buffer is more complicated.
         if strict:
-            diagnosed_flag_tuple = (slow_sql_instance.start_at,
+            diagnosed_flag_tuple = (slow_sql_instance.start_time,
                                     slow_sql_instance.duration_time,
                                     slow_sql_instance.template_id)
             if diagnosed_flag_tuple in self.sql_buffers:
@@ -143,7 +143,7 @@ class SlowSQLAnalyzer:
         else:
             # Add start time for expired action.
             sql_hashcode = slow_sql_instance.hash_query(use_root_cause=True)
-            diagnosed_flag_tuple = (slow_sql_instance.start_at,) + sql_hashcode
+            diagnosed_flag_tuple = (slow_sql_instance.start_time,) + sql_hashcode
 
             retention_seconds = global_vars.dynamic_configs.get_int_or_float('self_monitoring',
                                                                              'result_retention_seconds')

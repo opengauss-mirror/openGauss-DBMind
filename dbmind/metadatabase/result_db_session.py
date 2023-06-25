@@ -44,7 +44,7 @@ def update_session_clz_from_configs():
         engine = create_engine(dsn, pool_pre_ping=True, poolclass=SingletonThreadPool)
     else:
         engine = create_engine(dsn, pool_pre_ping=True,
-                               pool_size=10, max_overflow=10, pool_recycle=25,
+                               pool_size=10, max_overflow=20, pool_recycle=25,
                                connect_args={'connect_timeout': 5, 'application_name': 'DBMind-Service'})
 
     session_maker = sessionmaker(bind=engine, autocommit=True)

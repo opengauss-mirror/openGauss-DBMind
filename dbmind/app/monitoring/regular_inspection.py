@@ -21,6 +21,7 @@ from dbmind.service import dai
 from dbmind.service.web.jsonify_utils import \
     sqlalchemy_query_jsonify_for_multiple_instances as sqlalchemy_query_jsonify_for_multiple_instances
 from dbmind.service.dai import is_sequence_valid
+from dbmind.service.web import data_transformer
 
 ONE_DAY = 24 * 60
 
@@ -127,8 +128,8 @@ class DailyInspection:
             if is_sequence_valid(sequence):
                 dbname = sequence.labels.get('datname', 'UNKNOWN')
                 rv['rows'].append((dbname, 
-                                   round(get_sequence_value(sequence, max) / 1024 / 1024, 2), 
-                                   round(get_sequence_value(sequence, min) / 1024 / 1024, 2), 'False'))
+                                   round(get_sequence_value(sequence, max), 2), 
+                                   round(get_sequence_value(sequence, min), 2), 'False'))
         return rv
 
     @property
@@ -515,4 +516,123 @@ class MultipleDaysInspection:
                 'slow_sql_rca': self.slow_sql_rca,
                 'connection': self.connection,
                 'dynamic_memory': self.dynamic_memory,
-                'risks': self.risk} 
+                'risks': self.risk}
+
+class MultipleHoursInspection:
+    def __init__(self, instance, start, end):
+        self._report = {}
+        self._start = start
+        self._end = end
+        self._agent_instance = instance
+        all_agents = global_vars.agent_proxy.agent_get_all()
+        self._instances_with_port = all_agents.get(instance)
+        self._instances_with_no_port = [i.split(':')[0] for i in self._instances_with_port]
+
+    @property
+    def get_system_resource(self):
+        instance_resource = {}
+        agent_instance_no_port = self._agent_instance.split(':')[0]
+        cpu_metrics = ('os_cpu_system_usage', 'os_cpu_user_usage', 'os_cpu_idle_usage', 'os_cpu_iowait_usage')
+        cpu_resource = {}
+        for metric_name in cpu_metrics:
+            cpu_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, agent_instance_no_port, self._start, self._end)
+        instance_resource['cpu'] = cpu_resource
+        io_metrics = ('os_disk_io_read_bytes', 'os_disk_io_write_bytes', 'os_disk_io_read_delay', 'os_disk_io_write_delay', 'os_disk_iops', 'os_disk_io_queue_length', 'os_disk_ioutils')
+        io_resource = {}
+        for metric_name in io_metrics:
+            io_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, agent_instance_no_port, self._start, self._end, fetch_all=True)
+        instance_resource['io'] = io_resource
+        memory_metrics = ('node_memory_MemTotal_bytes', 'node_memory_MemAvailable_bytes', 'node_memory_SwapTotal_bytes', 'node_memory_SwapFree_bytes', 'os_mem_usage', 'node_memory_Buffers_bytes', 'node_memory_MemAvailable_bytes', 'node_memory_Cached_bytes')
+        memory_resource = {}
+        for metric_name in memory_metrics:
+            memory_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, agent_instance_no_port, self._start, self._end, regrex=True)
+        instance_resource['memory'] = memory_resource
+        network_metrics = ('os_network_receive_bytes', 'os_network_transmit_bytes', 'os_network_receive_drop', 'os_network_transmit_drop', 'os_network_receive_error', 'os_network_transmit_error')
+        network_resource = {}
+        for metric_name in network_metrics:
+            network_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, agent_instance_no_port, self._start, self._end, fetch_all=True)
+        instance_resource['network'] = network_resource
+        storage_metrics = ('node_filesystem_size_bytes', 'os_disk_usage')
+        storage_resource = {}
+        for metric_name in storage_metrics:
+            storage_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, agent_instance_no_port, self._start, self._end, fetch_all=True, regrex=True, regrex_labels="device=/.*")
+        instance_resource['storage'] = storage_resource
+        return instance_resource
+    
+    @property
+    def get_database_status(self):
+        instance_database = {}
+        agent_instance_no_port = self._agent_instance.split(':')[0]
+        service_metrics = ('pg_db_xact_commit', 'pg_db_xact_rollback', 'pg_db_conflicts', 'pg_db_confl_lock', 'pg_db_confl_snapshot', 'pg_db_confl_bufferpin', 'pg_db_confl_deadlock', 'pg_db_deadlocks', 'pg_db_temp_bytes', 'pg_db_temp_files', 'gaussdb_tup_inserted_rate', 'gaussdb_tup_deleted_rate', 'gaussdb_tup_updated_rate', 'gaussdb_tup_fetched_rate')
+        service_resource = {}
+        for metric_name in service_metrics:
+            service_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, self._agent_instance, self._start, self._end, fetch_all=True)
+        instance_database['service'] = service_resource
+        # CPU、I/O、Memory、Network、Storage
+        # one、all、one、all、all
+        # DBServiceCapability、DBPerformanceIndicators、DBLockingAndCaching、DBResourceUsage、Capacity Metric、Session/Top Query、Memory
+        # all、one、all、one、all、-、one
+        perform_metrics = ('gaussdb_total_connection', 'gaussdb_active_connection', 'gaussdb_idle_connection', 'pg_sql_count_ddl', 'pg_sql_count_dml', 'pg_sql_count_dcl', 'statement_responsetime_percentile_p80', 'statement_responsetime_percentile_p95')
+        perform_resource = {}
+        for metric_name in perform_metrics:
+            perform_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, self._agent_instance, self._start, self._end)
+        instance_database['perform'] = perform_resource
+        # sql/locking、
+        cache_metrics = ('pg_db_blks_read', 'pg_db_blks_hit', 'pg_db_blks_access')
+        cache_resource = {}
+        for metric_name in cache_metrics:
+            cache_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, self._agent_instance, self._start, self._end, fetch_all=True)
+        instance_database['cache'] = cache_resource
+        resource_metrics = ('gaussdb_cpu_time', 'pg_summary_file_iostat_total_phyblkrd', 'pg_summary_file_iostat_total_phyblkwrt')
+        res_resource = {}
+        for metric_name in resource_metrics:
+            res_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, self._agent_instance, self._start, self._end)
+        instance_database['resource'] = res_resource
+        capacity_metrics = ('pg_database_size_bytes', )
+        capacity_resource = {}
+        for metric_name in capacity_metrics:
+            capacity_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, self._agent_instance, self._start, self._end, fetch_all=True)
+        instance_database['capacity'] = capacity_resource
+        memory_metric = 'pg_total_memory_detail_mbytes'
+        memory_labels = {'max_dynamic_memory': 'type=max_dynamic_memory', 'max_shared_memory': 'type=max_shared_memory', 'max_process_memory': 'type=max_process_memory', 'dynamic_used_memory': 'type=dynamic_used_memory', 'dynamic_peak_memory': 'type=dynamic_peak_memory', 'dynamic_used_shrctx': 'type=dynamic_used_shrctx', 'dynamic_peak_shrctx': 'type=dynamic_peak_shrctx', 'shared_used_memory': 'type=shared_used_memory', 'process_used_memory': 'type=process_used_memory', 'other_used_memory': 'type=other_used_memory'}
+        memory_resource = {}
+        for metric_name, label_name in memory_labels.items():
+            memory_resource[metric_name] = data_transformer.get_metric_sequence(memory_metric, self._agent_instance, self._start, self._end, labels=label_name)
+        instance_database['memory'] = memory_resource
+        return instance_database
+
+    def __call__(self, select_metrics):
+        result = {}
+        if 'System' in select_metrics:
+            result['system'] = self.get_system_resource
+        if 'Database' in select_metrics:
+            result['database'] = self.get_database_status
+        return result
+
+def real_time_inspection(instance, start, end, select_metrics):
+    if not (isinstance(start, datetime) and isinstance(end, datetime)):
+        raise TypeError("start and end can only be of type datetime.datetime")
+    results = []
+    start_record = datetime.now()
+    try:
+        inspector = MultipleHoursInspection(instance, int(start.timestamp() * 1000), int(end.timestamp()) * 1000)
+        report = inspector(select_metrics)
+        inspect_state = 'success'
+    except Exception as exception:
+        inspect_state = 'fail'
+        report = {}
+        import logging
+        logging.error('exec real_time inspection failed, because: {}'.format(exception))
+
+    end_record = datetime.now()
+    cost_time = end_record - start_record
+    results.append({'instance': instance,
+                    'inspection_type': 'real_time_check',
+                    'start': int(start.timestamp() * 1000),
+                    'end': int(end.timestamp()) * 1000,
+                    'report': report,
+                    'state': inspect_state,
+                    'cost_time': cost_time.total_seconds(),
+                    'conclusion': ''})
+    dai.save_regular_inspection_results(results)
+    return inspect_state

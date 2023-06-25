@@ -246,6 +246,8 @@ class OAuth2:
         OAuth2.timed_session.ttl = seconds
 
     def login_handler(self, form: OAuth2PasswordRequestForm = Depends()):
+        logging.warning("----------------token_______________")
+        logging.warning(json.dumps(obj=form.__dict__,ensure_ascii=False))
         try:
             if not self._pwd_checker(form.username, form.password, scopes=form.scopes):
                 raise HTTPException(400, detail='Incorrect username or password.')

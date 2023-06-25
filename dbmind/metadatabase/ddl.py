@@ -74,4 +74,3 @@ def truncate_table(table_name):
         else:
             sql_prefix = 'TRUNCATE TABLE '
         session.execute(text(sql_prefix + table_name))
-

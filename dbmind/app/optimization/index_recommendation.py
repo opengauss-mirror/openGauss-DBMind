@@ -17,7 +17,6 @@ from datetime import datetime, timedelta
 import time
 
 from dbmind import global_vars
-from dbmind.common.parser.sql_parsing import fill_value, standardize_sql
 from dbmind.components.extract_log import get_workload_template
 from dbmind.components.index_advisor import index_advisor_workload, process_bar
 from dbmind.components.fetch_statement import fetch_statement
@@ -143,8 +142,6 @@ def do_index_recomm(templatization_args, instance, db_name, schemas, database_te
                                              templatization_args)
 
     detail_info = rpc_index_advise(executor, database_templates)
-    # Query source is used to record queries that cannot be distinguished from different databases.
-    detail_info['stmt_source'] = source
     detail_info['db_name'] = db_name
     detail_info['instance'] = instance
     return detail_info, {db_name: database_templates}
@@ -152,66 +149,34 @@ def do_index_recomm(templatization_args, instance, db_name, schemas, database_te
 
 def get_queries(database_templates, instance, db_name, schemas, optimization_interval, templatization_args):
     source = QUERY_SOURCE.TSDB
-    start_time = datetime.now() - timedelta(seconds=optimization_interval)
-    end_time = datetime.now()
     queries = []
-
-    # firstly, try to fetch sequence from TSDB
-    for pg_sql_statement_full_count in dai.get_metric_sequence(
-            'pg_sql_statement_full_count',
-            start_time,
-            end_time).from_server(instance).fetchall():
-        if (pg_sql_statement_full_count.labels
-                and pg_sql_statement_full_count.labels['datname'] == db_name):
-            query = standardize_sql(fill_value(pg_sql_statement_full_count.labels['query']))
-            queries.append(query)
-
+    
+    database_templates = {}
     _executor = RpcExecutor('postgres', None, None, None, None, 'public')
-    # secondly, try to fetch queries from ASP
-    if not queries:
-        source = QUERY_SOURCE.ASP
-        execute_result = _executor.execute_sqls(['show enable_asp'])
-        if len(execute_result) and execute_result[0][0] == 'on':
-            queries.extend(
-                fetch_statement.fetch_statements(_executor, 'asp', db_name, '',
-                                                 start_time=start_time.strftime('%Y-%m-%d %H:%M:%S'),
-                                                 end_time=end_time.strftime('%Y-%m-%d %H:%M:%S')
-                                                 )
-            )
-    # finally, try to fetch queries from dbe_perf.statement_history
-    if not queries:
-        source = QUERY_SOURCE.HISTORY
-        for schema in schemas.split(','):
-            for query in fetch_statement.fetch_statements(_executor, 'history', db_name, schema):
-                if is_dml(query):
-                    queries.append(query)
-        counter = Counter(queries)
-        # The number of unique_query must be greater than MIN_HISTORY_QUERY_NUM
-        if len(counter.keys()) < MIN_HISTORY_QUERY_NUM:
-            executor = RpcExecutor(db_name, None, None, None, None, schemas)
-            source = QUERY_SOURCE.STATEMENT
-            valid_queries = dict()
-            execute_result = executor.execute_sqls(
-                    [FETCH_UNIQUE_QUERY_FROM_STATEMENT]
-            )
-            for row in execute_result:
-                if hasattr(row, '__iter__') and len(row) == 3:
-                    query, n_calls, execution_time = row
-                else:
-                    logging.warning('Cannot get queries from the table '
-                                    'statements for index advisor '
-                                    'because cannot unpack the result %s.', row
-                                    )
-                    continue
-                if not is_dml(query):
-                    continue
-                if is_valid_statement(executor, query):
-                    valid_queries[query] = {
-                        'samples': [query], 'cnt': n_calls, 'update': [time.time()]
-                    }
-                if len(valid_queries.keys()) > templatization_args.max_template_num:
-                    break
-            database_templates = valid_queries
-            queries = []
-    get_workload_template(database_templates, queries, templatization_args)
+    
+    stmt = f"""select regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END),
+                           E'[\\n\r]+', ' ', 'g') as q, n_calls from dbe_perf.statement where (query not ilike '% pg_%') and (query not ilike '% dbe_perf.%')
+                           order by execution_time desc;"""
+    executor = RpcExecutor(db_name, None, None, None, None, schemas)
+    for query, n_calls in _executor.execute_sqls([stmt]):
+        if query.lower().startswith(('prepare','explain','set')): 
+            continue
+        is_system_schema = False
+        for schema in ('pg_catalog.', 'information_schema.', 'dbe_pldeveloper', 'db4ai'):
+            if schema in query.lower():
+                is_system_schema = True    
+                break
+        if is_system_schema:
+            continue
+                
+        if is_valid_statement(executor, query):
+            database_templates.update({query: {
+                'samples': [query], 'cnt': n_calls, 'update': [time.time()]
+            }})
+
+        if len(database_templates.keys()) > templatization_args.max_template_num:
+            break
+        with open(f'/root/lk/DBMind/query_{db_name}.sql','w') as fileh:
+            fileh.write(str(database_templates)) 
     return database_templates, source
+

@@ -71,7 +71,10 @@ def collect_statement_from_asp(databases, start_time, end_time, db_users, sql_ty
         S.cpu_time / S.n_calls as avg_cpu_time, S.parse_time / S.n_calls as
         avg_parse_time, S.plan_time / S.n_calls as avg_plan_time,
         S.data_io_time / S.n_calls as avg_data_io_time, S.sort_spill_count,
-        S.hash_spill_count, regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g') as query  FROM dbe_perf.statement S INNER JOIN gs_asp G ON G.unique_query_id = S.unique_sql_id INNER JOIN pg_catalog.pg_database D ON G.databaseid = D.oid where G.sample_time <= '{end_time}'"""
+        S.hash_spill_count,
+        regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g') as query
+        FROM dbe_perf.statement S INNER JOIN gs_asp G ON G.unique_query_id = S.unique_sql_id
+        INNER JOIN pg_catalog.pg_database D ON G.databaseid = D.oid where G.sample_time <= '{end_time}'"""
     if start_time is not None:
         stmt += f" and G.sample_time >= '{start_time}'"
     if databases is not None:
@@ -84,12 +87,15 @@ def collect_statement_from_asp(databases, start_time, end_time, db_users, sql_ty
         db_users = _add_quote(db_users)
         stmt += f" and S.user_name in {db_users}"
     stmt += f" limit {STATEMENT_LENGTH_LIMIT};"
-    return stmt 
+    return stmt
 
 
 def collect_statement_from_activity(databases, db_users, sql_types, duration=60):
     stmt = f"""
-    SELECT usename, datname, application_name, sessionid, query_id, extract(epoch from pg_catalog.now() - query_start) as duration, regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g') as query FROM pg_catalog.pg_stat_activity WHERE state != 'idle' and duration >= {duration}
+    SELECT usename, datname, application_name, sessionid, query_id, extract(epoch from pg_catalog.now() - query_start) 
+    as duration, regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g')
+    as query FROM pg_catalog.pg_stat_activity
+    WHERE state != 'idle' and application_name != 'DBMind-openGauss-exporter' and query_id != 0 and duration >= {duration}
 """
     if databases is not None:
         databases = _add_quote(databases)
@@ -101,17 +107,22 @@ def collect_statement_from_activity(databases, db_users, sql_types, duration=60)
         sql_types = _add_quote(sql_types)
         stmt += f" and upper(split_part(trim(query), ' ', 1)) in {sql_types}"
     stmt += f" limit {STATEMENT_LENGTH_LIMIT};"
-    return stmt   
+    return stmt
     
 
-def collect_statement_from_statement_history(databases, schemas, start_time, end_time, db_users, sql_types, duration=60):
+def collect_statement_from_statement_history(databases, schemas, start_time, end_time, db_users,
+                                             sql_types, template_id, duration=60):
     stmt = f"""
     select user_name, db_name, schema_name, application_name, unique_query_id,
     start_time, finish_time, extract(epoch from finish_time - start_time) as duration,
     n_returned_rows, n_tuples_fetched, n_tuples_returned, n_tuples_inserted, n_tuples_updated,
     n_tuples_deleted, n_blocks_fetched, n_blocks_hit, n_soft_parse, n_hard_parse, db_time,
-    cpu_time, parse_time, plan_time, data_io_time, lock_wait_time, lwlock_wait_time,
-    regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g') as query from dbe_perf.statement_history  where duration >= {duration}"""
+    cpu_time, parse_time, plan_time, data_io_time, lock_wait_time, lwlock_wait_time, 
+    case when (client_addr is null) then '127.0.0.1' else client_addr end as client_addr, 
+    regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g') as query,
+    query_plan from dbe_perf.statement_history
+    where application_name != 'DBMind-openGauss-exporter' and duration >= {duration}
+    """
     if start_time is not None:
         stmt += f" and start_time >= '{start_time}'"
     if end_time is not None:
@@ -128,6 +139,8 @@ def collect_statement_from_statement_history(databases, schemas, start_time, end
     if db_users is not None:
         db_users = _add_quote(db_users)
         stmt += f" and user_name in {db_users}"
+    if template_id is not None:
+        stmt += f" and unique_query_id = '{template_id}'"
     stmt += f" limit {STATEMENT_LENGTH_LIMIT};"
     return stmt
 
@@ -218,3 +231,4 @@ def main(argv):
 
 if __name__ == '__main__':
     main(sys.argv[1:])
+
