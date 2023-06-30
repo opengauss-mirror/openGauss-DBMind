@@ -229,7 +229,7 @@ async getMemoryDataAll () {
             <span style={{width: this.state.ehcartLeft3 ? `${this.state.ehcartLeft3}%` : 0 ,backgroundColor:'#9185F0'}}></span>
             <span style={{width: this.state.ehcartLeft4 ? `${this.state.ehcartLeft4}%` : 0 ,backgroundColor:'#EEBA18'}}></span>
             <span style={{width: this.state.ehcartLeft1 && this.state.ehcartLeft2 && this.state.ehcartLeft3 && this.state.ehcartLeft4 ? 
-              `${this.state.ehcartLeft1}%` : '100%' ,backgroundColor:'#E8E8E8'}}></span>
+              '0%' : '100%' ,backgroundColor:'#E8E8E8'}}></span>
           </div>
           <p style={{fontWeight: 'bold',textAlign:'end'}} >Available Space { this.state.spaceLeft2 } GB / Total Space { this.state.spaceLeft1 } GB</p>
           </Col>
@@ -237,7 +237,7 @@ async getMemoryDataAll () {
           <div className='Memorystyle'>
             <span style={{width:this.state.ehcartRight1 ? `${this.state.ehcartRight1}%` : 0 ,backgroundColor:'#EC6E18'}}></span>
             <span style={{width:this.state.ehcartRight2 ? `${this.state.ehcartRight2}%` : 0 ,backgroundColor:'#2DA769'}}></span>
-            <span style={{width:this.state.ehcartRight1 && this.state.ehcartRight2 ? `${this.state.ehcartRight1}%` : '100%' ,backgroundColor:'#E8E8E8'}}></span>
+            <span style={{width:this.state.ehcartRight1 && this.state.ehcartRight2 ? '0%' : '100%' ,backgroundColor:'#E8E8E8'}}></span>
           </div>
           <p style={{fontWeight: 'bold',textAlign:'end'}}>Available Swap Space {this.state.spaceRight2} GB / Total Swap Space {this.state.spaceRight1} GB</p>
           </Col>
