@@ -10,12 +10,10 @@ import Dml from './RegularInspectionsModules/Dml';
 import DatabaseSize from './RegularInspectionsModules/DatabaseSize';
 import TableSize from './RegularInspectionsModules/TableSize';
 import HistoryAlarm from './RegularInspectionsModules/HistoryAlarm';
-import FutureAlarm from './RegularInspectionsModules/FutureAlarm';
 import DistributionSlowSql from './RegularInspectionsModules/DistributionSlowSql';
 import DistributionRootCause from './RegularInspectionsModules/DistributionRootCause';
 import DynamicMemory from './RegularInspectionsModules/DynamicMemory';
 
-const { Option } = Select;
 export default class RegularInspectionsDay extends Component {
   static propTypes={
     regularInspectionsDay:PropTypes.object.isRequired
@@ -32,7 +30,6 @@ export default class RegularInspectionsDay extends Component {
       databaseSize: '',
       tableSize: '',
       historyAlarm: '',
-      futureAlarm: '',
       distributionSlowSql: '',
       distributionRootCause: '',
       dynamicMemory: '',
@@ -50,7 +47,6 @@ export default class RegularInspectionsDay extends Component {
           databaseSize: data.rows[0][1].db_size,
           tableSize: data.rows[0][1].table_size,
           historyAlarm: data.rows[0][1].history_alarm,
-          futureAlarm: data.rows[0][1].future_alarm,
           distributionSlowSql: data.rows[0][1].slow_sql_rca.query_type_distribution,
           distributionRootCause: data.rows[0][1].slow_sql_rca.root_cause_distribution,
           dynamicMemory: data.rows[0][1].dynamic_memory,
@@ -66,44 +62,34 @@ export default class RegularInspectionsDay extends Component {
   }
   render () {
     return (
-      <div style={{ textAlign: 'center' }}>
-              <Row gutter={16}>
+      <div>
+              <Row gutter={10} className="mb-10">
                 <Col className="gutter-row" span={12}>
                   <div className="cardShow">
                   <InstanceResource instanceResource={this.state.instanceResource} />
                   </div>
                 </Col>
                 <Col className="gutter-row" span={12}>
-                  <div className="cardShow">
-                  <Card title="Total Connections" style={{ textAlign: 'center' }}>
-                  <Row gutter={16}>
-                    <Col className="gutter-row" span={12}>
-                      <div className="cardShow">
+         
+                      <div className="cardShow mb-10">
                       <ActiveConnections activeConnections={this.state.activeConnections} />
                       </div>
-                    </Col>
-                    <Col className="gutter-row" span={12}>
+                                  
                       <div className="cardShow">
                       <TotalConnections totalConnections={this.state.totalConnections} />
                       </div>
-                    </Col>
-                    </Row>
-                  </Card>
-                  </div>
+                     
                 </Col>
               </Row>
-              <Card title="Instance Performance And Workload" className="mb-20" style={{ textAlign: 'center' }}>
-                <Row gutter={16}>
-                  <Col className="gutter-row" span={6}>
+              <Card title="Instance Performance And Workload" className="mb-10">
+                <Row gutter={10}>
+                  <Col className="gutter-row" span={12}>
                     <div className="cardShow">
                     <Tps tpsData={this.state.tpsData} />
-                    </div>
-                  </Col>
-                  <Col className="gutter-row" span={6}>
-                    <div className="cardShow">
                     <ResponseTime responseTime={this.state.responseTime} />
                     </div>
                   </Col>
+                 
                   <Col className="gutter-row" span={12}>
                     <div className="cardShow">
                     <Dml dmlData={this.state.dmlData} />
@@ -111,8 +97,8 @@ export default class RegularInspectionsDay extends Component {
                   </Col>
                 </Row>
               </Card>
-              <Card title="Instance Size" className="mb-20" style={{ textAlign: 'center' }}>
-              <Row gutter={16}>
+              <Card title="Instance Size" className="mb-10">
+              <Row gutter={10}>
               <Col className="gutter-row" span={12}>
                   <div className="cardShow">
                     <DatabaseSize databaseSize={this.state.databaseSize} />
@@ -125,22 +111,11 @@ export default class RegularInspectionsDay extends Component {
                 </Col>
               </Row>
               </Card>
-              <Card title="Alarm Situation" className="mb-20" style={{ textAlign: 'center' }}>
-              <Row gutter={16}>
-                <Col className="gutter-row" span={12}>
-                  <div className="cardShow">
+              <Card title="Alarm Situation" className="mb-10">
                     <HistoryAlarm historyAlarm={this.state.historyAlarm} />
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={12}>
-                  <div className="cardShow">
-                    <FutureAlarm futureAlarm={this.state.futureAlarm} />
-                  </div>
-                </Col>
-              </Row>
               </Card>
-              <Card title="SLOW SQL" className="mb-20" style={{ textAlign: 'center' }}>
-              <Row gutter={16}>
+              <Card title="SLOW SQL" className="mb-10">
+              <Row gutter={10}>
                 <Col className="gutter-row" span={12}>
                   <div className="cardShow">
                     <DistributionSlowSql distributionSlowSql={this.state.distributionSlowSql} />

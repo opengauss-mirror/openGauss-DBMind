@@ -83,7 +83,7 @@ export default class DatabaseSizeChart extends Component {
       let xData = [],yData = []
         data.forEach((item, index) => {
           xData.push(item.labels.datname)
-          yData.push(item.values[0].toFixed(2))
+          yData.push((item.values[0]/1024).toFixed(2))
         });
         if(flg){
           if(xData.length > 5){

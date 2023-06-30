@@ -73,17 +73,11 @@ export default class Storage extends Component {
               }
             });
           });
-          echartsData.forEach((bitem, bindex) => {
-            let seriesData = []
-            bitem.values.forEach((item, index) => {
-              seriesData.push((item*100).toFixed(2))
-            });
-            let echartsitem = {'legend':[{image:SystemImg,description:'Usage Rate'}],
-            'xAxisData':bitem.timestamps,
-            'seriesData':[{data:seriesData,description:'Usage Rate',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%'}
-            echartData.push(echartsitem)
-            lastData.push(bitem.values[bitem.values.length-1])
-          });
+          let echartsitem = {'legend':[{image:SystemImg,description:'Usage Rate'}],
+          'xAxisData':echartsData[0].timestamps,
+          'seriesData':[{data:echartsData[0].values,description:'Usage Rate',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%'}
+          echartData.push(echartsitem)
+          lastData.push(echartsData[0].values[echartsData[0].values.length-1])
           tableData.forEach((item, index) => {
             let tabledata = {}
             tabledata["Disk name"] = item.labels.device
@@ -155,13 +149,13 @@ export default class Storage extends Component {
   };
   customExpandIcon(props) {
     if (props.expanded) {
-        return <a style={{ color: 'black' }} onClick={e => {
+        return <span style={{ color: 'black' }}  onClick={e => {
             props.onExpand(props.record, e);
-        }}><UpOutlined /></a>
+        }}><UpOutlined /></span>
     } else {
-        return <a style={{ color: 'black' }} onClick={e => {
+        return <span style={{ color: 'black' }}  onClick={e => {
             props.onExpand(props.record, e);
-        }}><DownOutlined /></a>
+        }}><DownOutlined /></span>
     }
   }
   componentDidMount () {
@@ -184,8 +178,7 @@ export default class Storage extends Component {
               expandable={{
                 expandedRowRender: (record,index) => (
                   <NodeEchartFormWork  echartData={this.state.echartData[index]}/>
-                ),
-                // rowExpandable: (record) => record.name !== 'Not Expandable',
+                )
               }}
             />
       </div>

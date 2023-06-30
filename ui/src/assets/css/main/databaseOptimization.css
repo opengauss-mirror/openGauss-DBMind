@@ -5,9 +5,6 @@
 .formlabel-160 .ant-form-inline .ant-form-item > .ant-form-item-label {
   width: 160px;
 }
-.IntelligentSqlCondition .ant-card-body {
-  padding: 0 24px 24px 24px;
-}
 .IntelligentSqlCondition .ant-card-head-title {
   padding: 11px 0;
 }
@@ -29,6 +26,9 @@
 }
 .IntelligentSqlCondition .timeblue .ant-picker-separator,.ant-picker-suffix{
   color: #5990FD;
+}
+.IntelligentSqlCondition .ant-radio-wrapper,.ant-radio-wrapper-checked{
+  pointer-events:none
 }
 .SlowQueryAnalysis .buttonstyle{
   text-align: right;
@@ -65,4 +65,22 @@
 }
 .SlowQueryAnalysis .ant-card-head {
   border-bottom: none;
+}
+.SlowSqlDiagnosis .ant-radio-button-wrapper:focus-within{
+  box-shadow: none !important;
+}
+.SlowSqlDiagnosis .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled){
+  border-radius:2px;
+  background:#5990fdff !important;
+  color: #f5f5f5 !important;
+}
+.SlowSqlDiagnosis .ant-drawer-body{
+  padding: 0 24px 24px 24px;
+}
+.SlowSqlDiagnosis .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn{
+  color: #272727;
+  font-weight: 500;
+}
+.SlowSqlDiagnosis .ant-tabs-ink-bar {
+  background: #191919ff;
 }

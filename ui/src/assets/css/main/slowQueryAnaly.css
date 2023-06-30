@@ -1,0 +1,58 @@
+.rightGrid{
+    margin-left: 10px;
+}
+.cardName .ant-card-head-title {
+    font-size : 14px ;
+    color : #737a80 ;
+    font-family : Arial ;
+    text-align : left ;
+    font-weight : Regular ;
+}
+.slowQueryAnaly .ant-table-content,.tableSlowQuery .ant-table-content{
+    height:170px;
+    overflow-y: auto !important;
+}
+.slowQueryAnaly .ant-card-head{
+    border-bottom: none;
+    padding: 0 12px 0 20px;
+  }
+  .slowQueryAnaly .ant-card-body {
+    padding: 0 24px;
+    text-align: left;
+  }
+  .slowQueryAnaly .ant-card-head-title,.queryTable .ant-card-head-title {
+    font-size : 18px ;
+    color : #272727 ;
+    font-family : Arial ;
+    text-align : left ;
+    font-weight : Regular ;
+   
+  }
+  .slowQueryAnaly .ant-card-head-title span,.slowQueryTitle .ant-card-head-title span  {
+    font-size: 18px;
+    color: #272727;
+    font-family: Arial;
+    text-align: left;
+    font-weight: Bold;
+  }
+  .slowQueryAnaly .ant-card{
+    height:240px;
+  }
+ 
+  .slowSetting .ant-modal-content{
+    min-width: 907px;
+  }
+ .slowSetting p{
+   min-width: 850px;
+ }
+ .labelInfo{
+  font-size : 12px ;
+  font-family : Arial ;
+  font-weight : Regular ;
+ }
+ .labelInfo span{
+   margin-right: 12px;
+ }
+ .mainContent{
+   min-height: 900px;
+ }

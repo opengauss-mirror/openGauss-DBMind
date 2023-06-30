@@ -9,7 +9,7 @@ import SystemResourceChart from './RegularInspectionsModules/SystemResourceChart
 import DatabaseSizeChart from './RegularInspectionsModules/DatabaseSizeChart';
 import TableSizeChart from './RegularInspectionsModules/TableSizeChart';
 import HistoryAlarmChart from './RegularInspectionsModules/HistoryAlarmChart';
-import FutureAlarmChart from './RegularInspectionsModules/FutureAlarmChart';
+
 import InstanceSlowSqlChart from './RegularInspectionsModules/InstanceSlowSqlChart';
 import TopkSql from './RegularInspectionsModules/TopkSql';
 import RcaSql from './RegularInspectionsModules/RcaSql';
@@ -69,24 +69,10 @@ export default class RegularInspectionsWeek extends Component {
   }
   render () {
     return (
-      <div style={{ textAlign: 'center' }}>
+      <div>
           <SystemResourceChart systemResourceChart={this.state.systemResourceChart} />
-          <Card title="Instance Performance And Workload" className="mb-20" style={{ textAlign: 'center' }}>
-              <Row gutter={16}>
-              <Col className="gutter-row" span={12}>
-                  <div className="cardShow">
-                    <TpsLineChart tpsLineChartData={this.state.tpsLineChartData} />
-                  </div>
-                </Col>
-                <Col className="gutter-row" span={12}>
-                  <div className="cardShow">
-                    <ResponseTimeLineChart responseTimeLineChart={this.state.responseTimeLineChart} />
-                  </div>
-                </Col>
-              </Row>
-          </Card>
-          <Card title="Instance Connection" className="mb-20" style={{ textAlign: 'center' }}>
-              <Row gutter={16}>
+          <Card title="Instance Connection" className="mb-10">
+              <Row gutter={10} className="mb-20">
               <Col className="gutter-row" span={12}>
                   <div className="cardShow">
                     <TotalConnectionsChart totalLineChart={this.state.totalLineChart} />
@@ -99,31 +85,42 @@ export default class RegularInspectionsWeek extends Component {
                 </Col>
               </Row>
           </Card>
-          <DatabaseSizeChart databaseSizeChart={this.state.databaseSizeChart} />
-          <TableSizeChart tableSizeChart={this.state.tableSizeChart} />
-          <Card title="Instance Alarm" className="mb-20" style={{ textAlign: 'center' }}>
-              <Row gutter={16}>
-                <Col className="gutter-row" span={12}>
+          <Card title="Instance Performance And Workload" className="mb-10" >
+              <Row gutter={10} className="mb-20">
+              <Col className="gutter-row" span={12}>
                   <div className="cardShow">
-                    <HistoryAlarmChart historyAlarmChart={this.state.historyAlarmChart} />
+                    <TpsLineChart tpsLineChartData={this.state.tpsLineChartData} />
                   </div>
                 </Col>
                 <Col className="gutter-row" span={12}>
                   <div className="cardShow">
-                    <FutureAlarmChart futureAlarmChart={this.state.futureAlarmChart} />
+                    <ResponseTimeLineChart responseTimeLineChart={this.state.responseTimeLineChart} />
                   </div>
                 </Col>
               </Row>
           </Card>
-          <Card title="Instance Slow Sql" className="mb-20" style={{ textAlign: 'center' }}>
+         
+          <DatabaseSizeChart databaseSizeChart={this.state.databaseSizeChart} />
+          <TableSizeChart tableSizeChart={this.state.tableSizeChart} />
+          <Card title="Instance Alarm" className="mb-10">
+              <Row gutter={10} className="mb-20">
+                <Col className="gutter-row tps" span={24}>
+                  <div className="cardShow">
+                    <HistoryAlarmChart historyAlarmChart={this.state.historyAlarmChart} />
+                  </div>
+                </Col>
+               
+              </Row>
+          </Card>
+          <Card title="Instance Slow Sql" className="mb-10">
             <InstanceSlowSqlChart instanceSlowSqlChart={this.state.instanceSlowSqlChart} />
-              <Row gutter={16}>
-              <Col className="gutter-row" span={12}>
+              <Row gutter={10}>
+              <Col className="gutter-row mb-20" span={12}>
                   <div className="cardShow">
                     <TopkSql topkSqlData={this.state.topkSqlData} />
                   </div>
                 </Col>
-                <Col className="gutter-row" span={12}>
+                <Col className="gutter-row mb-20" span={12}>
                   <div className="cardShow">
                     <RcaSql rcaSqlData={this.state.rcaSqlData} />
                   </div>

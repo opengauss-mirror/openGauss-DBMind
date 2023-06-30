@@ -51,5 +51,11 @@ export const getSlowQueryRecentCount = () => {
   return get('/query/slow/recent_count');
 };
 export const getIntelligentSqlCondition = (data) => {
-  return get(`/workloads/collect?data_source=${data.data_source}&databases=${data.databases}&start_time=${data.start_time}&end_time=${data.end_time}&db_users=${data.db_users}&sql_types=${data.sql_types}&duration=${data.duration}`);
+  return get(`/workloads/collect?data_source=${data.data_source}&databases=${data.databases}&start_time=${data.start_time}&start_time=${data.start_time}&end_time=${data.end_time}&schemas=${data.schemas}&db_users=${data.db_users}&sql_types=${data.sql_types}&duration=${data.duration}`);
+};
+export const getLabelData = (data) => {
+  return get(`/sequence/${data.label}?from_timestamp=${data.from_timestamp}&to_timestamp=${data.to_timestamp}&fetch_all=${data.fetch}&instance=${data.instance}`);
+};
+export const getCollect = (data) => {
+  return get(`/workloads/statement/collect?unique_sql_id=${data.unique_sql_id}&start_time=${data.start_time}&end_time=${data.end_time}`);
 };

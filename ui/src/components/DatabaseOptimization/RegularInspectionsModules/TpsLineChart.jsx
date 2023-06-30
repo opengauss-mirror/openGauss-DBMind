@@ -21,52 +21,92 @@ export default class TpsLineChart extends Component {
     return {
       title: {
         text: 'TPS',
-        left: 'center',
+        left: 'left',
         textStyle:{
-          color: '#314b71',
-          fontSize: '12'
+          fontSize: "14",
+          fontFamily: "Arial",
+          fontWeight: "Bold"
         }
       },
       legend: {
         data:this.state.legendData,
-        x: 'right' 
+        right:22
       },
       grid: {
+        top: "15%",
+        left: "3%",
+        right: "4%",
+        bottom: "2%",
         containLabel: true,
-        width: '100%',
-        left: '0%',
-        top: '15%',
-        right: '0%',
       },
       xAxis: {
-        axisLine: {
+        type: 'category',
+        boundaryGap: false,
+        splitLine: {
+          //网格线
+          show: true, //是否显示
           lineStyle: {
-            width: 0,
+            //网格线样式
+            color: '#F2F2F2', //网格线颜色
+            width: 1, //网格线的加粗程度
+            type: 'dashed' //网格线类型
+          }
+        },
+        axisLine: {
+          show: true,
+          lineStyle: {
+            color: '#939393',
+            width: 1,
+            type: 'solid'
           }
         },
         axisLabel: {
-          padding: [0, 0, 0, 80],
+          show: true,
+          margin: 10,
           textStyle: {
-            color: '#5470c6',
-            fontSize: '10'
+            color: '#4D5964',
+            fontSize: 11,
+            fontFamily: 'Arial',
+            fontWeight: 'normal'
           }
         },
-        type: 'category',
-        data: this.state.xdata
+        data: this.state.xdata.map(function (str) {
+          return str.replace(' ', '\n');
+        })
       },
       yAxis: {
-        type: 'value',
-        nameTextStyle: {
-          color: '#5470c6',
-          padding: [0, 0, 10, 50],
-        },
-        nameGap: 10,
-        axisLabel: {
-          textStyle: {
-            color: '#5470c6',
-            fontSize: '10'
+        min: 0,
+        splitLine: {
+          //网格线
+          show: true, //是否显示
+          lineStyle: {
+            //网格线样式
+            color: '#F2F2F2', //网格线颜色
+            width: 1, //网格线的加粗程度
+            type: 'dashed' //网格线类型
           }
-        }
+        },
+        ayisLine: {
+          show: true,
+          lineStyle: {
+            color: '#939393',
+            width: 1,
+            type: 'solid'
+          }
+        },
+        axisLabel: {
+          margin: 10,
+          
+          show: true,
+          textStyle: {
+            color: '#4D5964',
+            fontSize: 11,
+            fontFamily: 'Arial',
+            fontWeight: 'normal',
+            align: 'right'
+          }
+        },
+        type:'value'
       },
       tooltip: {
           trigger: 'axis',
@@ -74,39 +114,40 @@ export default class TpsLineChart extends Component {
           align: 'left'
         }
       },
-      dataZoom: {
-        start: 0,
-        end: 100,
-        show: true,
-        type: 'slider',
-        handleSize: '100%',
-        left: '0%',
-        right: '0.8%',
-        height: 15
-      },
+     
       series: this.state.seriesData
     };
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
     if (JSON.stringify(nextProps.tpsLineChartData.data) !== '{}') {
-      let colors = ['#5470c6', '#91cc75', '#fac858', '#007acc' ], legendData = []
+      let colors = [ '#2CA768','#EC6F1A', '#EEBA18','#5890FD'], legendData = []
           // 处理X轴
           let formatTimeData = [];
           nextProps.tpsLineChartData.timestamp.forEach(ele => {
             formatTimeData.push(formatTimestamp(ele));
           });
-            let allData = [],seriesItem = {}
+            let allData = [],seriesItemTps = {}
             Object.keys(nextProps.tpsLineChartData.data.tps).forEach(function (data, i, v) {
               legendData.push(data);
-              seriesItem = {
+              seriesItemTps = {
                 data: nextProps.tpsLineChartData.data.tps[data],
                 type: 'line',
                 smooth: true,
                 name: data,
-                symbol: 'none',
-                color: colors[i],
+               
+                symbol: 'circle',
+                
+                itemStyle: {
+                  normal: {
+                    color: colors[i],
+                    lineStyle: {
+                      width: 1,
+                    },
+                  },
+                },
+                
               }
-              allData.push(seriesItem)
+              allData.push(seriesItemTps)
             })
       this.setState({
         ifShow: true,
@@ -125,6 +166,7 @@ export default class TpsLineChart extends Component {
       <div >
         {this.state.ifShow ?
           <ReactEcharts
+          className="systemBorder"
             ref={(e) => {
               this.echartsElement = e
             }}

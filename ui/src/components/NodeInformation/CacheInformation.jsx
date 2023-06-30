@@ -78,10 +78,6 @@ export default class CacheInformation extends Component {
         result[0].forEach((item,index) => {
           let DataItems = []
           result.forEach((oitem,oindex) => {
-            //根据不同的接口数据index进行特异性处理
-            // oitem[index].values.forEach((pitem,pindex) => {
-            //   oitem[index].values[pindex] = (pitem/1024/1024/1024).toFixed(2)
-            // });
             DataItems.push(oitem[index])
         });
         primitiveDataAll.push(DataItems)

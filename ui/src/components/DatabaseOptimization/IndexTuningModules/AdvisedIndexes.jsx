@@ -34,8 +34,14 @@ export default class AdvisedIndexes extends Component {
         historyColumObj = {
           title: formatTableTitle(item),
           dataIndex: item,
-          ellipsis: true,
-          width: 180
+         
+          render: (row, record) => {
+            if(item === 'insert'){
+              return <div><span>{record.insert}</span><div className='insertclass'><span style={{width:`${record.select * 0.96}%`,backgroundColor:'#FDC000'}}></span><span style={{width:`${record.delete * 0.96}%`,backgroundColor:'#F36900'}}></span><span style={{width:`${record.update * 0.96}%`,backgroundColor:'#50C291'}}></span><span style={{width:`${record.insert * 0.96}%`,backgroundColor:'#6D8FF0'}}></span></div></div>
+            } else {
+              return row
+            }
+          }
         }
         tableHeader.push(historyColumObj)
       })
@@ -77,12 +83,12 @@ export default class AdvisedIndexes extends Component {
     const columns = this.state.columns.map((col, index) => ({
       ...col,
       onHeaderCell: column => ({
-        width: column.width,
+        
         onResize: this.handleResize(index)
       })
     }))
     return (
-      <div className="mb-20">
+      <div className="mb-10">
         <Card title="Advised Indexes">
           <Table size="small" bordered components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={this.state.pagination} loading={this.state.loading} scroll={{ x: '100%'}}/>
         </Card>

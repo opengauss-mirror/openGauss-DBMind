@@ -114,13 +114,13 @@ export default class CapacityMetric extends Component {
   };
   customExpandIcon(props) {
     if (props.expanded) {
-        return <a style={{ color: 'black' }} onClick={e => {
+        return <span style={{ color: 'black' }} onClick={e => {
             props.onExpand(props.record, e);
-        }}><UpOutlined /></a>
+        }}><UpOutlined /></span>
     } else {
-        return <a style={{ color: 'black' }} onClick={e => {
+        return <span style={{ color: 'black' }} onClick={e => {
             props.onExpand(props.record, e);
-        }}><DownOutlined /></a>
+        }}><DownOutlined /></span>
     }
   }
   componentDidMount () {
@@ -143,8 +143,7 @@ export default class CapacityMetric extends Component {
               expandable={{
                 expandedRowRender: (record,index) => (
                   <NodeEchartFormWork  echartData={this.state.echartData[record.key]}/>
-                ),
-                // rowExpandable: (record) => record.name !== 'Not Expandable',
+                )
               }}
             />
       </div>

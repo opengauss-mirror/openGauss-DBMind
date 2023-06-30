@@ -57,7 +57,7 @@ export default class NodeEchartFormWork extends Component {
         formatter:(param)=>{
           let res = param[0].axisValue.split('\n').join(' ') + '<br>'
           param.forEach((item,index)=>{
-            res += item.marker + item.seriesName +'&nbsp;&nbsp;&nbsp;&nbsp;'+'<span style="font-weight: bold;text-align: right;float:right">' + item.value + this.state.unit +'</span><br>'
+            res += `${item.marker}${item.seriesName}&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-weight: bold;text-align: right;float:right">${item.value}${this.state.unit}</span><br>`
           })
           return res
         },
@@ -167,7 +167,7 @@ export default class NodeEchartFormWork extends Component {
         titleItem = {
           icon: data.image,
           description: data.description,
-          titleData: nextProps.echartData.fixedflg ? (titleitem*100).toFixed(2) : titleitem
+          titleData: nextProps.echartData.unit === '%' ? (titleitem*100).toFixed(2) : nextProps.echartData.fixedflg ? titleitem.toFixed(nextProps.echartData.fixedflg) : titleitem
         }
         legendData.push(legendItem)
         titleData.push(titleItem)
@@ -177,16 +177,17 @@ export default class NodeEchartFormWork extends Component {
       })
       nextProps.echartData.seriesData.forEach(function (item, i, v) {
         let itemData = []
-        if(nextProps.echartData.fixedflg){
-          item.data.forEach((item) => {
+        item.data.forEach((item) => {
+          if(nextProps.echartData.unit === '%'){
             itemData.push((item*100).toFixed(2))
-          });
-        }
+          } else if(nextProps.echartData.fixedflg){
+            itemData.push(item.toFixed(nextProps.echartData.fixedflg))
+          }
+        });
         seriesItem = {
-          data: nextProps.echartData.fixedflg ? itemData : item.data,
+          data: nextProps.echartData.fixedflg || nextProps.echartData.unit === '%' ? itemData : item.data,
           name: item.description,
           type: 'line',
-          stack: 'Total',
           smooth: true,
           symbol: 'circle',
           symbolSize: 3,
@@ -198,18 +199,21 @@ export default class NodeEchartFormWork extends Component {
               }
             }
           },
-          areaStyle: {
-            color: {
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [{
-                offset: 0, color: item.colors+'ff'
-              }, {
-                offset: 1, color: item.colors+'00'
-              } ],
-              global: false
+          ...nextProps.echartData.isStack && {
+            stack: 'Total',
+            areaStyle: {
+              color: {
+                x: 0,
+                y: 0,
+                x2: 0,
+                y2: 1,
+                colorStops: [{
+                  offset: 0, color: item.colors+'ff'
+                }, {
+                  offset: 1, color: item.colors+'00'
+                } ],
+                global: false
+              }
             }
           },
           emphasis: {

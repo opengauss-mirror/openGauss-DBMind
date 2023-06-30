@@ -81,7 +81,7 @@ export default class QueryTuning extends Component {
   }
   render () {
     return (
-      <div className="contentWrap">
+      <div className="contentWrap querytuning">
         <Card title="Query Tuning" bordered={false} style={{ width: '100%', minHeight: 800, position: 'relative' }}>
           <Row style={{ width: '100%', marginBottom: 20 }} >
               <Col span={3}>

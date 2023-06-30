@@ -16,6 +16,7 @@ export default class NodeMemory extends Component {
       chartData2: {},
       chartData3: {},
       chartData4: {},
+      chartData5: {},
       selValue:this.props.selValue,
       selTimeValue:this.props.selTimeValue,
       ehcartLeft1:0,
@@ -158,29 +159,35 @@ async getMemoryDataAll () {
       result[4][0].values.forEach((oitem) => {
         usageValues.push(result[0][0].values[0]*oitem)
       });
-      usageData = result[4]
+      usageData = JSON.parse(JSON.stringify(result[4]))
       usageData[0].values = usageValues
-      let allChartArray = [usageData,result[5],result[6],result[7]],xDataArray = [[],[],[],[]],yDataArray = [[],[],[],[]]
+      let allChartArray = [usageData,result[5],result[6],result[7],result[4]],xDataArray = [[],[],[],[],[]],yDataArray = [[],[],[],[],[]]
       allChartArray.forEach((item,index) => {
         xDataArray[index] = item[0].timestamps
       });
       allChartArray.forEach((item,index) => {
         item[0].values.forEach((oitem) => {
-          yDataArray[index].push((oitem/1024/1024/1024).toFixed(2))
+          if(index === 4){
+            yDataArray[index].push(oitem)
+          } else {
+            yDataArray[index].push((oitem/1024/1024/1024).toFixed(2))
+          }
         });
       });
       yDataArray.forEach((oitem) => {
         totalLeft.push(Number(oitem[oitem.length-1]))
       });
-      let data1 = {'legend':[{image: Used, description: 'Used Space'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description: 'Used Space', colors: '#EC6F1A'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0}
+      let data1 = {'legend':[{image: Used, description: 'Used Space(GB)'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description: 'Used Space(GB)', colors: '#EC6F1A'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0}
       let data2 = {'legend':[{image: Available, description: 'Available Space'}],'xAxisData':xDataArray[1],'seriesData':[{data:yDataArray[1],description: 'Available Space', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0}
       let data3 = {'legend':[{image: Buffer, description: 'Buffer Space'}],'xAxisData':xDataArray[2],'seriesData':[{data:yDataArray[2],description: 'Buffer Space', colors: '#9185F0'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0}
       let data4 = {'legend':[{image: Cache, description: 'Cache Space'}],'xAxisData':xDataArray[3],'seriesData':[{data:yDataArray[3],description: 'Cache Space', colors: '#EEBA18'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0}
+      let data5 = {'legend':[{image: Used, description: 'Used Space(%)'}],'xAxisData':xDataArray[4],'seriesData':[{data:yDataArray[4],description: 'Used Space(%)', colors: '#EC6F1A'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
       this.setState({
         chartData1: data1,
         chartData2: data2,
         chartData3: data3,
         chartData4: data4,
+        chartData5: data5,
         ehcartLeft1:totalLeft[0]+totalLeft[1]+totalLeft[2]+totalLeft[3] ? totalLeft[0]/(totalLeft[0]+totalLeft[1]+totalLeft[2]+totalLeft[3])*100 : 0,
         ehcartLeft2:totalLeft[0]+totalLeft[1]+totalLeft[2]+totalLeft[3] ? totalLeft[1]/(totalLeft[0]+totalLeft[1]+totalLeft[2]+totalLeft[3])*100 : 0,
         ehcartLeft3:totalLeft[0]+totalLeft[1]+totalLeft[2]+totalLeft[3] ? totalLeft[2]/(totalLeft[0]+totalLeft[1]+totalLeft[2]+totalLeft[3])*100 : 0,
@@ -247,6 +254,9 @@ async getMemoryDataAll () {
           </Col>
           <Col className="gutter-row cpuborder" span={12}>
             <NodeEchartFormWork echartData={this.state.chartData4} />
+          </Col>
+          <Col className="gutter-row cpuborder" span={24}>
+            <NodeEchartFormWork echartData={this.state.chartData5} />
           </Col>
         </Row>
       </div>

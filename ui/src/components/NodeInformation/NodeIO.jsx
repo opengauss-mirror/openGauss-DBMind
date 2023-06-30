@@ -151,11 +151,11 @@ export default class NodeIO extends Component {
         });
         primitiveDataAll.forEach((item,index) => {
                 let chartData = []
-                let data1 = {'legend':[{image: Readrate, description:'SysRead Ratetem'},{image: Writerate, description: 'Write Rate'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description:'SysRead Ratetem',colors:'#5990FD'}, { data:item[1].values, description: 'Write Rate', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':1}
-                let data2 = {'legend':[{image: SingleReadTime, description: 'Single Read Time'},{image: SingleWriteTime, description: 'Single Write Time'}],'xAxisData':item[2].timestamps,'seriesData':[{data:item[2].values,description: 'Single Read Time', colors: '#2DA769'}, { data:item[3].values, description: 'Single Write Time', colors: '#5990FD'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':1}
-                let data3 = {'legend':[{image: Tps, description: 'Tps'}],'xAxisData':item[4].timestamps,'seriesData':[{data:item[4].values,description: 'Tps', colors: '#F43146'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':1}
-                let data4 = {'legend':[{image: AverageQueueLength, description: 'Average Queue Length'}],'xAxisData':item[5].timestamps,'seriesData':[{data:item[5].values,description: 'Average Queue Length', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':1}
-                let data5 = {'legend':[{image: BandwidthUtilization, description: 'Bandwidth Utilization'}],'xAxisData':item[6].timestamps,'seriesData':[{data:item[6].values,description: 'Bandwidth Utilization', colors: '#9185F0'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':1}
+                let data1 = {'legend':[{image: Readrate, description:'Read Rate'},{image: Writerate, description: 'Write Rate'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description:'Read Rate',colors:'#5990FD'}, { data:item[1].values, description: 'Write Rate', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':4}
+                let data2 = {'legend':[{image: SingleReadTime, description: 'Single Read Time'},{image: SingleWriteTime, description: 'Single Write Time'}],'xAxisData':item[2].timestamps,'seriesData':[{data:item[2].values,description: 'Single Read Time', colors: '#2DA769'}, { data:item[3].values, description: 'Single Write Time', colors: '#5990FD'}],'flg':0,'legendFlg':1,'unit':'KB/ms','fixedflg':4}
+                let data3 = {'legend':[{image: Tps, description: 'IOPS'}],'xAxisData':item[4].timestamps,'seriesData':[{data:item[4].values,description: 'IOPS', colors: '#F43146'}],'flg':0,'legendFlg':1,'unit':'/s','fixedflg':4}
+                let data4 = {'legend':[{image: AverageQueueLength, description: 'Average Queue Length'}],'xAxisData':item[5].timestamps,'seriesData':[{data:item[5].values,description: 'Average Queue Length', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'','fixedflg':4}
+                let data5 = {'legend':[{image: BandwidthUtilization, description: 'IOUtils'}],'xAxisData':item[6].timestamps,'seriesData':[{data:item[6].values,description: 'IOUtils', colors: '#9185F0'}],'flg':0,'legendFlg':1,'unit':'%','fixedflg':0}
                 chartData.push(data1,data2,data3,data4,data5)
                 ioAllArray.push(chartData)
               })

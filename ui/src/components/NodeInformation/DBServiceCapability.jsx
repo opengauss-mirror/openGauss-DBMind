@@ -226,7 +226,11 @@ export default class DBServiceCapability extends Component {
   }
   divisionItem(arr1, arr2) {
     let newArr = arr1.map(function (item, index) {
-      return item/(item + arr2[index]);
+      if((item + arr2[index])){
+        return item/(item + arr2[index]);
+      } else {
+        return 0;
+      }
     });
     return newArr;
   }
@@ -276,10 +280,6 @@ async getServiceDataAll () {
       result[0].forEach((item,index) => {
         let DataItems = []
         newResult.forEach((oitem,oindex) => {
-          //根据不同的接口数据index进行特异性处理
-          // oitem[index].values.forEach((pitem,pindex) => {
-          //   oitem[index].values[pindex] = (pitem/1024/1024/1024).toFixed(2)
-          // });
           DataItems.push(oitem[index])
       });
       primitiveDataAll.push(DataItems)
@@ -287,11 +287,11 @@ async getServiceDataAll () {
       primitiveDataAll.forEach((item,index) => {
               let chartData = []
               let data1 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'},{image: '', description: 'Total'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description: 'Success', colors: '#2DA769'}, { data:item[1].values, description: 'Failure', colors: '#F43146'}, { data:item[2].values, description: 'Total', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Success/Failure/Total Transactions','unit':'','fixedflg':0}
-              let data2 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'}],'xAxisData':item[3].timestamps,'seriesData':[{data:item[3].values,description: 'Success', colors: '#2DA769'}, { data:item[4].values, description: 'Failure', colors: '#5990FD'}],'flg':1,'legendFlg':2,title:"Transaction Success/Failure Rate",'unit':'%','fixedflg':1}
+              let data2 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'}],'xAxisData':item[3].timestamps,'seriesData':[{data:item[3].values,description: 'Success', colors: '#2DA769'}, { data:item[4].values, description: 'Failure', colors: '#5990FD'}],'flg':1,'legendFlg':2,title:"Transaction Success/Failure Rate",'unit':'%','fixedflg':0}
               let data3 = {'legend':[{image: '', description: 'Conflicts'},{image: '', description: 'Confl Lock'},{image: '', description: 'Confl Snapshot'},{image: '', description: 'Confl Bufferpin'},{image: '', description: 'Confl Deadlock'}],'xAxisData':item[5].timestamps,'seriesData':[{data:item[5].values,description: 'Conflicts', colors: '#2DA769'},{data:item[6].values, description: 'Confl Lock', colors: '#F43146'},{data:item[7].values, description: 'Confl Snapshot', colors: '#5990FD'},{data:item[8].values, description: 'Confl Bufferpin', colors: '#EEBA18'},{data:item[9].values, description: 'Confl Deadlock', colors: '#9185F0'}],'flg':0,'legendFlg':2,title:"Conflicts Rate",'unit':'','fixedflg':0}
               let data4 = {'legend':[{image: '', description: 'Deadlock Rate'}],'xAxisData':item[10].timestamps,'seriesData':[{data:item[10].values,description: 'Deadlock Rate', colors: '#EEBA18'}],'flg':0,'legendFlg':2,title:"Deadlock Rate",'unit':'','fixedflg':0}
               let data5 = {'legend':[{image: '', description: 'Temp Files'},{image: '', description: 'Temp Bytes'}],'xAxisData':item[11].timestamps,'seriesData':[{data:item[12].values,description: 'Temp Files', colors: '#EC6F1A'},{data:item[11].values,description: 'Temp Bytes', colors: '#9185EF'}],'flg':0,'legendFlg':2,title:"Temp File",'unit':'','fixedflg':0}
-              let data6 = {'legend':[{image: '', description:'Insert'},{image: '', description: 'Delete'},{image: '', description: 'Update'},{image: '', description: 'Select'}],'xAxisData':item[13].timestamps,'seriesData':[{data:item[13].values,description: 'Insert', colors: '#2DA769'},{ data:item[14].values, description: 'Delete', colors: '#F43146'},{ data:item[15].values, description: 'Update', colors: '#5990FD'},{ data:item[16].values, description: 'Select', colors: '#EEBA18'}],'flg':1,'legendFlg':2,title:"Averaged Rate Of DML",'unit':'%','fixedflg':1}
+              let data6 = {'legend':[{image: '', description:'Insert'},{image: '', description: 'Delete'},{image: '', description: 'Update'},{image: '', description: 'Select'}],'xAxisData':item[13].timestamps,'seriesData':[{data:item[13].values,description: 'Insert', colors: '#2DA769'},{ data:item[14].values, description: 'Delete', colors: '#F43146'},{ data:item[15].values, description: 'Update', colors: '#5990FD'},{ data:item[16].values, description: 'Select', colors: '#EEBA18'}],'flg':0,'legendFlg':2,title:"Averaged Rate Of DML",'unit':'','fixedflg':0}
               chartData.push(data1,data2,data3,data4,data5,data6)
               serviceAllArray.push(chartData)
             })

@@ -34,7 +34,7 @@ export default class TransactionStateChart extends Component {
       },
       grid: {
         x:60,
-        y: '12%',
+        y: '10%',
       },
       xAxis: [
         {
@@ -50,10 +50,18 @@ export default class TransactionStateChart extends Component {
       ],
       yAxis: [
         {
-          type: 'value',
-        },
-        {
-          type: 'value',
+          axisLabel: {
+            margin: 2,
+            formatter: (value, index) => {
+              if (value >= 10000 && value < 10000000) {
+                value = value / 10000 + "万";
+              } else if (value >= 10000000) {
+                value = value / 10000000 + "千万";
+              }
+              return value;
+            }
+          },
+          type: 'value'
         }
       ],
       color:['#5990fdff','#fecd03ff'],
@@ -68,7 +76,6 @@ export default class TransactionStateChart extends Component {
         {
           name: 'abort',
           type: 'bar',
-          yAxisIndex: 1,
           barWidth:flg ? 18 : 36,
           data: flg ? this.state.ypartData[0] : this.state.yallData[0],
         },

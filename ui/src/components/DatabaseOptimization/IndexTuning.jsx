@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import { Col, message, Row, Spin } from 'antd';
 import '../../assets/css/common.css';
+import '../../assets/css/main/indexTuning.css';
 import TopShowList from './IndexTuningModules/TopShowList';
 import SuggestionsChangeChart from './IndexTuningModules/SuggestionsChangeChart';
 import ImprovementRateChart from './IndexTuningModules/ImprovementRateChart';
@@ -134,28 +135,29 @@ export default class IndexTuning extends Component {
   render () {
     return (
       <div className="contentWrap">
-        <div style={{ textAlign: 'center' }}>
+        <div className="indexTuning">
           {this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> :
             <>
               <TopShowList topList={this.state.topList} />
-              <SuggestionsChangeChart suggestions={this.state.suggestions} />
-              <Row gutter={16} className="mb-20">
-                <Col className="gutter-row" span={6} >
+            
+              <Row gutter={10} className="mb-10">
+                <Col className="gutter-row" span={5} >
                   <ImprovementRateChart promoteSqlRate={this.state.promoteSqlRate} />
                 </Col>
-                <Col className="gutter-row" span={6}>
+                <Col className="gutter-row" span={5}>
                   <InvalidIndexChart invalidIndexData={this.state.invalidIndexData} />
                 </Col>
-                <Col className="gutter-row" span={6}>
-                  <InvalidIndexesChange invalidIndexes={this.state.invalidIndexes} />
+                <Col className="gutter-row" span={14}>
+               
+                  <SuggestionsChangeChart suggestions={this.state.suggestions} />
                 </Col>
-                <Col className="gutter-row" span={6}>
-                  <RedundantIndexesChangeChart redundantIndexes={this.state.redundantIndexes} />
-                </Col>
+               
               </Row>
               <AdvisedIndexes advisedIndexes={this.state.advisedIndexes} />
-              <PositiveSql positiveSQL={this.state.positiveSQL} />
+                <InvalidIndexesChange invalidIndexes={this.state.invalidIndexes}/>
+                <RedundantIndexesChangeChart redundantIndexes={this.state.redundantIndexes} />
               <ExistingIndexes existing_indexes={this.state.existing_indexes} />
+              <PositiveSql positiveSQL={this.state.positiveSQL} />
             </>
           }
         </div>

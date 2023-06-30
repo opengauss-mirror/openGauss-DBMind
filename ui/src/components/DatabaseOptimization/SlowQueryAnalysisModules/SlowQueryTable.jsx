@@ -61,7 +61,10 @@ export default class SlowQueryTable extends Component {
     });
   };
   UNSAFE_componentWillReceiveProps (nextProps) {
-    this.handleTableData(nextProps.slowQueryTemplate.header, nextProps.slowQueryTemplate.rows)
+    if(nextProps.slowQueryTemplate){
+      this.handleTableData(nextProps.slowQueryTemplate.header, nextProps.slowQueryTemplate.rows)
+    }
+   
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -72,8 +75,8 @@ export default class SlowQueryTable extends Component {
       })
     }))
     return (
-      <div className="mb-20">
-        <Card title="Slow Query Template">
+      <div className="mb-10">
+        <Card title="Slow Query Template" style={{height:'278px'}} className="slowQuery">
           <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={this.state.pagination} style={{ height: 250, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>
       </div>

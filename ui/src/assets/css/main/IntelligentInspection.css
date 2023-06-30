@@ -1,0 +1,246 @@
+.delBtn {
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 2px;
+    padding: 3px 12px;
+    font-size: 12px;
+    color: #4e4e4e;
+    font-family: Arial;
+
+}
+
+.addTask {
+    border-radius: 2px;
+    background: #5990fdff;
+    width: 106px;
+    height: 26px;
+    text-align: center;
+    font-size: 12px;
+    color: #ffffff;
+    font-family: Arial;
+    font-weight: Regular;
+    line-height: 26px;
+}
+
+.spectionTask .ant-tabs-nav::before {
+    border-bottom: none !important;
+}
+
+.regularInspection .ant-picker-range {
+    width: 330px;
+}
+
+.regularInspection {
+    padding: 20px 0 30px 0;
+}
+
+.label {
+    width: 67px;
+    display: inline-block;
+    font-size: 12px;
+    color: #4e4e4e;
+    font-family: Arial;
+    text-align: right;
+    font-weight: Regular;
+
+}
+
+.startTime {
+    margin-bottom: 15px;
+}
+
+.taskModal .ant-modal-footer {
+    text-align: center !important;
+}
+
+.taskModal {
+    width: 490px !important;
+}
+
+.systemCheckbox .ant-checkbox-wrapper+.ant-checkbox-wrapper {
+    margin-left: 0 !important;
+}
+
+.ant-checkbox-wrapper p {
+    line-height: 14px;
+    font-size: 12px;
+    color: #737a80;
+    font-family: Arial;
+    text-align: left;
+    font-weight: Regular;
+}
+
+.ant-checkbox-wrapper h5 {
+    font-size: 16px;
+    color: #272727;
+    font-family: Arial;
+    text-align: left;
+    font-weight: Bold;
+}
+
+.spectionModal .ant-tabs-tab {
+
+    padding: 6px 13px;
+    border-radius: 2px;
+    background: #eef0f3ff;
+    font-size: 12px;
+    color: #4d5964;
+    font-family: Arial;
+
+    font-weight: Regular;
+
+}
+
+.InspectionTask {
+    margin-bottom: 10px;
+
+}
+
+.spectionModal .ant-tabs-tab.ant-tabs-tab-active {
+    border-radius: 2px;
+    background: #5990fdff;
+    font-size: 12px;
+    color: #ffffff;
+    font-family: Arial;
+    text-align: left;
+    font-weight: Regular;
+
+}
+
+.spectionModal .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: #fff;
+
+}
+
+.spectionModal .ant-tabs-tab+.ant-tabs-tab {
+    margin: 0 0 0 2px;
+}
+
+.taskModal .ant-modal-body {
+    padding-right: 0;
+    padding-left: 0;
+}
+
+.spectionModal .ant-tabs {
+    padding: 0 34px;
+}
+
+.line {
+    width: 100%;
+    border-top: 1px solid #f0f0f0;
+}
+
+.spectionModal .ant-checkbox-group {
+    padding: 0 34px;
+}
+
+.spectionModal .ant-tabs-ink-bar {
+
+    background: none;
+}
+
+.detail .ant-tabs-ink-bar {
+    background: #191919ff;
+}
+
+.detail .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+    font-size: 16px;
+    color: #272727;
+    font-family: Arial;
+    text-align: left;
+    font-weight: Bold;
+
+}
+
+.detail .ant-tabs-tab-btn {
+    font-size: 16px;
+    color: #737a80;
+    font-family: Arial;
+    text-align: left;
+    font-weight: Regular;
+
+}
+
+.detail .ant-tabs-tab {
+    padding: 12px 0 6px 0;
+
+}
+
+.detail .ant-card-head {
+    border-bottom: none;
+}
+
+.detail .ant-card-head {
+    min-height: 0;
+}
+
+.detail .ant-card-head-title {
+    padding-bottom: 0;
+
+}
+
+.detail .ant-card-body {
+    padding: 10px 24px 0 24px;
+}
+
+.detail .ant-badge {
+    margin-right: 8px;
+}
+
+
+.detail .ant-tabs > .ant-tabs-nav, .ant-tabs > div > .ant-tabs-nav {
+    
+    padding: 0 20px;
+}
+
+.lastMargin li:last-child {
+    margin-right: 0 !important;
+}
+
+.resultSize {
+    font-size: 12px;
+    color: #4d5964;
+    font-family: Arial;
+    text-align: left;
+    font-weight: Regular;
+}
+.InspectionRecords .alarmstyle{
+    margin:0 5px;
+}
+.thirdMargin li:nth-child(3),.secondMargin li:nth-child(2){
+margin-bottom: 10px;
+}
+.CapacityMetric .ant-table-thead > tr > th {
+    background: none;
+    font-weight: 400;
+}
+.CapacityMetric .ant-table.ant-table-bordered > .ant-table-container > .ant-table-content > table > tbody > tr > td{
+    border-right: 1px solid #f0f0f0;
+}
+.CapacityMetric .ant-table.ant-table-bordered > .ant-table-container > .ant-table-content > table tr td:first-child,.CapacityMetric table tr th:first-child{
+border-radius:4px 0 0 4px;
+background:#f2f5fcff;
+font-weight: 500;
+}
+
+.performance{ 
+width:100%;
+margin-bottom: 10px;
+display: flex;
+flex-wrap: wrap;
+justify-content: center;
+}
+.performance li:nth-child(2n){
+    margin-right: 0;
+}
+.io .panelDevice{
+    padding-right: 0 !important;
+    padding-left: 0 !important;
+}
+.deleteStyle{
+    font-size : 12px ;
+color : #5990fd ;
+font-family : Arial ;
+text-align : left ;
+font-weight : Regular ;
+}
