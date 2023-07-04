@@ -792,7 +792,7 @@ def collect_workloads(data_source: str = None, databases: str = None, schemas: s
 @request_mapping('/api/app/kill/{pid}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def collect_workloads(pid: str):
+def kill_pid(pid: str):
     username, password = oauth2.credential
     return data_transformer.pg_terminate_pid(username, password, pid)
 

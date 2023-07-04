@@ -32,9 +32,19 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.openapi.models import OAuth2 as OAuth2Model
 from starlette.staticfiles import StaticFiles
 import uvicorn
+from pydantic import BaseModel
 
 _RequestMappingTable = dict()
 dbmind_assert(Response)
+
+
+class User(BaseModel):
+    username: str
+    grant_type: str
+    password: str
+    scope: str
+    client_id: str
+    client_secret: str
 
 
 class HttpService:
@@ -245,11 +255,9 @@ class OAuth2:
     def set_token_ttl(seconds):
         OAuth2.timed_session.ttl = seconds
 
-    def login_handler(self, form: OAuth2PasswordRequestForm = Depends()):
-        logging.warning("----------------token_______________")
-        logging.warning(json.dumps(obj=form.__dict__,ensure_ascii=False))
+    def login_handler(self, user: User):
         try:
-            if not self._pwd_checker(form.username, form.password, scopes=form.scopes):
+            if not self._pwd_checker(user.username, user.password, scopes=[user.scopes]):
                 raise HTTPException(400, detail='Incorrect username or password.')
         except ConnectionError:
             raise HTTPException(500, detail='Cannot connect to the agent. Please check whether the agent '
@@ -259,9 +267,9 @@ class OAuth2:
         token = safe_random_string(16)
         while token in OAuth2.timed_session:
             token = safe_random_string(16)
-        OAuth2.timed_session[token] = {'username': form.username,
-                                       'password': form.password,
-                                       'scopes': form.scopes
+        OAuth2.timed_session[token] = {'username': user.username,
+                                       'password': user.password,
+                                       'scopes': [user.scopes]
                                        }
 
         # Not used JWT because we don't require the stateless function.
