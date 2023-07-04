@@ -30,11 +30,12 @@ def query_in_postgres(stmt):
 
 
 @_rpc_service
-def query_in_database(stmt, database, return_tuples=False, fetch_all=False):
+def query_in_database(stmt, database, return_tuples=False, fetch_all=False, ignore_error=False):
     res = _agent_exclusive_driver.query(
         stmt, force_connection_db=database,
         return_tuples=return_tuples,
-        fetch_all=fetch_all)
+        fetch_all=fetch_all,
+        ignore_error=ignore_error)
     logging.info('[Agent] query_in_database (%s): %s; result: %s.', database, stmt, res)
     return res
 
