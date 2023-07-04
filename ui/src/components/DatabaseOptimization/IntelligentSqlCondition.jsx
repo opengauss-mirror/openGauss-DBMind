@@ -52,11 +52,11 @@ export default class IntelligentSqlCondition extends Component {
       data_source: newData.dataSource ? newData.dataSource:'',
       databases:  newData.database ? newData.database:'',
       db_users: newData.users,
-      sql_types: newData.types,
+      sql_types: newData.types.join(","),
       start_time: stime,
       end_time: etime,
       duration: newData.duration ? Number(newData.duration):0,
-      schemas: newData.schemas ? newData.schemas:'',
+      schemas: newData.schemas ? newData.schemas:null,
     }
     this.getIntelligentSqlAnalysis(paramsVal)
   }

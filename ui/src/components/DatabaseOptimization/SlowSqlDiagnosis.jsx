@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Input, message, Card, Col, Row, Table, Tabs, DatePicker, Modal, Radio, Drawer } from 'antd';
 import { getIntelligentSqlAnalysisInterface } from '../../api/aiTool';
-import { getLabelData, getCollect } from '../../api/databaseOptimization';
+import { getLabelData, getIntelligentSqlCondition } from '../../api/databaseOptimization';
 import { getExecutionPlan } from '../../api/autonomousManagement';
 import ReactEcharts from 'echarts-for-react';
 import moment from 'moment';
@@ -205,11 +205,12 @@ export default class SlowSqlDiagnosis extends Component {
   }
  async getCollectData(sqlId){
   let paramTwo = {
-    unique_sql_id:sqlId,
+    template_id:sqlId,
     start_time:this.state.startTime,
-    end_time:this.state.endTime
+    end_time:this.state.endTime,
+    data_source:'dbe_perf.statement_history'
   }
-    const { success, data, msg } = await getCollect(paramTwo)
+    const { success, data, msg } = await getIntelligentSqlCondition(paramTwo)
     if (success) {
       let durationIndex = 7,sqlTime = [[],[],[],[],[]],barData = [[],[]]
       if(data.header){
@@ -419,6 +420,7 @@ export default class SlowSqlDiagnosis extends Component {
     let param = {...record}
     if(this.props.formData.dataSource === 'pg_stat_activity'){
       param.db_name =  param.datname
+      param.start_time = new Date(record.start_time.replace(/-/g,'/')).getTime()
     }
     if(record.start_time && record.finish_time){
       param.start_time = new Date(record.start_time.replace(/-/g,'/')).getTime()
