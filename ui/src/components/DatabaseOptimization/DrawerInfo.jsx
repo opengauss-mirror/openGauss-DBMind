@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import { message, Select, Table, DatePicker, Tabs } from 'antd';
 import Analyze from '../../assets/imgs/Analyze.png';
 import { CloseOutlined, ReloadOutlined } from '@ant-design/icons';
-import { getCollect } from '../../api/databaseOptimization';
+import { getIntelligentSqlCondition } from '../../api/databaseOptimization';
 import '../../assets/css/common.css'
 import '../../assets/css/main/databaseOptimization.css'
 import { formatTableTitle, formatTimestamp } from '../../utils/function';
@@ -20,7 +20,7 @@ export default class DrawerInfo extends Component {
   }
   async getCollect (params) {
     this.setState({ loading: true })
-    const { success, msg, data } = await getCollect(params)
+    const { success, msg, data } = await getIntelligentSqlCondition(params)
     if (success) {
       if (data.rows.length > 0) {
         let historyColumObj = {}
@@ -37,7 +37,7 @@ export default class DrawerInfo extends Component {
             fixed:item === 'operation' ? 'right' : 'false',
             render: (row, record) => {
               if(item === 'operation'){
-                return <img src={Analyze} disabled alt="" onClick={(e) => {e.stopPropagation();this.props.isModal(row, record)}} ></img>
+                return <img src={Analyze} disabled title='Analyze' alt="" onClick={(e) => {e.stopPropagation();this.props.isModal(row, record)}} ></img>
               } else {
                 return row
               }
@@ -77,9 +77,10 @@ export default class DrawerInfo extends Component {
   }
   componentDidMount () {
     let params = {
-      unique_sql_id:this.props.uniqueSqlId,
+      template_id:this.props.uniqueSqlId,
       start_time:this.props.startTime,
-      end_time:this.props.endTime
+      end_time:this.props.endTime,
+      data_source:'dbe_perf.statement_history'
     }
     this.getCollect(params)
   }
