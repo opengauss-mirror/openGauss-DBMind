@@ -24,6 +24,7 @@ from dbmind.common.http import request_mapping, OAuth2
 from dbmind.common.http import standardized_api_output
 from dbmind.service.web import context_manager
 from dbmind.service.web import data_transformer
+from dbmind.metadatabase.schema.config_dynamic_params import DynamicParams
 
 latest_version = 'v1'
 api_prefix = '/%s/api' % latest_version
@@ -132,13 +133,6 @@ def get_xact_status():
     return data_transformer.get_xact_status()
 
 
-@request_mapping('/api/status/alert', methods=['GET'], api=True)
-@oauth2.token_authentication()
-@standardized_api_output
-def get_alert():
-    return data_transformer.get_latest_alert()
-
-
 @request_mapping('/api/status/node', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
@@ -170,8 +164,13 @@ def get_all_metrics():
 @request_mapping('/api/sequence/{name}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_metric_sequence(name: str, start: int = None, end: int = None, step: int = None):
-    return data_transformer.get_metric_sequence(name, start, end, step)
+def get_metric_sequence(name: str, instance: str = None, from_timestamp: int = None,
+                        to_timestamp: int = None, step: int = None, fetch_all: bool = False,
+                        regrex: bool = False, labels: str = None,
+                        regrex_labels: str = None):
+    return data_transformer.get_metric_sequence(name, instance, from_timestamp, to_timestamp,step=step,
+                                                fetch_all=fetch_all, regrex=regrex, labels=labels,
+                                                regrex_labels=regrex_labels)
 
 
 @request_mapping('/api/latest-sequence/{name}', methods=['GET'], api=True)
@@ -449,14 +448,26 @@ def get_log_information():
 @standardized_api_output
 def advise_indexes(pagesize: int, current: int, instance: str, database: str,
                    max_index_num: int, max_index_storage: int, sqls: list):
-    return data_transformer.toolkit_index_advise(current, pagesize, instance, database, sqls, max_index_num, max_index_storage)
+    return data_transformer.toolkit_index_advise(current, pagesize, instance, database, sqls, max_index_num,
+                                                 max_index_storage)
 
 
-@request_mapping('/api/toolkit/advise/default/value', methods=['GET'], api=True)
+@request_mapping('/api/values', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def advise_indexes():
-    return data_transformer.toolkit_index_advise_default_value()
+def get_config_values(configname: str):
+    return global_vars.dynamic_configs.get_category_values(configname)
+
+
+@request_mapping('/api/default_values', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_config_values(configname: str):
+    config_dict = dict()
+    for parameter, value, comment in DynamicParams.__default__.get(configname, []):
+        config_dict[parameter] = (value, comment)
+
+    return config_dict
 
 
 @request_mapping('/api/toolkit/advise/query', methods=['POST'], api=True)
@@ -468,6 +479,22 @@ def tune_query(database: str, sql: str,
                use_hinter: bool = True,
                use_materialized: bool = True):
     return data_transformer.toolkit_rewrite_sql(instance, database, sql)
+
+
+class UpdateDynamicConfig(BaseModel):
+    configname: str
+    config_dict: dict
+
+
+@request_mapping('/api/setting/update_dynamic_config', methods=['POST', 'GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def update_dynamic_config(item: UpdateDynamicConfig):
+    for key, value in item.config_dict.items():
+        if '' in (key.strip(), value.strip()):
+            raise Exception('You should input correct setting.')
+        global_vars.dynamic_configs.set(item.configname, key, value)
+    return 'success'
 
 
 @request_mapping('/api/toolkit/predict/query', methods=['POST'], api=True)
@@ -516,28 +543,42 @@ def list_setting():
 
 
 class SlowSQLItem(BaseModel):
-    sql: str
-    database: str
-    schemaname: str
-    start_time: str
-    end_time: str
-    wdr: str
-
-
+    query: str
+    db_name: str
+    schema_name: str = 'public'
+    start_time: int = None
+    finish_time: int = None
+    template_id: str = None
+    debug_query_id: str = None
+    n_soft_parse: int = 0
+    n_hard_parse: int = 0
+    query_plan: str = None
+    n_returned_rows: int = 0
+    n_tuples_fetched: int = 0
+    n_tuples_returned: int = 0
+    n_tuples_inserted: int = 0
+    n_tuples_updated: int = 0
+    n_tuples_deleted: int = 0
+    n_blocks_fetched: int = 0
+    n_blocks_hit: int = 0
+    db_time: int = 0
+    cpu_time: int = 0
+    parse_time: int = 0
+    plan_time: int = 0
+    data_io_time: int = 0
+    hash_spill_count: int = 0
+    sort_spill_count: int = 0
+    n_calls: int = 1
+    lock_wait_time: int = 0
+    lwlock_wait_time: int = 0
+ 
+ 
 @request_mapping('/api/toolkit/slow_sql_rca', methods=['POST'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def diagnosis_slow_sql(item: SlowSQLItem):
-    sql = item.sql if len(item.sql) else None
-    database = item.database if len(item.database) else None
-    schema = item.schemaname if len(item.schemaname) else 'public'
-    start_time = item.start_time if len(item.start_time) else None
-    end_time = item.end_time if len(item.end_time) else None
-    return data_transformer.toolkit_slow_sql_rca(sql,
-                                                 dbname=database,
-                                                 schema=schema,
-                                                 start_time=start_time,
-                                                 end_time=end_time)
+    params = dict(item)
+    return data_transformer.toolkit_slow_sql_rca(**params)
 
 
 @request_mapping('/api/summary/regular_inspections', methods=['GET'], api=True)
@@ -552,6 +593,33 @@ def get_regular_inspections(inspection_type: str = None):
 @standardized_api_output
 def get_regular_inspections_count(inspection_type: str = None):
     return data_transformer.get_regular_inspections_count(inspection_type)
+
+@request_mapping('/api/summary/real-time-inspection/exec', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def exec_real_time_inspections(inspection_type: str = None, start_time: str = None, end_time: str = None, select_metrics: str = None):
+    return data_transformer.exec_real_time_inspections(inspection_type, start_time, end_time, select_metrics)
+
+
+@request_mapping('/api/summary/real-time-inspection/list', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def list_real_time_inspections():
+    return data_transformer.list_real_time_inspections()
+
+
+@request_mapping('/api/summary/real-time-inspection/report', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def report_real_time_inspections(spec_id: str = None):
+    return data_transformer.report_real_time_inspections(spec_id)
+
+
+@request_mapping('/api/summary/real-time-inspection/delete', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def delete_real_time_inspections(spec_id: str = None):
+    return data_transformer.delete_real_time_inspections(spec_id)
 
 
 @request_mapping('/api/summary/correlation_result', methods=['GET'], api=True)
@@ -713,8 +781,48 @@ def get_agent_status():
 @request_mapping('/api/workloads/collect', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def collect_workloads(data_source: str = None, databases: str = None, schemas: str = None, start_time: int = None, end_time: int = None, db_users: str = None, sql_types: str = None, duration: int = 60):
+def collect_workloads(data_source: str = None, databases: str = None, schemas: str = None, start_time: int = None,
+                      end_time: int = None, db_users: str = None, sql_types: str = None, template_id: str = None, duration: int = 0):
     username, password = oauth2.credential
-    return data_transformer.collect_workloads(username, password, data_source, 
-                                              databases, schemas, start_time, end_time, 
-                                              db_users, sql_types, duration=duration)
+    return data_transformer.collect_workloads(username, password, data_source,
+                                              databases, schemas, start_time, end_time,
+                                              db_users, sql_types, template_id, duration=duration)
+
+
+@request_mapping('/api/app/kill/{pid}', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def kill_pid(pid: str):
+    username, password = oauth2.credential
+    return data_transformer.pg_terminate_pid(username, password, pid)
+
+
+@request_mapping('/api/app/query/wait_status', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_wait_status(pid: str, sessionid: str):
+    username, password = oauth2.credential
+    return data_transformer.get_wait_status(username, password, pid, sessionid)
+     
+
+@request_mapping('/api/app/query/wait_tree', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_wait_tree(sessionid: str):
+    username, password = oauth2.credential
+    return data_transformer.get_wait_tree(username, password, sessionid)
+
+
+class PlanModel(BaseModel):
+    query: str
+    db_name: str
+    schema_name: str
+
+
+@request_mapping('/api/app/query/get-plan', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_query_plan(item: PlanModel):
+    params = dict(item)
+    return data_transformer.toolkit_get_query_plan(**params)
+

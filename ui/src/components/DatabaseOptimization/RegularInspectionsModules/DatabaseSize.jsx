@@ -28,6 +28,13 @@ export default class DatabaseSize extends Component {
         dataIndex: item,
         key: item,
         ellipsis: true,
+        render: (row, record) => {
+          if(item === 'is_continuous_increase'&&row==="False"){
+            return <div className='redFalse'>{row}</div>
+          } else {
+            return row
+          }
+        }
       }
       tableHeader.push(historyColumObj)
     })
@@ -67,8 +74,8 @@ export default class DatabaseSize extends Component {
       })
     }))
     return (
-      <div style={{ textAlign: 'center' }}>
-        <Card title="Database Size">
+      <div>
+        <Card title="Database Size" className="tps tableHeight mb-20">
           <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 250, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>
       </div>

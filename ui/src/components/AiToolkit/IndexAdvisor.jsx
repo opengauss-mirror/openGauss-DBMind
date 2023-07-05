@@ -1,14 +1,16 @@
 import React, { Component } from 'react';
 import { UploadOutlined, SettingFilled, InfoCircleFilled } from '@ant-design/icons';
-import { Button, Card, Input, message, Select, Table, Upload, Modal, InputNumber, Tooltip, Progress } from 'antd';
-import { getItemListInterface, getListIndexAdvisorInterface, getListIndexAdvisorDefaultValue } from '../../api/aiTool';
+import { Button, Card, Input, message, Select, Table, Upload, Modal, InputNumber, Collapse } from 'antd';
+import { getItemListInterface, getListIndexAdvisorInterface } from '../../api/aiTool';
 import { formatTableTitle } from '../../utils/function';
+import { getSettingDefaults, getSettingCurrentValue, updateSetting } from "../../api/dbmindSettings";
 import db from '../../utils/storage';
 import '../../assets/css/common.css'
 import '../../assets/css/main/aiToolkit.css';
 
 const { TextArea } = Input;
 const { Option } = Select;
+const { Panel } = Collapse;
 const labelStyle = {width:160,float:'left',textAlign:'right',lineHeight:'32px'}
 const inputStyle = {marginLeft:20,marginRight:20}
 export default class IndexAdvisor extends Component {
@@ -38,9 +40,9 @@ export default class IndexAdvisor extends Component {
         total: 0,
         defaultCurrent: 1
       },
-      maxIndexNum: 10,
-      maxIndexStorage: 100,
-      minImprovedRate: '3.0',
+      maxIndexNum: '',
+      maxIndexStorage: '',
+      minImprovedRate: '',
       isDetailsVisible:false,
       isSettingVisible:false,
       selValue: '',
@@ -55,21 +57,6 @@ export default class IndexAdvisor extends Component {
     const { success, data, msg } = await getItemListInterface()
     if (success) {
       this.setState({options: data})
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDefaultValue () {
-    const { success, data, msg } = await getListIndexAdvisorDefaultValue()
-    if (success) {
-      this.setState({
-        minImprovedRate: data.min_improved_rate,
-        maxIndexNum: data.max_index_num,
-        maxIndexStorage: data.max_index_storage},()=>{
-        db.ss.set('maxIndexNum', data.max_index_num)
-        db.ss.set('maxIndexStorage', data.max_index_storage)
-        db.ss.set('minImprovedRate', data.min_improved_rate)
-      })
     } else {
       message.error(msg)
     }
@@ -274,25 +261,34 @@ export default class IndexAdvisor extends Component {
     }
     return false
   }
-  handleSetting(){
-    this.setState({
-      maxIndexNum: db.ss.get('maxIndexNum'),
-      maxIndexStorage: db.ss.get('maxIndexStorage'),
-      minImprovedRate: db.ss.get('minImprovedRate'),
-      isSettingVisible: true,
-    },()=>{
-
-    })
-  }
-  handleSettingOk(){
-    if(this.state.maxIndexNum && this.state.maxIndexStorage && this.state.minImprovedRate){
+  async handleSetting(flg){
+    const { success,data, msg } = await getSettingCurrentValue({configname: "self_optimization"});
+    if (success) {
       this.setState({
-        isSettingVisible: false,
-      },()=>{
-        db.ss.set('maxIndexNum',this.state.maxIndexNum)
-        db.ss.set('maxIndexStorage',this.state.maxIndexStorage)
-        db.ss.set('minImprovedRate',this.state.minImprovedRate)
+        maxIndexNum: data.max_index_num[0],
+        maxIndexStorage: data.max_index_storage[0],
+        minImprovedRate: data.min_improved_rate[0],
+        isSettingVisible: flg ? true : false,
       })
+    } else {
+      message.error(msg);
+    }
+  }
+  async handleSettingOk(){
+    if(this.state.maxIndexNum && this.state.maxIndexStorage && this.state.minImprovedRate){
+      let params = {
+        configname:"self_optimization",
+        config_dict:{max_index_num:this.state.maxIndexNum,max_index_storage:this.state.maxIndexStorage,min_improved_rate:this.state.minImprovedRate}
+      }
+      const { success,data, msg } = await updateSetting(params);
+      if (success) {
+        this.setState({
+          isSettingVisible: false,
+        })
+        message.success("SAVE SUCCESS");
+      } else {
+        message.error(msg);
+      }
     } else {
       message.warning('The input value is a positive integer greater than 0')
     }
@@ -302,12 +298,17 @@ export default class IndexAdvisor extends Component {
       isDetailsVisible: false,
     })
   }
-  handleSettingReset(){
-    this.setState({
-      maxIndexNum: '',
-      maxIndexStorage: '',
-      minImprovedRate: '',
-    })
+  async handleSettingReset(){
+    const { success,data, msg } = await getSettingDefaults({configname: "self_optimization"});
+    if (success) {
+      this.setState({
+        maxIndexNum: data.max_index_num[0].toString(),
+        maxIndexStorage: data.max_index_storage[0].toString(),
+        minImprovedRate: data.min_improved_rate[0].toString(),
+      })
+    } else {
+      message.error(msg);
+    }
   }
   handleSettingCancel(){
     this.setState({
@@ -340,7 +341,7 @@ export default class IndexAdvisor extends Component {
       this.setState({textareaVal: this.props.location.state.sqltext,selValue: this.props.location.state.database})
     }
     this.getItemList()
-    this.getDefaultValue()
+    this.handleSetting(false)
   }
   render () {
     const paginationProps = {
@@ -356,7 +357,7 @@ export default class IndexAdvisor extends Component {
     return (
       <div className="contentWrap">
       <div className='indexadvisor bordmargin'>
-        <Card className="mb-20" extra={<SettingFilled className="more_link" onClick={() => { this.handleSetting() }} />} title="Smart Index Recommendation" bordered={false} style={{ width: '100%', height: 430 }}>
+        <Card className="mb-20" extra={<SettingFilled className="more_link" onClick={() => { this.handleSetting(true) }} />} title="Smart Index Recommendation" bordered={false} style={{ width: '100%', height: 430 }}>
           <div className="flexbox">
 
             <div className="flextitle1">Database List：</div>
@@ -392,25 +393,27 @@ export default class IndexAdvisor extends Component {
           </div>
         </Card>
         <Card title="Recommended Set" className='recommended bordmargin' bordered={false} style={{ width: '100%', height: 'auto' }}>
-          <Card title="Advised Indexes" className='backcolor'>
-            <Table columns={this.state.columns} dataSource={this.state.data} rowKey={record => record.key}  pagination={paginationProps} loading={this.state.loadingAdvisor} />
-          </Card>
-          <Card title="Redundant Indexes" className='backcolor'>
-            <Table columns={this.state.columnsRedundant} dataSource={this.state.dataRedundant} rowKey={record => record.key} pagination={this.state.paginationRedundant} loading={this.state.loadingAdvisor} />
-          </Card>
-          <Card title="Useless Indexes" className='backcolor'>
-            <Table columns={this.state.columnsUseless} dataSource={this.state.dataUseless} rowKey={record => record.key} pagination={this.state.paginationUseless} loading={this.state.loadingAdvisor} />
-          </Card>
+          <Collapse  defaultActiveKey={['0','1','2']}  onChange={(key)=>{this.onChange(key)}} expandIconPosition='end' >
+            <Panel showArrow={false} header="Advised Indexes" key={0} forceRender={true} className='panelStyle'>
+            <Table size='small' columns={this.state.columns} dataSource={this.state.data} rowKey={record => record.key}  pagination={paginationProps} loading={this.state.loadingAdvisor} />
+            </Panel>
+            <Panel showArrow={false} header="Redundant Indexes" key={1} forceRender={true} className='panelStyle'>
+            <Table size='small' columns={this.state.columnsRedundant} dataSource={this.state.dataRedundant} rowKey={record => record.key} pagination={this.state.paginationRedundant} loading={this.state.loadingAdvisor} />
+            </Panel>
+            <Panel showArrow={false} header="Useless Indexes" key={2} forceRender={true} className='panelStyle'>
+            <Table size='small' columns={this.state.columnsUseless} dataSource={this.state.dataUseless} rowKey={record => record.key} pagination={this.state.paginationUseless} loading={this.state.loadingAdvisor} />
+            </Panel>
+          </Collapse>
         </Card>
         <Modal title="Details" width="40vw"  footer={null}
          destroyOnClose='true' visible={this.state.isDetailsVisible} maskClosable = {false} onCancel={() => this.handleDetailsCancel()}>
-           <Table columns={this.state.columnsDetails} dataSource={this.state.dataDetails} rowKey={record => record.key} pagination={this.state.paginationDetails} />
+           <Table size='small' columns={this.state.columnsDetails} dataSource={this.state.dataDetails} rowKey={record => record.key} pagination={this.state.paginationDetails} />
         </Modal>
-        <Modal title="Setting"  width="40vw" footer={<div style={{textAlign:'center'}}><Button key="submit" type="primary" onClick={() => this.handleSettingOk()}>Save</Button><Button key="back" onClick={() => this.handleSettingReset()}>Reset</Button></div>}
+        <Modal title="Setting" width="40vw" style={{minWidth:768}} footer={<div style={{textAlign:'center'}}><Button key="submit" type="primary" onClick={() => this.handleSettingOk()}>Save</Button><Button key="back" onClick={() => this.handleSettingReset()}>Reset</Button></div>}
          destroyOnClose='true' visible={this.state.isSettingVisible} maskClosable = {false} onOk={() => this.handleSettingOk()}  onCancel={() => this.handleSettingCancel()}>
-          <p><label style={labelStyle}>Min_improved_rate: </label><InputNumber style={inputStyle} min={0} onChange={(e) => this.handleChangeRate(e)} stringMode value={this.state.minImprovedRate} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Minimum improved rate of the cost for the indexes</label></p>
-          <p><label style={labelStyle}>Max_index_num: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeNum(e)}  value={this.state.maxIndexNum} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum number of advised indexes</label></p>
-          <p><label style={labelStyle}>Max_index_storage: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeStorage(e)}  value={this.state.maxIndexStorage} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum index storage (Mb)</label></p>
+          <p style={{minWidth:720}}><label style={labelStyle}>Min_improved_rate: </label><InputNumber style={inputStyle} min={0} onChange={(e) => this.handleChangeRate(e)} stringMode value={this.state.minImprovedRate} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Minimum improved rate of the cost for the indexes</label></p>
+          <p style={{minWidth:720}}><label style={labelStyle}>Max_index_num: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeNum(e)} stringMode value={this.state.maxIndexNum} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum number of advised indexes</label></p>
+          <p style={{minWidth:720}}><label style={labelStyle}>Max_index_storage: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeStorage(e)} stringMode value={this.state.maxIndexStorage} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum index storage (Mb)</label></p>
         </Modal>
       </div>
       </div>

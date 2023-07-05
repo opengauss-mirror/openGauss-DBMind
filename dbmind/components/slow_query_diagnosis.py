@@ -30,6 +30,7 @@ from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFr
 from dbmind.app.diagnosis.query.slow_sql.query_info_source import QueryContextFromTSDBAndRPC
 from dbmind.cmd.edbmind import init_global_configs
 from dbmind.common.opengauss_driver import Driver
+from dbmind.common.parser.plan_parsing import Plan
 from dbmind.common.parser.sql_parsing import exist_track_parameter
 from dbmind.common.utils.checking import path_type, date_type
 from dbmind.common.utils.cli import (keep_inputting_until_correct,
@@ -39,75 +40,57 @@ from dbmind.common.utils.exporter import set_logger
 from dbmind.metadatabase.dao import slow_queries
 
 
-def get_query_context_with_rpc(query, dbname, schema='public',
-                               start_time=None, end_time=None):
+def get_query_context_with_rpc(query, db_name, **params):
     if query is None:
         return [], []
 
     host, port = global_vars.agent_proxy.current_agent_addr().split(':')
 
     default_interval = 120 * 1000
-    if end_time is None:
-        end_time = int(datetime.datetime.now().timestamp()) * 1000
+    start_time, finish_time = params.pop('start_time', None), params.pop('finish_time', None)
+    if finish_time is None:
+        finish_time = int(datetime.datetime.now().timestamp()) * 1000
     if start_time is None:
-        start_time = end_time - default_interval
-
+        start_time = finish_time - default_interval
+    schema_name = params.pop('schema_name', None)
+    schema_name = 'public'
     track_parameter = exist_track_parameter(query)
-    slow_sql_instance = SlowQuery(db_host=host,
-                                  db_port=port,
-                                  query=query,
-                                  db_name=dbname,
-                                  schema_name=schema,
-                                  debug_query_id=-1,
-                                  track_parameter=track_parameter,
-                                  start_timestamp=start_time,
-                                  duration_time=end_time - start_time
-                                  )
+    slow_sql_instance = SlowQuery(db_host=host, db_port=port, query=query, db_name=db_name,
+                                  track_parameter=track_parameter, start_time=start_time,
+                                  finish_time=finish_time, schema_name=schema_name, **params)
 
     return QueryContextFromTSDBAndRPC(slow_sql_instance)
 
 
-def analyze_slow_query_with_rpc(query, dbname, schema='public',
-                                start_time=None, end_time=None):
+def analyze_slow_query_with_rpc(query, db_name, **params):
     query_context = get_query_context_with_rpc(
-        query, dbname, schema,
-        start_time, end_time
+        query, db_name, **params
     )
-    return _analyze_slow_query_internal(query_context)
+    query_plan = query_context.slow_sql_instance.query_plan
+    return query_plan, _analyze_slow_query_internal(query_context)
 
 
-def get_query_context_with_driver(
-        query, schema, start_time=None, end_time=None, driver=None
-):
-    host, port, dbname = driver.host, driver.port, driver.dbname
+def get_query_context_with_driver(query, driver, **params):
+    host, port, db_name = driver.host, driver.port, driver.dbname
 
     default_interval = 120 * 1000
-    if end_time is None:
-        end_time = int(datetime.datetime.now().timestamp()) * 1000
+    start_time, finish_time = params.pop('start_time'), params.pop('finish_time')
+    if finish_time is None:
+        finish_time = int(datetime.datetime.now().timestamp()) * 1000
     if start_time is None:
-        start_time = end_time - default_interval
+        start_time = finish_time - default_interval
 
     track_parameter = exist_track_parameter(query)
-    slow_sql_instance = SlowQuery(db_host=host,
-                                  db_port=port,
-                                  query=query,
-                                  db_name=dbname,
-                                  schema_name=schema,
-                                  debug_query_id=-1,
-                                  track_parameter=track_parameter,
-                                  start_timestamp=start_time,
-                                  duration_time=end_time - start_time
-                                  )
+    slow_sql_instance = SlowQuery(db_host=host, db_port=port, query=query, db_name=db_name,
+                                  track_parameter=track_parameter, start_time=start_time,
+                                  finish_time=finish_time, **params)
     return QueryContextFromDriver(slow_sql_instance, driver=driver)
 
 
-def analyze_slow_query_with_driver(
-        query, schema, start_time=None, end_time=None, driver=None
-):
-    query_context = get_query_context_with_driver(
-        query, schema, start_time, end_time, driver
-    )
-    return _analyze_slow_query_internal(query_context)
+def analyze_slow_query_with_driver(query, driver, **params):
+    query_context = get_query_context_with_driver(query, driver, **params)
+    query_plan = query_context.slow_sql_instance.query_plan
+    return query_plan, _analyze_slow_query_internal(query_context)
 
 
 def _analyze_slow_query_internal(query_context):
@@ -124,55 +107,60 @@ def _analyze_slow_query_internal(query_context):
 
 
 def get_query_plan(
-        query, database=None, schema=None, data_source='tsdb', driver=None
+        query, db_name, schema_name=None, data_source='tsdb', driver=None
 ):
     if data_source == 'tsdb':
         query_context = get_query_context_with_rpc(
-            query=query, dbname=database, schema=schema
+            query, db_name, schema_name=schema_name
         )
     elif data_source == 'driver':
         query_context = get_query_context_with_driver(
-            query=query, schema=schema, driver=driver
+            query=query, schema_name=schema_name, driver=driver
         )
     else:
         raise AssertionError()
-    return query_context.slow_sql_instance.query_plan, query_context.query_type
+    plan_tree = None
+    if query_context.slow_sql_instance.query_plan is not None:
+        plan_parser = Plan()
+        plan_parser.parse(query_context.slow_sql_instance.query_plan)
+        plan_tree = plan_parser.plan_tree()
+    return query_context.slow_sql_instance.query_plan, query_context.query_type, query_context.slow_sql_instance.schema_name, plan_tree
 
 
-def _is_database_exist(database, data_source='tsdb', driver=None):
-    stmt = "select datname from pg_database where datname = '%s'" % database
+def _is_database_exist(db_name, data_source='tsdb', driver=None):
+    stmt = "select datname from pg_database where datname = '%s'" % db_name
     if data_source == 'tsdb':
         rows = global_vars.agent_proxy.call('query_in_database',
                                             stmt,
-                                            database,
+                                            db_name,
                                             return_tuples=True)
     else:
         rows = driver.query(stmt, return_tuples=True)
     return bool(rows)
 
 
-def _is_schema_exist(schema, database=None, data_source='tsdb', driver=None):
+def _is_schema_exist(schema, db_name=None, data_source='tsdb', driver=None):
     stmt = "select nspname from pg_namespace where nspname = '%s'" % schema
     if data_source == 'tsdb':
         rows = global_vars.agent_proxy.call('query_in_database',
                                             stmt,
-                                            database,
+                                            db_name,
                                             return_tuples=True)
     else:
         rows = driver.query(stmt, return_tuples=True)
     return bool(rows)
 
 
-def try_to_initialize_rpc_and_tsdb(database, schema):
+def try_to_initialize_rpc_and_tsdb(db_name, schema):
     if not initialize_tsdb_param():
         return False, 'TSDB service does not exist, exiting...'
     if not initialize_rpc_service():
         return False, 'RPC service does not exist, exiting...'
-    if database is None:
+    if db_name is None:
         return False, "Lack the information of 'database', exiting..."
-    if not _is_database_exist(database, data_source='tsdb'):
-        return False, "Database '%s' does not exist, exiting..." % database
-    if schema is not None and not _is_schema_exist(schema, database=database, data_source='tsdb'):
+    if not _is_database_exist(db_name, data_source='tsdb'):
+        return False, "Database '%s' does not exist, exiting..." % db_name
+    if schema is not None and not _is_schema_exist(schema, db_name=db_name, data_source='tsdb'):
         return False, "Schema '%s' does not exist, exiting..." % schema
     return True, None
 
@@ -188,7 +176,7 @@ def try_to_get_driver(url, schema):
     return driver, None
 
 
-def show(instance, query, start_time, end_time):
+def show(instance, query, start_time, finish_time):
     field_names = (
         'slow_query_id', 'schema_name', 'db_name',
         'query', 'start_at', 'duration_time',
@@ -197,7 +185,7 @@ def show(instance, query, start_time, end_time):
     output_table = PrettyTable()
     output_table.field_names = field_names
 
-    result = slow_queries.select_slow_queries(instance, field_names, query, start_time, end_time)
+    result = slow_queries.select_slow_queries(instance, field_names, query, start_time, finish_time)
     nb_rows = 0
     for slow_query in result:
         row = [getattr(slow_query, field) for field in field_names]
@@ -233,7 +221,7 @@ def clean(retention_days):
 
 
 def diagnosis(
-        query, database, schema=None, start_time=None, end_time=None,
+        query, db_name, schema=None, start_time=None, finish_time=None,
         driver=None, data_source='tsdb'
 ):
     field_names = ('root_cause', 'suggestion')
@@ -241,20 +229,21 @@ def diagnosis(
     output_table.field_names = field_names
     output_table.align = "l"
     if data_source == 'tsdb':
-        root_causes, suggestions = analyze_slow_query_with_rpc(
-            query=query,
-            dbname=database,
+        _, (root_causes, suggestions) = analyze_slow_query_with_rpc(
+            query,
+            db_name,
             schema=schema,
             start_time=start_time,
-            end_time=end_time
+            finish_time=finish_time
         )
     elif data_source == 'driver':
-        root_causes, suggestions = analyze_slow_query_with_driver(
-            query=query,
+        _, (root_causes, suggestions) = analyze_slow_query_with_driver(
+            query,
+            driver,
             schema=schema,
             start_time=start_time,
-            end_time=end_time,
-            driver=driver)
+            finish_time=finish_time
+        )
     else:
         raise AssertionError()
 
@@ -263,14 +252,14 @@ def diagnosis(
     print(output_table)
 
 
-def get_plan(query, database, schema=None, driver=None, data_source='tsdb'):
+def get_plan(query, db_name, schema=None, driver=None, data_source='tsdb'):
     output_table = PrettyTable()
     field_names = ('normalized', 'plan')
     output_table.field_names = field_names
     output_table.align = "l"
-    query_plan, query_type = get_query_plan(query=query,
-                                            database=database,
-                                            schema=schema,
+    query_plan, query_type, _, _ = get_query_plan(query=query,
+                                            db_name=db_name,
+                                            schema_name=schema,
                                             data_source=data_source,
                                             driver=driver)
     if query_type == 'normalized':
@@ -282,7 +271,7 @@ def get_plan(query, database, schema=None, driver=None, data_source='tsdb'):
 
 def main(argv):
     parser = argparse.ArgumentParser(description='Slow Query Diagnosis: Analyse the root cause of slow query')
-    parser.add_argument('action', choices=('show', 'clean', 'diagnosis', 'get_plan'),
+    parser.add_argument('action', choices=('show', 'clean', 'diagnosis'),
                         help='choose a functionality to perform')
     parser.add_argument('-c', '--conf', metavar='DIRECTORY', required=True, type=path_type,
                         help='Set the directory of configuration files')
@@ -298,13 +287,6 @@ def main(argv):
                         help='Set the start time of a slow SQL diagnosis result to be retrieved')
     parser.add_argument('--end-time', metavar='TIMESTAMP_IN_MICROSECONDS', type=date_type,
                         help='Set the end time of a slow SQL diagnosis result to be retrieved')
-    parser.add_argument('--url', metavar='DSN of database',
-                        help="set database dsn('postgres://user@host:port/dbname' or "
-                             "'user=user dbname=dbname host=host port=port') "
-                             "when tsdb is not available. Note: don't contain password in DSN. Using in diagnosis.")
-    parser.add_argument('--data-source', choices=('tsdb', 'driver'), metavar='data source of SLOW-SQL-RCA',
-                        default='tsdb',
-                        help='set database dsn when tsdb is not available. Using in diagnosis.')
     parser.add_argument('--retention-days', metavar='DAYS', type=float,
                         help='clear historical diagnosis results and set '
                              'the maximum number of days to retain data')
@@ -312,6 +294,7 @@ def main(argv):
     args = parser.parse_args(argv)
     # add dummy fields
     args.driver = None
+    args.data_source = 'tsdb'
 
     if not os.path.exists(args.conf):
         parser.exit(1, 'Not found the directory %s.\n' % args.conf)
@@ -369,11 +352,11 @@ def main(argv):
         elif args.action == 'clean':
             clean(args.retention_days)
         elif args.action == 'diagnosis':
-            diagnosis(args.query, args.database, args.schema,
-                      start_time=args.start_time, end_time=args.end_time,
+            diagnosis(args.query, args.database, schema=args.schema,
+                      start_time=args.start_time, finish_time=args.end_time,
                       driver=args.driver, data_source=args.data_source)
         elif args.action == 'get_plan':
-            get_plan(args.query, args.database, args.schema,
+            get_plan(args.query, args.database, schema=args.schema,
                      driver=args.driver, data_source=args.data_source)
     except Exception as e:
         write_to_terminal('An error occurred probably due to database operations, '
@@ -386,3 +369,4 @@ def main(argv):
 
 if __name__ == '__main__':
     main(sys.argv[1:])
+

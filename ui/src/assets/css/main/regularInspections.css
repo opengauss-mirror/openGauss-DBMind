@@ -1,0 +1,124 @@
+.RegularInspection .ant-radio-button-wrapper {
+  background: none;
+}
+
+.RegularInspection .ant-picker {
+  background: none;
+}
+.RegularInspection .ant-card-body {
+  padding: 0 24px;
+
+}
+
+.RegularInspection .ant-card-head {
+  border-bottom: none;
+}
+
+.connectionTitle {
+  height: 70px;
+  border-radius: 4px;
+  background: #fbf9ffff;
+  display: flex;
+  justify-content: space-between;
+  line-height: 70px;
+  margin-right: 10px;
+  width: 24%;
+}
+
+.connectionTitle p {
+  margin-left: 20px;
+  font-size: 14px;
+  color: #737a80;
+  font-family: Arial;
+  text-align: left;
+  font-weight: Regular;
+}
+
+.connectionTitle h4 {
+  margin-right: 20px;
+  font-size: 16px;
+  color: #272727;
+  font-family: Arial;
+  text-align: right;
+  font-weight: Bold;
+}
+
+.connectionTitle ul li:last-child {
+  margin-right: 0;
+}
+.RegularInspection .ant-card-head-title {
+  padding-bottom: 6px;
+}
+.tps {
+  border-radius: 4px;
+
+  box-shadow: 0px 0px 2px rgba (0, 39, 156, 0.16);
+}
+.tps .ant-card-head-title {
+  padding-top: 10px;
+
+  font-size: 14px;
+  color: #272727;
+  font-family: Arial;
+  text-align: left;
+  font-weight: Bold;
+}
+.tps .connectionTitle {
+  height: 60px;
+}
+.tps .ant-card-head {
+  min-height: 0;
+}
+.dml {
+  height: 233px;
+}
+.tableHeight .ant-table-wrapper {
+  height: 210px !important;
+}
+.redFalse {
+  font-size: 14px;
+  color: #f43146;
+  font-family: Arial;
+  text-align: left;
+  font-weight: Regular;
+}
+.dynamicSelect .ant-select-selector {
+  height: 26px !important;
+}
+.dynamicSelect .ant-select-selection-item {
+  line-height: 26px !important;
+}
+.systemRsource {
+  position: relative;
+}
+.dynamicSelect{
+    margin:10px 28px 0 0 ;
+}
+.systemNode {
+  position: absolute;
+  top: 5px;
+  right: 24px;
+  margin:10px 0 0 0 ;
+}
+.systemBorder {
+  border: 1px solid #f0f0f0;
+  padding-top: 10px;
+  border-radius: 4px;
+
+  box-shadow: 0px 0px 2px rgba (0, 39, 156, 0.16);
+}
+
+.futureTable .ant-table-expanded-row-fixed:after{
+    border-right: none !important;
+}
+.dailySelect{
+    margin:-25px 60px 0 0;
+}
+.RegularInspection .ant-radio-button-wrapper:focus-within{
+    box-shadow: none !important;
+}
+.RegularInspection .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled){
+    border-radius:2px;
+    background:#5990fdff !important;
+    color: #f5f5f5 !important;
+}

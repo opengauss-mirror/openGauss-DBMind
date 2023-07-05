@@ -27,7 +27,7 @@ export default class ConnectionCharts extends Component {
       title: {
         show: true,
         text: flg === 'one' ? 'Max Connection' : 'Active Connection',
-        subtext: flg === 'one' ? this.state.maxData : this.state.minData === 0 ? "0" : this.state.minData,
+        subtext: flg === 'one' ? (this.state.maxData === 0 ? "0" : this.state.maxData) : this.state.minData === 0 ? "0" : this.state.minData,
         textStyle: {    // 标题样式
         color: '#737a80',    //字体颜色
         fontSize: 14,    //字体大小
@@ -66,8 +66,8 @@ export default class ConnectionCharts extends Component {
         },
         markPoint: {
         data: [{
-          yAxis: 1330, 
-          x: '98.5%' 
+          yAxis: flg === 'one' ? this.state.maxData : this.state.minData, 
+          x: '96%' 
         }],
         symbol: 'circle',
         symbolSize: 7,

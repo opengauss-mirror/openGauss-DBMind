@@ -22,18 +22,19 @@ export default class DistributionChart extends Component {
         axisLabel: {
           interval: 0,
           textStyle: {
-            color: '#314b71',
+            color: '#4D5964',
             fontSize: '12'
           },
         },
         data: this.state.xdata
       },
+      
       yAxis: {
         type: 'value',
-        offset: -20,
+       
         axisLabel: {
           textStyle: {
-            color: '#314b71',
+            color: '#4D5964',
             fontSize: '10'
           }
         }
@@ -47,10 +48,11 @@ export default class DistributionChart extends Component {
         {
           data: this.state.ydata,
           type: 'bar',
-          showBackground: true,
-          backgroundStyle: {
-            color: 'rgba(180, 180, 180, 0.2)'
-          }
+         
+          barMaxWidth:28,
+          itemStyle: {
+            color: "#5990FD",
+          },
         }
       ]
     };
@@ -58,19 +60,23 @@ export default class DistributionChart extends Component {
   UNSAFE_componentWillReceiveProps (nextProps) {
     let xdataArr = []
     let ydataArr = []
-    Object.keys(nextProps.distribution).forEach(function (key, i, v) {
-      ydataArr.push(nextProps.distribution[key])
-      xdataArr = v
-    })
-    this.setState({
-      xdata: xdataArr,
-      ydata: ydataArr
-    })
+
+      Object.keys(nextProps?.distribution).forEach(function (key, i, v) {
+        ydataArr.push(nextProps.distribution[key])
+        xdataArr = v
+      })
+    
+      this.setState({
+        xdata: xdataArr,
+        ydata: ydataArr
+      })
+    
+    
   }
   render () {
     return (
-      <div className="mb-20" >
-        <Card title="Distribution of slow Query">
+      <div className="mb-10" >
+        <Card title="Distribution of slow Query" style={{height:'278px'}}>
           <ReactEcharts
             ref={(e) => {
               this.echartsElement = e

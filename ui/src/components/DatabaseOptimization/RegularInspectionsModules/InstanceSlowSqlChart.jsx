@@ -25,74 +25,104 @@ export default class InstanceSlowSqlChart extends Component {
         text: item.yname,
         left: 'left',
         textStyle:{
-          color: '#314b71',
-          fontSize: '12'
+          fontSize: "14",
+          fontFamily: "Arial",
+          fontWeight: "Bold"
         }
       },
       grid: {
+        top: "25%",
+        left: "3%",
+        right: "4%",
+        bottom: "2%",
         containLabel: true,
-        width: '100%',
-        left: '0%',
-        top: '15%',
-        right: '0%'
       },
       legend: {
         data: item.legendData,
-        x: 'right' 
+        right:22
       },
       xAxis: {
-        axisLine: {
+        type: 'category',
+        boundaryGap: false,
+        splitLine: {
+          //网格线
+          show: true, //是否显示
           lineStyle: {
-            width: 0,
+            //网格线样式
+            color: '#F2F2F2', //网格线颜色
+            width: 1, //网格线的加粗程度
+            type: 'dashed' //网格线类型
+          }
+        },
+        axisLine: {
+          show: true,
+          lineStyle: {
+            color: '#939393',
+            width: 1,
+            type: 'solid'
           }
         },
         axisLabel: {
-          padding: [0, 0, 0, 80],
+          show: true,
+          margin: 10,
           textStyle: {
-            color: '#314b71',
-            fontSize: '10'
+            color: '#4D5964',
+            fontSize: 11,
+            fontFamily: 'Arial',
+            fontWeight: 'normal'
           }
         },
-        type: 'category',
-        data: item.xdata
+        data: item.xdata.map(function (str) {
+          return str.replace(' ', '\n');
+        })
       },
       yAxis: {
-        type: 'value',
-        nameLocation: 'end',
-        nameTextStyle: {
-          padding: [0, 0, 8, 120],
-          color: '#314b71',
-        },
-        nameGap: 15,
-        axisLabel: {
-          textStyle: {
-            color: '#314b71',
-            fontSize: '12'
+        min: 0,
+        splitLine: {
+          //网格线
+          show: true, //是否显示
+          lineStyle: {
+            //网格线样式
+            color: '#F2F2F2', //网格线颜色
+            width: 1, //网格线的加粗程度
+            type: 'dashed' //网格线类型
           }
-        }
+        },
+        ayisLine: {
+          show: true,
+          lineStyle: {
+            color: '#939393',
+            width: 1,
+            type: 'solid'
+          }
+        },
+        axisLabel: {
+          margin: 10,
+          
+          show: true,
+          textStyle: {
+            color: '#4D5964',
+            fontSize: 11,
+            fontFamily: 'Arial',
+            fontWeight: 'normal',
+            align: 'right'
+          }
+        },
+        type:'value'
       },
       tooltip: {
         trigger: 'axis',
-        textStyle: {
-        align: 'left'
-      }
+          textStyle: {
+          align: 'left'
+        }
     },
-      dataZoom: {
-        start: 0,
-        end: 100,
-        show: true,
-        type: 'slider',
-        handleSize: '100%',
-        left: '0%',
-        right: '0.3%',
-        height: 15
-      },
+     
       series: item.seriesData
     }
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
     if (JSON.stringify(nextProps.instanceSlowSqlChart.query_type_distribution) !== '{}') {
-      let arrayData = [], colors = ['#5470c6', '#91cc75', '#fac858', '#007acc' ], everyData = []
+      let arrayData = [], colors = [ '#2CA768','#EC6F1A', '#EEBA18','#5890FD', '#007acc' ], everyData = []
           // 处理X轴
           let formatTimeData = [];
           nextProps.instanceSlowSqlChart.timestamps.forEach(ele => {
@@ -107,8 +137,18 @@ export default class InstanceSlowSqlChart extends Component {
                 type: 'line',
                 smooth: true,
                 name: data,
-                symbol: 'none',
-                color: colors[i],
+                symbol: 'circle',
+                symbolSize: 3,
+               
+                itemStyle: {
+                  normal: {
+                    color: colors[i],
+                    lineStyle: {
+                      width: 1,
+                    },
+                  },
+                },
+                
               }
               allData.push(seriesItem)
             })
@@ -139,12 +179,13 @@ export default class InstanceSlowSqlChart extends Component {
   render () {
     return (
       <div>
-          <Row gutter={16} style={{ textAlign: 'center' }}>
+          <Row gutter={10}>
           {this.state.ifShow ?  this.state.allDataRegular.map((item,index) => {
                 return (
                   <>
-                    <Col className="gutter-row" span={12}>
+                    <Col className="gutter-row mb-10" span={12}>
                       <ReactEcharts
+                       className="systemBorder"
                         ref={(e) => {
                           this.echartsElement = e
                         }}
@@ -160,9 +201,10 @@ export default class InstanceSlowSqlChart extends Component {
            : <Col className="gutter-row" span={24}><Empty description={this.state.ifShow} style={{ height: 200, paddingTop: 50 }} /></Col>}
           </Row>
           {this.state.onlyData.length ? 
-              <Row gutter={16}>
-                <Col className="gutter-row" span={24}>
+              <Row gutter={10}>
+                <Col className="gutter-row mb-10" span={24}>
                   <ReactEcharts
+                   className="systemBorder"
                     ref={(e) => {
                       this.echartsElement = e
                     }}

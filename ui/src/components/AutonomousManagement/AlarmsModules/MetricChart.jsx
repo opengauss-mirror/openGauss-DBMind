@@ -207,7 +207,6 @@ export default class MetricChart extends Component {
                 )
               })
             : this.state.showFlag === 1 ? <Empty description={false} style={{ paddingTop: 50 }} /> : <div style={{ textAlign: 'center' }}><Spin style={{ margin: '100px auto' }} /> </div>}
-            <Table bordered dataSource={this.state.rootCauseDataSource} columns={this.state.rootCausecolumns} rowKey={record => record.key} loading={this.state.loading} />
         </Card>
       </div>
     )

@@ -81,7 +81,7 @@ export default class Alarms extends Component {
             fixed:item === 'operation' ? 'right' : 'false',
             render: (row, record) => {
               if(item === 'operation'){
-                return <Button type="primary" disabled={(record.anomaly_type === "ThresholdDetector" || record.anomaly_type === "GRADIENT")} onClick={() => this.isModal(row, record)}>analyze</Button>
+                return <Button type="primary" disabled={(record.anomaly_type === "Threshold" || record.anomaly_type === "GRADIENT")} onClick={() => this.isModal(row, record)}>analyze</Button>
               } else {
                 return row
               }

@@ -164,6 +164,12 @@ class QueryFeature:
                                               self.wait_event_info.lockmode,
                                               self.wait_event_info.locktag)
             return True
+        else:
+            if self.slow_sql_instance.lwlock_wait_time or self.slow_sql_instance.lock_wait_time:
+                self.detail['lock_contention'] = "SQL was blocked, detail: lwlock wait time: %s, lock wait time: %s" % \
+                                                 (self.slow_sql_instance.lwlock_wait_time,
+                                                  self.slow_sql_instance.lock_wait_time)
+                return True
         return False
 
     @property
@@ -315,7 +321,7 @@ class QueryFeature:
         n_hard_parse = self.slow_sql_instance.n_hard_parse
         plan_time = self.slow_sql_instance.plan_time
         exc_time = self.slow_sql_instance.duration_time
-        if plan_time / exc_time >= monitoring.get_slow_sql_param('plan_time_rate_threshold') \
+        if exc_time and plan_time / exc_time >= monitoring.get_slow_sql_param('plan_time_rate_threshold') \
                 and n_hard_parse > n_soft_parse:
             self.detail['abnormal_plan_time'] = "There exists some hard parses in the execution plan generation process"
             self.suggestion['abnormal_plan_time'] = "Modify business to support PBE"
@@ -478,9 +484,9 @@ class QueryFeature:
                        for item in self.table_structure}
         self.detail['vacuum'] = {}
         for table_name, vacuum_time in vacuum_info.items():
-            if self.slow_sql_instance.start_at <= vacuum_time <= self.slow_sql_instance.start_at + \
+            if self.slow_sql_instance.start_time <= vacuum_time <= self.slow_sql_instance.start_time + \
                     self.slow_sql_instance.duration_time or \
-                    vacuum_time <= self.slow_sql_instance.start_at <= vacuum_time + probable_time_interval * 1000:
+                    vacuum_time <= self.slow_sql_instance.start_time <= vacuum_time + probable_time_interval * 1000:
                 self.detail['vacuum'][table_name] = vacuum_time
         if self.detail.get('vacuum'):
             return True
@@ -496,9 +502,9 @@ class QueryFeature:
                         for item in self.table_structure}
         self.detail['analyze'] = {}
         for table_name, analyze_time in analyze_info.items():
-            if self.slow_sql_instance.start_at <= analyze_time <= self.slow_sql_instance.start_at + \
+            if self.slow_sql_instance.start_time <= analyze_time <= self.slow_sql_instance.start_time + \
                     self.slow_sql_instance.duration_time or \
-                    analyze_time <= self.slow_sql_instance.start_at <= analyze_time + probable_time_interval * 1000:
+                    analyze_time <= self.slow_sql_instance.start_time <= analyze_time + probable_time_interval * 1000:
                 self.detail['analyze'][table_name] = analyze_time
         if self.detail.get('analyze'):
             return True

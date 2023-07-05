@@ -122,8 +122,8 @@ export default class PositiveSql extends Component {
       onChange: (current,pageSize) => this.changePage(current,pageSize)
     };
     return (
-      <div className="mb-20">
-        <Card title="Positive SQL" className="mb-20">
+      <div className="mb-10">
+        <Card title="Positive SQL" className="mb-10">
           <Table size="small" bordered components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
         </Card>
       </div>

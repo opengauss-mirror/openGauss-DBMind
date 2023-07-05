@@ -114,12 +114,15 @@ export default class SlowquerycountChart extends Component {
     }
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
-    this.getChartData(nextProps.slowQueryCount)
+    if(nextProps.slowQueryCount){
+      this.getChartData(nextProps.slowQueryCount)
+    }
+   
   }
   render () {
     return (
-      <div className="mb-20" >
-        <Card title="Slow Query Count">
+      <div className="mb-10" >
+        <Card title="Slow Query Count" style={{height:'278px'}}>
           {this.state.ifShow ? <ReactEcharts
             ref={(e) => {
               this.echartsElement = e

@@ -13,7 +13,7 @@ export default class TotalConnections extends Component {
     super(props)
     this.state = {
       dataSource: [],
-      columns: []
+     
     }
   }
   components = {
@@ -22,40 +22,18 @@ export default class TotalConnections extends Component {
     },
   };
   handleTableData (data) {
-    let arr = []
-    let columnArr = []
-    let headNameOne,headNameTwo = ''
-    Object.keys(data).forEach(function (key, i, v) {
-      if(i === 0){
-        headNameOne = key
-        headNameTwo = data[key]
-      }
-      if(i > 0){
-        arr.push({[headNameOne]:key,[headNameTwo]:data[key]})
-      }
-    })
-    let columnName = {},columnName1 = {}
-    Object.keys(data).forEach(function (key, i, v) {
-      if(i === 0){
-        columnName = {
-          title: formatTableTitle(key),
-          dataIndex: key,
-          key: key,
-          ellipsis: true,
-        }
-        columnName1 = {
-          title: data[key],
-          dataIndex: data[key],
-          key: data[key],
-          ellipsis: true,
-        }
-        columnArr.push(columnName)
-        columnArr.push(columnName1)
-      }
-    })
+    let totalArr = [];
+
+    for (let i in data) {
+      let activeObj = {
+        name: i,
+        value: data[i],
+      };
+      totalArr.push(activeObj);
+    }
     this.setState(() => ({
-      dataSource: arr,
-      columns: columnArr,
+      dataSource: totalArr,
+     
     }))
   }
   handleResize = index => (e, { size }) => {
@@ -72,17 +50,20 @@ export default class TotalConnections extends Component {
     this.handleTableData(nextProps.totalConnections)
   }
   render () {
-    const columns = this.state.columns.map((col, index) => ({
-      ...col,
-      onHeaderCell: column => ({
-        width: column.width,
-        onResize: this.handleResize(index)
-      })
-    }))
+   
     return (
-      <div style={{ textAlign: 'center' }} className='tableDiv'>
-        <Card title="Total Connections">
-          <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 157, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
+      <div className='tableDiv'>
+        <Card title="Total Connections"  style={{height:129}}>
+         <ul style={{width:'100%',display:'flex'}}>
+         {this.state.dataSource.map((item) => {
+              return (
+                <li className="connectionTitle">
+                  <p>{item.name}</p>
+                  <h4>{item.value}</h4>
+                </li>
+              );
+            })}
+         </ul>
         </Card>
       </div>
     )

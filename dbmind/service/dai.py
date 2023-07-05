@@ -351,7 +351,7 @@ def save_slow_queries(slow_queries):
         slow_query_id = query_id_result[0][0]
         dao.slow_queries.insert_slow_query_journal(
             slow_query_id=slow_query_id,
-            start_at=slow_query.start_at,
+            start_at=slow_query.start_time,
             duration_time=slow_query.duration_time,
             instance=instance
         )
@@ -373,6 +373,10 @@ def delete_older_result(current_timestamp, retention_time):
             action(before_timestamp)
         except Exception as e:
             logging.exception(e)
+    try:
+        dao.regular_inspections.delete_old_inspection()
+    except Exception as e:
+        logging.exception(e)
 
 
 def get_all_last_monitoring_alarm_logs(minutes):
@@ -437,12 +441,13 @@ def get_all_slow_queries(minutes):
 
 def save_index_recomm(index_infos):
     dao.index_recommendation.clear_data()
+    now = int(time.time() * 1000)
     for index_info in index_infos:
+        index_info['time'] = now
         _save_index_recomm(index_info)
 
 
 def _save_index_recomm(detail_info):
-    now = int(time.time() * 1000)
     db_name = detail_info.get('db_name')
     instance = detail_info.get('instance')
     positive_stmt_count = detail_info.get('positive_stmt_count', 0)
@@ -476,13 +481,14 @@ def _save_index_recomm(detail_info):
             template = sql_detail['sqlTemplate']
             if [template, db_name] not in templates:
                 templates.append([template, db_name])
-                dao.index_recommendation.insert_recommendation_stmt_templates(template, db_name)
+                dao.index_recommendation.insert_recommendation_stmt_templates(template, instance, db_name)
             stmt = sql_detail['sql']
             stmt_count = sql_detail['sqlCount']
             optimized = sql_detail.get('optimized')
             correlation = sql_detail['correlationType']
             dao.index_recommendation.insert_recommendation_stmt_details(
-                template_id=templates.index([template, db_name]) + dao.index_recommendation.get_template_start_id(),
+                template_id=dao.index_recommendation.get_template_id(instance, db_name, template),
+                instance = instance,
                 db_name=db_name, stmt=stmt,
                 optimized=optimized,
                 correlation_type=correlation,
@@ -515,8 +521,8 @@ def _save_index_recomm(detail_info):
                                                         table_count=table_count, rec_index_count=recommend_index_count,
                                                         redundant_index_count=redundant_index_count,
                                                         invalid_index_count=invalid_index_count,
-                                                        stmt_source=detail_info['stmt_source'],
-                                                        time=now
+                                                        stmt_source='statement',
+                                                        time=detail_info['time']
                                                         )
     return None
 
@@ -661,7 +667,7 @@ def diagnosis_exporter_status(exporter_status):
     if number_of_reprocessing_number > 1:
         suggestions.append("Only need to start one reprocessing exporter component.")
     if number_of_reprocessing_number < 1:
-        suggestions.append("It is found that the instance has not deployed reprocessing_exporter or some exception occurs.")
+        suggestions.append("Is is found that the instance has not deployed reprocessing_exporter or some exception occurs.")
     # 5) check whether too many node_exporters are deployed
     number_of_alive_node_exporter = len(set([item['instance'] for item in
                                         exporter_status['node_exporter'] if item['status'] == 'up']))
@@ -670,14 +676,8 @@ def diagnosis_exporter_status(exporter_status):
                            "it is recommended to deploy one node_exporter on each instance.")
     # 6) check if some nodes do not deploy exporter
     if number_of_alive_node_exporter < len(instance_with_no_port):
-        suggestions.append("It is found that some node has not deployed node_exporter, "
+        suggestions.append("Is it found that some node has not deployed node_exporter, "
                            "it is recommended to deploy one node_exporter on each instance.")
-    # 7) check whether the cmd_exporter is deployed or not
-    cluster = global_vars.agent_proxy.current_cluster_instances()
-    number_of_cmd_exproter = len(set((item['listen_address'] for item in
-                                      exporter_status['cmd_exporter'])))
-    if len(cluster) > 1 and number_of_cmd_exproter == 0:
-        suggestions.append("It is found that cmd_exporter is not deployed on each instance.")
     return suggestions
 
 
@@ -694,53 +694,39 @@ def is_driver_result_valid(s):
     return False
 
 
-def get_data_directory_mountpoint_info(instance):
+def get_database_data_directory_status(instance, latest_minutes):
     # return the mountpoint and total size of the disk where the instance data directory is located
+    detail = {'total_space': '', 'iops': '', 'usage_rate': '', 'used_space': '', 'free_space': ''}
+    mountpoint, device, size, iops = '', '', '', ''
     data_directory_sequence = get_latest_metric_value('pg_node_info_uptime').from_server(instance).fetchone()
     if not is_sequence_valid(data_directory_sequence):
-        return
+        return detail
     data_directory = data_directory_sequence.labels['datapath']
     instance_with_no_port = instance.split(':')[0]
     instance_regrex = instance_with_no_port + ':?.*'
+    iops_sequences = get_latest_metric_value('os_disk_iops').from_server(instance_with_no_port).fetchall()
+    logging.error("iops: %s, %s", len(iops_sequences), str(iops_sequences))
+    if is_sequence_valid(iops_sequences):
+        detail['iops'] = round(max(sequence.values[-1] for sequence in iops_sequences), 1)
     filesystem_total_size_sequences = get_latest_metric_value('node_filesystem_size_bytes'). \
         filter_like(instance=instance_regrex).fetchall()
-    if not is_sequence_valid(filesystem_total_size_sequences):
-        return
-    filesystem_total_size_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
-    for sequence in filesystem_total_size_sequences:
-        if data_directory.startswith(sequence.labels['mountpoint']):
-            return sequence.labels['mountpoint'], \
-                   sequence.labels['device'], round(sequence.values[-1] / 1024 / 1024 / 1024, 2)
-
-
-def get_database_data_directory_status(instance, latest_minutes):
-    # return the data-directory information of current cluster
-    # note: now the node of instance should be deployed opengauss_exporter
-    mountpoint, total_size = '', 0.0
-    detail = {'total_space': '', 'tilt_rate': '', 'usage_rate': '', 'used_space': ''}
-    instance_with_no_port = instance.split(':')[0]
-    cluster_instance = global_vars.agent_proxy.agent_get_all()[instance]
-    for instance in cluster_instance:
-        # get data_directory of any node in cluster, because all the node have the same data-directory.
-        mountpoint_info = get_data_directory_mountpoint_info(instance)
-        if mountpoint_info is not None:
-            mountpoint, _, total_size = mountpoint_info
-        break
-    disk_usage_sequence = get_latest_metric_sequence('os_disk_usage', latest_minutes).\
-        from_server(instance_with_no_port).filter(mountpoint=mountpoint).fetchone()
-    if not is_sequence_valid(disk_usage_sequence):
-        return detail
-    usage_rate = disk_usage_sequence.values
-    tile_rate, _ = linear_fitting(range(0, len(usage_rate)), usage_rate)
-    # replace tile rate with disk absolute size(unit: mbytes)
-    tile_rate = round(total_size * tile_rate * 1024, 2)
-    used_space = round(total_size * usage_rate[-1], 2)
-    free_space = round(total_size - used_space, 2)
-    detail = {'total_space': total_size,
-              'tilt_rate': tile_rate,
-              'usage_rate': round(usage_rate[-1], 2) if usage_rate else '',
-              'used_space': used_space, 'free_space': free_space}
-    return detail
+    if is_sequence_valid(filesystem_total_size_sequences):
+        filesystem_total_size_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
+        for sequence in filesystem_total_size_sequences:
+            if data_directory.startswith(sequence.labels['mountpoint']):
+                mountpoint = sequence.labels['mountpoint']
+                device = sequence.labels['device']
+                detail['total_space'] = round(sequence.values[-1] / 1024 / 1024 / 1024, 2)
+                break
+    if mountpoint:
+        disk_usage_sequence = get_latest_metric_value('os_disk_usage').\
+            from_server(instance_with_no_port).filter(mountpoint=mountpoint).fetchone()
+        if is_sequence_valid(disk_usage_sequence):
+            detail['usage_rate'] = disk_usage_sequence.values[-1]
+            if detail['total_space']:
+                detail['used_space'] = round(detail['total_space'] * detail['usage_rate'], 2)
+                detail['free_space'] = round(detail['total_space'] - detail['used_space'], 2)
+    return detail 
 
 
 def check_instance_status():
@@ -776,7 +762,7 @@ def check_instance_status():
             if is_sequence_valid(cluster_sequence):
                 labels = cluster_sequence.labels
                 detail['status'] = 'normal' if cluster_sequence.values[-1] == 1 else 'abnormal'
-                detail['primary'] = labels.get('primary', '')
+                detail['primary'] = labels.get('primary', '').strip(',')
                 detail['standby'] = labels.get('standby').strip(',').split(',') if labels else []
                 detail['normal'] = labels.get('normal').strip(',').split(',') if labels else []
                 detail['abnormal'] = list(set([detail['primary']] + detail['standby']) - set(detail['normal']))

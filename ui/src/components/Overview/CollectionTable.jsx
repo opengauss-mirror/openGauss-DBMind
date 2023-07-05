@@ -4,6 +4,7 @@ import ResizeableTitle from '../common/ResizeableTitle';
 import { getCollectionTable } from '../../api/overview';
 import iconokgreen from '../../assets/imgs/iconokgreen.png';
 import iconstop from '../../assets/imgs/iconstop.png';
+import { capitalizeFirst } from '../../utils/function';
 
 export default class CollectionTable extends Component {
   constructor() {
@@ -33,7 +34,7 @@ export default class CollectionTable extends Component {
     let tableHeader = []
     header.forEach(item => {
       historyColumObj = {
-        title: item.replace(/_/g, ' '),
+        title: capitalizeFirst(item.replace(/_/g, ' ')),
         dataIndex: item,
         key: item,
         align:item === 'is_alive' ? 'center' : 'left',

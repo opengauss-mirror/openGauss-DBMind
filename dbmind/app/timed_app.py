@@ -139,16 +139,16 @@ def index_recommend():
     database_schemas = get_database_schemas()
 
     args_collection = []
-    for address in database_schemas:
+    for address, rpc in global_vars.agent_proxy:
         for db_name in database_schemas[address]:
             schema_names = database_schemas[address][db_name]
             args_collection.append(
                 (index_template_args, address, db_name,
-                 schema_names, templates[db_name], optimization_interval)
+                 schema_names, {}, optimization_interval)
             )
-    results = global_vars.worker.parallel_execute(
-        do_index_recomm, args_collection
-    )
+    results = []
+    for args in args_collection:
+        results.append(do_index_recomm(*args))
     index_infos = []
     for result in results:
         if result is None:
@@ -156,7 +156,6 @@ def index_recommend():
         index_info, database_templates = result
         if index_info and database_templates:
             index_infos.append(index_info)
-            templates.update(database_templates)
     dai.save_index_recomm(index_infos)
     _self_driving_records.put(
         {
@@ -246,13 +245,24 @@ def daily_inspection():
     end = datetime.now()
     start = end - timedelta(seconds=one_day)
     for instance, rpc in global_vars.agent_proxy:
-        inspector = regular_inspection.DailyInspection(instance, start, end)
-        report = inspector()
+        start_record = datetime.now()
+        try:
+            inspector = regular_inspection.DailyInspection(instance, start, end)
+            report = inspector()
+            inspect_state = 'success'
+        except Exception as exception:
+            inspect_state = 'fail'
+            report = {}
+            logging.error('exec daily inspection failed, because: {}'.format(exception))
+        end_record = datetime.now()
+        cost_time = end_record - start_record
         results.append({'instance': instance,
                         'inspection_type': 'daily_check',
                         'start': int(start.timestamp() * 1000),
                         'end': int(end.timestamp()) * 1000,
                         'report': report,
+                        'state': inspect_state,
+                        'cost_time': cost_time.total_seconds(),
                         'conclusion': ''})
     dai.save_regular_inspection_results(results)
     _self_driving_records.put(
@@ -270,13 +280,24 @@ def weekly_inspection():
     end = datetime.now()
     start = end - timedelta(seconds=one_week)
     for instance, rpc in global_vars.agent_proxy:
-        inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=7)
-        report = inspector()
+        start_record = datetime.now()
+        try:
+            inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=7)
+            report = inspector()
+            inspect_state = 'success'
+        except Exception as exception:
+            inspect_state = 'fail'
+            report = {}
+            logging.error('exec weekly inspection failed, because: {}'.format(exception))
+        end_record = datetime.now()
+        cost_time = end_record - start_record
         results.append({'instance': instance,
                         'inspection_type': 'weekly_check',
                         'start': int(start.timestamp() * 1000),
                         'end': int(end.timestamp()) * 1000,
                         'report': report,
+                        'state': inspect_state,
+                        'cost_time': cost_time.total_seconds(),
                         'conclusion': ''})
     dai.save_regular_inspection_results(results)
 
@@ -287,12 +308,23 @@ def monthly_inspection():
     end = datetime.now()
     start = end - timedelta(seconds=one_month)
     for instance, rpc in global_vars.agent_proxy:
-        inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=30)
-        report = inspector()
+        start_record = datetime.now()
+        try:
+            inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=30)
+            report = inspector()
+            inspect_state = 'success'
+        except Exception as exception:
+            inspect_state = 'fail'
+            report = {}
+            logging.error('exec monthly inspection failed, because: {}'.format(exception))
+        end_record = datetime.now()
+        cost_time = end_record - start_record
         results.append({'instance': instance,
                         'inspection_type': 'monthly_check',
                         'start': int(start.timestamp() * 1000),
                         'end': int(end.timestamp()) * 1000,
                         'report': report,
+                        'state': inspect_state,
+                        'cost_time': cost_time.total_seconds(),
                         'conclusion': ''})
     dai.save_regular_inspection_results(results)

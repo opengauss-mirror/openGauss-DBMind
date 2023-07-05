@@ -1,13 +1,15 @@
 import React, { Component } from 'react';
-import { Button, Input, message, Select, Card, Col, Row, Table, Form, DatePicker, Checkbox, Modal, InputNumber } from 'antd';
+import { Button, Input, message, Select, Card, Col, Row, Table, Form, DatePicker, Checkbox, Modal, InputNumber,Radio } from 'antd';
 import { getItemListInterface } from '../../api/aiTool';
 import { getIntelligentSqlCondition } from '../../api/databaseOptimization';
+import ReactEcharts from 'echarts-for-react';
 import moment from 'moment';
 import Export from '../../assets/imgs/Export.png';
 import Create from '../../assets/imgs/Create.png';
 import '../../assets/css/common.css'
 import '../../assets/css/main/databaseOptimization.css'
 import { formatTableTitle, formatTimestamp } from '../../utils/function';
+import SlowSqlDiagnosis from '../DatabaseOptimization/SlowSqlDiagnosis';
 
 const { Option } = Select;
 const { RangePicker } = DatePicker;
@@ -24,7 +26,9 @@ export default class IntelligentSqlCondition extends Component {
       isCreateVisible:false,
       routeTo:0,
       sqlText:'',
-      database:''
+      database:'',
+      formData:{},
+      isSlowSqlDiagnosis:false
     }
   }
   timestampToTime (timestamp) {
@@ -40,6 +44,7 @@ export default class IntelligentSqlCondition extends Component {
     return finaTime;
   }
   onFinish = (values) => {
+    this.setState({formData: values})
     let newData = Object.assign(values)
     let stime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[0]._d) : 0
     let etime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[1]._d) : 0
@@ -47,13 +52,12 @@ export default class IntelligentSqlCondition extends Component {
       data_source: newData.dataSource ? newData.dataSource:'',
       databases:  newData.database ? newData.database:'',
       db_users: newData.users,
-      sql_types: newData.types,
+      sql_types: newData.types.join(","),
       start_time: stime,
       end_time: etime,
       duration: newData.duration ? Number(newData.duration):0,
-      schemas: newData.schemas ? newData.schemas:0,
+      schemas: newData.schemas ? newData.schemas:null,
     }
-    console.log(paramsVal)
     this.getIntelligentSqlAnalysis(paramsVal)
   }
   onFinishFailed = (errorInfo) => {
@@ -160,12 +164,24 @@ export default class IntelligentSqlCondition extends Component {
       isCreateVisible: false,
     })
   }
+  getBack = (a,b,c) => {
+    this.setState({
+      isSlowSqlDiagnosis: false,
+      isCreateVisible: false,
+      selValue:c.dataSource
+    },() => 
+    this.FormRef.setFieldsValue(c)
+  )
+  }
   handleCreateOk(){
-    let address = ''
+    let address = '',params = {}
     if(this.state.routeTo === 1){
       address = '/Aitoolkit/indexadvisor'
+      params = { sqltext: this.state.sqlText,database: this.state.database }
     } else if(this.state.routeTo === 2){
-      address = ''
+      this.setState({
+        isSlowSqlDiagnosis: true,
+      })
     } else if(this.state.routeTo === 3){
       address = ''
     } else if(this.state.routeTo === 4){
@@ -174,7 +190,7 @@ export default class IntelligentSqlCondition extends Component {
       message.warning('Please select an item')
       return false
     }
-    this.props.history.push({ pathname: address, state: { sqltext: this.state.sqlText,database: this.state.database } })
+    this.props.history.push({ pathname: address, state: params })
   }
   handleRouteTo(flg){
     this.setState(() => ({routeTo: flg}))
@@ -185,165 +201,168 @@ export default class IntelligentSqlCondition extends Component {
   render () {
     return (
       <div className='contentWrap IntelligentSqlCondition'>
-        <Card title="Query Conditions" style={{ minHeight: 400 }} className='mb-10'>
-          <Form
-            name="basic"
-            onFinish={this.onFinish}
-            onFinishFailed={this.onFinishFailed}
-            autoComplete="off"
-          >
-            <Row justify="space-between">
-              <Col span={24} className="errorinvalid">
-                <Form.Item
-                  label="Data Source"
-                  name="dataSource"
-                  rules={[
-                    {
-                      required: true,
-                      message: 'Please select an option!',
-                    }
-                  ]}
-                  initialValue={this.state.selValue}
-                >
-                  <Select value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
-                    optionFilterProp="children" filterOption={(input, option) =>
-                      option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 260 }}>
-                    {
-                      this.state.optionsSource.map(item => {
-                        return (
-                          <Option value={item} key={item}>{item}</Option>
-                        )
-                      })
-                    }
-                  </Select>
+        {this.state.isSlowSqlDiagnosis ? <SlowSqlDiagnosis getBack={this.getBack} tableData={this.state.dataSource} tableHeader={this.state.columns} formData={this.state.formData} /> :
+        <>
+          <Card title="Query Conditions" style={{ minHeight: 400 }} className='mb-10'>
+            <Form
+              ref={(e) => {this.FormRef = e}}
+              name="basic"
+              onFinish={this.onFinish}
+              onFinishFailed={this.onFinishFailed}
+              autoComplete="off"
+            >
+              <Row justify="space-between">
+                <Col span={24} className="errorinvalid">
+                  <Form.Item
+                    label="Data Source"
+                    name="dataSource"
+                    rules={[
+                      {
+                        required: true,
+                        message: 'Please select an option!',
+                      }
+                    ]}
+                    initialValue={this.state.selValue}
+                  >
+                    <Select value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
+                      optionFilterProp="children" filterOption={(input, option) =>
+                        option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 260 }}>
+                      {
+                        this.state.optionsSource.map(item => {
+                          return (
+                            <Option value={item} key={item}>{item}</Option>
+                          )
+                        })
+                      }
+                    </Select>
+                  </Form.Item>
+                </Col>
+                {this.state.selValue !== 'pg_stat_activity' && <Col span={24} className='timeblue'>
+                  <Form.Item
+                    label="Time Limit"
+                    name="timePeriod"
+                    rules={[
+                      {
+                        required: true,
+                        message: 'The value cannot be empty',
+                      }
+                    ]}
+                  >
+                    <RangePicker 
+                    style={{ width: 420 }}
+                    placement='topRight'
+                    format="YYYY-MM-DD HH:mm:ss"
+                    showTime={{
+                      defaultValue: moment('00:00:00', 'HH:mm:ss'),
+                    }}
+                    />
+                  </Form.Item>
+                </Col>}
+                {this.state.selValue !== 'asp' && <Col span={24}>
+                  <Form.Item
+                    label="Execution Duration"
+                    name="duration"
+                    rules={[
+                      {
+                        required: true,
+                        message: 'The value cannot be empty',
+                      }
+                    ]}
+                  >
+                    <InputNumber  min={0} placeholder="10ms" style={{ width: 260 }} />
+                  </Form.Item>
+                </Col>}
+                <Col span={24}>
+                  <Form.Item
+                    label="User"
+                    name="users"
+                    rules={[
+                      {
+                        required: true,
+                        message: 'The value cannot be empty',
+                      }
+                    ]}
+                  >
+                    <Input placeholder="user" style={{ width: 600 }} />
+                  </Form.Item>
+                </Col>
+                <Col span={24} className="errorinvalid">
+                  <Form.Item
+                    label="Database"
+                    name="database"
+                    rules={[
+                      {
+                        required: true,
+                        message: 'Please select an option!',
+                      }
+                    ]}
+                  >
+                    <Select showSearch optionFilterProp="children" filterOption={(input, option) =>
+                        option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 600 }}>
+                      {
+                        this.state.options.map(item => {
+                          return (
+                            <Option value={item} key={item}>{item}</Option>
+                          )
+                        })
+                      }
+                    </Select>
+                  </Form.Item>
+                </Col>
+                {this.state.selValue === 'dbe_perf.statement_history' && <Col span={24}>
+                  <Form.Item
+                    label="Schemas"
+                    name="schemas"
+                  >
+                    <Input placeholder="schemas" style={{ width: 600 }} />
+                  </Form.Item>
+                </Col>}
+                <Col span={24}>
+                <Form.Item name="types" label="SQL Type" rules={[{ required: true,message: 'Please select at least one item'}]}>
+                  <Checkbox.Group>
+                  <Checkbox value="SELECT" style={{lineHeight: '32px',}} >SELECT</Checkbox>
+                  <Checkbox value="INSERT" style={{lineHeight: '32px',}} >INSERT</Checkbox>
+                  <Checkbox value="UPDATE" style={{lineHeight: '32px',}} >UPDATE</Checkbox>
+                  <Checkbox value="DELETE" style={{lineHeight: '32px',}} >DELETE</Checkbox>
+                  </Checkbox.Group>
                 </Form.Item>
-              </Col>
-              {this.state.selValue !== 'pg_stat_activity' && <Col span={24} className='timeblue'>
-                <Form.Item
-                  label="Time Limit"
-                  name="timePeriod"
-                  rules={[
-                    {
-                      required: true,
-                      message: 'The value cannot be empty',
-                    }
-                  ]}
-                >
-                  <RangePicker showTime 
-                  style={{ width: 420 }}
-                  placement='topRight'
-                  format="YYYY-MM-DD HH:mm:ss"
-                  showTime={{
-                    defaultValue: moment('00:00:00', 'HH:mm:ss'),
-                  }}
-                  />
-                </Form.Item>
-              </Col>}
-              {this.state.selValue !== 'asp' && <Col span={24}>
-                <Form.Item
-                  label="Execution Duration"
-                  name="duration"
-                  rules={[
-                    {
-                      required: true,
-                      message: 'The value cannot be empty',
-                    }
-                  ]}
-                >
-                  <InputNumber  min={0} placeholder="10ms" style={{ width: 260 }} />
-                </Form.Item>
-              </Col>}
-              <Col span={24}>
-                <Form.Item
-                  label="User"
-                  name="users"
-                  rules={[
-                    {
-                      required: true,
-                      message: 'The value cannot be empty',
-                    }
-                  ]}
-                >
-                  <Input placeholder="user" style={{ width: 600 }} />
-                </Form.Item>
-              </Col>
-              <Col span={24} className="errorinvalid">
-                <Form.Item
-                  label="Database"
-                  name="database"
-                  rules={[
-                    {
-                      required: true,
-                      message: 'Please select an option!',
-                    }
-                  ]}
-                >
-                  <Select showSearch optionFilterProp="children" filterOption={(input, option) =>
-                      option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 600 }}>
-                    {
-                      this.state.options.map(item => {
-                        return (
-                          <Option value={item} key={item}>{item}</Option>
-                        )
-                      })
-                    }
-                  </Select>
-                </Form.Item>
-              </Col>
-              {this.state.selValue === 'dbe_perf.statement_history' && <Col span={24}>
-                <Form.Item
-                  label="Schemas"
-                  name="schemas"
-                >
-                  <Input placeholder="schemas" style={{ width: 600 }} />
-                </Form.Item>
-              </Col>}
-              <Col span={24}>
-              <Form.Item name="types" label="SQL Type" rules={[{ required: true,message: 'Please select at least one item'}]}>
-                <Checkbox.Group>
-                <Checkbox value="SELECT" style={{lineHeight: '32px',}} >SELECT</Checkbox>
-                <Checkbox value="INSERT" style={{lineHeight: '32px',}} >INSERT</Checkbox>
-                <Checkbox value="UPDATE" style={{lineHeight: '32px',}} >UPDATE</Checkbox>
-                <Checkbox value="DELETE" style={{lineHeight: '32px',}} >DELETE</Checkbox>
-                </Checkbox.Group>
-              </Form.Item>
-              </Col>
-            </Row>
-            <Row>
-              <Col span={12} offset={2}>
-                <Form.Item>
-                  <Button style={{marginLeft: 10,backgroundColor:'#5990FD',borderColor:'#5990FD'}} type="primary" size='small' htmlType="submit">
-                  Inquire
-                  </Button>
-                </Form.Item>
-              </Col>
-            </Row>
-          </Form>
-        </Card>
-        <Card title="Log List" style={{ minHeight: 570 }} extra={<div><img src={Export} disabled alt="" style={{marginRight:6}} onClick={() => this.handleDownload()} ></img><img src={Create} alt="" onClick={() => this.handleCreate()} ></img></div>} >
-            <Row>
-              <Col span={24}>
-              </Col>
-            </Row>
-            <Table  size="small" bordered dataSource={this.state.dataSource} columns={this.state.columns} rowKey={record => record.key} loading={this.state.loading} />
+                </Col>
+              </Row>
+              <Row>
+                <Col span={12} offset={2}>
+                  <Form.Item>
+                    <Button style={{marginLeft: 10,backgroundColor:'#5990FD',borderColor:'#5990FD'}} type="primary" size='small' htmlType="submit">
+                    Inquire
+                    </Button>
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Form>
+          </Card>
+          <Card title="Log List" style={{ minHeight: 570 }} extra={<div><img src={Export} title='Export' disabled alt="" style={{marginRight:6}} onClick={() => this.handleDownload()} ></img><img src={Create} title='Analyze' alt="" onClick={() => this.handleCreate()} ></img></div>} >
+            <Table size="small" bordered dataSource={this.state.dataSource} columns={this.state.columns} rowKey={record => record.key} loading={this.state.loading} scroll={{ x: '100%' }} />
           </Card>
           <Modal title="Create Analysis Tasks" width="20vw" footer={<div style={{textAlign:'center'}}><Button style={{backgroundColor:'#5990FD',borderColor:'#5990FD'}} size='small' key="submit" type="primary" onClick={() => this.handleCreateOk()}>Ensure</Button> </div>}
-         destroyOnClose='true' visible={this.state.isCreateVisible} maskClosable = {false} onOk={() => this.handleCreateOk()} onCancel={() => this.handleCreateCancel()} >
-            <Row gutter={[0,10]}>
-              <Col span={14}  offset={5}>
-                <Button size='small ' block onClick={() => this.handleRouteTo(1)} >Index Advisor</Button>
-              </Col>
-              <Col span={14} offset={5}>
-                <Button size='small ' block onClick={() => this.handleRouteTo(2)} disabled>Slow SQL Diagnosis</Button>
-              </Col>
-              <Col span={14} offset={5}>
-                <Button size='small ' block onClick={() => this.handleRouteTo(3)} disabled>SQL Rewriter</Button>
-              </Col>
-              <Col span={14} offset={5}>
-                <Button size='small ' block onClick={() => this.handleRouteTo(4)} disabled>Workload forecast</Button>
-              </Col>
-            </Row>
-        </Modal>
+            destroyOnClose='true' visible={this.state.isCreateVisible} maskClosable = {false} onOk={() => this.handleCreateOk()} onCancel={() => this.handleCreateCancel()} >
+            <Radio.Group style={{textAlign:'center'}}>
+              <Row gutter={[0,10]}>
+                <Col span={14}  offset={5}>
+                <Radio.Button style={{width:'100%'}} block value={1} onClick={() => this.handleRouteTo(1)} >Index Advisor</Radio.Button>
+                </Col>
+                <Col span={14} offset={5}>
+                <Radio.Button style={{width:'100%'}} block value={2} onClick={() => this.handleRouteTo(2)} >Slow SQL Diagnosis</Radio.Button>
+                </Col>
+                <Col span={14} offset={5}>
+                <Radio.Button style={{width:'100%'}} block value={3} onClick={() => this.handleRouteTo(3)} disabled>SQL Rewriter</Radio.Button>
+                </Col>
+                <Col span={14} offset={5}>
+                <Radio.Button style={{width:'100%'}} block value={4} onClick={() => this.handleRouteTo(4)} disabled>Workload forecast</Radio.Button>
+                </Col>
+              </Row>
+            </Radio.Group>
+          </Modal>
+        </>
+      }
       </div>
     )
   }

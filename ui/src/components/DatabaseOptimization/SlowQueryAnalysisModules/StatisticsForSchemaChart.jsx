@@ -10,74 +10,71 @@ export default class StatisticsForSchemaChart extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      chartData: []
+      xdata: [],
+      ydata: []
     }
   }
   getOption = () => {
     return {
-      tooltip: {
-        trigger: 'item'
+      tooltip: { show: true },
+      xAxis: {
+        type: 'category',
+        axisLabel: {
+          interval: 0,
+          textStyle: {
+            color: '#4D5964',
+            fontSize: '12'
+          },
+        },
+        data: this.state.xdata
       },
-      legend: {
-        top: '0%',
-        left: '0%',
-        width: '45%',
-        show: true
+      yAxis: {
+        type: 'value',
+       
+        axisLabel: {
+          textStyle: {
+            color: '#4D5964',
+            fontSize: '10'
+          }
+        }
       },
-      label: {
-        show: true
-      },
-      title: {
-        show: true
+      grid: {
+        width: '90%',
+        height: '80%',
+        top: '5%'
       },
       series: [
         {
-          name: 'Transaction State',
-          type: 'pie',
-          radius: ['40%', '80%'],
-          avoidLabelOverlap: false,
+          data: this.state.ydata,
+          type: 'bar',
+      
+          barMaxWidth:28,
           itemStyle: {
-            borderColor: '#fff',
-            borderWidth: 0
+            color: "#5990FD",
           },
-          label: {
-            show: false,
-            position: 'bottom',
-            fontSize: '16px',
-            color: 'auto'
-          },
-          left: '20%',
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0,0.5)'
-            }
-          },
-          labelLine: {
-            show: false
-          },
-          color: ['#5470c6', '#1890ff'],
-          data: this.state.chartData
         }
       ]
     };
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
-    let dataArr = []
-    Object.keys(nextProps.statisticsforSchema).forEach(function (key) {
-      let obj = {
-        name: key,
-        value: nextProps.statisticsforSchema[key]
-      }
-      dataArr.push(obj)
-    })
-    this.setState({chartData: dataArr})
+    let xdataArr = []
+    let ydataArr = []
+
+  Object.keys(nextProps?.statisticsforSchema).forEach(function (key, i, v) {
+    ydataArr.push(nextProps.statisticsforSchema[key])
+    xdataArr = v
+  })
+
+     
+      this.setState({
+        xdata: xdataArr,
+        ydata: ydataArr
+      })
   }
   render () {
     return (
       <div >
-        <Card title="Statistics For Schema" style={{ height: 280 }}>
+        <Card title="Statistics For Schema" style={{ height: '278px' }}>
           <ReactEcharts
             ref={(e) => {
               this.echartsElement = e

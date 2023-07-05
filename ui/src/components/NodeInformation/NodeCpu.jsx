@@ -92,10 +92,10 @@ async getCpuDataAll () {
           yDataArray[index].push(oitem)
         });
       });
-      let data1 = {'legend':[{image:SystemImg,description:'System'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description:'System',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':1}
-      let data2 = {'legend':[{image:UserImg,description:'User'}],'xAxisData':xDataArray[1],'seriesData':[{data:yDataArray[1],description:'User',colors:'#5990FD'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':1}
-      let data3 = {'legend':[{image:EmptyImg,description:'Empty'}],'xAxisData':xDataArray[2],'seriesData':[{data:yDataArray[2],description:'Empty',colors:'#9185F0'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':1}
-      let data4 = {'legend':[{image:WaitImg,description:'IO Wait'}],'xAxisData':xDataArray[3],'seriesData':[{data:yDataArray[3],description:'IO Wait',colors:'#EC6F1A'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':1}
+      let data1 = {'legend':[{image:SystemImg,description:'System'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description:'System',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
+      let data2 = {'legend':[{image:UserImg,description:'User'}],'xAxisData':xDataArray[1],'seriesData':[{data:yDataArray[1],description:'User',colors:'#5990FD'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
+      let data3 = {'legend':[{image:EmptyImg,description:'Empty'}],'xAxisData':xDataArray[2],'seriesData':[{data:yDataArray[2],description:'Empty',colors:'#9185F0'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
+      let data4 = {'legend':[{image:WaitImg,description:'IO Wait'}],'xAxisData':xDataArray[3],'seriesData':[{data:yDataArray[3],description:'IO Wait',colors:'#EC6F1A'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
       this.setState({
         chartData1: data1,
         chartData2: data2,

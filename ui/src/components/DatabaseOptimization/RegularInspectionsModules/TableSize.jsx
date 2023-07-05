@@ -67,8 +67,8 @@ export default class TableSize extends Component {
       })
     }))
     return (
-      <div style={{ textAlign: 'center' }}>
-        <Card title="Table Size">
+      <div>
+        <Card title="Table Size" className="tps tableHeight mb-20">
           <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 250, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>
       </div>

@@ -27,7 +27,7 @@ export default class ResponseTimeCharts extends Component {
       title: {
         show: true,
         text: flg === 'one' ? 'p95' : 'p80',
-        subtext: (flg === 'one' ? this.state.maxData : this.state.minData === 0 ? "0" : this.state.minData) + 'ms',
+        subtext: (flg === 'one' ? (this.state.maxData === 0 ? "0" : this.state.maxData) : this.state.minData === 0 ? "0" : this.state.minData) + 'ms',
         textStyle: {    // 标题样式
         color: '#737a80',    //字体颜色
         fontSize: 14,    //字体大小
@@ -66,7 +66,7 @@ export default class ResponseTimeCharts extends Component {
         },
         markPoint: {
         data: [{
-          yAxis: 1330, 
+          yAxis:  flg === 'one' ? this.state.maxData : this.state.minData, 
           x: '98.5%' 
         }],
         symbol: 'circle',

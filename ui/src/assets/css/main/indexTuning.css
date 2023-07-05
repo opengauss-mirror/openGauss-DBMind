@@ -1,0 +1,51 @@
+.indexTuning .ant-card-head {
+    border-bottom: none;
+}
+
+.indexTuning .ant-card-extra {
+    padding: 0
+}
+
+.indexTuning .ant-card-body {
+    padding-top: 0;
+}
+
+.indexTuning .ant-select-selector {
+    height: 26px !important;
+}
+
+.indexTuning .ant-select-selection-item {
+    line-height: 26px !important;
+}
+
+.insertclass {
+    width: 100px;
+    height: 22px;
+    float: right;
+    line-height: 22px;
+    padding: 6px 0px;
+}
+
+.insertclass span {
+    display: block;
+    height: 10px;
+    float: left;
+    margin-right: 1%;
+}
+
+.topShowList p {
+    font-size: 18px;
+    color: #272727;
+    font-family: Arial;
+    text-align: left;
+    font-weight: Bold;
+}
+
+.topShowList h3 {
+    font-size: 14px;
+    color: #737a80;
+    font-family: Arial;
+    text-align: left;
+    font-weight: Regular;
+
+}

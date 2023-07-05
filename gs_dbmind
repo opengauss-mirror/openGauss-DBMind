@@ -51,7 +51,7 @@ ORIGIN_PATH=$(pwd)
 cd $ABSPATH
 
 # Check whether Python has been installed onto the OS.
-source constant
+source ${ABSPATH}/constant
 
 # Set local Python VM if we have.
 export PATH=${ABSPATH}/python/bin:$PATH

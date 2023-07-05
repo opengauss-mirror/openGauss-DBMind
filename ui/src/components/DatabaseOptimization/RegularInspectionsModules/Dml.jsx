@@ -48,10 +48,12 @@ export default class DistributionChart extends Component {
         {
           data: this.state.ydata,
           type: 'bar',
-          showBackground: true,
-          backgroundStyle: {
-            color: 'rgba(180, 180, 180, 0.2)'
-          }
+         
+          barMaxWidth:28,
+          itemStyle: {
+            color: "#5990FD",
+          },
+         
         }
       ]
     };
@@ -76,8 +78,8 @@ export default class DistributionChart extends Component {
   }
   render () {
     return (
-      <div style={{ textAlign: 'center' }}>
-        <Card title="DML">
+      <div>
+        <Card title="DML" className="tps dml">
         {this.state.ifShow ? <ReactEcharts
             ref={(e) => {
               this.echartsElement = e

@@ -4,7 +4,7 @@ import { CloseOutlined, ReloadOutlined } from '@ant-design/icons';
 import '../../../assets/css/main/alarm.css';
 import Details from '../../../assets/imgs/Details.png';
 import Setup from '../../../assets/imgs/Setup.png';
-import { getSelfhealingface, getSelfhealingSetting, getSelfhealingSubmit, getSelfhealingDelete } from '../../../api/autonomousManagement';
+import { getSelfhealingface, getSelfhealingSetting, getSelfhealingSubmit, getSelfhealingDelete, getSelfhealingPause, getSelfhealingResumption } from '../../../api/autonomousManagement';
 
 const { Option } = Select;
 export default class SelfhealingRecordsTable extends Component {
@@ -42,7 +42,8 @@ export default class SelfhealingRecordsTable extends Component {
       alarmlevelOptions:[],
       detectors:[],
       detectorParams:{},
-      formData:{}
+      formData:{},
+      isDisabled:false
     }
   }
   async getSelfhealingData () {
@@ -94,7 +95,6 @@ export default class SelfhealingRecordsTable extends Component {
           aggOption: detectorChildren[key][1],
           aggValue:detectorChildren[key][0]
           }))
-          console.log(222,this.state.aggOption,this.state.aggValue);
       }else if(key==='max_coef'){
         this.setState(()=>({
         maxCoefValue:detectorChildren[key]
@@ -149,6 +149,21 @@ export default class SelfhealingRecordsTable extends Component {
   changeAlarmlevelVal (value) {
     this.setState({alarmlevelValue: value})
   }
+  changeChecked (value,name) {
+    if(value){
+      this.usableOrNot(getSelfhealingResumption(name))
+    } else {
+      this.usableOrNot(getSelfhealingPause(name))
+    }
+  }
+  async usableOrNot (url){
+    const { success, data, msg } = await url
+    if (success) {
+      this.getSelfhealingData()
+    } else {
+      message.error(msg)
+    }
+  }
   changeDetectorVal (value,index) {
       this.setState(()=>({detectorNameValue: value}),()=>{
         this.getChildrenDefault(value)
@@ -168,11 +183,10 @@ export default class SelfhealingRecordsTable extends Component {
       this.FormRef.setFieldValue('detectors',data)
   }
   validateFieldValue(){
-    // this.FormRef.validateFields()
     this.FormRef.validateFields()
     .then((values)=>{
       let fieldsValue = this.FormRef.getFieldsValue()
-      fieldsValue.detectors.map((item,index)=>{
+      fieldsValue.detectors.forEach((item,index)=>{
         item['metric_filter'] = {}
         item['detector_kwargs'] = {}
         item['metric_filter']['from_instance'] = item['from_instance']
@@ -247,7 +261,6 @@ export default class SelfhealingRecordsTable extends Component {
             }
           })}
       })
-      console.log(fieldsValue)
       let param = {
         name : fieldsValue.name,
         detectors_info:{
@@ -264,7 +277,6 @@ export default class SelfhealingRecordsTable extends Component {
           detector_info:fieldsValue.detectors
         }
       }
-      console.log(param)
       this.handleOk(param)
     })
     .catch((errInfo)=>{return false})
@@ -281,16 +293,19 @@ export default class SelfhealingRecordsTable extends Component {
       isModalVisible: false
     })
   }
-  create(item) {
-    let data = ['Create','Update'],title = ''
-    if(item){
+  create(item,index) {
+    let data = ['Create','Update','Details'],title = ''
+    if(item && index === 1){
       title = data[1]
+    }  else if(item && index === 2){
+      title = data[2]
     } else {
       title = data[0]
     }
     this.setState({
       isModalVisible: true,
-      modelTitle:title
+      modelTitle:title,
+      isDisabled:index === 2 ? true : false
     },()=>{
       this.getSelfhealingSetting(item)
     })
@@ -334,16 +349,16 @@ export default class SelfhealingRecordsTable extends Component {
   render () {
     return (
       <div className='selfhealing'>
-        <Card title="Self-healing Records"  className="mb-10">
+        <Card title="Anomaly detections"  className="mb-10">
           <Row gutter={[10,10]} className='childstyle'>
           {this.state.showFlag === 0 ? this.state.allDataRegular.map((item) => {
                 return (
                   <Col className="gutter-row antclopercent_20" >
-                  <Card title={<Switch defaultChecked={false} disabled={true}  onChange={() => {}} />} style={{ height: 90}} extra={<Popconfirm
+                  <Card title={<Switch defaultChecked={this.state.allData[item]['running']}  onChange={(val) => { this.changeChecked(val,item) }} />} style={{ height: 90}} extra={<Popconfirm
                     title="Delete the Card" description="Are you sure to delete this Card?" onConfirm={() => {this.deleteDetector(item)}}
                     onCancel={this.cancel()} okText="Yes" cancelText="No" > <CloseOutlined style={{fontSize:10,color:'#CCCCCC',cursor:'pointer'}} />
                   </Popconfirm>}>
-                    <div className='lockstyle'><span className='spanleft'>{item}</span><span className='spanright'><img src={Details} alt="" disabled style={{marginRight:12}} onClick={() => {}} ></img><img src={Setup} disabled onClick={() => {}} ></img></span></div>
+                    <div className='lockstyle'><span className='spanleft'>{item}</span><span className='spanright'><img src={Details} title='Details' alt="" disabled style={{marginRight:12}} onClick={() => {}} ></img><img src={Setup} title='Setup' alt="" disabled onClick={() => {}} ></img></span></div>
                   </Card>
                 </Col>
                 )
@@ -351,17 +366,18 @@ export default class SelfhealingRecordsTable extends Component {
             : <div style={{ textAlign: 'center' }}><Spin style={{ margin: '100px auto' }} /> </div>}
             <Col className="gutter-row antclopercent_20" >
               <Card title={<Switch defaultChecked={false} disabled={true}  onChange={() => {}} />} style={{ height: 90}}>
-                <p style={{textAlign:'center'}}><Button style={{borderRadius:'11px'}} type="primary" size='small' ghost onClick={() => {this.create('')}}>Additions</Button></p>
+                <p style={{textAlign:'center'}}><Button style={{borderRadius:'11px'}} type="primary" size='small' ghost onClick={() => {this.create('',0)}}>Additions</Button></p>
               </Card>
             </Col>
           </Row>
         </Card>
         {!this.state.isModalVisible ? null :<Modal title={this.state.modelTitle}  width="40vw" destroyOnClose={true} bodyStyle={{overflowY: "auto",overflowX:"none",height: "60vh"}} visible={this.state.isModalVisible} maskClosable = {false} centered='true' 
-        onOk={() => this.validateFieldValue()} onCancel={() => this.handleCancel()} className='formlistclass'>
+        onOk={() => this.validateFieldValue()} onCancel={() => this.handleCancel()} okButtonProps={{disabled: this.state.isDisabled}} className='formlistclass'>
               <Form
                 labelCol={{ span: 7,offset: 4}}
                 wrapperCol={{ span: 12 }}
                 layout='horizontal'
+                disabled={this.state.isDisabled}
                 style={{ maxWidth: 520 }}
                 ref={(e) => {
                   this.FormRef = e
@@ -416,7 +432,7 @@ export default class SelfhealingRecordsTable extends Component {
                         <>
                           {fields.map((field,index) => (
                             <Space key={field.key} align="baseline" className="selfthealing">
-                              <CloseOutlined onClick={() => remove(field.name)} style={{display:'block',textAlign:'end',marginBottom:24}} />
+                              <CloseOutlined onClick={() => remove(field.name)} style={{display:this.state.isDisabled ? 'none' :'block',textAlign:'end',marginBottom:24}} />
                                   <Form.Item
                                     {...field}
                                     style={{ width: 520 }}

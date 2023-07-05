@@ -42,15 +42,18 @@ export default class TopQuery extends Component {
         data.rows.forEach((item, index) => {
           let tabledata = {}
           for (let i = 0; i < data.header.length; i++) {
-            tabledata[data.header[i]] = item[i]
+            if(data.header[i] === 'min_elapse_time' || data.header[i] === 'max_elapse_time' || data.header[i] === 'avg_elapse_time' || data.header[i] === 'db_time' || data.header[i] === 'cpu_time' || data.header[i] === 'execution_time'|| data.header[i] === 'parse_time'){
+              tabledata[data.header[i]] = item[i]/1000 + 'ms'
+            } else {
+              tabledata[data.header[i]] = item[i]
+            }
             tabledata['key'] = index + ''
           }
           res.push(tabledata)
         });
-        let formatData = formatTableTime(res)
         this.setState(() => ({
           loadingActiveSql: false,
-          dataSource: formatData,
+          dataSource: res,
           columns: tableHeader,
           pagination: {
             total: res.length,

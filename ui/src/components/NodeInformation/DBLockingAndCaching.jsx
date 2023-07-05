@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import { Tabs, Select, message, Input } from 'antd';
 import CacheInformation from '../NodeInformation/CacheInformation';
 import LockInformation from '../NodeInformation/LockInformation';
+import Refresh from '../../assets/imgs/Refresh.png';
 
 export default class DBLockingAndCaching extends Component {
   constructor(props) {
@@ -14,6 +15,9 @@ export default class DBLockingAndCaching extends Component {
   onChange = (key) => {
     this.setState(() => ({tabChildkey: key}))
   };
+  handleRefresh(){
+    this.LockInformationRef.getLockingQueryData()
+  }
   componentDidMount () {
 
   }
@@ -31,9 +35,16 @@ export default class DBLockingAndCaching extends Component {
       }
     ]
     return (
-      <div className='nodeselect'>
+      <div className='thirdTabClass'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} /> : ''}
+        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} tabBarExtraContent={
+          (this.state.tabChildkey === '1') &&<img
+          src={Refresh}
+          title='Refresh'
+          alt=""
+          onClick={() => this.handleRefresh()}
+        ></img>
+        } /> : ''}
       </div>
     )
   }

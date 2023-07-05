@@ -30,6 +30,7 @@ from dbmind.components.sql_rewriter.sql_rewriter import rewrite_sql_api
 from dbmind.service import dai
 from dbmind.service.dai import is_sequence_valid, is_driver_result_valid
 
+PORT_SUFFIX = "(:[0-9]{4,5}|)"
 white_list_of_sql_type = ('SELECT', 'UPDATE', 'DELETE', 'INSERT', 'WITH')
 exception_catcher = ExceptionCatcher(strategy='raise', name='SLOW QUERY')
 DEFAULT_FETCH_INTERVAL = 15
@@ -300,7 +301,7 @@ def _get_sequences_sum_value(seqs: List[Sequence], precision=0, method='first'):
         # to prevent inconsistent lengths, first obtain the minimum length
         minimum_length = min(len(seq) for seq in seqs)
         for i in range(minimum_length):
-            value.append(sum(seq.values[i] for seq in seqs))
+            value.append(round(sum(seq.values[i] for seq in seqs), precision))
     else:
         raise ValueError
     return value
@@ -345,18 +346,35 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         self.query_type = 'raw'
         self.fetch_interval = self.acquire_fetch_interval()
         self.expansion_factor = kwargs.get('expansion_factor', 2)
-        self.query_start_time = datetime.fromtimestamp(self.slow_sql_instance.start_at / 1000)
+        self.query_start_time = datetime.fromtimestamp(self.slow_sql_instance.start_time / 1000)
         if self.slow_sql_instance.duration_time / 1000 >= self.fetch_interval:
             self.query_end_time = datetime.fromtimestamp(
-                self.slow_sql_instance.start_at / 1000 + self.slow_sql_instance.duration_time / 1000
+                self.slow_sql_instance.start_time / 1000 + self.slow_sql_instance.duration_time / 1000
             )
         else:
             self.query_end_time = datetime.fromtimestamp(
-                self.slow_sql_instance.start_at / 1000 + int(self.expansion_factor * self.acquire_fetch_interval())
+                self.slow_sql_instance.start_time / 1000 + int(self.expansion_factor * self.acquire_fetch_interval())
             )
         logging.debug('[SLOW QUERY] fetch start time: %s, fetch end time: %s', self.query_start_time,
                       self.query_end_time)
         logging.debug('[SLOW QUERY] fetch interval: %s', self.fetch_interval)
+        self.is_rpc_valid = True
+        # determine whether the current context(RPC) is available
+        try:
+            if global_vars.agent_proxy.current_rpc() is None:
+                global_vars.agent_proxy.switch_context(slow_sql_instance.instance)
+            else:
+                agent_addr = global_vars.agent_proxy.current_agent_addr()
+                clusters = global_vars.agent_proxy.current_cluster_instances()
+                if self.slow_sql_instance.db_host is None:
+                    self.slow_sql_instance.db_host, self.slow_sql_instance.db_port = agent_addr.split(':')
+                # in a centralized or stand-alone environment, the slow SQL instance is the agent address,
+                # but not in a distributed environment
+                elif self.slow_sql_instance.instance not in clusters:
+                    global_vars.agent_proxy.switch_context(slow_sql_instance.instance)
+        except Exception as e:
+            logging.warning("RPC is not available in instance '%s'.", slow_sql_instance.instance)
+            self.is_rpc_valid = False
         self.standard_query = self.slow_sql_instance.query
         if self.slow_sql_instance.track_parameter:
             self.standard_query = fill_value(self.slow_sql_instance.query)
@@ -367,9 +385,53 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         # make sure that only the SQL in the whitelist is used to obtain the execution plan
         if sum(self.slow_sql_instance.query.upper().startswith(item) for item in white_list_of_sql_type) and \
                 self.slow_sql_instance.query_plan is None:
+            # in order to speed up diagnosis, first use the default schema,
+            # if the default schema does not work, then traverse all schemas.
             self.slow_sql_instance.query_plan = self.acquire_plan(self.standard_query)
             if self.slow_sql_instance.query_plan is None:
+                logging.warning("Execution plan cannot be obtained in schema "
+                                "'%s', start automatically matching the "
+                                "appropriate schema...", self.slow_sql_instance.schema_name)
                 self.is_sql_valid = False
+                schemas = self.adjust_schema()
+                for schema in schemas:
+                    logging.info("Try to get execution plan under schema '%s'", schema)
+                    self.slow_sql_instance.schema_name = schema
+                    self.slow_sql_instance.query_plan = self.acquire_plan(self.standard_query)
+                    if self.slow_sql_instance.query_plan is None:
+                        self.is_sql_valid = False
+                        logging.info("Failed to get execution plan under schema '%s'", schema)
+                        continue
+                    else:
+                        self.is_sql_valid = True
+                        logging.info("Get execution plan under schema '%s'", schema)
+                        break
+        else:
+            self.is_sql_valid = False
+
+    @exception_follower(output=list)
+    @exception_catcher
+    def adjust_schema(self):
+        schemas = []
+        if not self.is_rpc_valid:
+             return schemas
+        stmt = (
+            "select nspname "
+            "from pg_namespace "
+            "where nspname not like 'dbe_%' and nspname not in "
+            "('pg_toast', 'cstore', 'snapshot', 'blockchain', 'sys', 'pg_catalog', "
+            "'db4ai', 'sqladvisor', 'information_schema', 'pkg_service', 'pkg_util');"
+        )
+        rows = global_vars.agent_proxy.call('query_in_database',
+                                            stmt,
+                                            self.slow_sql_instance.db_name,
+                                            return_tuples=False,
+                                            fetch_all=False)
+        for row in rows:
+            if not row:
+                continue
+            schemas.append(row.get('nspname'))
+        return schemas
 
     @exception_follower(output=None)
     @exception_catcher
@@ -648,11 +710,13 @@ class QueryContextFromTSDBAndRPC(QueryContext):
                so currently only support for obtaining thread waiting event information at runtime.
         """
         thread_info = ThreadInfo()
-        if not self.slow_sql_instance.query_id:
+        if not self.slow_sql_instance.debug_query_id:
+            return thread_info
+        if not self.is_rpc_valid:
             return thread_info
         stmt = """
         select tid, wait_status, wait_event, block_sessionid, lockmode from pg_catalog.pg_thread_wait_status where 
-        query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.query_id)
+        query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.debug_query_id)
         rows = global_vars.agent_proxy.call('query_in_database',
                                             stmt,
                                             self.slow_sql_instance.db_name,
@@ -691,12 +755,18 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         cpu_process_number_info = dai.get_metric_sequence("os_cpu_processor_number", self.query_start_time,
                                                           self.query_end_time).from_server(
             f"{self.slow_sql_instance.db_host}").fetchone()
-        db_cpu_usage_info = dai.get_metric_sequence("gaussdb_progress_cpu_usage", self.query_start_time,
-                                                    self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchall()
-        db_mem_usage_info = dai.get_metric_sequence("gaussdb_progress_mem_usage", self.query_start_time,
-                                                    self.query_end_time).from_server(
-            f"{self.slow_sql_instance.db_host}").fetchall()
+        db_cpu_usage_info = \
+            dai.get_metric_sequence("gaussdb_progress_cpu_usage",
+                                    self.query_start_time,
+                                    self.query_end_time)\
+            .filter_like(instance=self.slow_sql_instance.db_host + PORT_SUFFIX)\
+            .fetchall()
+        db_mem_usage_info = \
+            dai.get_metric_sequence("gaussdb_progress_mem_usage",
+                                    self.query_start_time,
+                                    self.query_end_time)\
+            .filter_like(instance=self.slow_sql_instance.db_host + PORT_SUFFIX)\
+            .fetchall()
         if is_sequence_valid(process_fds_rate_info):
             system_info.process_fds_rate = _get_sequence_values(process_fds_rate_info, precision=4)
         if is_sequence_valid(cpu_process_number_info):
@@ -709,11 +779,12 @@ class QueryContextFromTSDBAndRPC(QueryContext):
             system_info.disk_usage = _get_sequence_values(disk_usage_info, precision=4)
         # add the consumption of all gaussdb related processes as the total consumption,
         # it is suitable for situations where only one instance exists on a machine, db_mem_usage is the same as him.
-        if is_sequence_valid(db_cpu_usage_info):
+        if is_sequence_valid(db_cpu_usage_info) and is_sequence_valid(cpu_process_number_info):
             system_info.db_cpu_usage = [item / (system_info.cpu_core_number * 100) for item
                                         in _get_sequences_sum_value(db_cpu_usage_info, precision=4, method='all')]
         if is_sequence_valid(db_mem_usage_info):
             system_info.db_mem_usage = _get_sequences_sum_value(db_mem_usage_info, precision=4, method='all')
+            system_info.db_mem_usage = [item / 100 for item in system_info.db_mem_usage]
         if is_sequence_valid(user_cpu_usage_info):
             system_info.user_cpu_usage = _get_sequence_values(user_cpu_usage_info, precision=4)
         if is_sequence_valid(mem_usage_info):
@@ -858,6 +929,8 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         """
         if not self.slow_sql_instance.tables_name:
             return unused_index
+        if not self.is_rpc_valid:
+            return unused_index
         for schema_name, tables_name in self.slow_sql_instance.tables_name.items():
             for table_name in tables_name:
                 sql = stmt.format(schemaname=schema_name, relname=table_name)
@@ -878,8 +951,10 @@ class QueryContextFromTSDBAndRPC(QueryContext):
     @exception_catcher
     def acquire_total_memory_detail(self) -> TotalMemoryDetail:
         memory_detail = TotalMemoryDetail()
+        if not self.is_rpc_valid:
+            return memory_detail
         stmt = """
-        select memorytype, memorymbytes from pg_catalog.gs_total_memory_detail 
+        select memorytype, memorybytes from pg_catalog.gs_total_memory_detail 
         where memorytype in ('max_process_memory', 'process_used_memory', 'max_dynamic_memory', 
         'dynamic_used_memory', 'other_used_memory')"""
         rows = global_vars.agent_proxy.call('query_in_database',
@@ -1043,11 +1118,11 @@ class QueryContextFromDriver(QueryContext):
     @exception_catcher
     def acquire_wait_event_info(self) -> ThreadInfo:
         thread_info = ThreadInfo()
-        if not self.slow_sql_instance.query_id:
+        if not self.slow_sql_instance.debug_query_id:
             return thread_info
         stmt = """
         select tid, wait_status, wait_event, block_sessionid, lockmode from pg_catalog.pg_thread_wait_status where 
-        query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.query_id)
+        query_id={debug_query_id};""".format(debug_query_id=self.slow_sql_instance.debug_query_id)
         rows = self.driver.query(stmt, force_connection_db=self.slow_sql_instance.db_name, return_tuples=False)
         if is_driver_result_valid(rows):
             thread_info.event = _get_driver_value(rows, 'event', precision=-1)

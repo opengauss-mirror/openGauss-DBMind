@@ -15,13 +15,13 @@ from dbmind.common.types.root_cause import RootCause
 
 
 class SlowQuery:
-    def __init__(self, query, db_host=None, db_port=None, db_name=None, schema_name='public', start_timestamp=0,
-                 duration_time=1, hit_rate=1, fetch_rate=0, cpu_time=0, data_io_time=0, track_parameter=True,
+    def __init__(self, query, db_host=None, db_port=None, db_name=None, schema_name='public', start_time=0,
+                 finish_time=0, fetch_rate=0, cpu_time=0, data_io_time=0, track_parameter=True,
                  template_id='', sort_count=0, sort_mem_used=0, sort_spill_count=1, hash_count=0, plan_time=0,
-                 hash_mem_used=0, hash_spill_count=1, lock_wait_count=0, lwlock_wait_count=0, parse_time=0,
+                 hash_mem_used=0, hash_spill_count=1, lock_wait_time=0, lwlock_wait_time=0, parse_time=0,
                  n_returned_rows=0, n_tuples_returned=0, n_tuples_fetched=0, n_tuples_inserted=0, db_time=1,
-                 n_tuples_updated=0, n_tuples_deleted=0, user_name=None, query_plan=None, query_id='', n_soft_parse=0,
-                 n_hard_parse=0, **kwargs):
+                 n_tuples_updated=0, n_tuples_deleted=0, user_name=None, query_plan=None, debug_query_id='',
+                 n_soft_parse=0, n_hard_parse=0, n_blocks_hit=1, n_blocks_fetched=1, n_calls=1, **kwargs):
         self.db_host = db_host
         self.db_port = db_port
         self.user_name = user_name
@@ -32,9 +32,10 @@ class SlowQuery:
         self.query = query
         self.track_parameter = track_parameter
         self.query_plan = query_plan
-        self.start_at = start_timestamp  # unit: microsecond
-        self.duration_time = duration_time  # unit: microsecond
-        self.hit_rate = hit_rate
+        self.start_time = start_time  # unit: microsecond
+        self.finish_time = finish_time  # unit: microsecond
+        self.duration_time = self.finish_time - self.start_time
+        self.hit_rate = round(n_blocks_hit / n_blocks_fetched, 4) if n_blocks_fetched else 1
         self.fetch_rate = fetch_rate
         self.cpu_time = cpu_time
         self.data_io_time = data_io_time
@@ -42,15 +43,15 @@ class SlowQuery:
         self.parse_time = parse_time
         self.db_time = db_time
         self.template_id = template_id
-        self.query_id = query_id
+        self.debug_query_id = debug_query_id
         self.sort_count = sort_count
         self.sort_mem_used = sort_mem_used
-        self.sort_spill_count = sort_spill_count
+        self.sort_spill_count = sort_spill_count / n_calls
         self.hash_count = hash_count
         self.hash_mem_used = hash_mem_used
-        self.hash_spill_count = hash_spill_count
-        self.lwlock_wait_count = lwlock_wait_count
-        self.lock_wait_count = lock_wait_count
+        self.hash_spill_count = hash_spill_count / n_calls
+        self.lwlock_wait_time = lwlock_wait_time
+        self.lock_wait_time = lock_wait_time
         self.n_returned_rows = n_returned_rows
         self.n_tuples_returned = n_tuples_returned
         self.n_tuples_fetched = n_tuples_fetched

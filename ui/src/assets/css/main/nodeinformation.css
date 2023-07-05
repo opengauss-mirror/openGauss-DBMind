@@ -18,6 +18,13 @@
   color: #ffffff;
   font-weight: 500;
 }
+.thirdTabClass .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn{
+  padding: 6px 12px;
+  background: #f6f6f6;
+  border-radius: 3px;
+  color: #5990fd;
+  font-weight: 500;
+}
 .childstyle .ant-tabs-tab {
   padding: 0;
 }
@@ -29,12 +36,9 @@
   width: 0;
 }
 .nodestyle .ant-tabs-content-holder {
-  /* padding: 0 20px 0 !important; */
   padding: 0 !important;
 }
-/* .cpuborder .echarts-for-react{
-  border: 1px solid #e8e8e8ff;
-} */
+
 .nodeselect{
   padding:14px 20px 20px 20px;
   background:#ffffff

@@ -85,7 +85,7 @@ export default class DatabaseTuning extends Component {
   }
   render () {
     return (
-      <div>
+      <div className="contentWrap" >
         {this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> :
           <>
         <MetricData metricData={this.state.metricData} />
