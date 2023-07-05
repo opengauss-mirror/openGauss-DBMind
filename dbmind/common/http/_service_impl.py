@@ -257,7 +257,7 @@ class OAuth2:
 
     def login_handler(self, user: User):
         try:
-            if not self._pwd_checker(user.username, user.password, scopes=[user.scopes]):
+            if not self._pwd_checker(user.username, user.password, scopes=[user.scope]):
                 raise HTTPException(400, detail='Incorrect username or password.')
         except ConnectionError:
             raise HTTPException(500, detail='Cannot connect to the agent. Please check whether the agent '
@@ -269,7 +269,7 @@ class OAuth2:
             token = safe_random_string(16)
         OAuth2.timed_session[token] = {'username': user.username,
                                        'password': user.password,
-                                       'scopes': [user.scopes]
+                                       'scopes': [user.scope]
                                        }
 
         # Not used JWT because we don't require the stateless function.
