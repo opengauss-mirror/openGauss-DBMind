@@ -782,25 +782,17 @@ def get_agent_status():
 @oauth2.token_authentication()
 @standardized_api_output
 def collect_workloads(data_source: str = None, databases: str = None, schemas: str = None, start_time: int = None,
-                      end_time: int = None, db_users: str = None, sql_types: str = None, duration: int = 0):
+                      end_time: int = None, db_users: str = None, sql_types: str = None, template_id: str = None, duration: int = 0):
     username, password = oauth2.credential
     return data_transformer.collect_workloads(username, password, data_source,
                                               databases, schemas, start_time, end_time,
-                                              db_users, sql_types, duration=duration)
-
-
-@request_mapping('/api/workloads/statement/collect', methods=['GET'], api=True)
-@oauth2.token_authentication()
-@standardized_api_output
-def collect_workloads(unique_sql_id: str, start_time: int, end_time: int):
-    username, password = oauth2.credential
-    return data_transformer.get_detail_statement(username, password, unique_sql_id, start_time, end_time)
+                                              db_users, sql_types, template_id, duration=duration)
 
 
 @request_mapping('/api/app/kill/{pid}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def collect_workloads(pid: str):
+def kill_pid(pid: str):
     username, password = oauth2.credential
     return data_transformer.pg_terminate_pid(username, password, pid)
 

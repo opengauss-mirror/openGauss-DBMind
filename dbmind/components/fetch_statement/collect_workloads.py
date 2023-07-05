@@ -60,7 +60,7 @@ def _add_quote(values, delimiter=','):
 
 def collect_statement_from_asp(databases, start_time, end_time, db_users, sql_types):
     stmt = f"""
-        SELECT S.user_name, D.datname, S.unique_sql_id, S.n_calls,
+        SELECT distinct S.user_name, D.datname, S.unique_sql_id, S.n_calls,
         S.min_elapse_time, S.max_elapse_time, S.n_returned_rows / S.n_calls as
         avg_returned_rows, S.n_tuples_fetched / S.n_calls as avg_tuples_fetched,
         S.n_tuples_returned / S.n_calls as avg_tuples_returned,
@@ -74,7 +74,8 @@ def collect_statement_from_asp(databases, start_time, end_time, db_users, sql_ty
         S.hash_spill_count,
         regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g') as query
         FROM dbe_perf.statement S INNER JOIN gs_asp G ON G.unique_query_id = S.unique_sql_id
-        INNER JOIN pg_catalog.pg_database D ON G.databaseid = D.oid where G.sample_time <= '{end_time}'"""
+        INNER JOIN pg_catalog.pg_database D ON G.databaseid = D.oid where
+        G.sample_time <= '{end_time}'"""
     if start_time is not None:
         stmt += f" and G.sample_time >= '{start_time}'"
     if databases is not None:
@@ -92,10 +93,10 @@ def collect_statement_from_asp(databases, start_time, end_time, db_users, sql_ty
 
 def collect_statement_from_activity(databases, db_users, sql_types, duration=60):
     stmt = f"""
-    SELECT usename, datname, application_name, sessionid, query_id, extract(epoch from pg_catalog.now() - query_start) 
+    SELECT usename, datname, application_name, sessionid, query_id, extract(epoch from pg_catalog.now() - query_start)
     as duration, regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g')
     as query FROM pg_catalog.pg_stat_activity
-    WHERE state != 'idle' and application_name != 'DBMind-openGauss-exporter' and query_id != 0 and duration >= {duration}
+    WHERE state != 'idle' and application_name not in ('DBMind-openGauss-exporter', 'DBMind-Service') and query_id != 0 and duration >= {duration}
 """
     if databases is not None:
         databases = _add_quote(databases)
@@ -117,11 +118,11 @@ def collect_statement_from_statement_history(databases, schemas, start_time, end
     start_time, finish_time, extract(epoch from finish_time - start_time) as duration,
     n_returned_rows, n_tuples_fetched, n_tuples_returned, n_tuples_inserted, n_tuples_updated,
     n_tuples_deleted, n_blocks_fetched, n_blocks_hit, n_soft_parse, n_hard_parse, db_time,
-    cpu_time, parse_time, plan_time, data_io_time, lock_wait_time, lwlock_wait_time, 
-    case when (client_addr is null) then '127.0.0.1' else client_addr end as client_addr, 
+    cpu_time, parse_time, plan_time, data_io_time, lock_wait_time, lwlock_wait_time,
+    case when (client_addr is null) then '127.0.0.1' else client_addr end as client_addr,
     regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g') as query,
     query_plan from dbe_perf.statement_history
-    where application_name != 'DBMind-openGauss-exporter' and duration >= {duration}
+    where application_name not in ('DBMind-openGauss-exporter', 'DBMind-Service') and duration >= {duration}
     """
     if start_time is not None:
         stmt += f" and start_time >= '{start_time}'"

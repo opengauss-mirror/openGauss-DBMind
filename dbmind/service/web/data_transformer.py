@@ -1366,7 +1366,8 @@ def get_collection_system_status():
     return collection_detail
 
 
-def collect_workloads(username, password, data_source, databases, schemas, start_time, end_time, db_users, sql_types, duration=0):
+def collect_workloads(username, password, data_source, databases, schemas, start_time, 
+                      end_time, db_users, sql_types, template_id, duration=60):
     # transfer timestamps to string format
     if start_time:
         start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time // 1000))
@@ -1374,31 +1375,17 @@ def collect_workloads(username, password, data_source, databases, schemas, start
         end_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time // 1000))
     else:
         end_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
+    if not schemas:
+        schemas = None
     if data_source == 'pg_stat_activity':
         stmts = collect_statement_from_activity(databases, db_users, sql_types, duration=duration)
     elif data_source == 'dbe_perf.statement_history':
-        schemas = None
-        stmts = collect_statement_from_statement_history(databases, schemas, start_time, end_time, db_users, sql_types, duration=duration)
+        stmts = collect_statement_from_statement_history(
+            databases, schemas, start_time, end_time, db_users, sql_types, template_id, duration=duration)
     else:
         stmts = collect_statement_from_asp(databases, start_time, end_time, db_users, sql_types)
-    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmts)
-    return psycopg2_dict_jsonify(res)
-
-
-
-def get_detail_statement(username, password, unique_sql_id, start_time, end_time):
-    start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time // 1000))
-    end_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(end_time // 1000))
-    stmts = f"""
-    select user_name, db_name, schema_name, application_name, case when (client_addr is null) then '7.194.130.42' else client_addr end as client_addr, client_port, unique_query_id,
-    start_time, finish_time, extract(epoch from finish_time - start_time) as duration,
-    n_returned_rows, n_tuples_fetched, n_tuples_returned, n_tuples_inserted, n_tuples_updated,
-    n_tuples_deleted, n_blocks_fetched, n_blocks_hit, n_soft_parse, n_hard_parse, db_time,
-    cpu_time, parse_time, plan_time, data_io_time, lock_wait_time, lwlock_wait_time,
-    regexp_replace((CASE WHEN query like '%;' THEN query ELSE query || ';' END), E'[\\n\\r]+', ' ', 'g') as query from dbe_perf.statement_history 
-    where unique_query_id = '{unique_sql_id}' and upper(split_part(trim(query), ' ', 1)) not in ('PREPARE')
-"""
-    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmts)
+    res = global_vars.agent_proxy.current_rpc().call_with_another_credential(
+        username, password, 'query_in_postgres', stmts)
     return psycopg2_dict_jsonify(res)
 
 

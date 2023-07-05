@@ -17,7 +17,6 @@ from dbmind.metadatabase.ddl import truncate_table
 from ..result_db_session import get_session
 from ..schema import RegularInspection
 
-
 def insert_regular_inspection(instance, inspection_type, start, end, report=None, state=None, cost_time=None, conclusion=None):
     with get_session() as session:
         session.add(

@@ -114,7 +114,8 @@ class Driver:
     def pwd(self):
         return self.parsed_dsn['password']
 
-    def query(self, stmt, timeout=0, force_connection_db=None, return_tuples=False, fetch_all=False):
+    def query(self, stmt, timeout=0, force_connection_db=None,
+              return_tuples=False, fetch_all=False, ignore_error=False):
         dbmind_assert(self.initialized)
 
         cursor_dict = {}
@@ -135,7 +136,17 @@ class Driver:
                     else:
                         result = []
                         for sql in sqlparse.split(stmt):
-                            cursor.execute(sql)
+                            if ignore_error:
+                                try:
+                                    cursor.execute(sql)
+                                except Exception as e:
+                                    result.append(None)
+                                    logging.warning(f'{e} while executing {sql}')
+                                    continue
+                                finally:
+                                    conn.commit()
+                            else:
+                                cursor.execute(sql) 
                             if cursor.pgresult_ptr is not None:
                                 result.append(cursor.fetchall())
                             else:
