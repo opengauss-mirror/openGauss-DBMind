@@ -115,7 +115,7 @@ class DailyInspection:
             avg_val, min_val, max_val, the_95th_val = get_statistic_data(tps_sequence.values)
             performance_detail['tps'] = {'avg': avg_val, 'max': max_val, 'min': min_val, 'the_95th': the_95th_val}
         if is_sequence_valid(p95_sequence):
-            avg_val, min_val, max_val, the_95th_val = get_statistic_data(tps_sequence.values)
+            avg_val, min_val, max_val, the_95th_val = get_statistic_data(p95_sequence.values)
             performance_detail['p95'] = {'avg': avg_val, 'max': max_val, 'min': min_val, 'the_95th': the_95th_val}
         return performance_detail
 
