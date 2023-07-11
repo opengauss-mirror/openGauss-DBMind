@@ -754,7 +754,7 @@ def check_instance_status():
         for instance in cluster:
             ip, port = instance.split(':')
             cluster_sequence = None
-            for cluster_sequence in get_latest_metric_sequence('gaussdb_cluster_state').\
+            for cluster_sequence in get_latest_metric_value('gaussdb_cluster_state').\
                 filter_like(instance=f'.*{ip}.*').fetchall():
                 replace_sequence_ip(cluster_sequence)
                 if instance in cluster_sequence.labels['standby'] or instance in cluster_sequence.labels['primary']:

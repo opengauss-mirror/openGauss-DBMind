@@ -176,7 +176,5 @@ def get_queries(database_templates, instance, db_name, schemas, optimization_int
 
         if len(database_templates.keys()) > templatization_args.max_template_num:
             break
-        with open(f'/root/lk/DBMind/query_{db_name}.sql','w') as fileh:
-            fileh.write(str(database_templates)) 
     return database_templates, source
 

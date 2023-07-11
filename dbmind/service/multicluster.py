@@ -84,7 +84,7 @@ def replace_sequence_ip(sequence):
     from_instance_ip, from_instance_port = sequence.labels['instance'].split(":")
 
     if from_instance_ip in ip_map:
-        for database_ip, floating_ip in ip_map[from_instance_ip]:
+        for database_ip, floating_ip in ip_map[from_instance_ip].items():
             for label in sequence.labels.keys():
                 sequence.labels[label] = sequence.labels[label].replace(f'{database_ip}:', f'{floating_ip}:')
 
