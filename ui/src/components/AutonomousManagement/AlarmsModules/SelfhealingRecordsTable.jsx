@@ -7,6 +7,10 @@ import Setup from '../../../assets/imgs/Setup.png';
 import { getSelfhealingface, getSelfhealingSetting, getSelfhealingSubmit, getSelfhealingDelete, getSelfhealingPause, getSelfhealingResumption } from '../../../api/autonomousManagement';
 
 const { Option } = Select;
+const formItemLayout = {
+  labelCol:{ span: 7,offset: 4},
+  wrapperCol:{ span: 12 }
+}
 export default class SelfhealingRecordsTable extends Component {
   constructor() {
     super()
@@ -374,8 +378,6 @@ export default class SelfhealingRecordsTable extends Component {
         {!this.state.isModalVisible ? null :<Modal title={this.state.modelTitle}  width="40vw" destroyOnClose={true} bodyStyle={{overflowY: "auto",overflowX:"none",height: "60vh"}} visible={this.state.isModalVisible} maskClosable = {false} centered='true' 
         onOk={() => this.validateFieldValue()} onCancel={() => this.handleCancel()} okButtonProps={{disabled: this.state.isDisabled}} className='formlistclass'>
               <Form
-                labelCol={{ span: 7,offset: 4}}
-                wrapperCol={{ span: 12 }}
                 layout='horizontal'
                 disabled={this.state.isDisabled}
                 style={{ maxWidth: 520 }}
@@ -384,13 +386,13 @@ export default class SelfhealingRecordsTable extends Component {
                 }}
                 autoComplete="off"
               >
-                <Form.Item name="name" label="name" rules={[{required: true, message: 'Missing name'}]}>
+                <Form.Item {...formItemLayout} name="name" label="name" rules={[{required: true, message: 'Missing name'}]}>
                   <Input placeholder="" allowClear={true} />
                 </Form.Item>
-                <Form.Item name="duration" label="duration(second)" rules={[{required: true, message: 'Missing duration'}]}>
+                <Form.Item {...formItemLayout} name="duration" label="duration(second)" rules={[{required: true, message: 'Missing duration'}]}>
                   <InputNumber min={1} style={{ width: 260 }} />
                 </Form.Item>
-                <Form.Item name="alarm_type" label="alarm type"  rules={[{required: true, message: 'Missing alarm type'}]}>
+                <Form.Item {...formItemLayout} name="alarm_type" label="alarm type"  rules={[{required: true, message: 'Missing alarm type'}]}>
                   <Select value={this.state.alarmtypeValue} onChange={(val) => { this.changeAlarmtypeVal(val) }} showSearch
                       optionFilterProp="children" filterOption={(input, option) =>
                         option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 260 }}>
@@ -403,7 +405,7 @@ export default class SelfhealingRecordsTable extends Component {
                       }
                   </Select>
                 </Form.Item>
-                <Form.Item name="alarm_level" label="alarm level" rules={[{required: true, message: 'Missing alarm level'}]}>
+                <Form.Item {...formItemLayout} name="alarm_level" label="alarm level" rules={[{required: true, message: 'Missing alarm level'}]}>
                   <Select value={this.state.alarmlevelValue} onChange={(val) => { this.changeAlarmlevelVal(val) }} showSearch
                       optionFilterProp="children" filterOption={(input, option) =>
                         option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 260 }}>
@@ -416,13 +418,13 @@ export default class SelfhealingRecordsTable extends Component {
                       }
                   </Select>
                 </Form.Item>
-                <Form.Item name="alarm_content" label="alarm content">
+                <Form.Item {...formItemLayout} name="alarm_content" label="alarm content">
                   <Input placeholder="" allowClear={true} />
                 </Form.Item>
-                <Form.Item name="alarm_cause" label="alarm cause">
+                <Form.Item {...formItemLayout} name="alarm_cause" label="alarm cause">
                   <Input placeholder="" allowClear={true} />
                 </Form.Item>
-                <Form.Item name="extra" label="extra">
+                <Form.Item {...formItemLayout} name="extra" label="extra">
                   <Input placeholder="" allowClear={true} />
                 </Form.Item>
                 <Form.Item shouldUpdate >
@@ -435,6 +437,7 @@ export default class SelfhealingRecordsTable extends Component {
                               <CloseOutlined onClick={() => remove(field.name)} style={{display:this.state.isDisabled ? 'none' :'block',textAlign:'end',marginBottom:24}} />
                                   <Form.Item
                                     {...field}
+                                    {...formItemLayout}
                                     style={{ width: 520 }}
                                     label="detectorName"
                                     name={[field.name, 'detector_name']}
@@ -459,7 +462,8 @@ export default class SelfhealingRecordsTable extends Component {
                                   </Form.Item>
                               <Form.Item
                                 {...field}
-                                style={{ width: 380 }}
+                                {...formItemLayout}
+                                style={{ width: 520 }}
                                 label="metricName"
                                 name={[field.name, 'metric_name']}
                                 key={[field.key, 'metric_name']}
@@ -474,7 +478,8 @@ export default class SelfhealingRecordsTable extends Component {
                               </Form.Item>
                               <Form.Item
                                 {...field}
-                                style={{ width: 380 }}
+                                {...formItemLayout}
+                                style={{ width: 520 }}
                                 label="Host"
                                 name={[field.name, 'from_instance']}
                                 key={[field.key, "from_instance"]}
@@ -499,6 +504,7 @@ export default class SelfhealingRecordsTable extends Component {
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'VolatilityShiftDetector' ?<Form.Item
                                             {...field}
                                             label='side'
+                                            {...formItemLayout}
                                             name={[field.name, 'side']}
                                             key={[field.key, 'side']}
                                             rules={[
@@ -518,6 +524,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item>:null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'GradientDetector' ?<Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='max_coef'
                                             name={[field.name, 'max_coef']}
                                             key={[field.key, 'max_coef']}
@@ -533,6 +540,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'EsdTestDetector' ||
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'IncreaseDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='alpha'
                                             name={[field.name, 'alpha']}
                                             key={[field.key, 'alpha']}
@@ -551,6 +559,7 @@ export default class SelfhealingRecordsTable extends Component {
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SeasonalDetector'|| 
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SpikeDetector'?<Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='upperOutlier'
                                             name={[field.name, 'upperOutlier']}
                                             key={[field.key, 'upperOutlier']}
@@ -568,6 +577,7 @@ export default class SelfhealingRecordsTable extends Component {
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SeasonalDetector'|| 
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SpikeDetector'?<Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='lowerOutlier'
                                             name={[field.name, 'lowerOutlier']}
                                             key={[field.key, 'lowerOutlier']}
@@ -585,6 +595,7 @@ export default class SelfhealingRecordsTable extends Component {
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SpikeDetector'||
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'VolatilityShiftDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='window'
                                             name={[field.name, 'window']}
                                             key={[field.key, 'window']}
@@ -600,6 +611,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'QuantileDetector'||
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'ThresholdDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='high'
                                             name={[field.name, 'high']}
                                             key={[field.key, 'high']}
@@ -615,6 +627,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'QuantileDetector'||
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'ThresholdDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='low'
                                             name={[field.name, 'low']}
                                             key={[field.key, 'low']}
@@ -629,6 +642,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item>:null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='high_ac_threshold'
                                             name={[field.name, 'high_ac_threshold']}
                                             key={[field.key, 'high_ac_threshold']}
@@ -643,6 +657,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item>:null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='min_seasonal_freq'
                                             name={[field.name, 'min_seasonal_freq']}
                                             key={[field.key, 'min_seasonal_freq']}
@@ -657,6 +672,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item> : null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='period'
                                             name={[field.name, 'period']}
                                             key={[field.key, 'period']}
@@ -673,6 +689,7 @@ export default class SelfhealingRecordsTable extends Component {
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SpikeDetector'||
                                             this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'VolatilityShiftDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='agg'
                                             name={[field.name, 'agg']}
                                             key={[field.key, 'agg']}
@@ -693,6 +710,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item>:null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'ThresholdDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='percentage'
                                             name={[field.name, 'percentage']}
                                             key={[field.key, 'percentage']}
