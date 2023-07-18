@@ -1,0 +1,326 @@
+{
+  "special token": {
+    "start_id": 0,
+    "end_id": 4
+  },
+  "table name": {
+    "start_id": 5,
+    "end_id": 12
+  },
+  "region#column name": {
+    "start_id": 13,
+    "end_id": 15
+  },
+  "nation#column name": {
+    "start_id": 16,
+    "end_id": 19
+  },
+  "supplier#column name": {
+    "start_id": 20,
+    "end_id": 26
+  },
+  "part#column name": {
+    "start_id": 27,
+    "end_id": 35
+  },
+  "customer#column name": {
+    "start_id": 36,
+    "end_id": 43
+  },
+  "orders#column name": {
+    "start_id": 44,
+    "end_id": 52
+  },
+  "partsupp#column name": {
+    "start_id": 53,
+    "end_id": 57
+  },
+  "lineitem#column name": {
+    "start_id": 58,
+    "end_id": 73
+  },
+  "r_regionkey#column values": {
+    "start_id": 74,
+    "end_id": 78
+  },
+  "r_name#column values": {
+    "start_id": 79,
+    "end_id": 83
+  },
+  "r_comment#column values": {
+    "start_id": 84,
+    "end_id": 88
+  },
+  "n_nationkey#column values": {
+    "start_id": 89,
+    "end_id": 113
+  },
+  "n_name#column values": {
+    "start_id": 114,
+    "end_id": 138
+  },
+  "n_regionkey#column values": {
+    "start_id": 139,
+    "end_id": 143
+  },
+  "n_comment#column values": {
+    "start_id": 144,
+    "end_id": 168
+  },
+  "s_suppkey#column values": {
+    "start_id": 169,
+    "end_id": 218
+  },
+  "s_name#column values": {
+    "start_id": 219,
+    "end_id": 268
+  },
+  "s_address#column values": {
+    "start_id": 269,
+    "end_id": 318
+  },
+  "s_nationkey#column values": {
+    "start_id": 319,
+    "end_id": 341
+  },
+  "s_phone#column values": {
+    "start_id": 342,
+    "end_id": 391
+  },
+  "s_acctbal#column values": {
+    "start_id": 392,
+    "end_id": 441
+  },
+  "s_comment#column values": {
+    "start_id": 442,
+    "end_id": 491
+  },
+  "p_partkey#column values": {
+    "start_id": 492,
+    "end_id": 541
+  },
+  "p_name#column values": {
+    "start_id": 542,
+    "end_id": 591
+  },
+  "p_mfgr#column values": {
+    "start_id": 592,
+    "end_id": 596
+  },
+  "p_brand#column values": {
+    "start_id": 597,
+    "end_id": 615
+  },
+  "p_type#column values": {
+    "start_id": 616,
+    "end_id": 656
+  },
+  "p_size#column values": {
+    "start_id": 657,
+    "end_id": 688
+  },
+  "p_container#column values": {
+    "start_id": 689,
+    "end_id": 713
+  },
+  "p_retailprice#column values": {
+    "start_id": 714,
+    "end_id": 763
+  },
+  "p_comment#column values": {
+    "start_id": 764,
+    "end_id": 813
+  },
+  "c_custkey#column values": {
+    "start_id": 814,
+    "end_id": 863
+  },
+  "c_name#column values": {
+    "start_id": 864,
+    "end_id": 913
+  },
+  "c_address#column values": {
+    "start_id": 914,
+    "end_id": 963
+  },
+  "c_nationkey#column values": {
+    "start_id": 964,
+    "end_id": 983
+  },
+  "c_phone#column values": {
+    "start_id": 984,
+    "end_id": 1033
+  },
+  "c_acctbal#column values": {
+    "start_id": 1034,
+    "end_id": 1083
+  },
+  "c_mktsegment#column values": {
+    "start_id": 1084,
+    "end_id": 1088
+  },
+  "c_comment#column values": {
+    "start_id": 1089,
+    "end_id": 1138
+  },
+  "o_orderkey#column values": {
+    "start_id": 1139,
+    "end_id": 1238
+  },
+  "o_custkey#column values": {
+    "start_id": 1239,
+    "end_id": 1338
+  },
+  "o_orderstatus#column values": {
+    "start_id": 1339,
+    "end_id": 1341
+  },
+  "o_totalprice#column values": {
+    "start_id": 1342,
+    "end_id": 1441
+  },
+  "o_orderdate#column values": {
+    "start_id": 1442,
+    "end_id": 1541
+  },
+  "o_orderpriority#column values": {
+    "start_id": 1542,
+    "end_id": 1546
+  },
+  "o_clerk#column values": {
+    "start_id": 1547,
+    "end_id": 1646
+  },
+  "o_shippriority#column values": {
+    "start_id": 1647,
+    "end_id": 1647
+  },
+  "o_comment#column values": {
+    "start_id": 1648,
+    "end_id": 1747
+  },
+  "ps_partkey#column values": {
+    "start_id": 1748,
+    "end_id": 1814
+  },
+  "ps_suppkey#column values": {
+    "start_id": 1815,
+    "end_id": 1889
+  },
+  "ps_availqty#column values": {
+    "start_id": 1890,
+    "end_id": 1960
+  },
+  "ps_supplycost#column values": {
+    "start_id": 1961,
+    "end_id": 2030
+  },
+  "ps_comment#column values": {
+    "start_id": 2031,
+    "end_id": 2114
+  },
+  "l_orderkey#column values": {
+    "start_id": 2115,
+    "end_id": 2214
+  },
+  "l_partkey#column values": {
+    "start_id": 2215,
+    "end_id": 2314
+  },
+  "l_suppkey#column values": {
+    "start_id": 2315,
+    "end_id": 2414
+  },
+  "l_linenumber#column values": {
+    "start_id": 2415,
+    "end_id": 2421
+  },
+  "l_quantity#column values": {
+    "start_id": 2422,
+    "end_id": 2471
+  },
+  "l_extendedprice#column values": {
+    "start_id": 2472,
+    "end_id": 2571
+  },
+  "l_discount#column values": {
+    "start_id": 2572,
+    "end_id": 2582
+  },
+  "l_tax#column values": {
+    "start_id": 2583,
+    "end_id": 2591
+  },
+  "l_returnflag#column values": {
+    "start_id": 2592,
+    "end_id": 2594
+  },
+  "l_linestatus#column values": {
+    "start_id": 2595,
+    "end_id": 2596
+  },
+  "l_shipdate#column values": {
+    "start_id": 2597,
+    "end_id": 2696
+  },
+  "l_commitdate#column values": {
+    "start_id": 2697,
+    "end_id": 2796
+  },
+  "l_receiptdate#column values": {
+    "start_id": 2797,
+    "end_id": 2896
+  },
+  "l_shipinstruct#column values": {
+    "start_id": 2897,
+    "end_id": 2900
+  },
+  "l_shipmode#column values": {
+    "start_id": 2901,
+    "end_id": 2907
+  },
+  "l_comment#column values": {
+    "start_id": 2908,
+    "end_id": 3007
+  },
+  "operator": {
+    "start_id": 3008,
+    "end_id": 3013
+  },
+  "aggregator": {
+    "start_id": 3014,
+    "end_id": 3018
+  },
+  "order by key": {
+    "start_id": 3019,
+    "end_id": 3020
+  },
+  "conjunction": {
+    "start_id": 3021,
+    "end_id": 3022
+  },
+  "null": {
+    "start_id": 3023,
+    "end_id": 3024
+  },
+  "in": {
+    "start_id": 3025,
+    "end_id": 3026
+  },
+  "exists": {
+    "start_id": 3027,
+    "end_id": 3028
+  },
+  "like": {
+    "start_id": 3029,
+    "end_id": 3030
+  },
+  "join": {
+    "start_id": 3031,
+    "end_id": 3032
+  },
+  "reserved token": {
+    "start_id": 3033,
+    "end_id": 3039
+  }
+}
