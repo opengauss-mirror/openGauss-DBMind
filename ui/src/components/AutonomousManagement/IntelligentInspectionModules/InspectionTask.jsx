@@ -74,7 +74,7 @@ export default class InspectionTask extends Component {
                 title="Sure to delete?"
                 onConfirm={() => this.handleDelete(record)}
               >
-                <span>Delete</span>
+                <span className="deleteStyle">Delete</span>
               </Popconfirm>
             );
           } else {

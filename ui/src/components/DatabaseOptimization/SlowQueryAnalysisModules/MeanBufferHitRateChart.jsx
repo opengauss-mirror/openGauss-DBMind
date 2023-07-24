@@ -115,13 +115,13 @@ export default class MeanBufferHitRateChart extends Component {
   render () {
     return (
       
-        <Card title="Mean Buffer Hit Rate for Slow Query">
+        <Card title={<span style={{fontWeight:'normal'}} title="Mean Buffer Hit Rate for Slow Query">Mean Buffer Hit Rate for Slow Query</span>} style={{ height: 322}}>
           <ReactEcharts
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption()}
-            style={{ width: '100%', height: 200 }}
+            style={{ width: '100%', height: 260 }}
             lazyUpdate={true}
           >
           </ReactEcharts>
