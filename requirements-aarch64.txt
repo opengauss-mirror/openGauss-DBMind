@@ -5,7 +5,7 @@ numpy
 scipy
 requests
 sqlparse
-fastapi
+fastapi<=0.99.0
 uvicorn
 sqlalchemy==1.4.44
 # Use `#` to set an alternative psycopg2
