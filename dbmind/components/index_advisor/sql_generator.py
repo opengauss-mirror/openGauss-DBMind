@@ -61,6 +61,7 @@ def get_workload_cost_sqls(statements, indexes, is_multi_node):
         sqls.append('set enable_fast_query_shipping = off;')
         sqls.append('set enable_stream_operator = on; ')
     sqls.append("set explain_perf_mode = 'normal'; ")
+    sqls.append("set plan_cache_mode = 'force_generic_plan';")
     for index, statement in enumerate(statements):
         sqls.extend(get_prepare_sqls(statement))
     return sqls
@@ -93,6 +94,7 @@ def get_hypo_index_head_sqls(is_multi_node):
         sqls.append('SET enable_fast_query_shipping = off;')
         sqls.append('SET enable_stream_operator = on;')
     sqls.append("set explain_perf_mode = 'normal'; ")
+    sqls.append("set plan_cache_mode = 'force_generic_plan';")
     return sqls
 
 
@@ -106,6 +108,7 @@ def get_index_check_sqls(query, indexes, is_multi_node):
                     (table, columns, index_type))
     sqls.append('SELECT pg_catalog.hypopg_display_index()')
     sqls.append("SET explain_perf_mode = 'normal';")
+    sqls.append("set plan_cache_mode = 'force_generic_plan';")
     sqls.extend(get_prepare_sqls(query))
     sqls.append('SELECT pg_catalog.hypopg_reset_index()')
     return sqls
