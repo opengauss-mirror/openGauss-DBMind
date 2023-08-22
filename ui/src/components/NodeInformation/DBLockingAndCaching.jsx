@@ -37,7 +37,7 @@ export default class DBLockingAndCaching extends Component {
     return (
       <div className='thirdTabClass'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} tabBarExtraContent={
+        <Tabs tabBarGutter={30}  className='childstyle' type="card " destroyInactiveTabPane={true}  defaultActiveKey="1" items={items} onChange={this.onChange} tabBarExtraContent={
           (this.state.tabChildkey === '1') &&<img
           src={Refresh}
           title='Refresh'

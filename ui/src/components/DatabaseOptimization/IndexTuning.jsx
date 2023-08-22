@@ -135,8 +135,8 @@ export default class IndexTuning extends Component {
   render () {
     return (
       <div className="contentWrap">
-        <div className="indexTuning">
-          {this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> :
+        <div className="indexTuning"style={{textAlign:'center'}}>
+          {this.state.showflag ? <Spin style={{ margin: '260px 0 '}} /> :
             <>
               <TopShowList topList={this.state.topList} />
             

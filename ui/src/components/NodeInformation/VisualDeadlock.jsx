@@ -53,7 +53,7 @@ export default class VisualDeadlock extends Component {
           const s = parseInt(indexNum / 4);
           const l = indexNum % 4;
           // 商数是偶数
-          if (s % 2 == 0) {
+          if (s % 2 === 0) {
             let XArr = [100, 200, 300, 400];
             if (l < 1) {
               ele.x = XArr[0];
@@ -70,7 +70,7 @@ export default class VisualDeadlock extends Component {
             }
           }
 
-          if (l == 0) {
+          if (l === 0) {
             ele.y = firstY + 50 * (s - 1);
           } else {
             ele.y = firstY + 50 * s;

@@ -21,7 +21,7 @@ export default class MeanIoTimeChart extends Component {
           axisLine: {
             roundCap:true,
             lineStyle: {
-              width: 18,
+              width: 8,
             },
           },
           progress: {
@@ -45,11 +45,6 @@ export default class MeanIoTimeChart extends Component {
             formatter: function (value) {
               return value.toFixed(1);
           }
-          },
-          axisLine: {
-            lineStyle: {
-              width: 8,
-            },
           },
           anchor: {
             show: true,

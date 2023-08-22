@@ -112,6 +112,10 @@ export default class InspectionTask extends Component {
     this.setState({ isModalVisible: true });
   }
   async handleOk() {
+    if(this.state.checkedKey === "real_time_check" && !this.state.startTime){
+      message.warning("Please select time!");
+      return;
+    }
     let params = {
       inspectionType: this.state.checkedKey,
       startTime: this.state.startTime,
