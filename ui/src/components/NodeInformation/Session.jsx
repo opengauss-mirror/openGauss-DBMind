@@ -259,7 +259,7 @@ export default class Session extends Component {
     return (
       <div>
         <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={this.state.pagination} loading={this.state.loadingActiveSql} scroll={{ x: '100%'}} />
-        <Modal title="Abnormal Root Cause Analysis" style={{maxWidth: "60vw"}} bodyStyle={{overflowY: "auto", background: '#f1f1f1'}} width="60vw" okButtonProps={{ style: { display: 'none' } }} 
+        <Modal title="Session Wait Event" style={{maxWidth: "60vw"}} bodyStyle={{overflowY: "auto", background: '#f1f1f1'}} width="60vw" okButtonProps={{ style: { display: 'none' } }} 
          destroyOnClose='true' visible={this.state.isModalVisible} maskClosable = {false} centered='true' onCancel={() => this.handleCancel()}>
            <Table bordered showSorterTooltip={false} components={this.components} columns={columnsDetails} dataSource={this.state.dataSourceDetails} rowKey={record => record.key} pagination={this.state.paginationDetails} scroll={{ x: '100%'}} />
         </Modal>

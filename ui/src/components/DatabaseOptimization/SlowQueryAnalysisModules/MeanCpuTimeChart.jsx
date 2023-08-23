@@ -22,7 +22,7 @@ export default class MeanCpuTimeChart extends Component {
           axisLine: {
             roundCap: true,
             lineStyle: {
-              width: 18,
+              width: 8,
             },
           },
           progress: {
@@ -45,11 +45,6 @@ export default class MeanCpuTimeChart extends Component {
             fontSize: 12,
             formatter: function (value) {
               return value.toFixed(1);
-            },
-          },
-          axisLine: {
-            lineStyle: {
-              width: 8,
             },
           },
           anchor: {
@@ -110,13 +105,13 @@ export default class MeanCpuTimeChart extends Component {
   render() {
     return (
       <div>
-        <Card title="Mean CPU Time">
+        <Card title="Mean CPU Time" style={{ height: 321}}>
           <ReactEcharts
             ref={(e) => {
               this.echartsElement = e;
             }}
             option={this.getOption()}
-            style={{ height: "200px" }}
+            style={{ height: 260 }}
             lazyUpdate={true}
           ></ReactEcharts>
         </Card>

@@ -87,7 +87,7 @@ export default class Node extends Component {
     return (
       <div className='nodeselect'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange}
+        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} destroyInactiveTabPane={true}
          tabBarExtraContent={
           <div>
           <Select value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch

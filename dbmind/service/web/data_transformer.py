@@ -390,6 +390,15 @@ def get_database_list():
     return list(rv)
 
 
+def get_users(username, password):
+    stmt = 'select usename from pg_user;'
+    _res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmt)
+    res = []
+    for user in psycopg2_dict_jsonify(_res).get('rows', []):
+        res.append(user[0])
+    return res
+
+
 def get_cluster_summary():
     node_status = get_cluster_node_status()['node_list']
     nb_node = len(node_status)

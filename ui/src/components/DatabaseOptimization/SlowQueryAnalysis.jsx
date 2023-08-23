@@ -452,9 +452,6 @@ export default class SlowQueryAnalysis extends Component {
                       <MeanBufferHitRateChart
                         meanBufferHitRate={this.state.meanBufferHitRate}
                       />
-                      <MeanFetchTimeChart
-                        meanFetchTime={this.state.meanFetchTime}
-                      />
                     </div>
                   </div>
                   <div className="queryTable">
