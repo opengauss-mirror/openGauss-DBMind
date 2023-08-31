@@ -9,6 +9,7 @@ import Tps from '../../assets/imgs/Tps.png';
 import Writerate from '../../assets/imgs/Write rate.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
 import { getCommonMetric } from '../../api/autonomousManagement';
+import { string } from 'prop-types';
 
 const { Panel } = Collapse;
 export default class NodeIO extends Component {
@@ -19,7 +20,7 @@ export default class NodeIO extends Component {
       selTimeValue:this.props.selTimeValue,
       primitiveDataAll:[],
       ioAllData:[],
-      vectorKey:''
+      vectorKey:["0"]
     }
   }
   async getIoData1 () {
@@ -162,9 +163,8 @@ export default class NodeIO extends Component {
             this.setState(() => ({
               ioAllData: ioAllArray,
               primitiveDataAll:primitiveDataAll,
-              vectorKey:0,
-            }),()=>{
-              this.onChange(0)
+            }), () => {
+              this.onChange(this.state.vectorKey)
             })
       }
       }).catch((error) => {
@@ -186,7 +186,9 @@ export default class NodeIO extends Component {
     this.getIoDataAll()
   }
   onChange = (key) => {
-    this.setState({vectorKey:key})
+    this.setState({vectorKey:key}, () => {
+      this.forceUpdate();
+    })
   };
   render() {
     return (
@@ -194,23 +196,23 @@ export default class NodeIO extends Component {
           {
             this.state.ioAllData.length > 0 ? this.state.ioAllData.map((item,index) => {
               return (
-                <Collapse  activeKey={this.state.vectorKey}  onChange={(key)=>{this.onChange(key)}} expandIconPosition='end' >
+                <Collapse  activeKey={this.state.vectorKey}  onChange={(key)=>{this.onChange(key)}} expandIconPosition='end'  >
                 <Panel header={this.state.primitiveDataAll[index][0].labels.device} key={index} forceRender={true} className='panelStyle'>
-                <Row gutter={[10, 10]}>
+                  <Row gutter={[10, 10]}>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[0]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[0]} />:''}
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[1]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[1]} />:''}
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[2]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[2]} />:''}
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[3]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[3]} />:''}
                   </Col>
                   <Col className="gutter-row cpuborder" span={24}>
-                    <NodeEchartFormWork echartData={item[4]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[4]} />:''}
                   </Col>
                 </Row>
               </Panel>

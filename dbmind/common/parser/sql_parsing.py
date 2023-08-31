@@ -246,10 +246,11 @@ def exists_bool_clause(query):
     def get_in_clause(parsed):
         for item in parsed:
             if item.is_group:
-                if isinstance(item, Parenthesis) and isinstance(item.parent, Comparison):
+                if isinstance(item, Parenthesis) and isinstance(item.parent, Where):
                     comparisons = [subitem.value for subitem in item.parent.tokens if
-                                   subitem.ttype == sqlparse.tokens.Token.Operator.Comparison]
-                    if any(op in comparisons for op in ('not in',)):
+                                   subitem.ttype == sqlparse.tokens.Token.Keyword]
+                    if any(comparisons[i - 1] == 'not' for i, x in enumerate(comparisons) if x == 'in') \
+                            or any(op in comparisons for op in ('not in',)):
                         for sub_item in item.tokens:
                             if isinstance(sub_item, IdentifierList):
                                 flags.append(sub_item.value.split(','))

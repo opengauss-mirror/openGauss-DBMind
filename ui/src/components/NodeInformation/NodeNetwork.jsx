@@ -18,7 +18,7 @@ export default class NodeNetwork extends Component {
       selTimeValue:this.props.selTimeValue,
       primitiveDataAll:[],
       networkAllData:[],
-      vectorKey:''
+      vectorKey:["0"]
     }
   }
   async getNetworkData1 () {
@@ -145,9 +145,8 @@ export default class NodeNetwork extends Component {
             this.setState(() => ({
               networkAllData: networkAllArray,
               primitiveDataAll:primitiveDataAll,
-              vectorKey:0,
             }),()=>{
-              this.onChange(0)
+              this.onChange(this.state.vectorKey)
             })
       }
       }).catch((error) => {
@@ -169,7 +168,9 @@ export default class NodeNetwork extends Component {
     this.getNetworkDataAll()
   }
   onChange = (key) => {
-    this.setState({vectorKey:key})
+    this.setState({vectorKey:key}, () => {
+      this.forceUpdate();
+    })
   };
   render() {
     return (
@@ -203,16 +204,16 @@ export default class NodeNetwork extends Component {
                 } key={index} forceRender={true} className='panelStyle'>
                 <Row gutter={[10, 10]}>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[0]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[0]} />:''}
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[1]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[1]} />:''}
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[2]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[2]} />:''}
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[3]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[3]} />:''}
                   </Col>
                 </Row>
               </Panel>

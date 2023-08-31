@@ -12,7 +12,7 @@ export default class CacheInformation extends Component {
       selTimeValue:this.props.selTimeValue,
       primitiveDataAll:[],
       serviceAllData:[],
-      vectorKey:''
+      vectorKey:["0"]
     }
   }
   async getCacheInformationData1 () {
@@ -93,9 +93,8 @@ export default class CacheInformation extends Component {
             this.setState(() => ({
               serviceAllData: serviceAllArray,
               primitiveDataAll:primitiveDataAll,
-              vectorKey:0,
             }),()=>{
-              this.onChange(0)
+              this.onChange(this.state.vectorKey)
             })
       }
       }).catch((error) => {
@@ -117,7 +116,9 @@ export default class CacheInformation extends Component {
       this.getCacheInformationDataAll()
     }
     onChange = (key) => {
-      this.setState({vectorKey:key})
+      this.setState({vectorKey:key}, () => {
+        this.forceUpdate();
+      })
     };
   render() {
     return (
@@ -129,13 +130,13 @@ export default class CacheInformation extends Component {
                 <Panel header={this.state.primitiveDataAll[index][0].labels.datname} key={index} forceRender={true} className='panelStyle'>
                 <Row gutter={10}>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[0]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[0]} />:''}
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    <NodeEchartFormWork echartData={item[1]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[1]} />:''}
                   </Col>
                   <Col className="gutter-row cpuborder" span={24}>
-                    <NodeEchartFormWork echartData={item[2]} />
+                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[2]} />:''}
                   </Col>
                 </Row>
               </Panel>

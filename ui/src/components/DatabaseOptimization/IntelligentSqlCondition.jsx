@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Button, Input, message, Select, Card, Col, Row, Table, Form, DatePicker, Checkbox, Modal, InputNumber,Radio } from 'antd';
-import { getItemListInterface } from '../../api/aiTool';
+import { getItemListInterface, getUserItemListInterface } from '../../api/aiTool';
 import { getIntelligentSqlCondition } from '../../api/databaseOptimization';
 import ReactEcharts from 'echarts-for-react';
 import moment from 'moment';
@@ -21,6 +21,7 @@ export default class IntelligentSqlCondition extends Component {
       columns: [],
       loading: false,
       options: [],
+      userDatas: [],
       optionsSource: ['pg_stat_activity','dbe_perf.statement_history','asp'],
       selValue: 'pg_stat_activity',
       isCreateVisible:false,
@@ -70,6 +71,14 @@ export default class IntelligentSqlCondition extends Component {
     const { success, data, msg } = await getItemListInterface()
     if (success) {
       this.setState({options: data})
+    } else {
+      message.error(msg)
+    }
+  }
+  async getUserItemList () {
+    const { success, data, msg } = await getUserItemListInterface()
+    if (success) {
+      this.setState({userDatas: data})
     } else {
       message.error(msg)
     }
@@ -196,7 +205,8 @@ export default class IntelligentSqlCondition extends Component {
     this.setState(() => ({routeTo: flg}))
   }
   componentDidMount () {
-    this.getItemList()
+    this.getItemList();
+    this.getUserItemList();
   }
   render () {
     return (
@@ -272,20 +282,6 @@ export default class IntelligentSqlCondition extends Component {
                     <InputNumber  min={0} placeholder="10ms" style={{ width: 260 }} />
                   </Form.Item>
                 </Col>}
-                <Col span={24}>
-                  <Form.Item
-                    label="User"
-                    name="users"
-                    rules={[
-                      {
-                        required: true,
-                        message: 'The value cannot be empty',
-                      }
-                    ]}
-                  >
-                    <Input placeholder="user" style={{ width: 600 }} />
-                  </Form.Item>
-                </Col>
                 <Col span={24} className="errorinvalid">
                   <Form.Item
                     label="Database"
@@ -301,6 +297,30 @@ export default class IntelligentSqlCondition extends Component {
                         option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 600 }}>
                       {
                         this.state.options.map(item => {
+                          return (
+                            <Option value={item} key={item}>{item}</Option>
+                          )
+                        })
+                      }
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={24}>
+                  <Form.Item
+                    label="User"
+                    name="users"
+                    rules={[
+                      {
+                        required: true,
+                        message: 'The value cannot be empty',
+                      }
+                    ]}
+                  >
+                    {/* <Input placeholder="user" style={{ width: 600 }} /> */}
+                    <Select showSearch optionFilterProp="children" filterOption={(input, option) =>
+                        option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 600 }}>
+                      {
+                        this.state.userDatas.map(item => {
                           return (
                             <Option value={item} key={item}>{item}</Option>
                           )

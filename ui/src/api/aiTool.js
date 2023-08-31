@@ -6,6 +6,9 @@ import {
 export const getItemListInterface = () => {
   return get('/list/database');
 };
+export const getUserItemListInterface = () => {
+  return get('/list/users');
+};
 export const getListIndexAdvisorInterface = (data) => {
   return post(`/toolkit/advise/index?database=${data.database}&instance=${data.instance}&max_index_num=${data.max_index_num}&max_index_storage=${data.max_index_storage}&current=${data.current}&pagesize=${data.pagesize}`, data.textareaVal);
 };

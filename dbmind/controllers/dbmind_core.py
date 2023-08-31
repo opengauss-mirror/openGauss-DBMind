@@ -294,6 +294,14 @@ def get_db_list():
     return data_transformer.get_database_list()
 
 
+@request_mapping('/api/list/users', methods=['GET'], api=True)
+@oauth2.token_authentication()
+@standardized_api_output
+def get_users():
+    username, password = oauth2.credential
+    return data_transformer.get_users(username, password)
+
+
 @request_mapping('/api/summary/index_advisor', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output

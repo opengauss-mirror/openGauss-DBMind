@@ -21,7 +21,7 @@ export default class MeanIoTimeChart extends Component {
           axisLine: {
             roundCap:true,
             lineStyle: {
-              width: 18,
+              width: 8,
             },
           },
           progress: {
@@ -45,11 +45,6 @@ export default class MeanIoTimeChart extends Component {
             formatter: function (value) {
               return value.toFixed(1);
           }
-          },
-          axisLine: {
-            lineStyle: {
-              width: 8,
-            },
           },
           anchor: {
             show: true,
@@ -113,13 +108,13 @@ export default class MeanIoTimeChart extends Component {
   render () {
     return (
       <div>
-        <Card title="Mean IO Time">
+        <Card title="Mean IO Time" style={{ height: 321}}>
           <ReactEcharts
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption()}
-            style={{ width: '100%', height: 200 }}
+            style={{ width: '100%', height: 260 }}
             lazyUpdate={true}
           >
           </ReactEcharts>

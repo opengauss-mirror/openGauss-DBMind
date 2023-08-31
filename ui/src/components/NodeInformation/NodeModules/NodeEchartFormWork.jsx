@@ -238,6 +238,9 @@ export default class NodeEchartFormWork extends Component {
       })
     }
   }
+  componentDidMount() {
+    this.echartsElement.resize()
+  }
   render() {
     return (
       this.state.ifShow ?

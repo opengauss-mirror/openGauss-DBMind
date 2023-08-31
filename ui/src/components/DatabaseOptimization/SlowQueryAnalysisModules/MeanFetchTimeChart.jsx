@@ -21,7 +21,7 @@ export default class MeanFetchTimeChart extends Component {
           axisLine: {
             roundCap:true,
             lineStyle: {
-              width: 18,
+              width: 8,
             },
           },
           progress: {
@@ -44,11 +44,6 @@ export default class MeanFetchTimeChart extends Component {
             fontSize: 12,
             formatter: function (value) {
               return value.toFixed(0);
-            },
-          },
-          axisLine: {
-            lineStyle: {
-              width: 8,
             },
           },
           anchor: {
