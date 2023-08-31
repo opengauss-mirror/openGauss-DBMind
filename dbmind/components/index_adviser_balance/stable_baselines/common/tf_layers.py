@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+import torch
 
 
 def ortho_init(scale=1.0):
@@ -35,7 +36,8 @@ def ortho_init(scale=1.0):
             raise NotImplementedError
         gaussian_noise = np.random.normal(0.0, 1.0, flat_shape)
         u, _, v = np.linalg.svd(gaussian_noise, full_matrices=False)
-        weights = u if u.shape == flat_shape else v  # pick the one with the correct shape
+        # pick the one with the correct shape
+        weights = u if u.shape == flat_shape else v
         weights = weights.reshape(shape)
         return (scale * weights[:shape[0], :shape[1]]).astype(np.float32)
 
@@ -56,7 +58,8 @@ def mlp(input_tensor, layers, activ_fn=tf.nn.relu, layer_norm=False):
     for i, layer_size in enumerate(layers):
         output = tf.layers.dense(output, layer_size, name='fc' + str(i))
         if layer_norm:
-            output = tf.contrib.layers.layer_norm(output, center=True, scale=True)
+            output = tf.contrib.layers.layer_norm(
+                output, center=True, scale=True)
         output = activ_fn(output)
     return output
 
@@ -80,7 +83,8 @@ def conv(input_tensor, scope, *, n_filters, filter_size, stride,
     """
     if isinstance(filter_size, list) or isinstance(filter_size, tuple):
         assert len(filter_size) == 2, \
-            "Filter size must have 2 elements (height, width), {} were given".format(len(filter_size))
+            "Filter size must have 2 elements (height, width), {} were given".format(
+                len(filter_size))
         filter_height = filter_size[0]
         filter_width = filter_size[1]
     else:
@@ -100,8 +104,10 @@ def conv(input_tensor, scope, *, n_filters, filter_size, stride,
     n_input = input_tensor.get_shape()[channel_ax].value
     wshape = [filter_height, filter_width, n_input, n_filters]
     with tf.variable_scope(scope):
-        weight = tf.get_variable("w", wshape, initializer=ortho_init(init_scale))
-        bias = tf.get_variable("b", bias_var_shape, initializer=tf.constant_initializer(0.0))
+        weight = tf.get_variable(
+            "w", wshape, initializer=ortho_init(init_scale))
+        bias = tf.get_variable("b", bias_var_shape,
+                               initializer=tf.constant_initializer(0.0))
         if not one_dim_bias and data_format == 'NHWC':
             bias = tf.reshape(bias, bshape)
         return bias + tf.nn.conv2d(input_tensor, weight, strides=strides, padding=pad, data_format=data_format)
@@ -120,52 +126,59 @@ def linear(input_tensor, scope, n_hidden, *, init_scale=1.0, init_bias=0.0):
     """
     with tf.variable_scope(scope):
         n_input = input_tensor.get_shape()[1].value
-        weight = tf.get_variable("w", [n_input, n_hidden], initializer=ortho_init(init_scale))
-        bias = tf.get_variable("b", [n_hidden], initializer=tf.constant_initializer(init_bias))
+        weight = tf.get_variable(
+            "w", [n_input, n_hidden], initializer=ortho_init(init_scale))
+        bias = tf.get_variable(
+            "b", [n_hidden], initializer=tf.constant_initializer(init_bias))
         return tf.matmul(input_tensor, weight) + bias
-import torch
-def linear_cl(input_tensor, scope, n_hidden, *, loading=False,init_scale=1.0, init_bias=0.0 ,trainable = False):
+
+
+def linear_cl(input_tensor, scope, n_hidden, *, loading=False, init_scale=1.0, init_bias=0.0, trainable=False):
     """
     mlp for cl
     """
-    v_list=[]
+    v_list = []
     index = 0
-    ckpt_path = './experiment_utils/cl_save/gen_model/final_boo_bao_nosame_f_v.pth'  
-    
-    if(loading==False):
-        for k,v in torch.load(ckpt_path,map_location='cpu').items():
+    ckpt_path = './experiment_utils/cl_save/gen_model/final_boo_bao_nosame_f_v.pth'
+
+    if (loading == False):
+        for k, v in torch.load(ckpt_path, map_location='cpu').items():
             v_list.append(np.array(v))
         with tf.variable_scope(scope):
             n_input = input_tensor.get_shape()[1].value
-            weight = tf.get_variable("w0", [n_input, n_hidden], initializer=tf.constant_initializer(np.transpose(v_list[index])) ,trainable=trainable)
-            index = index +1
-            bias = tf.get_variable("b0", [n_hidden], initializer=tf.constant_initializer(v_list[index]),trainable=trainable)
-            index = index +1
-            input_tensor = tf.nn.relu( tf.matmul(input_tensor, weight) + bias   )
-
+            weight = tf.get_variable("w0", [n_input, n_hidden], initializer=tf.constant_initializer(
+                np.transpose(v_list[index])), trainable=trainable)
+            index = index + 1
+            bias = tf.get_variable("b0", [n_hidden], initializer=tf.constant_initializer(
+                v_list[index]), trainable=trainable)
+            index = index + 1
+            input_tensor = tf.nn.relu(tf.matmul(input_tensor, weight) + bias)
 
             n_input = input_tensor.get_shape()[1].value
-            weight = tf.get_variable("w3", [n_input, 2000], initializer=tf.constant_initializer(np.transpose(v_list[index])),trainable=trainable)
-            index = index +1
-            bias = tf.get_variable("b3", [2000], initializer=tf.constant_initializer(v_list[index]),trainable=trainable)
-            index = index +1
-            return tf.sigmoid( tf.matmul(input_tensor, weight) + bias )
+            weight = tf.get_variable("w3", [n_input, 2000], initializer=tf.constant_initializer(
+                np.transpose(v_list[index])), trainable=trainable)
+            index = index + 1
+            bias = tf.get_variable("b3", [2000], initializer=tf.constant_initializer(
+                v_list[index]), trainable=trainable)
+            index = index + 1
+            return tf.sigmoid(tf.matmul(input_tensor, weight) + bias)
     else:
         with tf.variable_scope(scope):
             n_input = input_tensor.get_shape()[1].value
-            weight = tf.get_variable("w0", [n_input, n_hidden],trainable=trainable)
-            index = index +1
+            weight = tf.get_variable(
+                "w0", [n_input, n_hidden], trainable=trainable)
+            index = index + 1
             bias = tf.get_variable("b0", [n_hidden], trainable=trainable)
-            index = index +1
-            input_tensor = tf.nn.relu( tf.matmul(input_tensor, weight) + bias   )
-
+            index = index + 1
+            input_tensor = tf.nn.relu(tf.matmul(input_tensor, weight) + bias)
 
             n_input = input_tensor.get_shape()[1].value
-            weight = tf.get_variable("w3", [n_input, 2000], trainable=trainable)
-            index = index +1
+            weight = tf.get_variable(
+                "w3", [n_input, 2000], trainable=trainable)
+            index = index + 1
             bias = tf.get_variable("b3", [2000], trainable=trainable)
-            index = index +1
-            return tf.sigmoid( tf.matmul(input_tensor, weight) + bias )
+            index = index + 1
+            return tf.sigmoid(tf.matmul(input_tensor, weight) + bias)
 
 
 def lstm(input_tensor, mask_tensor, cell_state_hidden, scope, n_hidden, init_scale=1.0, layer_norm=False):
@@ -183,31 +196,43 @@ def lstm(input_tensor, mask_tensor, cell_state_hidden, scope, n_hidden, init_sca
     """
     _, n_input = [v.value for v in input_tensor[0].get_shape()]
     with tf.variable_scope(scope):
-        weight_x = tf.get_variable("wx", [n_input, n_hidden * 4], initializer=ortho_init(init_scale))
-        weight_h = tf.get_variable("wh", [n_hidden, n_hidden * 4], initializer=ortho_init(init_scale))
-        bias = tf.get_variable("b", [n_hidden * 4], initializer=tf.constant_initializer(0.0))
+        weight_x = tf.get_variable(
+            "wx", [n_input, n_hidden * 4], initializer=ortho_init(init_scale))
+        weight_h = tf.get_variable(
+            "wh", [n_hidden, n_hidden * 4], initializer=ortho_init(init_scale))
+        bias = tf.get_variable(
+            "b", [n_hidden * 4], initializer=tf.constant_initializer(0.0))
 
         if layer_norm:
             # Gain and bias of layer norm
-            gain_x = tf.get_variable("gx", [n_hidden * 4], initializer=tf.constant_initializer(1.0))
-            bias_x = tf.get_variable("bx", [n_hidden * 4], initializer=tf.constant_initializer(0.0))
+            gain_x = tf.get_variable(
+                "gx", [n_hidden * 4], initializer=tf.constant_initializer(1.0))
+            bias_x = tf.get_variable(
+                "bx", [n_hidden * 4], initializer=tf.constant_initializer(0.0))
 
-            gain_h = tf.get_variable("gh", [n_hidden * 4], initializer=tf.constant_initializer(1.0))
-            bias_h = tf.get_variable("bh", [n_hidden * 4], initializer=tf.constant_initializer(0.0))
+            gain_h = tf.get_variable(
+                "gh", [n_hidden * 4], initializer=tf.constant_initializer(1.0))
+            bias_h = tf.get_variable(
+                "bh", [n_hidden * 4], initializer=tf.constant_initializer(0.0))
 
-            gain_c = tf.get_variable("gc", [n_hidden], initializer=tf.constant_initializer(1.0))
-            bias_c = tf.get_variable("bc", [n_hidden], initializer=tf.constant_initializer(0.0))
+            gain_c = tf.get_variable(
+                "gc", [n_hidden], initializer=tf.constant_initializer(1.0))
+            bias_c = tf.get_variable(
+                "bc", [n_hidden], initializer=tf.constant_initializer(0.0))
 
-    cell_state, hidden = tf.split(axis=1, num_or_size_splits=2, value=cell_state_hidden)
+    cell_state, hidden = tf.split(
+        axis=1, num_or_size_splits=2, value=cell_state_hidden)
     for idx, (_input, mask) in enumerate(zip(input_tensor, mask_tensor)):
         cell_state = cell_state * (1 - mask)
         hidden = hidden * (1 - mask)
         if layer_norm:
             gates = _ln(tf.matmul(_input, weight_x), gain_x, bias_x) \
-                    + _ln(tf.matmul(hidden, weight_h), gain_h, bias_h) + bias
+                + _ln(tf.matmul(hidden, weight_h), gain_h, bias_h) + bias
         else:
-            gates = tf.matmul(_input, weight_x) + tf.matmul(hidden, weight_h) + bias
-        in_gate, forget_gate, out_gate, cell_candidate = tf.split(axis=1, num_or_size_splits=4, value=gates)
+            gates = tf.matmul(_input, weight_x) + \
+                tf.matmul(hidden, weight_h) + bias
+        in_gate, forget_gate, out_gate, cell_candidate = tf.split(
+            axis=1, num_or_size_splits=4, value=gates)
         in_gate = tf.nn.sigmoid(in_gate)
         forget_gate = tf.nn.sigmoid(forget_gate)
         out_gate = tf.nn.sigmoid(out_gate)

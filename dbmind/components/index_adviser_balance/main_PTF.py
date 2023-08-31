@@ -3,11 +3,13 @@ import importlib
 import logging
 import pickle
 import sys
-import gym_db  
+import gym_db
 from gym_db.common import EnvironmentType
 from balance.experiment import Experiment
 import os
-
+from stable_baselines.common.callbacks import EvalCallbackWithTBRunningAverage
+from stable_baselines.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
+from stable_baselines.ppo2 import ppo2, ppo2_BALANCE
 use_gpu = "0"
 os.environ["CUDA_VISIBLE_DEVICES"] = use_gpu
 
@@ -20,14 +22,8 @@ if __name__ == "__main__":
     logging.warning("use gpu:" + use_gpu)
     experiment = Experiment(CONFIGURATION_FILE)
 
-    if experiment.config["rl_algorithm"]["stable_baselines_version"] == 2:
-        from stable_baselines.common.callbacks import EvalCallbackWithTBRunningAverage
-        from stable_baselines.common.vec_env import DummyVecEnv, SubprocVecEnv, VecNormalize
-        from stable_baselines.ppo2 import ppo2, ppo2_BALANCE
-        algorithm_class = ppo2_BALANCE.PPO2
-        source_algorithm_class = ppo2_BALANCE.PPO2
-    else:
-        raise ValueError
+    algorithm_class = ppo2_BALANCE.PPO2
+    source_algorithm_class = ppo2_BALANCE.PPO2
 
     experiment.prepare()
     with open(f"{experiment.experiment_folder_path}/experiment_object.pickle",
@@ -78,7 +74,7 @@ if __name__ == "__main__":
         acc=temac,
         policy_kwargs=copy.copy(
             experiment.config["rl_algorithm"]["model_architecture"]
-        ), 
+        ),
         **experiment.config["rl_algorithm"]["args"],
     )
     logging.warning(
@@ -173,8 +169,8 @@ if __name__ == "__main__":
             callbacks[0].eval_env.venv.envs[0].dic,
             callbacks[1].eval_env.venv.envs[0].dic
         ],
-                    handle,
-                    protocol=pickle.HIGHEST_PROTOCOL)
+            handle,
+            protocol=pickle.HIGHEST_PROTOCOL)
     experiment.finishmy()
 
     print()

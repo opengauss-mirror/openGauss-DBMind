@@ -8,9 +8,15 @@ import pickle
 import random
 import subprocess
 import gym
+import shutil
 import numpy as np
 from gym_db.common import EnvironmentType
-from index_selection_evaluation.selection.dbms.postgres_dbms import PostgresDatabaseConnector
+from index_selection_evaluation.selection.dbms.openguass_dbms import OpenguassDatabaseConnector
+from stable_baselines.common import set_global_seeds as set_global_seeds_sb2
+from stable_baselines.common.evaluation import evaluate_policy as evaluate_policy_sb2
+from stable_baselines.common.vec_env import DummyVecEnv as DummyVecEnv_sb2
+from stable_baselines.common.vec_env import VecNormalize as VecNormalize_sb2
+from stable_baselines.common.vec_env import sync_envs_normalization as sync_envs_normalization_sb2
 from . import utils
 from .configuration_parser import ConfigurationParser
 from .schema import Schema
@@ -98,17 +104,17 @@ class Experiment(object):
         )
 
         self.action_storage_consumptions = utils.predict_index_sizes(
-            self.globally_indexable_columns_flat, self.schema.database_name)  
+            self.globally_indexable_columns_flat, self.schema.database_name)
 
         if "workload_embedder" in self.config:
             workload_embedder_class = getattr(
                 importlib.import_module("balance.workload_embedder"),
                 self.config["workload_embedder"]["type"])
-            workload_embedder_connector = PostgresDatabaseConnector(
+            workload_embedder_connector = OpenguassDatabaseConnector(
                 self.schema.database_name, autocommit=True)
             self.workload_embedder = workload_embedder_class(
                 self.workload_generator.query_texts,
-                40,  
+                40,
                 workload_embedder_connector,
                 self.globally_indexable_columns,
             )
@@ -281,7 +287,7 @@ class Experiment(object):
         ), f"Folder for experiment results should exist at: ./{self.EXPERIMENT_RESULT_PATH}"
 
         self.experiment_folder_path = f"{self.EXPERIMENT_RESULT_PATH}/ID_{self.id}"
-        import shutil
+
         if (os.path.isdir(self.experiment_folder_path) == True):
             shutil.rmtree(self.experiment_folder_path, ignore_errors=True)
         os.mkdir(self.experiment_folder_path)
@@ -331,8 +337,8 @@ class Experiment(object):
             probabilities = len(self.config["workload"]["validation_testing"]
                                 ["unknown_query_probabilities"])
             for idx, unknown_query_probability in enumerate(
-                    self.config["workload"]["validation_testing"]
-                ["unknown_query_probabilities"]):
+                self.config["workload"]["validation_testing"]
+                    ["unknown_query_probabilities"]):
                 f.write(
                     f"Unknown query probability: {unknown_query_probability}:\n"
                 )
@@ -537,7 +543,6 @@ class Experiment(object):
             f.write(
                 f"Cost eval time (% of total):   {self.costing_time} ({self.costing_time / training_time * 100:.2f}%)\n"
             )
-            
 
             f.write("\n\n")
             f.write("Used configuration:\n")
@@ -548,13 +553,12 @@ class Experiment(object):
                     len(self.evaluated_workloads_strs) // 2)]:
                 f.write(f"{evaluated_workload}\n")
             f.write("Evaluated validation workloads:\n")
-            
-            for evaluated_workload in self.evaluated_workloads_strs[(len(self.evaluated_workloads_strs) // 2) :]:  # noqa: E203, E501
+
+            for evaluated_workload in self.evaluated_workloads_strs[(len(self.evaluated_workloads_strs) // 2):]:  # noqa: E203, E501
                 f.write(f"{evaluated_workload}\n")
-            
+
             f.write("\n\n")
 
-    
     def test_model(self, model):
         model_performances = []
         for test_wl in self.workload_generator.wl_testing:
@@ -709,32 +713,9 @@ class Experiment(object):
         return _init
 
     def _set_sb_version_specific_methods(self):
-        if self.config["rl_algorithm"]["stable_baselines_version"] == 2:
-            from stable_baselines.common import set_global_seeds as set_global_seeds_sb2
-            from stable_baselines.common.evaluation import evaluate_policy as evaluate_policy_sb2
-            from stable_baselines.common.vec_env import DummyVecEnv as DummyVecEnv_sb2
-            from stable_baselines.common.vec_env import VecNormalize as VecNormalize_sb2
-            from stable_baselines.common.vec_env import sync_envs_normalization as sync_envs_normalization_sb2
 
-            self.set_random_seed = set_global_seeds_sb2
-            self.evaluate_policy = evaluate_policy_sb2
-            self.DummyVecEnv = DummyVecEnv_sb2
-            self.VecNormalize = VecNormalize_sb2
-            self.sync_envs_normalization = sync_envs_normalization_sb2
-        elif self.config["rl_algorithm"]["stable_baselines_version"] == 3:
-            raise ValueError("Currently, only StableBaselines 2 is supported.")
-
-            from stable_baselines3.common.evaluation import evaluate_policy as evaluate_policy_sb3
-            from stable_baselines3.common.utils import set_random_seed as set_random_seed_sb3
-            from stable_baselines3.common.vec_env import DummyVecEnv as DummyVecEnv_sb3
-            from stable_baselines3.common.vec_env import VecNormalize as VecNormalize_sb3
-            from stable_baselines3.common.vec_env import sync_envs_normalization as sync_envs_normalization_sb3
-
-            self.set_random_seed = set_random_seed_sb3
-            self.evaluate_policy = evaluate_policy_sb3
-            self.DummyVecEnv = DummyVecEnv_sb3
-            self.VecNormalize = VecNormalize_sb3
-            self.sync_envs_normalization = sync_envs_normalization_sb3
-        else:
-            raise ValueError(
-                "There are only versions 2 and 3 of StableBaselines.")
+        self.set_random_seed = set_global_seeds_sb2
+        self.evaluate_policy = evaluate_policy_sb2
+        self.DummyVecEnv = DummyVecEnv_sb2
+        self.VecNormalize = VecNormalize_sb2
+        self.sync_envs_normalization = sync_envs_normalization_sb2

@@ -38,7 +38,7 @@ def sync_envs_normalization(env: Union[gym.Env, VecEnv], eval_env: Union[gym.Env
     env_tmp, eval_env_tmp = env, eval_env
     # Special case for the _UnvecWrapper
     # Avoid circular import
-    from stable_baselines.common.base_class import _UnvecWrapper
+    
     if isinstance(env_tmp, _UnvecWrapper):
         return
     while isinstance(env_tmp, VecEnvWrapper):

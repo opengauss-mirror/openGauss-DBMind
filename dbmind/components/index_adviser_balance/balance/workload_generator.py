@@ -2,13 +2,14 @@ import copy
 import logging
 import random
 import numpy as np
+import joblib
 import balance.embedding_utils as embedding_utils
 from index_selection_evaluation.selection.candidate_generation import (
     candidates_per_query,
     syntactically_relevant_indexes,
 )
 from index_selection_evaluation.selection.cost_evaluation import CostEvaluation
-from index_selection_evaluation.selection.dbms.postgres_dbms import PostgresDatabaseConnector
+from index_selection_evaluation.selection.dbms.openguass_dbms import OpenguassDatabaseConnector
 from index_selection_evaluation.selection.utils import get_utilized_indexes
 from index_selection_evaluation.selection.workload import Query, Workload
 from .workload_embedder import WorkloadEmbedder
@@ -52,7 +53,6 @@ class WorkloadGenerator(object):
         self.excluded_query_classes = set(config["excluded_query_classes"])
         self.varying_frequencies = config["varying_frequencies"]
 
-        
         self.query_texts = self._retrieve_query_texts_random_value()
         self.query_classes = set(range(1, self.number_of_query_classes + 1))
         self.available_query_classes = self.query_classes - self.excluded_query_classes
@@ -84,8 +84,8 @@ class WorkloadGenerator(object):
         elif config["unknown_queries"] > 0 and config["validation_testing"][
                 "unknown_query_probabilities"][-1] > 0.01:
 
-            embedder_connector = PostgresDatabaseConnector(self.database_name,
-                                                           autocommit=True)
+            embedder_connector = OpenguassDatabaseConnector(self.database_name,
+                                                            autocommit=True)
             embedder = WorkloadEmbedder(
                 # Transform globally_indexable_columns to list of lists.
                 self.query_texts,
@@ -138,8 +138,8 @@ class WorkloadGenerator(object):
 
             assert (len(self.wl_validation) == len(
                 config["validation_testing"]["unknown_query_probabilities"]) ==
-                    len(self.wl_testing)
-                    ), "Validation/Testing workloads length fail"
+                len(self.wl_testing)
+            ), "Validation/Testing workloads length fail"
 
             # We are temporarily restricting the available query classes now to exclude certain classes for training
             original_available_query_classes = self.available_query_classes
@@ -164,9 +164,8 @@ class WorkloadGenerator(object):
         elif config["unknown_queries"] > 0 and config["validation_testing"][
                 "unknown_query_probabilities"][-1] <= 0.01:
 
-
-            embedder_connector = PostgresDatabaseConnector(self.database_name,
-                                                           autocommit=True)
+            embedder_connector = OpenguassDatabaseConnector(self.database_name,
+                                                            autocommit=True)
             embedder = WorkloadEmbedder(
                 # Transform globally_indexable_columns to list of lists.
                 self.query_texts,
@@ -213,8 +212,8 @@ class WorkloadGenerator(object):
 
             assert (len(self.wl_validation) == len(
                 config["validation_testing"]["unknown_query_probabilities"]) ==
-                    len(self.wl_testing)
-                    ), "Validation/Testing workloads length fail"
+                len(self.wl_testing)
+            ), "Validation/Testing workloads length fail"
 
             # We are temporarily restricting the available query classes now to exclude certain classes for training
             original_available_query_classes = self.available_query_classes
@@ -374,8 +373,7 @@ class WorkloadGenerator(object):
             workloads.append(
                 Workload(
                     queries,
-                    description=
-                    f"Contains {previously_unseen_queries} previously unseen queries."
+                    description=f"Contains {previously_unseen_queries} previously unseen queries."
                 ))
 
         return workloads
@@ -386,7 +384,8 @@ class WorkloadGenerator(object):
                             test_instances,
                             size,
                             unknown_query_probability=None):
-        required_unique_workloads = train_instances + validation_instances + test_instances
+        required_unique_workloads = train_instances + \
+            validation_instances + test_instances
 
         unique_workload_tuples = set()
         while required_unique_workloads > len(unique_workload_tuples):
@@ -417,11 +416,9 @@ class WorkloadGenerator(object):
         train_workloads = self._workloads_from_tuples(
             train_workload_tuples, unknown_query_probability)
 
-        import joblib
-
         pp = self.path2
         with open(pp, 'rb') as f:
-            wl1 = joblib.load(f)  
+            wl1 = joblib.load(f)
             f.close()
 
         toto = wl1[-200:]
@@ -556,8 +553,8 @@ class WorkloadGenerator(object):
             candidate_generator=syntactically_relevant_indexes,
         )
 
-        connector = PostgresDatabaseConnector(self.database_name,
-                                              autocommit=True)
+        connector = OpenguassDatabaseConnector(self.database_name,
+                                               autocommit=True)
         connector.drop_indexes()
         cost_evaluation = CostEvaluation(connector)
 

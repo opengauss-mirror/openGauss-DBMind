@@ -6,9 +6,11 @@ import time
 import datetime
 import tempfile
 import warnings
+import pandas
 from collections import defaultdict
 from typing import Optional
-
+import numpy as np
+from glob import glob
 import tensorflow as tf
 from tensorflow.python import pywrap_tensorflow
 from tensorflow.core.util import event_pb2
@@ -28,6 +30,7 @@ class KVWriter(object):
     """
     Key Value writer
     """
+
     def writekvs(self, kvs):
         """
         write a dictionary to file
@@ -41,6 +44,7 @@ class SeqWriter(object):
     """
     sequence writer
     """
+
     def writeseq(self, seq):
         """
         write an array to file
@@ -61,7 +65,8 @@ class HumanOutputFormat(KVWriter, SeqWriter):
             self.file = open(filename_or_file, 'wt')
             self.own_file = True
         else:
-            assert hasattr(filename_or_file, 'write'), 'Expected file or str, got {}'.format(filename_or_file)
+            assert hasattr(filename_or_file, 'write'), 'Expected file or str, got {}'.format(
+                filename_or_file)
             self.file = filename_or_file
             self.own_file = False
 
@@ -227,10 +232,12 @@ class TensorBoardOutputFormat(KVWriter):
         self.step = 1
         prefix = 'events'
         path = os.path.join(os.path.abspath(folder), prefix)
-        self.writer = pywrap_tensorflow.EventsWriter(compat.as_bytes(path))  # type: pywrap_tensorflow.EventsWriter
+        self.writer = pywrap_tensorflow.EventsWriter(
+            compat.as_bytes(path))  # type: pywrap_tensorflow.EventsWriter
 
     def writekvs(self, kvs):
-        summary = tf.Summary(value=[summary_val(k, v) for k, v in kvs.items() if valid_float_value(v)])
+        summary = tf.Summary(value=[summary_val(k, v)
+                             for k, v in kvs.items() if valid_float_value(v)])
         event = event_pb2.Event(wall_time=time.time(), summary=summary)
         event.step = self.step  # is there any reason why you'd want to specify the step?
         if self.writer is None:
@@ -566,7 +573,8 @@ class Logger(object):
                 fmt.writeseq(map(str, args))
 
 
-Logger.DEFAULT = Logger.CURRENT = Logger(folder=None, output_formats=[HumanOutputFormat(sys.stdout)])
+Logger.DEFAULT = Logger.CURRENT = Logger(folder=None, output_formats=[
+                                         HumanOutputFormat(sys.stdout)])
 
 
 def configure(folder=None, format_strs=None):
@@ -580,7 +588,8 @@ def configure(folder=None, format_strs=None):
     if folder is None:
         folder = os.getenv('OPENAI_LOGDIR')
     if folder is None:
-        folder = os.path.join(tempfile.gettempdir(), datetime.datetime.now().strftime("openai-%Y-%m-%d-%H-%M-%S-%f"))
+        folder = os.path.join(tempfile.gettempdir(), datetime.datetime.now().strftime(
+            "openai-%Y-%m-%d-%H-%M-%S-%f"))
     assert isinstance(folder, str)
     os.makedirs(folder, exist_ok=True)
     rank = mpi_rank_or_zero()
@@ -588,12 +597,14 @@ def configure(folder=None, format_strs=None):
     log_suffix = ''
     if format_strs is None:
         if rank == 0:
-            format_strs = os.getenv('OPENAI_LOG_FORMAT', 'stdout,log,csv').split(',')
+            format_strs = os.getenv(
+                'OPENAI_LOG_FORMAT', 'stdout,log,csv').split(',')
         else:
             log_suffix = "-rank%03i" % rank
             format_strs = os.getenv('OPENAI_LOG_FORMAT_MPI', 'log').split(',')
     format_strs = filter(None, format_strs)
-    output_formats = [make_output_format(f, folder, log_suffix) for f in format_strs]
+    output_formats = [make_output_format(
+        f, folder, log_suffix) for f in format_strs]
 
     Logger.CURRENT = Logger(folder=folder, output_formats=output_formats)
     log('Logging to %s' % folder)
@@ -685,7 +696,7 @@ def read_json(fname):
     :param fname: (str) the file path to read
     :return: (pandas DataFrame) the data in the json
     """
-    import pandas
+
     data = []
     with open(fname, 'rt') as file_handler:
         for line in file_handler:
@@ -700,7 +711,7 @@ def read_csv(fname):
     :param fname: (str) the file path to read
     :return: (pandas DataFrame) the data in the csv
     """
-    import pandas
+
     return pandas.read_csv(fname, index_col=None, comment='#')
 
 
@@ -711,17 +722,14 @@ def read_tb(path):
     :param path: (str) a tensorboard file OR a directory, where we will find all TB files of the form events.
     :return: (pandas DataFrame) the tensorboad data
     """
-    import pandas
-    import numpy as np
-    from glob import glob
-    # from collections import defaultdict
-    import tensorflow as tf
+
     if os.path.isdir(path):
         fnames = glob(os.path.join(path, "events.*"))
     elif os.path.basename(path).startswith("events."):
         fnames = [path]
     else:
-        raise NotImplementedError("Expected tensorboard file or directory containing them. Got %s" % path)
+        raise NotImplementedError(
+            "Expected tensorboard file or directory containing them. Got %s" % path)
     tag2pairs = defaultdict(list)
     maxstep = 0
     for fname in fnames:

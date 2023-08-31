@@ -1,7 +1,8 @@
 import re
 
 import numpy as np
-
+import datetime
+import decimal
 from src.plan_encoding.meta_info import *
 
 
@@ -43,8 +44,7 @@ def get_str_representation_box(value, t_column, parameters):
 
 
 def get_idx_box(v, t_column, parameters):
-    import datetime
-    import decimal
+
     box_lines = parameters.box_lines[t_column.split('.')[0]][t_column.split(
         '.')[1]]
     if (isinstance(box_lines[0], datetime.date)):

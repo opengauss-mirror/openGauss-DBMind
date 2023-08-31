@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import argparse
+import os
 
 from stable_baselines.bench.monitor import load_results
 
@@ -128,13 +130,16 @@ def main():
 
     Here ./log is a directory containing the monitor.csv files
     """
-    import argparse
-    import os
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--dirs', help='List of log directories', nargs='*', default=['./log'])
+
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        '--dirs', help='List of log directories', nargs='*', default=['./log'])
     parser.add_argument('--num_timesteps', type=int, default=int(10e6))
-    parser.add_argument('--xaxis', help='Varible on X-axis', default=X_TIMESTEPS)
-    parser.add_argument('--task_name', help='Title of plot', default='Breakout')
+    parser.add_argument('--xaxis', help='Varible on X-axis',
+                        default=X_TIMESTEPS)
+    parser.add_argument(
+        '--task_name', help='Title of plot', default='Breakout')
     args = parser.parse_args()
     args.dirs = [os.path.abspath(folder) for folder in args.dirs]
     plot_results(args.dirs, args.num_timesteps, args.xaxis, args.task_name)

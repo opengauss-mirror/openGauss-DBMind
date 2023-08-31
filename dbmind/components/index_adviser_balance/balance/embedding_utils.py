@@ -1,5 +1,6 @@
 import logging
 import random
+import numpy as np
 from .boo import BagOfOperators
 
 
@@ -88,7 +89,7 @@ def which_queries_to_remove(plans,
             print(
                 f"new best removal: removing {len(all_operators - new_ops)} operators"
             )
-            import numpy as np
+
             jk = experiment_folder_path + "/best_" + experiment_id + ".txt"
             np.savetxt(jk, [len(all_operators - new_ops)], fmt='%d')
 

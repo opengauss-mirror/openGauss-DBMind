@@ -7,7 +7,7 @@ import time
 
 
 from .benchmark import Benchmark
-from .dbms.postgres_dbms import PostgresDatabaseConnector
+from .dbms.openguass_dbms import OpenguassDatabaseConnector
 from .query_generator import QueryGenerator
 from .selection_algorithm import AllIndexesAlgorithm, NoIndexAlgorithm
 from .table_generator import TableGenerator
@@ -18,7 +18,7 @@ ALGORITHMS = {
     "all_indexes": AllIndexesAlgorithm,
 }
 
-DBMSYSTEMS = {"postgres": PostgresDatabaseConnector}
+DBMSYSTEMS = {"openguass": OpenguassDatabaseConnector}
 
 
 class IndexSelection:

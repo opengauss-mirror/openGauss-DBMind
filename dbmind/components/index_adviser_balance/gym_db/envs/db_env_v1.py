@@ -2,13 +2,12 @@ import collections
 import copy
 import logging
 import random
-
 import os
 import gym
 import pickle
 from gym_db.common import EnvironmentType
 from index_selection_evaluation.selection.cost_evaluation import CostEvaluation
-from index_selection_evaluation.selection.dbms.postgres_dbms import PostgresDatabaseConnector
+from index_selection_evaluation.selection.dbms.openguass_dbms import OpenguassDatabaseConnector
 from index_selection_evaluation.selection.index import Index
 from index_selection_evaluation.selection.utils import b_to_mb
 
@@ -27,7 +26,7 @@ class DBEnvV1(gym.Env):
         self.number_of_resets = 0
         self.total_number_of_steps = 0
 
-        self.connector = PostgresDatabaseConnector(config["database_name"],
+        self.connector = OpenguassDatabaseConnector(config["database_name"],
                                                    autocommit=True)
         self.connector.drop_indexes()
         self.cost_evaluation = CostEvaluation(self.connector)

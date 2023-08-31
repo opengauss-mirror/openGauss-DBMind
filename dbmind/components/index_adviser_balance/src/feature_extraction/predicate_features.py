@@ -1,6 +1,8 @@
 import re
 import numpy as np
 import pypred
+from src.plan_encoding.meta_info import *
+from src.parameters import *
 
 from src.feature_extraction.predicate_operators import *
 from src.plan_encoding.encoding_predicates import *
@@ -184,10 +186,6 @@ def get_value_rep(condition_op, relation_name, index_name):
                 return right_value_idxs[0]
 
 
-from src.plan_encoding.meta_info import *
-from src.parameters import *
-
-
 def getParameters():
     column2pos, tables_id, columns_id, physic_ops_id, compare_ops_id, bool_ops_id, tables, columnTypeisNum, box_lines = prepare_dataset(
     )
@@ -197,7 +195,8 @@ def getParameters():
     compare_ops_total_num = len(compare_ops_id)
     bool_ops_total_num = len(bool_ops_id)
     box_num = 10
-    condition_op_dim = bool_ops_total_num + compare_ops_total_num + column_total_num + box_num
+    condition_op_dim = bool_ops_total_num + \
+        compare_ops_total_num + column_total_num + box_num
 
     parameters = Parameters(tables_id, columns_id, physic_ops_id,
                             column_total_num, table_total_num,

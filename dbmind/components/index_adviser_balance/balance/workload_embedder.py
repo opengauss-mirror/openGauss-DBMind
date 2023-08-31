@@ -4,6 +4,8 @@ from sklearn.decomposition import PCA
 from index_selection_evaluation.selection.cost_evaluation import CostEvaluation
 from index_selection_evaluation.selection.index import Index
 from index_selection_evaluation.selection.workload import Query
+import numpy as np
+from sklearn.decomposition import PCA
 from .boo import BagOfOperators
 
 
@@ -44,7 +46,8 @@ class WorkloadEmbedder(object):
         self.query_texts = query_texts
         self.representation_size = representation_size
 
-        self.true_representation_size = representation_size + 10  # dim pca(V) = 10
+        self.true_representation_size = representation_size + \
+            10  # dim pca(V) = 10
         self.database_connector = database_connector
         self.plans = None
         self.columns = columns
@@ -248,8 +251,7 @@ class PlanEmbedder(WorkloadEmbedder):
 
     def get_embeddings_boo(self, plans):
         embeddings = []
-        import numpy as np
-        from sklearn.decomposition import PCA
+
         temp = []
         pca = PCA(n_components=10)
         self.err = 0
@@ -440,8 +442,6 @@ class PlanEmbedderLSIBOW(PlanEmbedder):
             num_topics=self.representation_size)
         self.lsi_bow.save('lsi.model')
         self.lsi_bow = gensim.models.LsiModel.load('lsi.model')
-
-
 
     def _infer(self, bow, boo):
         result = self.lsi_bow[bow]

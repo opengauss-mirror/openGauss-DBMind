@@ -1,13 +1,13 @@
 import importlib
 import logging
-from index_selection_evaluation.selection.dbms.postgres_dbms import PostgresDatabaseConnector
+from index_selection_evaluation.selection.dbms.openguass_dbms import OpenguassDatabaseConnector
 from index_selection_evaluation.selection.table_generator import TableGenerator
 
 
 class Schema(object):
 
     def __init__(self, benchmark_name, scale_factor, dbnames, filters={}):
-        generating_connector = PostgresDatabaseConnector(None, autocommit=True)
+        generating_connector = OpenguassDatabaseConnector(None, autocommit=True)
         table_generator = TableGenerator(
             benchmark_name=benchmark_name.lower(),
             scale_factor=scale_factor,
@@ -35,7 +35,7 @@ class TableNumRowsFilter(object):
 
     def __init__(self, threshold, database_name):
         self.threshold = threshold
-        self.connector = PostgresDatabaseConnector(database_name,
+        self.connector = OpenguassDatabaseConnector(database_name,
                                                    autocommit=True)
         self.connector.create_statistics()
 

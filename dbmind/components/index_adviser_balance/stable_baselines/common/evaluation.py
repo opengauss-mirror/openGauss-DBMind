@@ -1,10 +1,15 @@
 import numpy as np
 from stable_baselines.common.vec_env import VecEnv
 import datetime
+from torch import Tensor
+import pickle
+import os
+import copy
+
 
 def evaluate_policy(model, env, n_eval_episodes=10, deterministic=True,
                     render=False, callback=None, reward_threshold=None,
-                    return_episode_rewards=False,myname="",epi=0):
+                    return_episode_rewards=False, myname="", epi=0):
     """
     Runs policy for `n_eval_episodes` episodes and returns average reward.
     This is made to work only with one env.
@@ -26,9 +31,7 @@ def evaluate_policy(model, env, n_eval_episodes=10, deterministic=True,
     """
     if isinstance(env, VecEnv):
         assert env.num_envs == 1, "You must pass only one environment when using this function"
-    
-    import pickle
-    import os
+
     episode_rewards, episode_lengths = [], []
     summ = datetime.timedelta(0)
     for _ in range(n_eval_episodes):
@@ -40,12 +43,13 @@ def evaluate_policy(model, env, n_eval_episodes=10, deterministic=True,
         while not done:
             tete = datetime.datetime.now()
             action_mask = [env.get_attr("valid_actions")[0]]
-            action, state = model.predict(obs, state=state, deterministic=deterministic, action_mask=action_mask)
-            if epi>3000:
+            action, state = model.predict(
+                obs, state=state, deterministic=deterministic, action_mask=action_mask)
+            if epi > 3000:
                 ep = True
             else:
                 ep = False
-            obs, reward, done, _info = env.step(action,start=ep)
+            obs, reward, done, _info = env.step(action, start=ep)
             episode_reward += reward
             if callback is not None:
                 callback(locals(), globals())
@@ -64,16 +68,16 @@ def evaluate_policy(model, env, n_eval_episodes=10, deterministic=True,
     std_reward = np.std(episode_rewards)
     if reward_threshold is not None:
         assert mean_reward > reward_threshold, 'Mean reward below threshold: '\
-                                         '{:.2f} < {:.2f}'.format(mean_reward, reward_threshold)
+            '{:.2f} < {:.2f}'.format(mean_reward, reward_threshold)
     if return_episode_rewards:
         return episode_rewards, episode_lengths
-    
+
     return mean_reward, std_reward
 
+
 def evaluate_policymy(network, env, n_eval_episodes=10, deterministic=True,
-                    render=False, callback=None, reward_threshold=None,
-                    return_episode_rewards=False,device=None):
-    from torch import Tensor
+                      render=False, callback=None, reward_threshold=None,
+                      return_episode_rewards=False, device=None):
     """
     Runs policy for `n_eval_episodes` episodes and returns average reward.
     This is made to work only with one env.
@@ -103,15 +107,15 @@ def evaluate_policymy(network, env, n_eval_episodes=10, deterministic=True,
         episode_reward = 0.0
         episode_length = 0
         while not done:
-            action_mean, value = network(Tensor(state).unsqueeze(0).to(device=device))
+            action_mean, value = network(
+                Tensor(state).unsqueeze(0).to(device=device))
 
-            import copy
             action_mask = copy.copy(env.envs[0].action_manager.valid_actions)
-            action, logproba = network.select_action(action_mean,action_mask=action_mask)
+            action, logproba = network.select_action(
+                action_mean, action_mask=action_mask)
             action = action.data.cpu().numpy()[0][0]
             logproba = logproba.data.cpu().numpy()[0][0]
             state, reward, done, _ = env.step(action)
-
 
             episode_reward += reward
             if callback is not None:
@@ -127,15 +131,15 @@ def evaluate_policymy(network, env, n_eval_episodes=10, deterministic=True,
 
     if reward_threshold is not None:
         assert mean_reward > reward_threshold, 'Mean reward below threshold: '\
-                                         '{:.2f} < {:.2f}'.format(mean_reward, reward_threshold)
+            '{:.2f} < {:.2f}'.format(mean_reward, reward_threshold)
     if return_episode_rewards:
         return episode_rewards, episode_lengths
     return mean_reward, std_reward
 
 
 def evaluate_policy_Ptf(network, env, n_eval_episodes=10, deterministic=True,
-                    render=False, callback=None, reward_threshold=None,
-                    return_episode_rewards=False,device=None):
+                        render=False, callback=None, reward_threshold=None,
+                        return_episode_rewards=False, device=None):
     """
     Runs policy for `n_eval_episodes` episodes and returns average reward.
     This is made to work only with one env.
@@ -165,12 +169,11 @@ def evaluate_policy_Ptf(network, env, n_eval_episodes=10, deterministic=True,
         episode_reward = 0.0
         episode_length = 0
         while not done:
-            import copy
+
             action_mask = copy.copy(env.envs[0].action_manager.valid_actions)
-            act, v_pred,koko = network.choose_action(state,action_mask)
+            act, v_pred, koko = network.choose_action(state, action_mask)
 
             state, reward, done, _ = env.step([act])
-
 
             episode_reward += reward
             if callback is not None:
@@ -186,14 +189,15 @@ def evaluate_policy_Ptf(network, env, n_eval_episodes=10, deterministic=True,
 
     if reward_threshold is not None:
         assert mean_reward > reward_threshold, 'Mean reward below threshold: '\
-                                         '{:.2f} < {:.2f}'.format(mean_reward, reward_threshold)
+            '{:.2f} < {:.2f}'.format(mean_reward, reward_threshold)
     if return_episode_rewards:
         return episode_rewards, episode_lengths
     return mean_reward, std_reward
 
+
 def evaluate_policy_Ptf_PPO(network, env, n_eval_episodes=10, deterministic=True,
-                    render=False, callback=None, reward_threshold=None,
-                    return_episode_rewards=False,device=None):
+                            render=False, callback=None, reward_threshold=None,
+                            return_episode_rewards=False, device=None):
     """
     Runs policy for `n_eval_episodes` episodes and returns average reward.
     This is made to work only with one env.
@@ -223,13 +227,12 @@ def evaluate_policy_Ptf_PPO(network, env, n_eval_episodes=10, deterministic=True
         episode_reward = 0.0
         episode_length = 0
         while not done:
-            import copy
+
             action_mask = copy.copy(env.envs[0].action_manager.valid_actions)
 
-            act = network.PPO.choose_action(state[0],action_mask)
+            act = network.PPO.choose_action(state[0], action_mask)
 
             state, reward, done, _ = env.step([act])
-
 
             episode_reward += reward
             if callback is not None:
@@ -245,7 +248,7 @@ def evaluate_policy_Ptf_PPO(network, env, n_eval_episodes=10, deterministic=True
 
     if reward_threshold is not None:
         assert mean_reward > reward_threshold, 'Mean reward below threshold: '\
-                                         '{:.2f} < {:.2f}'.format(mean_reward, reward_threshold)
+            '{:.2f} < {:.2f}'.format(mean_reward, reward_threshold)
     if return_episode_rewards:
         return episode_rewards, episode_lengths
     return mean_reward, std_reward

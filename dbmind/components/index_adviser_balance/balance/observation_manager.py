@@ -1,6 +1,12 @@
 import logging
 import numpy as np
 from gym import spaces
+from index_selection_evaluation.selection.dbms.openguass_dbms import OpenguassDatabaseConnector
+from src.feature_extraction.extract_features import *
+
+from src.parameters import *
+from src.plan_encoding.meta_info import *
+from balance.utils import *
 
 VERY_HIGH_BUDGET = 100_000_000_000
 
@@ -161,12 +167,7 @@ class SingleColumnIndexPlanEmbeddingObservationManagerWithoutPlanUpdates(
         self.workload_embedding = None
 
 
-from index_selection_evaluation.selection.dbms.postgres_dbms import PostgresDatabaseConnector
-from src.feature_extraction.extract_features import *
 
-from src.parameters import *
-from src.plan_encoding.meta_info import *
-from balance.utils import *
 
 
 # Todo: Rename. Single/multi-column is not handled by the ObservationManager anymore.

@@ -1,12 +1,12 @@
 import itertools
 from index_selection_evaluation.selection.cost_evaluation import CostEvaluation
-from index_selection_evaluation.selection.dbms.postgres_dbms import PostgresDatabaseConnector
+from index_selection_evaluation.selection.dbms.openguass_dbms import OpenguassDatabaseConnector
 from index_selection_evaluation.selection.index import Index
 
 
 # Todo: This could be improved by passing index candidates as input
 def predict_index_sizes(column_combinations, database_name):
-    connector = PostgresDatabaseConnector(database_name, autocommit=True)
+    connector = OpenguassDatabaseConnector(database_name, autocommit=True)
     connector.drop_indexes()
 
     cost_evaluation = CostEvaluation(connector)
