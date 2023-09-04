@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Col, Row, message, Collapse } from 'antd';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getServiceCapabilityData } from '../../api/autonomousManagement';
+import { getMetric } from '../../api/autonomousManagement';
 
 const { Panel } = Collapse;
 export default class DBServiceCapability extends Component {
@@ -10,6 +10,8 @@ export default class DBServiceCapability extends Component {
     this.state = {
       selValue:this.props.selValue,
       selTimeValue:this.props.selTimeValue,
+      startTime:this.props.startTime,
+      endTime:this.props.endTime,
       primitiveDataAll:[],
       serviceAllData:[],
       vectorKey:["0"]
@@ -18,11 +20,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData1 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_xact_commit',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -32,11 +37,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData2 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_xact_rollback',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -46,11 +54,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData3 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_conflicts',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -60,11 +71,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData4 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_confl_lock',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -74,11 +88,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData5 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_confl_snapshot',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -88,11 +105,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData6 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_confl_bufferpin',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -102,11 +122,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData7 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_confl_deadlock',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -116,11 +139,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData8 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_deadlocks',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -130,11 +156,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData9 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_temp_bytes',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -144,11 +173,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData10 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_temp_files',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -158,11 +190,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData11 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'gaussdb_tup_inserted_rate',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -172,11 +207,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData12 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'gaussdb_tup_deleted_rate',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -186,11 +224,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData13 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'gaussdb_tup_updated_rate',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -200,11 +241,14 @@ export default class DBServiceCapability extends Component {
   async getServiceData14 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'gaussdb_tup_fetched_rate',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -286,12 +330,12 @@ async getServiceDataAll () {
       });
       primitiveDataAll.forEach((item,index) => {
               let chartData = []
-              let data1 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'},{image: '', description: 'Total'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description: 'Success', colors: '#2DA769'}, { data:item[1].values, description: 'Failure', colors: '#F43146'}, { data:item[2].values, description: 'Total', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Success/Failure/Total Transactions','unit':'','fixedflg':0}
-              let data2 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'}],'xAxisData':item[3].timestamps,'seriesData':[{data:item[3].values,description: 'Success', colors: '#2DA769'}, { data:item[4].values, description: 'Failure', colors: '#5990FD'}],'flg':1,'legendFlg':2,title:"Transaction Success/Failure Rate",'unit':'%','fixedflg':0}
-              let data3 = {'legend':[{image: '', description: 'Conflicts'},{image: '', description: 'Confl Lock'},{image: '', description: 'Confl Snapshot'},{image: '', description: 'Confl Bufferpin'},{image: '', description: 'Confl Deadlock'}],'xAxisData':item[5].timestamps,'seriesData':[{data:item[5].values,description: 'Conflicts', colors: '#2DA769'},{data:item[6].values, description: 'Confl Lock', colors: '#F43146'},{data:item[7].values, description: 'Confl Snapshot', colors: '#5990FD'},{data:item[8].values, description: 'Confl Bufferpin', colors: '#EEBA18'},{data:item[9].values, description: 'Confl Deadlock', colors: '#9185F0'}],'flg':0,'legendFlg':2,title:"Conflicts Rate",'unit':'','fixedflg':0}
-              let data4 = {'legend':[{image: '', description: 'Deadlock Rate'}],'xAxisData':item[10].timestamps,'seriesData':[{data:item[10].values,description: 'Deadlock Rate', colors: '#EEBA18'}],'flg':0,'legendFlg':2,title:"Deadlock Rate",'unit':'','fixedflg':0}
-              let data5 = {'legend':[{image: '', description: 'Temp Files'},{image: '', description: 'Temp Bytes'}],'xAxisData':item[11].timestamps,'seriesData':[{data:item[12].values,description: 'Temp Files', colors: '#EC6F1A'},{data:item[11].values,description: 'Temp Bytes', colors: '#9185EF'}],'flg':0,'legendFlg':2,title:"Temp File",'unit':'','fixedflg':0}
-              let data6 = {'legend':[{image: '', description:'Insert'},{image: '', description: 'Delete'},{image: '', description: 'Update'},{image: '', description: 'Select'}],'xAxisData':item[13].timestamps,'seriesData':[{data:item[13].values,description: 'Insert', colors: '#2DA769'},{ data:item[14].values, description: 'Delete', colors: '#F43146'},{ data:item[15].values, description: 'Update', colors: '#5990FD'},{ data:item[16].values, description: 'Select', colors: '#EEBA18'}],'flg':0,'legendFlg':2,title:"Averaged Rate Of DML",'unit':'','fixedflg':0}
+              let data1 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'},{image: '', description: 'Total'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description: 'Success', colors: '#2DA769'}, { data:item[1].values, description: 'Failure', colors: '#F43146'}, { data:item[2].values, description: 'Total', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Success/Failure/Total Transactions','unit':'','fixedflg':0,'toolBox':true}
+              let data2 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'}],'xAxisData':item[3].timestamps,'seriesData':[{data:item[3].values,description: 'Success', colors: '#2DA769'}, { data:item[4].values, description: 'Failure', colors: '#5990FD'}],'flg':1,'legendFlg':2,title:"Transaction Success/Failure Rate",'unit':'%','fixedflg':0,'toolBox':true}
+              let data3 = {'legend':[{image: '', description: 'Conflicts'},{image: '', description: 'Confl Lock'},{image: '', description: 'Confl Snapshot'},{image: '', description: 'Confl Bufferpin'},{image: '', description: 'Confl Deadlock'}],'xAxisData':item[5].timestamps,'seriesData':[{data:item[5].values,description: 'Conflicts', colors: '#2DA769'},{data:item[6].values, description: 'Confl Lock', colors: '#F43146'},{data:item[7].values, description: 'Confl Snapshot', colors: '#5990FD'},{data:item[8].values, description: 'Confl Bufferpin', colors: '#EEBA18'},{data:item[9].values, description: 'Confl Deadlock', colors: '#9185F0'}],'flg':0,'legendFlg':2,title:"Conflicts Rate",'unit':'','fixedflg':0,'toolBox':true}
+              let data4 = {'legend':[{image: '', description: 'Deadlock Rate'}],'xAxisData':item[10].timestamps,'seriesData':[{data:item[10].values,description: 'Deadlock Rate', colors: '#EEBA18'}],'flg':0,'legendFlg':2,title:"Deadlock Rate",'unit':'','fixedflg':0,'toolBox':true}
+              let data5 = {'legend':[{image: '', description: 'Temp Files'},{image: '', description: 'Temp Bytes'}],'xAxisData':item[11].timestamps,'seriesData':[{data:item[12].values,description: 'Temp Files', colors: '#EC6F1A'},{data:item[11].values,description: 'Temp Bytes', colors: '#9185EF'}],'flg':0,'legendFlg':2,title:"Temp File",'unit':'','fixedflg':0,'toolBox':true}
+              let data6 = {'legend':[{image: '', description:'Insert'},{image: '', description: 'Delete'},{image: '', description: 'Update'},{image: '', description: 'Select'}],'xAxisData':item[13].timestamps,'seriesData':[{data:item[13].values,description: 'Insert', colors: '#2DA769'},{ data:item[14].values, description: 'Delete', colors: '#F43146'},{ data:item[15].values, description: 'Update', colors: '#5990FD'},{ data:item[16].values, description: 'Select', colors: '#EEBA18'}],'flg':0,'legendFlg':2,title:"Averaged Rate Of DML",'unit':'','fixedflg':0,'toolBox':true}
               chartData.push(data1,data2,data3,data4,data5,data6)
               serviceAllArray.push(chartData)
             })
@@ -307,9 +351,9 @@ async getServiceDataAll () {
     })
   }
   componentDidUpdate(prevProps) {
-    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
+    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
       }),()=>{
         if(this.props.tabkey === "1"){
           this.getServiceDataAll()

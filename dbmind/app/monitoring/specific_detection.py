@@ -138,7 +138,7 @@ class SpecificDetection:
             "duration": detection_window_seconds,
             "forecasting_seconds": 0,
             "alarm_info": {
-                "alarm_content": "Find obvious spikes in memory usage.",
+                "alarm_content": "Find obvious spikes in QPS.",
                 "alarm_type": ALARM_TYPES.SYSTEM,
                 "alarm_level": ALARM_LEVEL.WARNING.name,
             },

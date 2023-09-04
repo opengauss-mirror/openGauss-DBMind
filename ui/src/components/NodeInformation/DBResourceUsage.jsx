@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Col, Row, message } from 'antd';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getServiceCapabilityData } from '../../api/autonomousManagement';
+import { getMetric } from '../../api/autonomousManagement';
 
 export default class DBResourceUsage extends Component {
   constructor(props) {
@@ -11,16 +11,21 @@ export default class DBResourceUsage extends Component {
       chartData2:{},
       selValue:this.props.selValue,
       selTimeValue:this.props.selTimeValue,
+      startTime:this.props.startTime,
+      endTime:this.props.endTime
     }
   }
   async getCpuData1 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'gaussdb_cpu_time',
-      fetch:false
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -30,11 +35,14 @@ export default class DBResourceUsage extends Component {
   async getCpuData2 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_summary_file_iostat_total_phyblkrd',
-      fetch:false
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -44,11 +52,14 @@ export default class DBResourceUsage extends Component {
   async getCpuData3 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_summary_file_iostat_total_phyblkwrt',
-      fetch:false
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -71,8 +82,8 @@ export default class DBResourceUsage extends Component {
             yDataArray[index].push(oitem.toFixed(2))
           });
         });
-        let data1 = {'legend':[{image:'',description: 'Cpu Time'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description: 'Cpu Time', colors: '#EB6E19'}],'flg':0,'legendFlg':2,title:'Cpu Time','unit':'','fixedflg':0}
-        let data2 = {'legend':[{image:'',description:'Phyblkrd'},{image:'',description:'Phyblkwrt'}],'xAxisData':xDataArray[1],'seriesData':[{data:yDataArray[1],description: 'Phyblkrd', colors: '#9184F0'},{data:yDataArray[2],description: 'Phyblkwrt', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Phyblkrd/Phyblkwrt','unit':'','fixedflg':0}
+        let data1 = {'legend':[{image:'',description: 'Cpu Time'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description: 'Cpu Time', colors: '#EB6E19'}],'flg':0,'legendFlg':2,title:'Cpu Time','unit':'','fixedflg':0,'toolBox':true}
+        let data2 = {'legend':[{image:'',description:'Phyblkrd'},{image:'',description:'Phyblkwrt'}],'xAxisData':xDataArray[1],'seriesData':[{data:yDataArray[1],description: 'Phyblkrd', colors: '#9184F0'},{data:yDataArray[2],description: 'Phyblkwrt', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Phyblkrd/Phyblkwrt','unit':'','fixedflg':0,'toolBox':true}
         this.setState({
           chartData1: data1,
           chartData2: data2,
@@ -83,9 +94,9 @@ export default class DBResourceUsage extends Component {
       })
     }
     componentDidUpdate(prevProps) {
-      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
+      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
         this.setState(() => ({
-          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
         }),()=>{
           if(this.props.tabkey === "4"){
             this.getCpuDataAll()

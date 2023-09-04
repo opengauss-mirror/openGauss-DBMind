@@ -38,20 +38,11 @@ export const getDetailsData = (data) => {
 export const getLockingQueryInterface = () => {
   return get('/query/locking');
 };
-export const getCommonMetric = (data) => {
-  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}`);
-};
-export const getStorageData = (data) => {
-  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}&regrex=True&regrex_labels=device=/.*`);
-};
-export const getMemoryData = (data) => {
-  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}&regrex=True`);
-};
-export const getServiceCapabilityData = (data) => {
-  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}&regrex=False`);
+export const getMetric = (data) => {
+  return get(`/summary/metrics/${data.label}`,data);
 };
 export const getDBMemoryData = (data) => {
-  return get(`/latest-sequence/pg_total_memory_detail_mbytes?latest_minutes=${data.minutes}&labels=type=${data.label}&fetch_all=False&instance=${data.instance}&regrex=False`);
+  return get(`/summary/metrics/pg_total_memory_detail_mbytes`,data);
 };
 export const getSelfhealingface = (data) => {
   return post(`/anomaly_detection/detectors/${data}/view`);

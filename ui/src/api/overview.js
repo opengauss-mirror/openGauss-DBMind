@@ -5,11 +5,11 @@ export const getInterface = () => {
 };
 
 export const getResponseTime = (data) => {
-  return get(`/latest-sequence/${data.label}?latest_minutes=3&instance=${data.instance}`);
+  return get(`/summary/metrics/${data.label}?latest_minutes=3&instance=${data.instance}`);
 };
 
 export const getConnection = (data) => {
-  return get(`/latest-sequence/${data.label}?&latest_minutes=3&instance=${data.instance}`);
+  return get(`/summary/metrics/${data.label}?&latest_minutes=3&instance=${data.instance}`);
 };
 
 export const getProxy = () => {
@@ -17,15 +17,15 @@ export const getProxy = () => {
 };
 
 export const getDistribution = (data) => {
-  return get(`/latest-sequence/${data.label}?&latest_minutes=0&instance=${data.instance}`);
+  return get(`/summary/metrics/${data.label}?&latest_minutes=0&instance=${data.instance}`);
 };
 
 export const getTransaction = (data) => {
-  return get(`/latest-sequence/${data.label}?latest_minutes=0&fetch_all=True&instance=${data.instance}`);
+  return get(`/summary/metrics/${data.label}?latest_minutes=0&fetch_all=True&instance=${data.instance}`);
 };
 
 export const getDatabaseSize = (data) => {
-  return get(`/latest-sequence/${data.label}?latest_minutes=0&fetch_all=True&instance=${data.instance}`);
+  return get(`/summary/metrics/${data.label}?latest_minutes=0&fetch_all=True&instance=${data.instance}`);
 };
 
 export const getCollectionTable = () => {

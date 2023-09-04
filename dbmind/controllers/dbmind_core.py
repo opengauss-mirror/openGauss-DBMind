@@ -20,7 +20,7 @@ from typing import Dict, Union, List, Optional
 from pydantic import BaseModel
 
 from dbmind import global_vars
-from dbmind.common.http import request_mapping, OAuth2
+from dbmind.common.http import request_mapping, OAuth2, Request
 from dbmind.common.http import standardized_api_output
 from dbmind.service.web import context_manager
 from dbmind.service.web import data_transformer
@@ -173,33 +173,89 @@ def get_metric_sequence(name: str, instance: str = None, from_timestamp: int = N
                                                 regrex_labels=regrex_labels)
 
 
-@request_mapping('/api/latest-sequence/{name}', methods=['GET'], api=True)
+@request_mapping('/api/summary/metrics/{name}', methods=['GET', 'DELETE'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_latest_metric_sequence(name: str, instance: str = None, latest_minutes: int = None,
-                               step: int = None, fetch_all: bool = False,
-                               regrex: bool = False, labels: str = None,
-                               regrex_labels: str = None):
-    return data_transformer.get_latest_metric_sequence(name, instance, latest_minutes,
-                                                       step=step, fetch_all=fetch_all,
-                                                       regrex=regrex, labels=labels,
-                                                       regrex_labels=regrex_labels)
+def manage_metric_sequence(request: Request, name: str, instance: str = None, latest_minutes: int = None,
+                           from_timestamp: int = None, to_timestamp: int = None, step: int = None,
+                           fetch_all: bool = False, regex: bool = False, labels: str = None,
+                           regex_labels: str = None, min_value: float = None, max_value: float = None,
+                           flush: bool = False, limit: int = None):
+    """
+    method GET: Obtain the sequence of metrics data based on range or latest time
+
+    - param name: the name of target metric
+    - param instance: the instance which metric belongs to
+    - param latest_minutes: the length of time to get the most recent metrics
+    - param from_timestamp: start timestamp for range query, it works when latest_minutes is None
+    - param to_timestamp: end timestamp for range query， it works when latest_minutes is None
+    - param step: the time step for the retrieved data
+    - param fetch_all: whether to retrieve all available sequences or just one
+    - param regex: the parameter that represents whether to use regex to filter instance,
+    it works when instance is not None
+    - param labels: the parameter that represents a specific label to filter the sequence
+    - param regex_labels: the parameter that represents a specific label to filter the sequence by regex
+    - param min_value: filter the sequence whose value is greater than min_value
+    - param max_value: filter the sequence whose value is less than max_value
+    - param limit: limit the number of results returned
+
+    - return: The list of sequences of the specified metric
+         e.g. {"data":[{"labels":{"device":"device","from_instance":"ip","from_job":"exporter","fstype":"ext4",
+              "instance":"ip:port","job":"exporter","mountpoint":"mounpoint"},"name":"os_disk_usage",
+              "timestamps":[1684900929939,1684900944939,1684900959939,1684900974939],
+              "values":[0.7115459280083043,0.7115460512887748,0.7115461745692453,0.7115462978497158]}],"success":true}
+
+    method DELETE: Manually clean up the sequence in TSDB
+
+    - param name: the name of target metric
+    - param instance: the instance which metric belongs to
+    - param latest_minutes: the length of time to get the most recent metrics
+    - param from_timestamp: start timestamp for range query, it works when latest_minutes is None
+    - param to_timestamp: end timestamp for range query， it works when latest_minutes is None
+    - param regex: the parameter that represents whether to use regex to filter instance,
+    it works when instance is not None
+    - param labels: the parameter that represents a specific label to filter the sequence
+    - param regex_labels: the parameter that represents a specific label to filter the sequence by regex
+    - param flush: The data will still be stored on the disk for a period of time after the data is deleted,
+    this parameter controls whether to flash the disk immediately
+
+    - return: the result
+        e.g. {"data":null,"success":true}
+    """
+    if request.method == 'GET':
+        if latest_minutes is not None:
+            return data_transformer.get_latest_metric_sequence(name, instance, latest_minutes,
+                                                               step=step, fetch_all=fetch_all,
+                                                               regex=regex, labels=labels,
+                                                               regex_labels=regex_labels,
+                                                               min_value=min_value, max_value=max_value)
+
+        else:
+            return data_transformer.get_metric_sequence(name, instance, from_timestamp, to_timestamp, step=step,
+                                                        fetch_all=fetch_all, regex=regex, labels=labels,
+                                                        regex_labels=regex_labels,
+                                                        min_value=min_value, max_value=max_value)
+    elif request.method == 'DELETE':
+        return data_transformer.delete_metric_sequence(name, instance, from_timestamp,
+                                                       to_timestamp, regex, labels, regex_labels, flush)
 
 
 @request_mapping('/api/alarm/history', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def get_history_alarms(pagesize: int = 20, current: int = 0,
-                       instance: str = None, alarm_type: str = None, alarm_level: str = None, group: bool = False):
-    return data_transformer.get_history_alarms(pagesize, current, instance, alarm_type, alarm_level, group)
+                       instance: str = None, alarm_type: str = None, alarm_level: str = None, metric_name: str = None, start_at: int = None, end_at: int = None, group: bool = False):
+    return data_transformer.get_history_alarms(pagesize=pagesize, current=current, instance=instance, alarm_type=alarm_type, metric_name=metric_name,
+                                               alarm_level=alarm_level, start_at=start_at, end_at=end_at, group=group)
 
 
 @request_mapping('/api/alarm/history_count', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_history_alarms_count(instance: str = None, alarm_type: str = None, alarm_level: str = None,
+def get_history_alarms_count(instance: str = None, alarm_type: str = None, alarm_level: str = None, metric_name: str=None,  start_at: int = None, end_at: int = None,
                              group: bool = False):
-    return data_transformer.get_history_alarms_count(instance, alarm_type, alarm_level, group)
+    return data_transformer.get_history_alarms_count(instance=instance, alarm_type=alarm_type, alarm_level=alarm_level, metric_name=metric_name,
+                                                     start_at=start_at, end_at=end_at, group=group)
 
 
 @request_mapping('/api/workload_forecasting/sequence/forecast/{name}', methods=['GET'], api=True)

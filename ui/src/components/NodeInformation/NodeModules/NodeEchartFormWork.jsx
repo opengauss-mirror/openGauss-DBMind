@@ -13,7 +13,14 @@ let legendObj =   {
       fontWeight: 'bold',
       right:20
     }
-
+let toolBoxObj = {
+  feature: {
+    dataZoom: {
+      yAxisIndex: 'none'
+    },
+    restore: {},
+  }
+}
 export default class NodeEchartFormWork extends Component {
   static propTypes={
     echartData:PropTypes.object.isRequired
@@ -30,10 +37,12 @@ export default class NodeEchartFormWork extends Component {
       legendFlg:1,
       ifShow: true,
       unit:'',
+      toolBox:'',
     }
   }
   getOption = () => {
     legendObj["data"] = this.state.legendData
+    toolBoxObj["top"] = this.state.legendFlg === 2 ? "6%" : ''
     return {
       title: [{
         left:this.state.legendFlg === 2 ? '1%' : 0,
@@ -69,8 +78,17 @@ export default class NodeEchartFormWork extends Component {
         }
       },
       legend: this.state.legendFlg === 2 ? {...legendObj} : '',
+      toolbox: this.state.toolBox ? {...toolBoxObj} : '',
+      dataZoom: [
+        {
+          type: 'inside',
+        },
+        {
+          type: 'inside',
+        }
+      ],
       grid: {
-        top: this.state.legendFlg === 2 ? '12%' : '3%',
+        top: this.state.legendFlg === 2 ? '18%' : '11%',
         left: '3%',
         right: '4%',
         bottom: '6%',
@@ -230,7 +248,8 @@ export default class NodeEchartFormWork extends Component {
         flg:nextProps.echartData.flg,
         title:nextProps.echartData.title,
         legendFlg:nextProps.echartData.legendFlg,
-        unit:nextProps.echartData.unit
+        unit:nextProps.echartData.unit,
+        toolBox:nextProps.echartData.toolBox ? true : false
       })
     } else {
       this.setState({
@@ -260,6 +279,7 @@ export default class NodeEchartFormWork extends Component {
         }}
         option={this.getOption()}
         style={{ width: '100%', height: 240 }}
+        notMerge={true}
         lazyUpdate={true}
       >
       </ReactEcharts>

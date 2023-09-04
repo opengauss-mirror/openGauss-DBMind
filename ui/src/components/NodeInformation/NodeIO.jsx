@@ -8,7 +8,7 @@ import SingleWriteTime from '../../assets/imgs/Single Write Time.png';
 import Tps from '../../assets/imgs/Tps.png';
 import Writerate from '../../assets/imgs/Write rate.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getCommonMetric } from '../../api/autonomousManagement';
+import { getMetric } from '../../api/autonomousManagement';
 import { string } from 'prop-types';
 
 const { Panel } = Collapse;
@@ -20,17 +20,21 @@ export default class NodeIO extends Component {
       selTimeValue:this.props.selTimeValue,
       primitiveDataAll:[],
       ioAllData:[],
-      vectorKey:["0"]
+      vectorKey:["0"],
+      startTime:this.props.startTime,
+      endTime:this.props.endTime,
     }
   }
   async getIoData1 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_disk_io_read_bytes',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -40,11 +44,13 @@ export default class NodeIO extends Component {
   async getIoData2 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_disk_io_write_bytes',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -54,11 +60,13 @@ export default class NodeIO extends Component {
   async getIoData3 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_disk_io_read_delay',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -68,11 +76,13 @@ export default class NodeIO extends Component {
   async getIoData4 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_disk_io_write_delay',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -82,11 +92,13 @@ export default class NodeIO extends Component {
   async getIoData5 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_disk_iops',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -96,11 +108,13 @@ export default class NodeIO extends Component {
   async getIoData6 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_disk_io_queue_length',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -110,11 +124,13 @@ export default class NodeIO extends Component {
   async getIoData7 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_disk_ioutils',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -152,11 +168,11 @@ export default class NodeIO extends Component {
         });
         primitiveDataAll.forEach((item,index) => {
                 let chartData = []
-                let data1 = {'legend':[{image: Readrate, description:'Read Rate'},{image: Writerate, description: 'Write Rate'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description:'Read Rate',colors:'#5990FD'}, { data:item[1].values, description: 'Write Rate', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':4}
-                let data2 = {'legend':[{image: SingleReadTime, description: 'Single Read Time'},{image: SingleWriteTime, description: 'Single Write Time'}],'xAxisData':item[2].timestamps,'seriesData':[{data:item[2].values,description: 'Single Read Time', colors: '#2DA769'}, { data:item[3].values, description: 'Single Write Time', colors: '#5990FD'}],'flg':0,'legendFlg':1,'unit':'KB/ms','fixedflg':4}
-                let data3 = {'legend':[{image: Tps, description: 'IOPS'}],'xAxisData':item[4].timestamps,'seriesData':[{data:item[4].values,description: 'IOPS', colors: '#F43146'}],'flg':0,'legendFlg':1,'unit':'/s','fixedflg':4}
-                let data4 = {'legend':[{image: AverageQueueLength, description: 'Average Queue Length'}],'xAxisData':item[5].timestamps,'seriesData':[{data:item[5].values,description: 'Average Queue Length', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'','fixedflg':4}
-                let data5 = {'legend':[{image: BandwidthUtilization, description: 'IOUtils'}],'xAxisData':item[6].timestamps,'seriesData':[{data:item[6].values,description: 'IOUtils', colors: '#9185F0'}],'flg':0,'legendFlg':1,'unit':'%','fixedflg':0}
+                let data1 = {'legend':[{image: Readrate, description:'Read Rate'},{image: Writerate, description: 'Write Rate'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description:'Read Rate',colors:'#5990FD'}, { data:item[1].values, description: 'Write Rate', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':4,'toolBox':true}
+                let data2 = {'legend':[{image: SingleReadTime, description: 'Single Read Time'},{image: SingleWriteTime, description: 'Single Write Time'}],'xAxisData':item[2].timestamps,'seriesData':[{data:item[2].values,description: 'Single Read Time', colors: '#2DA769'}, { data:item[3].values, description: 'Single Write Time', colors: '#5990FD'}],'flg':0,'legendFlg':1,'unit':'KB/ms','fixedflg':4,'toolBox':true}
+                let data3 = {'legend':[{image: Tps, description: 'IOPS'}],'xAxisData':item[4].timestamps,'seriesData':[{data:item[4].values,description: 'IOPS', colors: '#F43146'}],'flg':0,'legendFlg':1,'unit':'/s','fixedflg':4,'toolBox':true}
+                let data4 = {'legend':[{image: AverageQueueLength, description: 'Average Queue Length'}],'xAxisData':item[5].timestamps,'seriesData':[{data:item[5].values,description: 'Average Queue Length', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'','fixedflg':4,'toolBox':true}
+                let data5 = {'legend':[{image: BandwidthUtilization, description: 'IOUtils'}],'xAxisData':item[6].timestamps,'seriesData':[{data:item[6].values,description: 'IOUtils', colors: '#9185F0'}],'flg':0,'legendFlg':1,'unit':'%','fixedflg':0,'toolBox':true}
                 chartData.push(data1,data2,data3,data4,data5)
                 ioAllArray.push(chartData)
               })
@@ -172,9 +188,9 @@ export default class NodeIO extends Component {
       })
   }
   componentDidUpdate(prevProps) {
-    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
+    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
       }),()=>{
         if(this.props.tabkey === "2"){
           this.getIoDataAll()

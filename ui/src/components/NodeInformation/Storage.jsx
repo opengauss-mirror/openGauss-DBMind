@@ -3,7 +3,7 @@ import { Table,Col, Row, Empty, message } from 'antd';
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
 import ResizeableTitle from '../common/ResizeableTitle';
-import { getStorageData } from '../../api/autonomousManagement';
+import { getMetric } from '../../api/autonomousManagement';
 import SystemImg from '../../assets/imgs/System.png';
 import { formatTimestamp, formatTableTitle } from '../../utils/function';
 
@@ -21,6 +21,8 @@ export default class Storage extends Component {
       echartData:[],
       selValue:this.props.selValue,
       selTimeValue:this.props.selTimeValue,
+      startTime:this.props.startTime,
+      endTime:this.props.endTime,
     }
   }
 
@@ -32,11 +34,15 @@ export default class Storage extends Component {
   async getStorageData1 () {
     let param = {
       instance:this.state.selValue,
-      minutes:0,
+      latest_minutes:0,
       label:'node_filesystem_size_bytes',
-      fetch:true
+      fetch_all:true,
+      regex:true,
+      regex_labels:'device=/.*',
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getStorageData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -46,11 +52,15 @@ export default class Storage extends Component {
   async getStorageData2 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_disk_usage',
-      fetch:true
+      fetch_all:true,
+      regex:true,
+      regex_labels:'device=/.*',
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getStorageData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -75,7 +85,7 @@ export default class Storage extends Component {
           });
           let echartsitem = {'legend':[{image:SystemImg,description:'Usage Rate'}],
           'xAxisData':echartsData[0].timestamps,
-          'seriesData':[{data:echartsData[0].values,description:'Usage Rate',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%'}
+          'seriesData':[{data:echartsData[0].values,description:'Usage Rate',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%','toolBox':true}
           echartData.push(echartsitem)
           lastData.push(echartsData[0].values[echartsData[0].values.length-1])
           tableData.forEach((item, index) => {
@@ -127,9 +137,9 @@ export default class Storage extends Component {
       })
     }
     componentDidUpdate(prevProps) {
-      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
+      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
         this.setState(() => ({
-          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
         }),()=>{
           if(this.props.tabkey === "5"){
             this.getStorageDataAll()

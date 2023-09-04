@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Col, Row, message, Collapse } from 'antd';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getServiceCapabilityData } from '../../api/autonomousManagement';
+import { getMetric } from '../../api/autonomousManagement';
 
 const { Panel } = Collapse;
 export default class CacheInformation extends Component {
@@ -10,6 +10,8 @@ export default class CacheInformation extends Component {
     this.state = {
       selValue:this.props.selValue,
       selTimeValue:this.props.selTimeValue,
+      startTime:this.props.startTime,
+      endTime:this.props.endTime,
       primitiveDataAll:[],
       serviceAllData:[],
       vectorKey:["0"]
@@ -18,11 +20,14 @@ export default class CacheInformation extends Component {
   async getCacheInformationData1 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_blks_read',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -32,11 +37,14 @@ export default class CacheInformation extends Component {
   async getCacheInformationData2 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_blks_hit',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -46,11 +54,14 @@ export default class CacheInformation extends Component {
   async getCacheInformationData3 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_db_blks_access',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -84,9 +95,9 @@ export default class CacheInformation extends Component {
         });
         primitiveDataAll.forEach((item,index) => {
                 let chartData = []
-                let data1 = {'legend':[{image: '', description: 'Disk Read/Write'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description: 'Disk Read/Write', colors: '#2DA769'}],'flg':0,'legendFlg':2,title:'Disk Read/Write', 'unit':'','fixedflg':0}
-                let data2 = {'legend':[{image: '', description: 'Cache Read/Write'}],'xAxisData':item[1].timestamps,'seriesData':[{data:item[1].values,description: 'Cache Read/Write', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Cache Read/Write','unit':'','fixedflg':0}
-                let data3 = {'legend':[{image: '', description: 'Hit Rate/Write'}],'xAxisData':item[2].timestamps,'seriesData':[{data:item[2].values,description: 'Hit Rate/Write', colors: '#9185F0'}],'flg':0,'legendFlg':2,title:'Hit Rate/Write','unit':'','fixedflg':0}
+                let data1 = {'legend':[{image: '', description: 'Disk Read/Write'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description: 'Disk Read/Write', colors: '#2DA769'}],'flg':0,'legendFlg':2,title:'Disk Read/Write', 'unit':'','fixedflg':0,'toolBox':true}
+                let data2 = {'legend':[{image: '', description: 'Cache Read/Write'}],'xAxisData':item[1].timestamps,'seriesData':[{data:item[1].values,description: 'Cache Read/Write', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Cache Read/Write','unit':'','fixedflg':0,'toolBox':true}
+                let data3 = {'legend':[{image: '', description: 'Hit Rate/Write'}],'xAxisData':item[2].timestamps,'seriesData':[{data:item[2].values,description: 'Hit Rate/Write', colors: '#9185F0'}],'flg':0,'legendFlg':2,title:'Hit Rate/Write','unit':'','fixedflg':0,'toolBox':true}
                 chartData.push(data1,data2,data3)
                 serviceAllArray.push(chartData)
               })
@@ -102,9 +113,9 @@ export default class CacheInformation extends Component {
       })
     }
     componentDidUpdate(prevProps) {
-      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey || prevProps.tabChildkey !== this.props.tabChildkey) {
+      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey || prevProps.tabChildkey !== this.props.tabChildkey) {
         this.setState(() => ({
-          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
         }),()=>{
           if(this.props.tabkey === "3" && this.props.tabChildkey === "2" ){
             this.getCacheInformationDataAll()
