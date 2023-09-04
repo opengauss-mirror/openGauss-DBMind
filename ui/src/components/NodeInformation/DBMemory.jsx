@@ -15,13 +15,18 @@ export default class DBMemory extends Component {
       chartData4: {},
       selValue:this.props.selValue,
       selTimeValue:this.props.selTimeValue,
+      startTime:this.props.startTime,
+      endTime:this.props.endTime,
     }
   }
   async getDBMemoryData1 () {
     let param = {
       instance:this.state.selValue,
-      minutes:0,
-      label:'max_dynamic_memory',
+      labels:'type=max_dynamic_memory',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -33,8 +38,11 @@ export default class DBMemory extends Component {
   async getDBMemoryData2 () {
     let param = {
       instance:this.state.selValue,
-      minutes:0,
-      label:'max_shared_memory',
+      labels:'type=max_shared_memory',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -46,8 +54,11 @@ export default class DBMemory extends Component {
   async getDBMemoryData3 () {
     let param = {
       instance:this.state.selValue,
-      minutes:0,
-      label:'max_process_memory',
+      labels:'type=max_process_memory',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -59,8 +70,12 @@ export default class DBMemory extends Component {
   async getDBMemoryData4 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
-      label:'dynamic_used_memory',
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
+      labels:'type=dynamic_used_memory',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -72,8 +87,12 @@ export default class DBMemory extends Component {
   async getDBMemoryData5 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
-      label:'dynamic_peak_memory',
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
+      labels:'type=dynamic_peak_memory',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -85,8 +104,12 @@ export default class DBMemory extends Component {
   async getDBMemoryData6 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
-      label:'dynamic_used_shrctx',
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
+      labels:'type=dynamic_used_shrctx',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -98,8 +121,12 @@ export default class DBMemory extends Component {
   async getDBMemoryData7 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
-      label:'dynamic_peak_shrctx',
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
+      labels:'type=dynamic_peak_shrctx',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -111,8 +138,12 @@ export default class DBMemory extends Component {
   async getDBMemoryData8 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
-      label:'shared_used_memory',
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
+      labels:'type=shared_used_memory',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -124,8 +155,12 @@ export default class DBMemory extends Component {
   async getDBMemoryData9 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
-      label:'process_used_memory',
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
+      labels:'type=process_used_memory',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -137,8 +172,13 @@ export default class DBMemory extends Component {
   async getDBMemoryData10 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
-      label:'other_used_memory',
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
+      labels:'type=other_used_memory',
+      fetch_all:false,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
+      // label:'other_used_memory',
     }
     const { success, data, msg }= await getDBMemoryData(param)
     if (success) {
@@ -177,10 +217,10 @@ async getDBMemoryDataAll () {
           yDataArray[index].push(oitem)
         });
       });
-      let data1 = {'legend':[{image:'',description:'Used Memory'},{image:'',description:'peak_memory'},{image:'',description:'used_shrctx'},{image:'',description:'peak_shrctx'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description:'used_memory',colors:'#2DA769'},{data:yDataArray[1],description:'peak_memory',colors:'#EC6F1A'},{data:yDataArray[2],description:'used_shrctx',colors:'#EEBA18'},{data:yDataArray[3],description:'peak_shrctx',colors:'#5890FD'}],'flg':0,'legendFlg':2,title:["Max Dynamic Memory",result[0][0].values[0]+'MB'],'unit':'','fixedflg':0}
-      let data2 = {'legend':[{image:'',description:'Shared Memory'}],'xAxisData':xDataArray[4],'seriesData':[{data:yDataArray[4],description:'Shared Memory',colors:'#EEBA18'}],'flg':0,'legendFlg':2,title:['Max Shared Memory',result[1][0].values[0]+'MB'],'unit':'','fixedflg':0}
-      let data3 = {'legend':[{image:'',description:'Process Memory'}],'xAxisData':xDataArray[5],'seriesData':[{data:yDataArray[5],description:'Process Memory',colors:'#EC6F1A'}],'flg':0,'legendFlg':2,title:['Max Process Memory',result[2][0].values[0]+'MB'],'unit':'','fixedflg':0}
-      let data4 = {'legend':[{image:'',description:'Used Memory'}],'xAxisData':xDataArray[6],'seriesData':[{data:yDataArray[6],description:'Used Memory',colors:'#2070F3'}],'flg':0,'legendFlg':2,title:'Other Used Memory','unit':'','fixedflg':0}
+      let data1 = {'legend':[{image:'',description:'Used Memory'},{image:'',description:'peak_memory'},{image:'',description:'used_shrctx'},{image:'',description:'peak_shrctx'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description:'used_memory',colors:'#2DA769'},{data:yDataArray[1],description:'peak_memory',colors:'#EC6F1A'},{data:yDataArray[2],description:'used_shrctx',colors:'#EEBA18'},{data:yDataArray[3],description:'peak_shrctx',colors:'#5890FD'}],'flg':0,'legendFlg':2,title:["Max Dynamic Memory",result[0][0].values[0]+'MB'],'unit':'','fixedflg':0,'toolBox':true}
+      let data2 = {'legend':[{image:'',description:'Shared Memory'}],'xAxisData':xDataArray[4],'seriesData':[{data:yDataArray[4],description:'Shared Memory',colors:'#EEBA18'}],'flg':0,'legendFlg':2,title:['Max Shared Memory',result[1][0].values[0]+'MB'],'unit':'','fixedflg':0,'toolBox':true}
+      let data3 = {'legend':[{image:'',description:'Process Memory'}],'xAxisData':xDataArray[5],'seriesData':[{data:yDataArray[5],description:'Process Memory',colors:'#EC6F1A'}],'flg':0,'legendFlg':2,title:['Max Process Memory',result[2][0].values[0]+'MB'],'unit':'','fixedflg':0,'toolBox':true}
+      let data4 = {'legend':[{image:'',description:'Used Memory'}],'xAxisData':xDataArray[6],'seriesData':[{data:yDataArray[6],description:'Used Memory',colors:'#2070F3'}],'flg':0,'legendFlg':2,title:'Other Used Memory','unit':'','fixedflg':0,'toolBox':true}
       this.setState({
         chartData1: data1,
         chartData2: data2,
@@ -193,9 +233,9 @@ async getDBMemoryDataAll () {
     })
   }
   componentDidUpdate(prevProps) {
-    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
+    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
       }),()=>{
         if(this.props.tabkey === "7"){
           this.getDBMemoryDataAll()

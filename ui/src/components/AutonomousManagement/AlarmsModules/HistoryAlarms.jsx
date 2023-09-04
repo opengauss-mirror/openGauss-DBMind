@@ -1,11 +1,12 @@
 import React, { Component } from 'react';
-import { Button, Card, Checkbox, Col, message, Row, Select, Table, Modal} from 'antd';
+import { Button, Card, Checkbox, Col, message, Row, Select, Table, Modal, DatePicker,Input } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import MetricChart from './MetricChart';
 import { getHistoryAlarmsInterface, getHistoryAlarmsInterfaceCount } from '../../../api/autonomousManagement';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 const { Option } = Select;
+const { RangePicker } = DatePicker;
 export default class Alarms extends Component {
   constructor() {
     super()
@@ -29,7 +30,10 @@ export default class Alarms extends Component {
       isModalVisible: false,
       metric_name: '',
       start_time: '',
-      end_time: ''
+      end_time: '',
+      startTime: '',
+      endTime: '',
+      metricName: '',
     }
   }
   components = {
@@ -42,9 +46,12 @@ export default class Alarms extends Component {
       instance: this.state.host === '' ? null : this.state.host,
       alarm_type: this.state.alarm_type === '' ? null : this.state.alarm_type,
       alarm_level: this.state.alarm_level === '' ? null : this.state.alarm_level,
+      metric_name: this.state.metricName === '' ? null : this.state.metricName,
       group: this.state.checkedGroup,
       current: pageParams ? pageParams.current : this.state.current,
-      pagesize:pageParams ? pageParams.pagesize : this.state.pageSize
+      pagesize:pageParams ? pageParams.pagesize : this.state.pageSize,
+      start_at:this.state.startTime ? this.state.startTime : null,
+      end_at:this.state.endTime ? this.state.endTime : null
     }
     this.setState({ loadingHistory: true });
     const { success, data, msg } = await getHistoryAlarmsInterface(params)
@@ -166,7 +173,10 @@ export default class Alarms extends Component {
       instance: this.state.host === '' ? null : this.state.host,
       alarm_type: this.state.alarm_type === '' ? null : this.state.alarm_type,
       alarm_level: this.state.alarm_level === '' ? null : this.state.alarm_level,
-      group: this.state.checkedGroup
+      metric_name: this.state.metricName === '' ? null : this.state.metricName,
+      group: this.state.checkedGroup,
+      start_at:this.state.startTime ? this.state.startTime : null,
+      end_at:this.state.endTime ? this.state.endTime : null
     }
     const { success, data, msg } = await getHistoryAlarmsInterfaceCount(params)
     if (success) {
@@ -330,9 +340,21 @@ export default class Alarms extends Component {
       this.setState({levelnewval: ''})
     }
   }
+  changeMetricVal (e) {
+    this.setState({metricName: e.target.value})
+  }
+  onBlurMetricInput = (e) => {
+    this.changeMetricVal(e)
+  }
   //group
   onChangeCheckbox (e) {
     this.setState({checkedGroup: e.target.checked})
+    if(e.target.checked){
+      this.setState({
+        startTime: '',
+        endTime: '',
+      })
+    };
   }
   handleSearch () {
     this.getHistoryAlarms().then(() => {
@@ -344,6 +366,7 @@ export default class Alarms extends Component {
       host: '',
       alarm_type: '',
       alarm_level: '',
+      metricName: '',
       checkedGroup: true,
       pageSize: 10,
       current: 1
@@ -353,6 +376,12 @@ export default class Alarms extends Component {
       })
     })
   }
+  setDates = (dates, dateStrings) => {
+    this.setState({
+      startTime: new Date(dateStrings[0]).getTime(),
+      endTime: new Date(dateStrings[1]).getTime(),
+    });
+  };
   componentDidMount () {
     this.getHistoryAlarms().then(() => {
       this.getHistoryAlarmsCount()
@@ -379,13 +408,14 @@ export default class Alarms extends Component {
     return (
       <div className="mb-20">
         <Card title="History Alarms" extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />} className="mb-20">
-          <Row style={{ marginBottom: 20, width: '60%' }} justify="space-around">
+          <Row style={{ marginBottom: 20, width: this.state.checkedGroup ? '60%' : '100%'}} justify="space-around">
+          <Col style={{paddingTop:4}}> <span>group: </span> <Checkbox checked={this.state.checkedGroup} onChange={(e) => { this.onChangeCheckbox(e) }}></Checkbox></Col>
             <Col>
               <span>host: </span>
               <Select value={this.state.host} onChange={(val) => { this.changeSelHostVal(val) }} showSearch allowClear={true}
                 onSearch={(e) => { this.onSearchHost(e) }} onBlur={() => this.onBlurSelectHost()}
                 optionFilterProp="children" filterOption={(input, option) =>
-                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 180 }} className="mb-20">
+                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 160 }} className="mb-10">
                 {
                   this.state.hostOptionsFilter.map((item, index) => {
                     return (
@@ -400,7 +430,7 @@ export default class Alarms extends Component {
               <Select value={this.state.alarm_type} onChange={(val) => { this.changeSelTypeVal(val) }} showSearch allowClear={true}
                 onSearch={(e) => { this.onSearchType(e) }} onBlur={() => this.onBlurTypeSelect()}
                 optionFilterProp="children" filterOption={(input, option) =>
-                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 180 }} className="mb-20">
+                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 160 }} className="mb-10">
                 {
                   this.state.alarmOptionsFilter.map((item, index) => {
                     return (
@@ -415,7 +445,7 @@ export default class Alarms extends Component {
               <Select value={this.state.alarm_level} onChange={(val) => { this.changeSelLevelVal(val) }} showSearch allowClear={true}
                 onSearch={(e) => { this.onSearchLevel(e) }} onBlur={() => this.onBlurLevelSelect()}
                 optionFilterProp="children" filterOption={(input, option) =>
-                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 180 }} className="mb-20">
+                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 160 }} className="mb-10">
                 {
                   this.state.alarmLevelOptionsFilter.map((item, index) => {
                     return (
@@ -425,7 +455,19 @@ export default class Alarms extends Component {
                 }
               </Select>
             </Col>
-            <Col style={{paddingTop:4}}> <span>group: </span> <Checkbox checked={this.state.checkedGroup} onChange={(e) => { this.onChangeCheckbox(e) }}></Checkbox></Col>
+            {!this.state.checkedGroup && <Col>
+              <span>metric name: </span>
+              <Input onChange={(e) => this.changeMetricVal(e)} onBlur={(e) => this.onBlurMetricInput(e)} value={this.state.metricName} style={{ width:160 }} className="mb-10" />
+            </Col>}
+            {!this.state.checkedGroup && <Col>
+              <RangePicker 
+                style={{ width:340 }}
+                placement='topRight'
+                format="YYYY-MM-DD HH:mm:ss"
+                onChange={this.setDates}
+                showTime
+              />
+            </Col>}
             <Col>
               <Button type="primary" onClick={() => this.handleSearch()}>Search</Button>
             </Col>

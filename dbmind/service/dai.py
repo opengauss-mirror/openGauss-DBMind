@@ -48,7 +48,7 @@ def datetime_to_timestamp(t: datetime):
 
 
 class LazyFetcher:
-    def __init__(self, metric_name, start_time=None, end_time=None, step=None):
+    def __init__(self, metric_name, start_time=None, end_time=None, step=None, min_value=None, max_value=None):
         # The default filter should contain some labels (or tags)
         # from user's config. Otherwise, there will be lots of data stream
         # fetching from the remote time series database, whereas, we don't need them.
@@ -59,6 +59,8 @@ class LazyFetcher:
         self.labels = dict.copy(global_vars.must_filter_labels or {})
         self.labels_like = dict()
         self.rv = None
+        self.min_value = min_value
+        self.max_value = max_value
 
     def filter(self, **kwargs):
         dbmind_assert(
@@ -105,6 +107,8 @@ class LazyFetcher:
             return TsdbClientFactory.get_tsdb_client().get_current_metric_value(
                 metric_name=self.metric_name,
                 label_config=self.labels,
+                min_value=self.min_value,
+                max_value=self.max_value,
                 params=params
             )
 
@@ -116,6 +120,8 @@ class LazyFetcher:
             start_time=datetime.fromtimestamp(start_time / 1000),
             end_time=datetime.fromtimestamp(end_time / 1000),
             step=step // 1000 if step else step,
+            min_value=self.min_value,
+            max_value=self.max_value,
             params=params
         )
 
@@ -221,19 +227,19 @@ def estimate_appropriate_step_ms(start_time, end_time):
     return int(total_seconds * interval_second // ONE_HOUR * 1000) or None
 
 
-def get_metric_sequence(metric_name, start_time, end_time, step=None):
+def get_metric_sequence(metric_name, start_time, end_time, step=None, min_value=None, max_value=None):
     """Get monitoring sequence from time-series database between
     start_time and end_time"""
 
-    return LazyFetcher(metric_name, start_time, end_time, step)
+    return LazyFetcher(metric_name, start_time, end_time, step, min_value=min_value, max_value=max_value)
 
 
-def get_latest_metric_sequence(metric_name, minutes, step=None):
+def get_latest_metric_sequence(metric_name, minutes, step=None, min_value=None, max_value=None):
     """Get the monitoring sequence from time-series database in
      the last #2 minutes."""
     end_time = datetime.now()
     start_time = end_time - timedelta(minutes=minutes)
-    return get_metric_sequence(metric_name, start_time, end_time, step=step)
+    return get_metric_sequence(metric_name, start_time, end_time, step=step, min_value=min_value, max_value=max_value)
 
 
 def get_latest_metric_value(metric_name):

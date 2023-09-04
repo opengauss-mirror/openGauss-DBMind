@@ -1,3 +1,4 @@
+import { getMetric } from '../api/autonomousManagement';
 // 1.时间戳转为年月日时分秒  2018-05-06 10:18:11
 const formatTimestamp = function (data, fmt) {
   if (!data) return "";
@@ -87,6 +88,16 @@ const capitalizeFirst = function (str) {
   let data = str.charAt(0).toUpperCase() + str.slice(1);
   return data;
 };
+//6.Metric界面接口封装
+const commonMetricMethod = async function (publicParam,privateParam){
+  let params = Object.assign(publicParam,privateParam)
+  const { success, data, msg }= await getMetric(params)
+  if (success) {
+    return data
+  } else {
+    message.error(msg)
+  }
+}
 export {
   formatTimestamp,
   formatTableTitle,
@@ -94,4 +105,5 @@ export {
   formatTableTime,
   formatTableTitleToUpper,
   capitalizeFirst,
+  commonMetricMethod
 };
