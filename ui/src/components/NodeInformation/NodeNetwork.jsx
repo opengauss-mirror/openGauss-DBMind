@@ -7,116 +7,24 @@ import TransmitDrop from '../../assets/imgs/Transmit_drop.png';
 import TransmitError from '../../assets/imgs/Transmit_error.png';
 import ReceiveError from '../../assets/imgs/Receive_error.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getMetric } from '../../api/autonomousManagement';
+import { commonMetricMethod } from '../../utils/function';
 
 const { Panel } = Collapse;
+const metricData = ['os_network_receive_bytes','os_network_transmit_bytes','os_network_receive_drop','os_network_transmit_drop','os_network_receive_error','os_network_transmit_error']
 export default class NodeNetwork extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      selValue:this.props.selValue,
-      selTimeValue:this.props.selTimeValue,
       primitiveDataAll:[],
       networkAllData:[],
       vectorKey:["0"],
-      startTime:this.props.startTime,
-      endTime:this.props.endTime,
-    }
-  }
-  async getNetworkData1 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_network_receive_bytes',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getNetworkData2 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_network_transmit_bytes',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getNetworkData3 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_network_receive_drop',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getNetworkData4 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_network_transmit_drop',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getNetworkData5 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_network_receive_error',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getNetworkData6 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_network_transmit_error',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
+      param: {
+        instance:this.props.selValue,
+        latest_minutes:this.props.selTimeValue ? this.props.selTimeValue : null,
+        fetch_all:true,
+        from_timestamp:this.props.startTime ? this.props.startTime : null,
+        to_timestamp:this.props.endTime ? this.props.endTime : null
+      }
     }
   }
   compare(property){
@@ -128,12 +36,12 @@ export default class NodeNetwork extends Component {
   }
   async getNetworkDataAll() {
     Promise.all([
-      this.getNetworkData1(),
-      this.getNetworkData2(),
-      this.getNetworkData3(),
-      this.getNetworkData4(),
-      this.getNetworkData5(),
-      this.getNetworkData6()
+      commonMetricMethod(this.state.param,{label:metricData[0]}),
+      commonMetricMethod(this.state.param,{label:metricData[1]}),
+      commonMetricMethod(this.state.param,{label:metricData[2]}),
+      commonMetricMethod(this.state.param,{label:metricData[3]}),
+      commonMetricMethod(this.state.param,{label:metricData[4]}),
+      commonMetricMethod(this.state.param,{label:metricData[5]})
     ]).then((result)=>{
       if(result[0]){
         result.forEach((item,index) => {
@@ -170,7 +78,7 @@ export default class NodeNetwork extends Component {
   componentDidUpdate(prevProps) {
     if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
+        param:Object.assign(this.state.param,{instance: this.props.selValue,latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,from_timestamp: this.props.startTime,to_timestamp: this.props.endTime})
       }),()=>{
         if(this.props.tabkey === "4"){
           this.getNetworkDataAll()

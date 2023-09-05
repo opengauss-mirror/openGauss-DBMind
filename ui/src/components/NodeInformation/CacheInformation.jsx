@@ -1,71 +1,25 @@
 import React, { Component } from 'react';
 import { Col, Row, message, Collapse } from 'antd';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getMetric } from '../../api/autonomousManagement';
+import { commonMetricMethod } from '../../utils/function';
 
 const { Panel } = Collapse;
+const metricData = ['pg_db_blks_read','pg_db_blks_hit','pg_db_blks_access']
 export default class CacheInformation extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      selValue:this.props.selValue,
-      selTimeValue:this.props.selTimeValue,
-      startTime:this.props.startTime,
-      endTime:this.props.endTime,
       primitiveDataAll:[],
       serviceAllData:[],
-      vectorKey:["0"]
-    }
-  }
-  async getCacheInformationData1 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_blks_read',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getCacheInformationData2 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_blks_hit',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getCacheInformationData3 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_blks_access',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
+      vectorKey:["0"],
+      param: {
+        instance:this.props.selValue,
+        latest_minutes:this.props.selTimeValue ? this.props.selTimeValue : null,
+        fetch_all:true,
+        regex:false,
+        from_timestamp:this.props.startTime ? this.props.startTime : null,
+        to_timestamp:this.props.endTime ? this.props.endTime : null
+      }
     }
   }
   compare(property){
@@ -77,9 +31,9 @@ export default class CacheInformation extends Component {
   }
   async getCacheInformationDataAll () {
     Promise.all([
-      this.getCacheInformationData1(),
-      this.getCacheInformationData2(),
-      this.getCacheInformationData3()
+      commonMetricMethod(this.state.param,{label:metricData[0]}),
+      commonMetricMethod(this.state.param,{label:metricData[1]}),
+      commonMetricMethod(this.state.param,{label:metricData[2]})
     ]).then((result)=>{
       if(result[0]){
         result.forEach((item,index) => {
@@ -115,7 +69,7 @@ export default class CacheInformation extends Component {
     componentDidUpdate(prevProps) {
       if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey || prevProps.tabChildkey !== this.props.tabChildkey) {
         this.setState(() => ({
-          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
+          param:Object.assign(this.state.param,{instance: this.props.selValue,latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,from_timestamp: this.props.startTime,to_timestamp: this.props.endTime})
         }),()=>{
           if(this.props.tabkey === "3" && this.props.tabChildkey === "2" ){
             this.getCacheInformationDataAll()

@@ -4,7 +4,11 @@ import { Empty, message } from 'antd';
 import icon9 from '../../assets/imgs/icon9.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
 import { getDBMemoryData } from '../../api/autonomousManagement';
+import { commonMetricMethod } from '../../utils/function';
 
+const metricData = ['type=max_dynamic_memory','type=max_shared_memory','type=max_process_memory',
+'type=dynamic_used_memory','type=dynamic_peak_memory','type=dynamic_used_shrctx','type=dynamic_peak_shrctx',
+'type=shared_used_memory','type=process_used_memory','type=other_used_memory']
 export default class DBMemory extends Component {
   constructor(props) {
     super(props)
@@ -13,178 +17,14 @@ export default class DBMemory extends Component {
       chartData2: {},
       chartData3: {},
       chartData4: {},
-      selValue:this.props.selValue,
-      selTimeValue:this.props.selTimeValue,
-      startTime:this.props.startTime,
-      endTime:this.props.endTime,
-    }
-  }
-  async getDBMemoryData1 () {
-    let param = {
-      instance:this.state.selValue,
-      labels:'type=max_dynamic_memory',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDBMemoryData2 () {
-    let param = {
-      instance:this.state.selValue,
-      labels:'type=max_shared_memory',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDBMemoryData3 () {
-    let param = {
-      instance:this.state.selValue,
-      labels:'type=max_process_memory',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDBMemoryData4 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      labels:'type=dynamic_used_memory',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDBMemoryData5 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      labels:'type=dynamic_peak_memory',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDBMemoryData6 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      labels:'type=dynamic_used_shrctx',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDBMemoryData7 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      labels:'type=dynamic_peak_shrctx',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDBMemoryData8 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      labels:'type=shared_used_memory',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDBMemoryData9 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      labels:'type=process_used_memory',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDBMemoryData10 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      labels:'type=other_used_memory',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-      // label:'other_used_memory',
-    }
-    const { success, data, msg }= await getDBMemoryData(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
+      param: {
+        instance:this.props.selValue,
+        fetch_all:false,
+        regex:false,
+        from_timestamp:this.props.startTime ? this.props.startTime : null,
+        to_timestamp:this.props.endTime ? this.props.endTime : null
+      },
+      selTimeValue:this.props.selTimeValue ? this.props.selTimeValue : null
     }
   }
   divisionItem(arr1, arr2) {
@@ -195,16 +35,16 @@ export default class DBMemory extends Component {
   }
 async getDBMemoryDataAll () {
   Promise.all([
-    this.getDBMemoryData1(),
-    this.getDBMemoryData2(),
-    this.getDBMemoryData3(),
-    this.getDBMemoryData4(),
-    this.getDBMemoryData5(),
-    this.getDBMemoryData6(),
-    this.getDBMemoryData7(),
-    this.getDBMemoryData8(),
-    this.getDBMemoryData9(),
-    this.getDBMemoryData10()
+    commonMetricMethod(this.state.param,{labels:metricData[0]},getDBMemoryData),
+    commonMetricMethod(this.state.param,{labels:metricData[1]},getDBMemoryData),
+    commonMetricMethod(this.state.param,{labels:metricData[2]},getDBMemoryData),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,labels:metricData[3]},getDBMemoryData),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,labels:metricData[4]},getDBMemoryData),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,labels:metricData[5]},getDBMemoryData),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,labels:metricData[6]},getDBMemoryData),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,labels:metricData[7]},getDBMemoryData),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,labels:metricData[8]},getDBMemoryData),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,labels:metricData[9]},getDBMemoryData)
   ]).then((result)=>{
     if(result[0]){
       let newResult = [],xDataArray = [[],[],[],[],[],[],[]],yDataArray = [[],[],[],[],[],[],[]]
@@ -235,7 +75,8 @@ async getDBMemoryDataAll () {
   componentDidUpdate(prevProps) {
     if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
+        param:Object.assign(this.state.param,{instance: this.props.selValue,from_timestamp: this.props.startTime,to_timestamp: this.props.endTime}),
+        selTimeValue: this.props.selTimeValue ? this.props.selTimeValue : null
       }),()=>{
         if(this.props.tabkey === "7"){
           this.getDBMemoryDataAll()

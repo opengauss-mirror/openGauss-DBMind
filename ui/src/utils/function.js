@@ -89,9 +89,9 @@ const capitalizeFirst = function (str) {
   return data;
 };
 //6.Metric界面接口封装
-const commonMetricMethod = async function (publicParam,privateParam){
+const commonMetricMethod = async function (publicParam,privateParam,interfaceName=''){
   let params = Object.assign(publicParam,privateParam)
-  const { success, data, msg }= await getMetric(params)
+  const { success, data, msg }= await (interfaceName ? interfaceName(params) : getMetric(params))
   if (success) {
     return data
   } else {

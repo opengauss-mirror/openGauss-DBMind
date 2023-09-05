@@ -8,133 +8,24 @@ import SingleWriteTime from '../../assets/imgs/Single Write Time.png';
 import Tps from '../../assets/imgs/Tps.png';
 import Writerate from '../../assets/imgs/Write rate.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getMetric } from '../../api/autonomousManagement';
-import { string } from 'prop-types';
+import { commonMetricMethod } from '../../utils/function';
 
+const metricData = ['os_disk_io_read_bytes','os_disk_io_write_bytes','os_disk_io_read_delay','os_disk_io_write_delay','os_disk_iops','os_disk_io_queue_length','os_disk_ioutils']
 const { Panel } = Collapse;
 export default class NodeIO extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      selValue:this.props.selValue,
-      selTimeValue:this.props.selTimeValue,
       primitiveDataAll:[],
       ioAllData:[],
       vectorKey:["0"],
-      startTime:this.props.startTime,
-      endTime:this.props.endTime,
-    }
-  }
-  async getIoData1 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_disk_io_read_bytes',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getIoData2 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_disk_io_write_bytes',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getIoData3 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_disk_io_read_delay',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getIoData4 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_disk_io_write_delay',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getIoData5 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_disk_iops',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getIoData6 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_disk_io_queue_length',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getIoData7 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_disk_ioutils',
-      fetch_all:true,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
+      param: {
+        instance:this.props.selValue,
+        latest_minutes:this.props.selTimeValue ? this.props.selTimeValue : null,
+        fetch_all:true,
+        from_timestamp:this.props.startTime ? this.props.startTime : null,
+        to_timestamp:this.props.endTime ? this.props.endTime : null
+      }
     }
   }
   compare(property){
@@ -146,13 +37,13 @@ export default class NodeIO extends Component {
   }
   async getIoDataAll() {
     Promise.all([
-      this.getIoData1(),
-      this.getIoData2(),
-      this.getIoData3(),
-      this.getIoData4(),
-      this.getIoData5(),
-      this.getIoData6(),
-      this.getIoData7()
+      commonMetricMethod(this.state.param,{label:metricData[0]}),
+      commonMetricMethod(this.state.param,{label:metricData[1]}),
+      commonMetricMethod(this.state.param,{label:metricData[2]}),
+      commonMetricMethod(this.state.param,{label:metricData[3]}),
+      commonMetricMethod(this.state.param,{label:metricData[4]}),
+      commonMetricMethod(this.state.param,{label:metricData[5]}),
+      commonMetricMethod(this.state.param,{label:metricData[6]})
     ]).then((result)=>{
       if(result[0]){
         result.forEach((item,index) => {
@@ -190,7 +81,7 @@ export default class NodeIO extends Component {
   componentDidUpdate(prevProps) {
     if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
+        param:Object.assign(this.state.param,{instance: this.props.selValue,latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,from_timestamp: this.props.startTime,to_timestamp: this.props.endTime})
       }),()=>{
         if(this.props.tabkey === "2"){
           this.getIoDataAll()

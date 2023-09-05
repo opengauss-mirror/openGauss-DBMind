@@ -5,8 +5,9 @@ import Available from '../../assets/imgs/Available.png';
 import Buffer from '../../assets/imgs/Buffer.png';
 import Cache from '../../assets/imgs/Cache.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getMetric } from '../../api/autonomousManagement';
+import { commonMetricMethod } from '../../utils/function';
 
+const metricData = ['node_memory_MemTotal_bytes','node_memory_MemAvailable_bytes','node_memory_SwapTotal_bytes','node_memory_SwapFree_bytes','os_mem_usage','node_memory_MemAvailable_bytes','node_memory_Buffers_bytes','node_memory_Cached_bytes']
 export default class NodeMemory extends Component {
   constructor(props) {
     super(props)
@@ -17,8 +18,6 @@ export default class NodeMemory extends Component {
       chartData3: {},
       chartData4: {},
       chartData5: {},
-      selValue:this.props.selValue,
-      selTimeValue:this.props.selTimeValue,
       ehcartLeft1:0,
       ehcartLeft2:0,
       ehcartLeft3:0,
@@ -29,152 +28,26 @@ export default class NodeMemory extends Component {
       spaceRight2:0,
       spaceLeft1:0,
       spaceLeft2:0,
-      startTime:this.props.startTime,
-      endTime:this.props.endTime,
-    }
-  }
-  async getMemoryData1 () {
-    let param = {
-      instance:this.state.selValue,
-      label:'node_memory_MemTotal_bytes',
-      regex:true,
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getMemoryData2 () {
-    let param = {
-      instance:this.state.selValue,
-      label:'node_memory_MemAvailable_bytes',
-      regex:true,
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getMemoryData3 () {
-    let param = {
-      instance:this.state.selValue,
-      label:'node_memory_SwapTotal_bytes',
-      regex:true,
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getMemoryData4 () {
-    let param = {
-      instance:this.state.selValue,
-      label:'node_memory_SwapFree_bytes',
-      regex:true,
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getMemoryData5 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_mem_usage',
-      regex:true,
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getMemoryData6 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'node_memory_MemAvailable_bytes',
-      regex:true,
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getMemoryData7 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'node_memory_Buffers_bytes',
-      regex:true,
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getMemoryData8 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'node_memory_Cached_bytes',
-      regex:true,
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
+      param: {
+        instance:this.props.selValue,
+        fetch_all:false,
+        regex:true,
+        from_timestamp:this.props.startTime ? this.props.startTime : null,
+        to_timestamp:this.props.endTime ? this.props.endTime : null
+      },
+      selTimeValue:this.props.selTimeValue ? this.props.selTimeValue : null
     }
   }
 async getMemoryDataAll () {
   Promise.all([
-    this.getMemoryData1(),
-    this.getMemoryData2(),
-    this.getMemoryData3(),
-    this.getMemoryData4(),
-    this.getMemoryData5(),
-    this.getMemoryData6(),
-    this.getMemoryData7(),
-    this.getMemoryData8()
+    commonMetricMethod(this.state.param,{label:metricData[0]}),
+    commonMetricMethod(this.state.param,{label:metricData[1]}),
+    commonMetricMethod(this.state.param,{label:metricData[2]}),
+    commonMetricMethod(this.state.param,{label:metricData[3]}),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,label:metricData[4]}),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,label:metricData[5]}),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,label:metricData[6]}),
+    commonMetricMethod(this.state.param,{latest_minutes:this.state.selTimeValue,label:metricData[7]})
   ]).then((result)=>{
     if(result[0]){
       let totalRight = result[2][0].values[0] + result[3][0].values[0],totalLeft = [],usageData = [],usageValues = []
@@ -229,7 +102,8 @@ async getMemoryDataAll () {
   componentDidUpdate(prevProps) {
     if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
+        param:Object.assign(this.state.param,{instance: this.props.selValue,from_timestamp: this.props.startTime,to_timestamp: this.props.endTime}),
+        selTimeValue: this.props.selTimeValue ? this.props.selTimeValue : null,
       }),()=>{
         if(this.props.tabkey === "3"){
           this.getMemoryDataAll()

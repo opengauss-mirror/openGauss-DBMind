@@ -2,8 +2,9 @@ import React, { Component } from 'react';
 import { Col, Row } from 'antd';
 import { Empty, message } from 'antd';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getMetric } from '../../api/autonomousManagement';
+import { commonMetricMethod } from '../../utils/function';
 
+const metricData = ['gaussdb_total_connection','gaussdb_active_connection','gaussdb_idle_connection','statement_responsetime_percentile_p80','statement_responsetime_percentile_p95','gaussdb_qps_by_instance']
 export default class DBPerformanceIndicators extends Component {
   constructor(props) {
     super(props)
@@ -12,112 +13,14 @@ export default class DBPerformanceIndicators extends Component {
       chartData2: {},
       chartData3: {},
       chartData4: {},
-      selValue:this.props.selValue,
-      selTimeValue:this.props.selTimeValue,
-      startTime:this.props.startTime,
-      endTime:this.props.endTime
-    }
-  }
-  async getPerformanceData1 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'gaussdb_total_connection',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getPerformanceData2 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'gaussdb_active_connection',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getPerformanceData3 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'gaussdb_idle_connection',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getPerformanceData4 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'statement_responsetime_percentile_p80',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getPerformanceData5 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'statement_responsetime_percentile_p95',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getPerformanceData6 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'gaussdb_qps_by_instance',
-      fetch_all:false,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
+      param: {
+        instance:this.props.selValue,
+        latest_minutes:this.props.selTimeValue ? this.props.selTimeValue : null,
+        fetch_all:false,
+        regex:false,
+        from_timestamp:this.props.startTime ? this.props.startTime : null,
+        to_timestamp:this.props.endTime ? this.props.endTime : null
+      }
     }
   }
   divisionItem(arr1, arr2) {
@@ -132,12 +35,12 @@ export default class DBPerformanceIndicators extends Component {
   }
 async getPerformanceDataAll () {
   Promise.all([
-    this.getPerformanceData1(),
-    this.getPerformanceData2(),
-    this.getPerformanceData3(),
-    this.getPerformanceData4(),
-    this.getPerformanceData5(),
-    this.getPerformanceData6()
+    commonMetricMethod(this.state.param,{label:metricData[0]}),
+    commonMetricMethod(this.state.param,{label:metricData[1]}),
+    commonMetricMethod(this.state.param,{label:metricData[2]}),
+    commonMetricMethod(this.state.param,{label:metricData[3]}),
+    commonMetricMethod(this.state.param,{label:metricData[4]}),
+    commonMetricMethod(this.state.param,{label:metricData[5]})
   ]).then((result)=>{
     if(result[0]){
       let newResult = [],activeRateData = [],waitingRateData = [],xDataArray = [[],[],[],[],[],[],[],[]],yDataArray = [[],[],[],[],[],[],[],[]]
@@ -172,7 +75,7 @@ async getPerformanceDataAll () {
   componentDidUpdate(prevProps) {
     if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
+        param:Object.assign(this.state.param,{instance: this.props.selValue,latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,from_timestamp: this.props.startTime,to_timestamp: this.props.endTime})
       }),()=>{
         if(this.props.tabkey === "2"){
           this.getPerformanceDataAll()

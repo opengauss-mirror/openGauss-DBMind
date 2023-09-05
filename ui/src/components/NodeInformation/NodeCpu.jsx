@@ -5,8 +5,9 @@ import UserImg from '../../assets/imgs/User.png';
 import EmptyImg from '../../assets/imgs/Empty.png';
 import WaitImg from '../../assets/imgs/Wait.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getMetric } from '../../api/autonomousManagement';
+import { commonMetricMethod } from '../../utils/function';
 
+const metricData = ['os_cpu_system_usage','os_cpu_user_usage','os_cpu_idle_usage','os_cpu_iowait_usage']
 export default class NodeCpu extends Component {
   constructor(props) {
     super(props)
@@ -15,82 +16,21 @@ export default class NodeCpu extends Component {
       chartData2:{},
       chartData3:{},
       chartData4:{},
-      selValue:this.props.selValue,
-      selTimeValue:this.props.selTimeValue,
-      startTime:this.props.startTime,
-      endTime:this.props.endTime,
-    }
-  }
-  async getCpuData1 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_cpu_system_usage',
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getCpuData2 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_cpu_user_usage',
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getCpuData3 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_cpu_idle_usage',
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getCpuData4 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'os_cpu_iowait_usage',
-      fetch_all:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
+      param: {
+        instance:this.props.selValue,
+        latest_minutes:this.props.selTimeValue ? this.props.selTimeValue : null,
+        fetch_all:false,
+        from_timestamp:this.props.startTime ? this.props.startTime : null,
+        to_timestamp:this.props.endTime ? this.props.endTime : null
+      }
     }
   }
 async getCpuDataAll () {
   Promise.all([
-    this.getCpuData1(),
-    this.getCpuData2(),
-    this.getCpuData3(),
-    this.getCpuData4()
+    commonMetricMethod(this.state.param,{label:metricData[0]}),
+    commonMetricMethod(this.state.param,{label:metricData[1]}),
+    commonMetricMethod(this.state.param,{label:metricData[2]}),
+    commonMetricMethod(this.state.param,{label:metricData[3]})
   ]).then((result)=>{
     if(result[0]){
       let xDataArray = [[],[],[],[]],yDataArray = [[],[],[],[]]
@@ -120,7 +60,7 @@ async getCpuDataAll () {
   componentDidUpdate(prevProps) {
     if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
+        param:Object.assign(this.state.param,{instance: this.props.selValue,latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,from_timestamp: this.props.startTime,to_timestamp: this.props.endTime})
       }),()=>{
         if(this.props.tabkey === "1"){
           this.getCpuDataAll()

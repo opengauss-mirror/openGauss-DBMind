@@ -1,258 +1,28 @@
 import React, { Component } from 'react';
 import { Col, Row, message, Collapse } from 'antd';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getMetric } from '../../api/autonomousManagement';
+import { commonMetricMethod } from '../../utils/function';
 
 const { Panel } = Collapse;
+const metricData = ['pg_db_xact_commit','pg_db_xact_rollback','pg_db_conflicts','pg_db_confl_lock',
+'pg_db_confl_snapshot','pg_db_confl_bufferpin','pg_db_confl_deadlock','pg_db_deadlocks',
+'pg_db_temp_bytes','pg_db_temp_files','gaussdb_tup_inserted_rate','gaussdb_tup_deleted_rate',
+'gaussdb_tup_updated_rate','gaussdb_tup_fetched_rate'];
 export default class DBServiceCapability extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      selValue:this.props.selValue,
-      selTimeValue:this.props.selTimeValue,
-      startTime:this.props.startTime,
-      endTime:this.props.endTime,
       primitiveDataAll:[],
       serviceAllData:[],
-      vectorKey:["0"]
-    }
-  }
-  async getServiceData1 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_xact_commit',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData2 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_xact_rollback',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData3 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_conflicts',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData4 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_confl_lock',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData5 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_confl_snapshot',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData6 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_confl_bufferpin',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData7 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_confl_deadlock',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData8 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_deadlocks',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData9 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_temp_bytes',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData10 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'pg_db_temp_files',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData11 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'gaussdb_tup_inserted_rate',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData12 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'gaussdb_tup_deleted_rate',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData13 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'gaussdb_tup_updated_rate',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getServiceData14 () {
-    let param = {
-      instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
-      label:'gaussdb_tup_fetched_rate',
-      fetch_all:true,
-      regex:false,
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
-    }
-    const { success, data, msg }= await getMetric(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
+      vectorKey:["0"],
+      param: {
+        instance:this.props.selValue,
+        latest_minutes:this.props.selTimeValue ? this.props.selTimeValue : null,
+        fetch_all:true,
+        regex:false,
+        from_timestamp:this.props.startTime ? this.props.startTime : null,
+        to_timestamp:this.props.endTime ? this.props.endTime : null
+      }
     }
   }
   compare(property){
@@ -280,20 +50,20 @@ export default class DBServiceCapability extends Component {
   }
 async getServiceDataAll () {
   Promise.all([
-    this.getServiceData1(),
-    this.getServiceData2(),
-    this.getServiceData3(),
-    this.getServiceData4(),
-    this.getServiceData5(),
-    this.getServiceData6(),
-    this.getServiceData7(),
-    this.getServiceData8(),
-    this.getServiceData9(),
-    this.getServiceData10(),
-    this.getServiceData11(),
-    this.getServiceData12(),
-    this.getServiceData13(),
-    this.getServiceData14()
+    commonMetricMethod(this.state.param,{label:metricData[0]}),
+    commonMetricMethod(this.state.param,{label:metricData[1]}),
+    commonMetricMethod(this.state.param,{label:metricData[2]}),
+    commonMetricMethod(this.state.param,{label:metricData[3]}),
+    commonMetricMethod(this.state.param,{label:metricData[4]}),
+    commonMetricMethod(this.state.param,{label:metricData[5]}),
+    commonMetricMethod(this.state.param,{label:metricData[6]}),
+    commonMetricMethod(this.state.param,{label:metricData[7]}),
+    commonMetricMethod(this.state.param,{label:metricData[8]}),
+    commonMetricMethod(this.state.param,{label:metricData[9]}),
+    commonMetricMethod(this.state.param,{label:metricData[10]}),
+    commonMetricMethod(this.state.param,{label:metricData[11]}),
+    commonMetricMethod(this.state.param,{label:metricData[12]}),
+    commonMetricMethod(this.state.param,{label:metricData[13]})
   ]).then((result)=>{
     if(result[0]){
       result.forEach((item,index) => {
@@ -353,7 +123,7 @@ async getServiceDataAll () {
   componentDidUpdate(prevProps) {
     if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
+        param:Object.assign(this.state.param,{instance: this.props.selValue,latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,from_timestamp: this.props.startTime,to_timestamp: this.props.endTime})
       }),()=>{
         if(this.props.tabkey === "1"){
           this.getServiceDataAll()
