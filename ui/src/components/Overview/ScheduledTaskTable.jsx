@@ -2,13 +2,15 @@ import React, { Component } from 'react';
 import { Modal, message, Table, InputNumber } from 'antd';
 import ResizeableTitle from '../common/ResizeableTitle';
 import { getTimedTaskStatus, getStartTimed, getStopTimed, getResetInterval } from '../../api/overview';
-import Stopped from '../../assets/imgs/stop.png';
-import Running from '../../assets/imgs/run.png';
-import iconrun from '../../assets/imgs/Initiate.png';
-import iconsetting from '../../assets/imgs/update.png';
-import iconwait from '../../assets/imgs/Pause.png';
+// import Stopped from '../../assets/imgs/stop.png';
+// import Running from '../../assets/imgs/run.png';
+// import iconrun from '../../assets/imgs/Initiate.png';
+// import iconsetting from '../../assets/imgs/update.png';
+// import iconwait from '../../assets/imgs/Pause.png';
 import { capitalizeFirst } from '../../utils/function';
 
+const demoImgArr = ['stop','run','Initiate','update','Pause']
+const ticks = demoImgArr.map(item => require("../../assets/imgs/" + item + ".png"))
 const labelStyle = {width:160,float:'left',textAlign:'right',lineHeight:'32px'}
 const inputStyle = {marginLeft:20,marginRight:20}
 export default class ScheduledTaskTable extends Component {
@@ -40,12 +42,12 @@ export default class ScheduledTaskTable extends Component {
         width:item === 'name' ? '61%' : '13%',
         render: (row, record) => {
           if(item === 'current_status'){
-            return <img src={record.current_status === 'Running' ? Running : Stopped}  title={record.current_status === 'Running' ? 'Running' : 'Stopped'} alt="" className='iconstyle'></img>
+            return <img src={record.current_status === 'Running' ? ticks[1].default : ticks[0].default}  title={record.current_status === 'Running' ? 'Running' : 'Stopped'} alt="" className='iconstyle'></img>
           } else if(item === 'setting'){
             return <span>
-            <img src={iconsetting} title='Setting' alt="" className='iconstyle grayimg' style={{marginRight:12}} ></img>
-            <img src={iconwait} title='Waiting' alt="" className='iconstyle grayimg' style={{marginRight:12}} ></img>
-            <img  src={iconrun} title='Running' alt="" className='iconstyle grayimg' style={{marginRight:12}}></img>
+            <img src={ticks[3].default} title='Setting' alt="" className='iconstyle grayimg' style={{marginRight:12}} ></img>
+            <img src={ticks[4].default} title='Waiting' alt="" className='iconstyle grayimg' style={{marginRight:12}} ></img>
+            <img  src={ticks[2].default} title='Running' alt="" className='iconstyle grayimg' style={{marginRight:12}}></img>
             </span>
           } else {
             return row

@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Card, Empty, Modal, message } from 'antd';
+import { Empty, Modal, message } from 'antd';
 import ReactEcharts from 'echarts-for-react';
 import { getDatabaseSize } from '../../api/overview';
 import db from '../../utils/storage';
