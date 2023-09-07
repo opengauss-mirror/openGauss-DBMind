@@ -87,64 +87,19 @@ export default class SelfhealingRecordsTable extends Component {
   // 处理下拉框默认值
    getChildrenDefault(item){
         let detectorChildren=this.state.detectorParams[item];
+        let optionsMap = new Map([["side",["sideValue","sideOption"]],["agg",["aggValue","aggOption"]],["max_coef","maxCoefValue"],["alpha","alphaValue"],["window","windowValue"]
+        ,["high","highValue"],["low","lowValue"],["period","periodValue"],["high_ac_threshold","thresholdValue"],["min_seasonal_freq","freqValue"],["outliers",["upperOutlier","lowerOutlier"]]])
         Object.keys(detectorChildren).forEach(key=>{
-      if(key==='side'){
-        this.setState(()=>({
-          sideValue:detectorChildren[key][0],
-          sideOption: detectorChildren[key][1]
-        })
-       )
-      }else if(key==='agg'){
-        this.setState(()=>({
-          aggOption: detectorChildren[key][1],
-          aggValue:detectorChildren[key][0]
-          }))
-      }else if(key==='max_coef'){
-        this.setState(()=>({
-        maxCoefValue:detectorChildren[key]
-        }))
-      }else if(key==='alpha'){
-        this.setState(()=>({
-          alphaValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='window'){
-        this.setState(()=>({
-          windowValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='high'){
-        this.setState(()=>({
-          highValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='low'){
-        this.setState(()=>({
-         lowValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='period'){
-        this.setState(()=>({
-          periodValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='high_ac_threshold'){
-        this.setState(()=>({
-          thresholdValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='min_seasonal_freq'){
-        this.setState(()=>({
-          freqValue:detectorChildren[key]
-          }))
-      }
-    
-      else if(key==='outliers'){
-        this.setState(()=>({
-          upperOutlier:detectorChildren[key][0],
-          lowerOutlier:detectorChildren[key][1],
-          }))
-      }
+          if((optionsMap.get(key)) instanceof Array){
+            this.setState(()=>({
+              [optionsMap.get(key)[0]]: detectorChildren[key][0],
+              [optionsMap.get(key)[1]]: detectorChildren[key][1]
+            }))
+          } else {
+            this.setState(()=>({
+              [optionsMap.get(key)]: detectorChildren[key]
+            }))
+          }
         })
   }
   changeAlarmtypeVal (value) {
@@ -190,6 +145,10 @@ export default class SelfhealingRecordsTable extends Component {
     this.FormRef.validateFields()
     .then((values)=>{
       let fieldsValue = this.FormRef.getFieldsValue()
+      let detectorNameMap = new Map([["GradientDetector",["side","max_coef","percentage"]],["IncreaseDetector",["side","alpha"]],["InterQuartileRangeDetector","outliers"],
+      ["LevelShiftDetector",["side","outliers","window","agg"]],["SeasonalDetector",["side","outliers","window","period","high_ac_threshold","min_seasonal_freq"]]
+        ,["SpikeDetector",["side","outliers","window","agg"]],["ThresholdDetector",["high","low","percentage"]],["VolatilityShiftDetector",["side","outliers","window","agg"]],
+        ["QuantileDetector",["high","low"]],["EsdTestDetector","alpha"]])
       fieldsValue.detectors.forEach((item,index)=>{
         item['metric_filter'] = {}
         item['detector_kwargs'] = {}
@@ -204,66 +163,11 @@ export default class SelfhealingRecordsTable extends Component {
             delete item[key]
           }
         }
-        if(item.detector_name === 'GradientDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'max_coef' && key !== 'percentage'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'IncreaseDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'alpha'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'InterQuartileRangeDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'outliers' ){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'LevelShiftDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if(key !== 'side' && key !== 'outliers' && key !== 'window'&& key !== 'agg'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'SeasonalDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'outliers' && key !== 'window'&& key !== 'period'&& key !== 'high_ac_threshold'&& key !== 'min_seasonal_freq'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'SpikeDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'outliers' && key !== 'window'&& key !== 'agg'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'ThresholdDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'high' && key !== 'low' && key !== 'percentage'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'VolatilityShiftDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'outliers' && key !== 'window' && key !== 'agg'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'QuantileDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'high' && key !== 'low'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'EsdTestDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'alpha'){
-              delete item['detector_kwargs'][key]
-            }
-          })}
+        Object.keys(item['detector_kwargs']).forEach(key=>{
+          if(!detectorNameMap.get(item.detector_name).includes(key)){
+            delete item['detector_kwargs'][key]
+          }
+        })
       })
       let param = {
         name : fieldsValue.name,
@@ -496,12 +400,7 @@ export default class SelfhealingRecordsTable extends Component {
                                         this.FormRef !== undefined && this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) && 
                                         (
                                           <>
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'GradientDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'IncreaseDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SpikeDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'VolatilityShiftDetector' ?<Form.Item
+                                          {['GradientDetector','IncreaseDetector','LevelShiftDetector','SeasonalDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ?<Form.Item
                                             {...field}
                                             label='side'
                                             {...formItemLayout}
@@ -537,8 +436,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input  key={this.state.maxCoefValue} style={{width:260}}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'EsdTestDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'IncreaseDetector' ? <Form.Item
+                                          {['EsdTestDetector','IncreaseDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
                                             {...formItemLayout}
                                             label='alpha'
@@ -554,10 +452,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input key={this.state.alphaValue} style={{width:260}} />
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'InterQuartileRangeDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector'|| 
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SeasonalDetector'|| 
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SpikeDetector'?<Form.Item
+                                          {['InterQuartileRangeDetector','LevelShiftDetector','SeasonalDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ?<Form.Item
                                             {...field}
                                             {...formItemLayout}
                                             label='upperOutlier'
@@ -572,10 +467,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <InputNumber style={{width:260}}  key={this.state.upperOutlier}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'InterQuartileRangeDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector'|| 
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SeasonalDetector'|| 
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SpikeDetector'?<Form.Item
+                                          {['InterQuartileRangeDetector','LevelShiftDetector','SeasonalDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ?<Form.Item
                                             {...field}
                                             {...formItemLayout}
                                             label='lowerOutlier'
@@ -590,10 +482,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <InputNumber style={{width:260}}  key={this.state.lowerOutlier}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SpikeDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'VolatilityShiftDetector' ? <Form.Item
+                                          {['LevelShiftDetector','SeasonalDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
                                             {...formItemLayout}
                                             label='window'
@@ -608,8 +497,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input  key={this.state.windowValue} style={{width:260}}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'QuantileDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'ThresholdDetector' ? <Form.Item
+                                          {['QuantileDetector','ThresholdDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
                                             {...formItemLayout}
                                             label='high'
@@ -624,8 +512,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input  key={this.state.highValue} style={{width:260}}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'QuantileDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'ThresholdDetector' ? <Form.Item
+                                          {['QuantileDetector','ThresholdDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
                                             {...formItemLayout}
                                             label='low'
@@ -685,9 +572,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input key={this.state.periodValue} style={{width:260}}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SpikeDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'VolatilityShiftDetector' ? <Form.Item
+                                          {['LevelShiftDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
                                             {...formItemLayout}
                                             label='agg'
