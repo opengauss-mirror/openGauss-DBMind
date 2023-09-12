@@ -1,0 +1,38 @@
+common:
+  exp_pool: 
+    query_num: 
+    time_window: 
+    operator: 
+  data_path: 
+  host: 
+  host_user: 
+  ssh_port: 
+
+database:
+  port: 
+  user: 
+  name: 
+  knobs_info: 
+  GAUSSHOME: 
+
+collect:
+  size: 
+  seeds: 
+  file_dir: 
+  sample_policy:  # lhs,bucket
+  workload:
+    name: 
+    tool_path: 
+    weights: 
+  knob_candidates:
+    # - shared_buffers
+    # - work_mem
+    # ...
+    
+evaluate:
+  model_path: 
+  exp_num: 
+  new_conf:
+    # work_mem: 4096kB
+    # ...
+  old_conf:
