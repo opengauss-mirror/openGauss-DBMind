@@ -1,13 +1,12 @@
-# IWEK: An Interpretable What-If Estimator for Database Knobs
+# An Interpretable What-If Estimator for Database Knobs
 
 
 ## Table of contents
 
 1. [Main Modules](#modules)
-2. [Setup](#setup)
-3. [Benchmark](#benchmark)
-4. [Run](#run)
-4. [Citation](#citation)
+2. [Benchmark](#benchmark)
+3. [Run](#run)
+
 
 ## Main Modules <a name="modules"></a>
 
@@ -18,16 +17,6 @@
 | collect                   | Collect performance data.                                                                     |
 | rank                      | Sort by Knob Importance data.                                                                 |
 | main                      | Task startup and parameter parsing.                                                           |
-
-## Setup <a name="setup"></a>
-
-Set up a virtual environment and install according dependencies. 
-
-```shell
-conda create -n venv python=3.8
-conda activate venv
-pip install -r ./requirements.txt
-```
 
 
 ## Benchmark <a name="benchmark"></a>
