@@ -5,7 +5,7 @@ import UserImg from '../../assets/imgs/User.png';
 import EmptyImg from '../../assets/imgs/Empty.png';
 import WaitImg from '../../assets/imgs/Wait.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getCommonMetric } from '../../api/autonomousManagement';
+import { getMetric } from '../../api/autonomousManagement';
 
 export default class NodeCpu extends Component {
   constructor(props) {
@@ -17,16 +17,20 @@ export default class NodeCpu extends Component {
       chartData4:{},
       selValue:this.props.selValue,
       selTimeValue:this.props.selTimeValue,
+      startTime:this.props.startTime,
+      endTime:this.props.endTime,
     }
   }
   async getCpuData1 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_cpu_system_usage',
-      fetch:false
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -36,11 +40,13 @@ export default class NodeCpu extends Component {
   async getCpuData2 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_cpu_user_usage',
-      fetch:false
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -50,11 +56,13 @@ export default class NodeCpu extends Component {
   async getCpuData3 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_cpu_idle_usage',
-      fetch:false
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -64,11 +72,13 @@ export default class NodeCpu extends Component {
   async getCpuData4 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_cpu_iowait_usage',
-      fetch:false
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -92,10 +102,10 @@ async getCpuDataAll () {
           yDataArray[index].push(oitem)
         });
       });
-      let data1 = {'legend':[{image:SystemImg,description:'System'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description:'System',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
-      let data2 = {'legend':[{image:UserImg,description:'User'}],'xAxisData':xDataArray[1],'seriesData':[{data:yDataArray[1],description:'User',colors:'#5990FD'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
-      let data3 = {'legend':[{image:EmptyImg,description:'Empty'}],'xAxisData':xDataArray[2],'seriesData':[{data:yDataArray[2],description:'Empty',colors:'#9185F0'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
-      let data4 = {'legend':[{image:WaitImg,description:'IO Wait'}],'xAxisData':xDataArray[3],'seriesData':[{data:yDataArray[3],description:'IO Wait',colors:'#EC6F1A'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
+      let data1 = {'legend':[{image:SystemImg,description:'System'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description:'System',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0,'toolBox':true}
+      let data2 = {'legend':[{image:UserImg,description:'User'}],'xAxisData':xDataArray[1],'seriesData':[{data:yDataArray[1],description:'User',colors:'#5990FD'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0,'toolBox':true}
+      let data3 = {'legend':[{image:EmptyImg,description:'Empty'}],'xAxisData':xDataArray[2],'seriesData':[{data:yDataArray[2],description:'Empty',colors:'#9185F0'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0,'toolBox':true}
+      let data4 = {'legend':[{image:WaitImg,description:'IO Wait'}],'xAxisData':xDataArray[3],'seriesData':[{data:yDataArray[3],description:'IO Wait',colors:'#EC6F1A'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0,'toolBox':true}
       this.setState({
         chartData1: data1,
         chartData2: data2,
@@ -108,9 +118,9 @@ async getCpuDataAll () {
     })
   }
   componentDidUpdate(prevProps) {
-    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
+    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
       }),()=>{
         if(this.props.tabkey === "1"){
           this.getCpuDataAll()

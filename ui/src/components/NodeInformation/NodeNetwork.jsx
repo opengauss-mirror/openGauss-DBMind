@@ -7,7 +7,7 @@ import TransmitDrop from '../../assets/imgs/Transmit_drop.png';
 import TransmitError from '../../assets/imgs/Transmit_error.png';
 import ReceiveError from '../../assets/imgs/Receive_error.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getCommonMetric } from '../../api/autonomousManagement';
+import { getMetric } from '../../api/autonomousManagement';
 
 const { Panel } = Collapse;
 export default class NodeNetwork extends Component {
@@ -18,17 +18,21 @@ export default class NodeNetwork extends Component {
       selTimeValue:this.props.selTimeValue,
       primitiveDataAll:[],
       networkAllData:[],
-      vectorKey:["0"]
+      vectorKey:["0"],
+      startTime:this.props.startTime,
+      endTime:this.props.endTime,
     }
   }
   async getNetworkData1 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_network_receive_bytes',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -38,11 +42,13 @@ export default class NodeNetwork extends Component {
   async getNetworkData2 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_network_transmit_bytes',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -52,11 +58,13 @@ export default class NodeNetwork extends Component {
   async getNetworkData3 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_network_receive_drop',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -66,11 +74,13 @@ export default class NodeNetwork extends Component {
   async getNetworkData4 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_network_transmit_drop',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -80,11 +90,13 @@ export default class NodeNetwork extends Component {
   async getNetworkData5 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_network_receive_error',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -94,11 +106,13 @@ export default class NodeNetwork extends Component {
   async getNetworkData6 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_network_transmit_error',
-      fetch:true
+      fetch_all:true,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getCommonMetric(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -135,10 +149,10 @@ export default class NodeNetwork extends Component {
         });
         primitiveDataAll.forEach((item,index) => {
                 let chartData = [],data1 = {},data2 = {},data3 = {},data4 = {}
-                  data1 = {'legend':[{image: CurrentReceiveRate, description: 'Current Receive Rate'}],'xAxisData':item[0]?item[0].timestamps:item[1].timestamps,'seriesData':[{data:item[0]?item[0].values:[...item[1].values.fill(0)],description: 'Current Receive Rate', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':4}
-                  data2 = {'legend':[{image: CurrentSendingRate, description: 'Current Sending Rate'}],'xAxisData':item[1]?item[1].timestamps:item[0].timestamps,'seriesData':[{data:item[1]?item[1].values:[...item[0].values.fill(0)],description: 'Current Sending Rate', colors: '#5990FD'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':4}
-                  data3 = {'legend':[{image: ReceiveDrop, description: 'Receive Drop'},{image: TransmitDrop, description: 'Transmit Drop'}],'xAxisData':item[2]?item[2].timestamps:item[3].timestamps,'seriesData':[{data:item[2]?item[2].values:[...item[3].values.fill(0)],description: 'Receive Drop', colors: '#2DA769'},{data:item[3]?item[3].values:[...item[2].values.fill(0)],description: 'Transmit Drop', colors: '#EC6F1A'}],'flg':0,'legendFlg':1,'unit':'','fixedflg':4}
-                  data4 = {'legend':[{image: ReceiveError, description: 'Receive Error'},{image: TransmitError, description: 'Transmit Error'}],'xAxisData':item[4]?item[4].timestamps:item[5].timestamps,'seriesData':[{data:item[4]?item[4].values:[...item[5].values.fill(0)],description: 'Receive Error', colors: '#F43146'},{data:item[5]?item[5].values:[...item[4].values.fill(0)],description: 'Transmit Error', colors: '#9185F0'}],'flg':0,'legendFlg':1,'unit':'','fixedflg':4}
+                  data1 = {'legend':[{image: CurrentReceiveRate, description: 'Current Receive Rate'}],'xAxisData':item[0]?item[0].timestamps:item[1].timestamps,'seriesData':[{data:item[0]?item[0].values:[...item[1].values.fill(0)],description: 'Current Receive Rate', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':4,'toolBox':true}
+                  data2 = {'legend':[{image: CurrentSendingRate, description: 'Current Sending Rate'}],'xAxisData':item[1]?item[1].timestamps:item[0].timestamps,'seriesData':[{data:item[1]?item[1].values:[...item[0].values.fill(0)],description: 'Current Sending Rate', colors: '#5990FD'}],'flg':0,'legendFlg':1,'unit':'KB/s','fixedflg':4,'toolBox':true}
+                  data3 = {'legend':[{image: ReceiveDrop, description: 'Receive Drop'},{image: TransmitDrop, description: 'Transmit Drop'}],'xAxisData':item[2]?item[2].timestamps:item[3].timestamps,'seriesData':[{data:item[2]?item[2].values:[...item[3].values.fill(0)],description: 'Receive Drop', colors: '#2DA769'},{data:item[3]?item[3].values:[...item[2].values.fill(0)],description: 'Transmit Drop', colors: '#EC6F1A'}],'flg':0,'legendFlg':1,'unit':'','fixedflg':4,'toolBox':true}
+                  data4 = {'legend':[{image: ReceiveError, description: 'Receive Error'},{image: TransmitError, description: 'Transmit Error'}],'xAxisData':item[4]?item[4].timestamps:item[5].timestamps,'seriesData':[{data:item[4]?item[4].values:[...item[5].values.fill(0)],description: 'Receive Error', colors: '#F43146'},{data:item[5]?item[5].values:[...item[4].values.fill(0)],description: 'Transmit Error', colors: '#9185F0'}],'flg':0,'legendFlg':1,'unit':'','fixedflg':4,'toolBox':true}
                 chartData.push(data1,data2,data3,data4)
                 networkAllArray.push(chartData)
               })
@@ -154,9 +168,9 @@ export default class NodeNetwork extends Component {
       })
   }
   componentDidUpdate(prevProps) {
-    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
+    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
       }),()=>{
         if(this.props.tabkey === "4"){
           this.getNetworkDataAll()

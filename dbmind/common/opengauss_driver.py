@@ -12,21 +12,22 @@
 # See the Mulan PSL v2 for more details.
 import logging
 import time
-
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import sqlparse
 import psycopg2
 import psycopg2.errors
 import psycopg2.extensions
 import psycopg2.extras
-from psycopg2.pool import ThreadedConnectionPool
+import psycopg2.pool
+import sqlparse
 
 from dbmind.common.utils import dbmind_assert, write_to_terminal
 
 _psycopg2_kwargs = dict(
     options="-c session_timeout=15 -c search_path=public",
     application_name='DBMind-openGauss-exporter',
+    sslmode='disable',
 )
 
 
@@ -38,7 +39,7 @@ def psycopg2_connect(dsn):
     return conn
 
 
-class ConnectionPool(ThreadedConnectionPool):
+class ConnectionPool(psycopg2.pool.ThreadedConnectionPool):
     """A connection pool that works with the threading module and waits for getting a
     new connection rather than raise an exception while the pool is exhausted."""
 
@@ -141,12 +142,11 @@ class Driver:
                                     cursor.execute(sql)
                                 except Exception as e:
                                     result.append(None)
-                                    logging.warning(f'{e} while executing {sql}')
                                     continue
                                 finally:
                                     conn.commit()
                             else:
-                                cursor.execute(sql) 
+                                cursor.execute(sql)
                             if cursor.pgresult_ptr is not None:
                                 result.append(cursor.fetchall())
                             else:
@@ -237,6 +237,8 @@ class Driver:
 class DriverBundle:
     __main_db_name__ = 'postgres'
 
+    UPDATE_PERIOD = 300  # seconds
+
     _thread_pool_executor = ThreadPoolExecutor(
         thread_name_prefix='DriverBundleWorker'
     )
@@ -248,9 +250,12 @@ class DriverBundle:
             each_db_max_connections=None,
             log_to_terminal=True
     ):
+        # this bundle is to maintain all database connections,
+        # which will be updated by `self.update()`
         self.main_driver = Driver()
-        self.main_driver.initialize(url, each_db_max_connections)  # If cannot access, raise a ConnectionError.
-        self._bundle = {self.main_driver.dbname: self.main_driver}
+        # If cannot access, raise a ConnectionError.
+        self.main_driver.initialize(url, each_db_max_connections)
+
         if self.main_dbname != DriverBundle.__main_db_name__:
             msg = (
                 'The default connection database of the exporter is not postgres, '
@@ -261,29 +266,49 @@ class DriverBundle:
             if log_to_terminal:
                 write_to_terminal(msg)
 
-        if not self.is_monitor_admin():
+        if not self.guarantee_access():
             msg = (
-                'The current user does not have the MonitorAdmin permission, '
+                'The current user does not have the Monitoradmin/Sysadmin privilege, '
                 'which will cause many metrics to fail to obtain. '
-                'Please consider granting this permission to the connecting user.'
+                'Please consider granting this privilege to the connecting user.'
             )
             logging.warning(msg)
             if log_to_terminal:
                 write_to_terminal(msg)
 
-        for dbname in self._discover_databases(include_db_list, exclude_db_list):
-            if dbname in self._bundle:
-                continue
+        # add other database connections to the bundle
+        self._bundle = dict()
+        self._include_db_list = include_db_list
+        self._exclude_db_list = exclude_db_list
+        self._each_db_max_connections = each_db_max_connections
+        self._last_updated = 0
+        self._update_lock = threading.RLock()
+        self.update()
 
-            try:
-                driver = Driver()
-                driver.initialize(self._splice_url_for_other_db(dbname), each_db_max_connections)
-                # Ensure that each driver can access corresponding database.
-                self._bundle[dbname] = driver
-            except ConnectionError:
-                logging.warning(
-                    'Cannot connect to the database %s by using the given user.', dbname
-                )
+    def update(self):
+        # update bundle databases if timed out.
+        last_updated, self._last_updated = self._last_updated, time.monotonic()
+        if time.monotonic() - last_updated < self.UPDATE_PERIOD:
+            # if not timed out, we don't need to update.
+            return
+        with self._update_lock:
+            # clean items if exists
+            self._bundle.clear()
+            self._bundle = {self.main_driver.dbname: self.main_driver}
+            for dbname in self._discover_databases(self._include_db_list, self._exclude_db_list):
+                if dbname in self._bundle:
+                    continue
+
+                try:
+                    driver = Driver()
+                    driver.initialize(self._splice_url_for_other_db(dbname),
+                                      self._each_db_max_connections)
+                    # Ensure that each driver can access corresponding database.
+                    self._bundle[dbname] = driver
+                except ConnectionError:
+                    logging.warning(
+                        'Cannot connect to the database %s by using the given user.', dbname
+                    )
 
     def _discover_databases(self, include_dbs, exclude_dbs):
         if not include_dbs:
@@ -302,7 +327,7 @@ class DriverBundle:
         )
         discovered = set()
         for dbname in all_db_list:
-            if dbname in ('template0', 'template1'):  # Skip these useless databases.
+            if dbname[0] in ('template0', 'template1'):  # Skip these useless databases.
                 continue
             discovered.add(dbname[0])
 
@@ -325,6 +350,9 @@ class DriverBundle:
 
         This method need to guaranteed thread safety.
         """
+        # update database connections
+        self.update()
+
         if force_connection_db is not None:
             if force_connection_db not in self._bundle:
                 return []
@@ -381,6 +409,10 @@ class DriverBundle:
     def main_dbname(self):
         return self.main_driver.dbname
 
+    @property
+    def username(self):
+        return self.main_driver.username
+
     def is_monitor_admin(self):
         r = self.main_driver.query(
             'select rolmonitoradmin from pg_roles where rolname = CURRENT_USER;',
@@ -388,9 +420,34 @@ class DriverBundle:
         )
         return r[0][0]
 
+    def is_system_admin(self):
+        """test if the current user is the system user."""
+        res = self.main_driver.query(
+            'select rolsystemadmin from pg_roles where rolname = CURRENT_USER;',
+            return_tuples=True
+        )
+        return res[0][0]
+
+    def guarantee_access(self):
+        if self.is_monitor_admin():
+            return True
+        if self.is_system_admin():
+            # although we have sysadmin privileges,
+            # the tables under dbe_perf are still not
+            # accessible, so we need to self-grant.
+            self.main_driver.query(
+                f'ALTER USER {self.username} monadmin;',
+                return_tuples=True,
+                fetch_all=True,
+                ignore_error=True
+            )
+            return self.is_monitor_admin()
+        return False
+
     def is_standby(self):
         r = self.main_driver.query(
             'select pg_catalog.pg_is_in_recovery();',
             return_tuples=True
         )
         return r[0][0]
+

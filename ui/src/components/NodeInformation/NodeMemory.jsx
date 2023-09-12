@@ -5,7 +5,7 @@ import Available from '../../assets/imgs/Available.png';
 import Buffer from '../../assets/imgs/Buffer.png';
 import Cache from '../../assets/imgs/Cache.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { getMemoryData } from '../../api/autonomousManagement';
+import { getMetric } from '../../api/autonomousManagement';
 
 export default class NodeMemory extends Component {
   constructor(props) {
@@ -29,16 +29,20 @@ export default class NodeMemory extends Component {
       spaceRight2:0,
       spaceLeft1:0,
       spaceLeft2:0,
+      startTime:this.props.startTime,
+      endTime:this.props.endTime,
     }
   }
   async getMemoryData1 () {
     let param = {
       instance:this.state.selValue,
-      minutes:0,
       label:'node_memory_MemTotal_bytes',
-      fetch:false
+      regex:true,
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getMemoryData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -48,11 +52,13 @@ export default class NodeMemory extends Component {
   async getMemoryData2 () {
     let param = {
       instance:this.state.selValue,
-      minutes:0,
       label:'node_memory_MemAvailable_bytes',
-      fetch:false
+      regex:true,
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getMemoryData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -62,11 +68,13 @@ export default class NodeMemory extends Component {
   async getMemoryData3 () {
     let param = {
       instance:this.state.selValue,
-      minutes:0,
       label:'node_memory_SwapTotal_bytes',
-      fetch:false
+      regex:true,
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getMemoryData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -76,11 +84,13 @@ export default class NodeMemory extends Component {
   async getMemoryData4 () {
     let param = {
       instance:this.state.selValue,
-      minutes:0,
       label:'node_memory_SwapFree_bytes',
-      fetch:false
+      regex:true,
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getMemoryData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -90,11 +100,14 @@ export default class NodeMemory extends Component {
   async getMemoryData5 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'os_mem_usage',
-      fetch:false
+      regex:true,
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getMemoryData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -104,11 +117,14 @@ export default class NodeMemory extends Component {
   async getMemoryData6 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'node_memory_MemAvailable_bytes',
-      fetch:false
+      regex:true,
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getMemoryData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -118,11 +134,14 @@ export default class NodeMemory extends Component {
   async getMemoryData7 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'node_memory_Buffers_bytes',
-      fetch:false
+      regex:true,
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getMemoryData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -132,11 +151,14 @@ export default class NodeMemory extends Component {
   async getMemoryData8 () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'node_memory_Cached_bytes',
-      fetch:false
+      regex:true,
+      fetch_all:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getMemoryData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
       return data
     } else {
@@ -177,11 +199,11 @@ async getMemoryDataAll () {
       yDataArray.forEach((oitem) => {
         totalLeft.push(Number(oitem[oitem.length-1]))
       });
-      let data1 = {'legend':[{image: Used, description: 'Used Space(GB)'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description: 'Used Space(GB)', colors: '#EC6F1A'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0}
-      let data2 = {'legend':[{image: Available, description: 'Available Space'}],'xAxisData':xDataArray[1],'seriesData':[{data:yDataArray[1],description: 'Available Space', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0}
-      let data3 = {'legend':[{image: Buffer, description: 'Buffer Space'}],'xAxisData':xDataArray[2],'seriesData':[{data:yDataArray[2],description: 'Buffer Space', colors: '#9185F0'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0}
-      let data4 = {'legend':[{image: Cache, description: 'Cache Space'}],'xAxisData':xDataArray[3],'seriesData':[{data:yDataArray[3],description: 'Cache Space', colors: '#EEBA18'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0}
-      let data5 = {'legend':[{image: Used, description: 'Used Space(%)'}],'xAxisData':xDataArray[4],'seriesData':[{data:yDataArray[4],description: 'Used Space(%)', colors: '#EC6F1A'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0}
+      let data1 = {'legend':[{image: Used, description: 'Used Space(GB)'}],'xAxisData':xDataArray[0],'seriesData':[{data:yDataArray[0],description: 'Used Space(GB)', colors: '#EC6F1A'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0,'toolBox':true}
+      let data2 = {'legend':[{image: Available, description: 'Available Space'}],'xAxisData':xDataArray[1],'seriesData':[{data:yDataArray[1],description: 'Available Space', colors: '#2DA769'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0,'toolBox':true}
+      let data3 = {'legend':[{image: Buffer, description: 'Buffer Space'}],'xAxisData':xDataArray[2],'seriesData':[{data:yDataArray[2],description: 'Buffer Space', colors: '#9185F0'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0,'toolBox':true}
+      let data4 = {'legend':[{image: Cache, description: 'Cache Space'}],'xAxisData':xDataArray[3],'seriesData':[{data:yDataArray[3],description: 'Cache Space', colors: '#EEBA18'}],'flg':0,'legendFlg':1,'unit':'GB','fixedflg':0,'toolBox':true}
+      let data5 = {'legend':[{image: Used, description: 'Used Space(%)'}],'xAxisData':xDataArray[4],'seriesData':[{data:yDataArray[4],description: 'Used Space(%)', colors: '#EC6F1A'}],'flg':1,'legendFlg':1,'unit':'%','fixedflg':0,'toolBox':true}
       this.setState({
         chartData1: data1,
         chartData2: data2,
@@ -205,9 +227,9 @@ async getMemoryDataAll () {
     })
   }
   componentDidUpdate(prevProps) {
-    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
+    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
       }),()=>{
         if(this.props.tabkey === "3"){
           this.getMemoryDataAll()

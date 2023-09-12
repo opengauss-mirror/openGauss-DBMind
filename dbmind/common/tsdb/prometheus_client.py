@@ -57,7 +57,6 @@ def _standardize(data, step=None):
         )
     return rv
 
-
 class PrometheusClient(TsdbClient):
     """
     A Class for collection of metrics from a Prometheus Host.
@@ -89,6 +88,10 @@ class PrometheusClient(TsdbClient):
         with create_requests_session(*self._session_args) as session:
             return session.get(url=url, **kwargs)
 
+    def _post(self, url, **kwargs):
+        with create_requests_session(*self._session_args) as session:
+            return session.post(url=url, **kwargs)
+
     def check_connection(self, params: dict = None) -> bool:
         """
         Check Prometheus connection.
@@ -104,13 +107,16 @@ class PrometheusClient(TsdbClient):
         return response.ok
 
     def get_current_metric_value(
-            self, metric_name: str, label_config: dict = None, params: dict = None
+            self, metric_name: str, label_config: dict = None,
+            min_value: float = None, max_value: float = None, params: dict = None
     ):
         r"""
         Get the current metric target for the specified metric and label configuration.
         :param metric_name: (str) The name of the metric
         :param label_config: (dict) A dictionary that specifies metric labels and their
             values
+        :param min_value; filter the sequence whose value is greater than min_value
+        :param max_value; filter the sequence whose value is less than max_value
         :param params: (dict) Optional dictionary containing GET parameters to be sent
             along with the API request, such as "time"
         :returns: (list) A list of current metric values for the specified metric
@@ -124,6 +130,10 @@ class PrometheusClient(TsdbClient):
             query = metric_name + label_to_query(label_config, labels_like)
         else:
             query = metric_name
+        if min_value:
+            query = str(min_value) + '<' + query
+        if max_value:
+            query = query + '<' + str(max_value)
 
         # using the query API to get raw data
         data = []
@@ -148,6 +158,8 @@ class PrometheusClient(TsdbClient):
             end_time: datetime = datetime.now(),
             chunk_size: timedelta = None,
             step: str = None,
+            min_value: float = None,
+            max_value: float = None,
             params: dict = None
     ):
         r"""
@@ -161,6 +173,8 @@ class PrometheusClient(TsdbClient):
             example, setting it to timedelta(hours=3) will download 3 hours worth of data in each
             request made to the prometheus host
         :param step: (str) Query resolution step width in duration format or float number of seconds
+        :param min_value; filter the sequence whose value is greater than min_value
+        :param max_value; filter the sequence whose value is less than max_value
         :param params: (dict) Optional dictionary containing GET parameters to be
             sent along with the API request, such as "time"
         :return: (list) A list of metric data for the specified metric in the given time
@@ -175,7 +189,6 @@ class PrometheusClient(TsdbClient):
             query = metric_name + label_to_query(label_config, labels_like)
         else:
             query = metric_name
-
         data = []
         if not (isinstance(start_time, datetime) and isinstance(end_time, datetime)):
             raise TypeError("start_time and end_time can only be of type datetime.datetime")
@@ -201,6 +214,10 @@ class PrometheusClient(TsdbClient):
                 headers=self.headers,
             )
         else:
+            if min_value:
+                query = str(min_value) + '<=' + query
+            if max_value:
+                query = query + '<' + str(max_value)
             # using the query_range API to get raw data
             response = self._get(
                 "{0}/api/v1/query_range".format(self.url),
@@ -218,6 +235,47 @@ class PrometheusClient(TsdbClient):
         logging.debug('Fetched sequence (%s) from tsdb from %s to %s. The length of sequence is %s.',
                       metric_name, start_time, end_time, len(data))
         return _standardize(data, step=step or self.scrape_interval)
+
+    def delete_metric_data(self,
+                           metric_name: str,
+                           from_timestamp: int = None,
+                           to_timestamp: int = None,
+                           labels: dict = None,
+                           labels_like: dict = None,
+                           flush: bool = False
+                           ):
+        if from_timestamp > to_timestamp:
+            raise ValueError("There is a problem with the start time being greater than the end time.")
+        params = {}
+        if from_timestamp is not None:
+            params['start'] = from_timestamp
+        if to_timestamp is not None:
+            params['end'] = to_timestamp
+        metric_filter_labels = label_to_query(labels, labels_like)
+        filter_condition = metric_filter_labels if metric_filter_labels != '{}' else ''
+        if metric_name is not None:
+            params['match[]'] = "{0}{1}".format(metric_name, filter_condition)
+        # using the query_range API to get raw data
+        response = self._post(
+            "{0}/api/v1/admin/tsdb/delete_series?{1}".format(self.url, urlencode(params)),
+            headers=self.headers,
+        )
+        if response.status_code != 204:
+            raise ApiClientException(
+                "HTTP Status Code {} ({!r})".format(response.status_code, response.content)
+            )
+        logging.debug('Delete sequences (%s) from tsdb from %s to %s.',
+                      metric_name, from_timestamp, to_timestamp)
+        if flush:
+            response = self._post(
+                "{0}/api/v1/admin/tsdb/clean_tombstones".format(self.url),
+                headers=self.headers,
+            )
+            if response.status_code != 204:
+                raise ApiClientException(
+                    "HTTP Status Code {} ({!r})".format(response.status_code, response.content)
+                )
+            logging.debug('TSDB data disk refresh')
 
     def custom_query(self, query: str, timeout=None, params: dict = None):
         """

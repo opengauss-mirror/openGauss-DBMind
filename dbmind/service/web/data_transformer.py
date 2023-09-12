@@ -20,6 +20,7 @@ import math
 import os
 import sys
 import time
+import json
 from collections import defaultdict, Counter
 from itertools import groupby
 
@@ -114,33 +115,40 @@ def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=
 
 
 def get_metric_sequence(metric_name, instance, from_timestamp=None, to_timestamp=None, step=None, fetch_all=False,
-                        regrex=False, labels=None, regrex_labels=None):
-    # notes: 1) this method must ensure that the front-end and back-end time are consistent
-    #        2) this method will return the data of all nodes in the cluster, which is not friendly to some scenarios
+                        regex=False, labels=None, regex_labels=None, min_value=None, max_value=None):
+    # notes: this method must ensure that the front-end and back-end time are consistent
     if to_timestamp is None:
         to_timestamp = int(time.time() * 1000)
     if from_timestamp is None:
         from_timestamp = to_timestamp - 0.5 * 60 * 60 * 1000  # It defaults to show a half of hour.
     from_datetime = datetime.datetime.fromtimestamp(from_timestamp / 1000)
     to_datetime = datetime.datetime.fromtimestamp(to_timestamp / 1000)
-    fetcher = dai.get_metric_sequence(metric_name, from_datetime, to_datetime, step=step)
+    fetcher = dai.get_metric_sequence(metric_name, from_datetime, to_datetime, step=step,
+                                      min_value=min_value, max_value=max_value)
     if instance is None:
         from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
         if from_server_predicate:
             fetcher.from_server_like(from_server_predicate)
     else:
-        if regrex:
-            instance = instance + ':?.*'
+        if regex:
+            instance = instance + '(:[0-9]{4,5}|)'
             fetcher.from_server_like(instance)
         else:
             fetcher.from_server(instance)
 
     if labels is not None:
-        labels = string_to_dict(labels, delimiter=',')
+        try:
+            # Add json method parsing, and compatible with the original key=value method
+            labels = json.loads(labels)
+        except json.decoder.JSONDecodeError:
+            labels = string_to_dict(labels)
         fetcher.filter(**labels)
-    if regrex_labels is not None:
-        regrex_labels = string_to_dict(regrex_labels, delimiter=',')
-        fetcher.filter_like(**regrex_labels)
+    if regex_labels is not None:
+        try:
+            regex_labels = json.loads(regex_labels)
+        except json.decoder.JSONDecodeError:
+            regex_labels = string_to_dict(regex_labels)
+        fetcher.filter_like(**regex_labels)
 
     if fetch_all:
         result = fetcher.fetchall()
@@ -149,32 +157,42 @@ def get_metric_sequence(metric_name, instance, from_timestamp=None, to_timestamp
     return list(map(lambda s: s.jsonify(), result))
 
 
-def get_latest_metric_sequence(metric_name, instance, latest_minutes, step=None, fetch_all=False, regrex=False,
-                               labels=None, regrex_labels=None):
+def get_latest_metric_sequence(metric_name, instance, latest_minutes, step=None, fetch_all=False, regex=False,
+                               labels=None, regex_labels=None, min_value=None, max_value=None):
     # this function can actually be replaced by 'get_metric_sequence', but in order to avoid
     # the hidden problems of that method, we add 'instance', 'fetch_all' and 'labels' to solve it
     # notes: the format of labels is 'key1=val1, key2=val2, key3=val3, ...'
     if latest_minutes is None or latest_minutes <= 0:
         fetcher = dai.get_latest_metric_value(metric_name)
     else:
-        fetcher = dai.get_latest_metric_sequence(metric_name, latest_minutes, step=step)
+        fetcher = dai.get_latest_metric_sequence(metric_name, latest_minutes, step=step, min_value=min_value,
+                                                 max_value=max_value)
     if instance is None:
         from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
         if from_server_predicate:
             fetcher.from_server_like(from_server_predicate)
+    # This logic is mainly to temporarily solve the bug caused by the listen_address assignment problem of cmd exporter
+    elif instance == '0.0.0.0':
+        pass
     else:
-        if regrex:
-            instance = instance + ':?.*'
+        if regex:
+            instance = instance + '(:[0-9]{4,5}|)'
             fetcher.from_server_like(instance)
         else:
             fetcher.from_server(instance)
 
     if labels is not None:
-        labels = string_to_dict(labels, delimiter=',')
+        try:
+            labels = json.loads(labels)
+        except json.decoder.JSONDecodeError:
+            labels = string_to_dict(labels)
         fetcher.filter(**labels)
-    if regrex_labels is not None:
-        regrex_labels = string_to_dict(regrex_labels, delimiter=',')
-        fetcher.filter_like(**regrex_labels)
+    if regex_labels is not None:
+        try:
+            regex_labels = json.loads(regex_labels)
+        except json.decoder.JSONDecodeError:
+            regex_labels = string_to_dict(regex_labels)
+        fetcher.filter_like(**regex_labels)
 
     if fetch_all:
         result = fetcher.fetchall()
@@ -715,30 +733,59 @@ def get_all_agents():
 
 
 def get_history_alarms(pagesize=None, current=None, instance=None, alarm_type=None,
-                       alarm_level=None, group: bool = False):
+                       alarm_level=None, metric_name=None, start_at=None, end_at=None,
+                       anomaly_type=None, group: bool = False):
     if instance is not None:
         instances = [instance]
     else:
         instances = None
     offset = max(0, (current - 1) * pagesize)
     limit = pagesize
+    if alarm_type is not None and getattr(ALARM_TYPES, alarm_type, None) is None:
+        raise ValueError('Invalid value for parameter alarm_type')
+    if alarm_level is not None and getattr(ALARM_LEVEL, alarm_level, None) is None:
+        raise ValueError('Invalid value for parameter alarm_level')
+    else:
+        alarm_level = getattr(ALARM_LEVEL, alarm_level) if alarm_level is not None else alarm_level
     return sqlalchemy_query_union_records_logic(
         query_function=dao.alarms.select_history_alarm,
         instances=instances,
-        offset=offset, limit=limit,
-        alarm_type=alarm_type, alarm_level=alarm_level, group=group
+        alarm_type=alarm_type,
+        alarm_level=alarm_level,
+        metric_name=metric_name,
+        start_at=start_at,
+        end_at=end_at,
+        anomaly_type=anomaly_type,
+        offset=offset,
+        limit=limit,
+        group=group
     )
 
 
-def get_history_alarms_count(instance=None, alarm_type=None, alarm_level=None, group=False):
+def get_history_alarms_count(instance=None, alarm_type=None, alarm_level=None,
+                             metric_name=None, start_at=None, end_at=None,
+                             anomaly_type=None, group=False):
     if instance is not None:
         instances = [instance]
     else:
         instances = None
+    if alarm_type is not None and getattr(ALARM_TYPES, alarm_type, None) is None:
+        raise ValueError('Invalid value for parameter alarm_type')
+    if alarm_level is not None and getattr(ALARM_LEVEL, alarm_level, None) is None:
+        raise ValueError('Invalid value for parameter alarm_level')
+    else:
+        alarm_level = getattr(ALARM_LEVEL, alarm_level) if alarm_level is not None else alarm_level
     return sqlalchemy_query_records_count_logic(
         count_function=dao.alarms.count_history_alarms,
         instances=instances,
-        alarm_type=alarm_type, alarm_level=alarm_level, group=group)
+        alarm_type=alarm_type,
+        alarm_level=alarm_level,
+        metric_name=metric_name,
+        start_at=start_at,
+        end_at=end_at,
+        anomaly_type=anomaly_type,
+        group=group
+    )
 
 
 def get_future_alarms(pagesize=None, current=None, instance=None, metric_name=None, start_at=None, group: bool = False):
@@ -1386,6 +1433,8 @@ def collect_workloads(username, password, data_source, databases, schemas, start
         end_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time()))
     if not schemas:
         schemas = None
+    # convert unit from ms to s
+    duration = duration / 1000
     if data_source == 'pg_stat_activity':
         stmts = collect_statement_from_activity(databases, db_users, sql_types, duration=duration)
     elif data_source == 'dbe_perf.statement_history':
@@ -1442,3 +1491,27 @@ def get_wait_tree(username, password, sessionid):
                  }]
     return [] 
     
+
+def delete_metric_sequence(metric_name, instance, from_timestamp=None,
+                           to_timestamp=None, regex=False, labels=None, regex_labels=None, flush=False):
+    """This function is used to manually clean up the sequence in TSDB"""
+    try:
+        labels = json.loads(labels) if labels is not None else None
+    except json.decoder.JSONDecodeError:
+        labels = string_to_dict(labels)
+    try:
+        regex_labels = json.loads(regex_labels) if regex_labels is not None else None
+    except json.decoder.JSONDecodeError:
+        regex_labels = string_to_dict(regex_labels)
+    if from_timestamp is not None:
+        from_timestamp = from_timestamp // 1000
+    if to_timestamp is not None:
+        to_timestamp = to_timestamp // 1000
+    if instance is not None:
+        if regex:
+            instance = instance + '(:[0-9]{4,5}|)'
+            regex_labels.update({"from_instance": instance})
+        else:
+            labels.update({"from_instance": instance})
+    return dai.delete_metric_sequence(metric_name, from_timestamp, to_timestamp, labels, regex_labels, flush)
+

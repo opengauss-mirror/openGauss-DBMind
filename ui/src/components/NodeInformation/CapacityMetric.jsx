@@ -3,7 +3,7 @@ import { Table,Col, Row, Empty, message } from 'antd';
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
 import ResizeableTitle from '../common/ResizeableTitle';
-import { getServiceCapabilityData } from '../../api/autonomousManagement';
+import { getMetric } from '../../api/autonomousManagement';
 import SystemImg from '../../assets/imgs/System.png';
 import { formatTimestamp, formatTableTitle } from '../../utils/function';
 
@@ -21,6 +21,8 @@ export default class CapacityMetric extends Component {
       echartData:[],
       selValue:this.props.selValue,
       selTimeValue:this.props.selTimeValue,
+      startTime:this.props.startTime,
+      endTime:this.props.endTime
     }
   }
 
@@ -32,11 +34,14 @@ export default class CapacityMetric extends Component {
   async getCapacityMetricData () {
     let param = {
       instance:this.state.selValue,
-      minutes:this.state.selTimeValue,
+      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
       label:'pg_database_size_bytes',
-      fetch:true
+      fetch_all:true,
+      regex:false,
+      from_timestamp:this.state.startTime ? this.state.startTime : null,
+      to_timestamp:this.state.endTime ? this.state.endTime : null
     }
-    const { success, data, msg }= await getServiceCapabilityData(param)
+    const { success, data, msg }= await getMetric(param)
     if (success) {
         let tableHeader = [],historyColumObj = {},res = [],echartData = [],
         header = ['Database','Used Space (MB)']
@@ -47,7 +52,7 @@ export default class CapacityMetric extends Component {
           });
           let echartsitem = {'legend':[{image:'',description:'Usage Space (MB)'}],
           'xAxisData':item.timestamps,
-          'seriesData':[{data:seriesData,description:'Usage Space (MB)',colors:'#5990FD'}],'flg':0,'legendFlg':2,title:'Usage Space (MB)','unit':''}
+          'seriesData':[{data:seriesData,description:'Usage Space (MB)',colors:'#5990FD'}],'flg':0,'legendFlg':2,title:'Usage Space (MB)','unit':'','toolBox':true}
           echartData.push(echartsitem)
           tabledata["Database"] = item.labels.datname
           tabledata["Used Space (MB)"] = (item.values[item.values.length-1]).toFixed(2)
@@ -92,9 +97,9 @@ export default class CapacityMetric extends Component {
     }
     }
     componentDidUpdate(prevProps) {
-      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
+      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
         this.setState(() => ({
-          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
+          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
         }),()=>{
           if(this.props.tabkey === "5"){
             this.getCapacityMetricData()

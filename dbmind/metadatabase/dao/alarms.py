@@ -48,9 +48,8 @@ def get_batch_insert_history_alarms_functions():
     return _Inner()
 
 
-def select_history_alarm(instance=None, alarm_type=None, alarm_level=None, alarm_content=None,
-                         start_at=None,
-                         end_at=None, offset=None, limit=None, group: bool = False):
+def select_history_alarm(instance=None, offset=None, limit=None, group: bool = False,
+                         **alarm_args):
     with get_session() as session:
         if group:
             result = session.query(
@@ -60,37 +59,65 @@ def select_history_alarm(instance=None, alarm_type=None, alarm_level=None, alarm
             )
         else:
             result = session.query(HistoryAlarms)
+
         if instance is not None:
-            if type(instance) in (tuple, list):
+            if isinstance(instance, (tuple, list)):
                 result = result.filter(HistoryAlarms.instance.in_(instance))
             else:
                 result = result.filter(HistoryAlarms.instance == instance)
+
+        metric_name = alarm_args.get("metric_name")
+        if metric_name is not None:
+            result = result.filter(HistoryAlarms.metric_name == metric_name)
+
+        metric_filter = alarm_args.get("metric_filter")
+        if metric_filter is not None:
+            result = result.filter(HistoryAlarms.metric_filter == metric_filter)
+
+        alarm_type = alarm_args.get("alarm_type")
         if alarm_type is not None:
             result = result.filter(HistoryAlarms.alarm_type == alarm_type)
+
+        alarm_level = alarm_args.get("alarm_level")
         if alarm_level is not None:
             result = result.filter(HistoryAlarms.alarm_level == alarm_level)
-        if alarm_content is not None:
-            result = result.filter(HistoryAlarms.alarm_content == alarm_content)
+
+        start_at = alarm_args.get("start_at")
         if start_at is not None:
             result = result.filter(HistoryAlarms.start_at >= start_at)
+
+        end_at = alarm_args.get("end_at")
         if end_at is not None:
             result = result.filter(HistoryAlarms.end_at <= end_at)
+
+        alarm_content = alarm_args.get("alarm_content")
+        if alarm_content is not None:
+            result = result.filter(HistoryAlarms.alarm_content == alarm_content)
+
+        anomaly_type = alarm_args.get("anomaly_type")
+        if anomaly_type is not None:
+            result = result.filter(HistoryAlarms.anomaly_type == anomaly_type)
+
+        alarm_cause = alarm_args.get("alarm_cause")
+        if alarm_cause is not None:
+            result = result.filter(HistoryAlarms.alarm_cause == alarm_cause)
+
         if group:
-            return result.group_by(
-                HistoryAlarms.instance,
-                HistoryAlarms.alarm_content
-            )
+            return result.group_by(HistoryAlarms.instance, HistoryAlarms.alarm_content)
+
         result = result.order_by(desc(HistoryAlarms.start_at))
         if offset is not None:
             result = result.offset(offset)
+
         if limit is not None:
             result = result.limit(limit)
+
         return result
 
 
-def count_history_alarms(instance=None, alarm_type=None, alarm_level=None, group: bool = False):
+def count_history_alarms(instance=None, **alarm_args):
     return select_history_alarm(
-        instance=instance, alarm_type=alarm_type, alarm_level=alarm_level, group=group
+        instance=instance, **alarm_args 
     ).count()
 
 

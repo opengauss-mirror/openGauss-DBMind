@@ -120,7 +120,7 @@ class SpecificDetection:
             "alarm_info": {
                 "alarm_content": "Find obvious spikes in memory usage.",
                 "alarm_type": ALARM_TYPES.SYSTEM,
-                "alarm_level": ALARM_LEVEL.WARNING.name,
+                "alarm_level": ALARM_LEVEL.INFO.name,
             },
             "detector_info": [
                 {
@@ -131,6 +131,14 @@ class SpecificDetection:
                         "outliers": (spike_outliers_1, spike_outliers_2)
                     },
                 },
+                {
+                    "metric_name": "os_mem_usage",
+                    "detector_name": "ThresholdDetector",
+                    "metric_filter": {},
+                    "detector_kwargs": {
+                        "high": mem_usage_threshold,
+                    },
+                },
             ]
         },
         "qps_spike_detector": {
@@ -138,9 +146,9 @@ class SpecificDetection:
             "duration": detection_window_seconds,
             "forecasting_seconds": 0,
             "alarm_info": {
-                "alarm_content": "Find obvious spikes in memory usage.",
+                "alarm_content": "Find obvious spikes in QPS.",
                 "alarm_type": ALARM_TYPES.SYSTEM,
-                "alarm_level": ALARM_LEVEL.WARNING.name,
+                "alarm_level": ALARM_LEVEL.INFO.name,
             },
             "detector_info": [
                 {

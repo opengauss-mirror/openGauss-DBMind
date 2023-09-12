@@ -31,7 +31,7 @@ export default class DBLockingAndCaching extends Component {
       {
         key: '2',
         label: `Cache Information`,
-        children: <CacheInformation ref={(e) => {this.CacheInformationRef = e}} tabkey={this.props.tabkey} tabChildkey={this.state.tabChildkey} selValue={this.props.selValue} selTimeValue={this.props.selTimeValue} />,
+        children: <CacheInformation ref={(e) => {this.CacheInformationRef = e}} tabkey={this.props.tabkey} tabChildkey={this.state.tabChildkey} startTime={this.props.startTime} endTime={this.props.endTime} selValue={this.props.selValue} selTimeValue={this.props.selTimeValue} />,
       }
     ]
     return (

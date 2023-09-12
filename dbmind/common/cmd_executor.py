@@ -327,7 +327,7 @@ class SSH(Executor):
                 self._exit_status.value = chan.recv_exit_status()
                 result_tup = (bytes2text(stdout), bytes2text(stderr))
             else:
-                blocking_fd = kwargs.pop('fd')
+                blocking_fd = kwargs.pop('fd', n_stdout)
 
                 # Some environments miss the path of /path/to/bin and /path/to/sbin,
                 # so we have to attach a common path to the environment PATH.
