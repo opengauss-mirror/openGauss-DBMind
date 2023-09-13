@@ -1,0 +1,125 @@
+,name,category,default,lower_bound,upper_bound,unit,enum_choices
+0,archive_timeout,int,0.0,0.0,120.0,s,1073741823 (1073741823s)
+1,authentication_timeout,int,60.0,1.0,600.0,s,600 (10min)
+2,autovacuum_analyze_scale_factor,float,0.1,0.0,100.0,,100
+3,autovacuum_analyze_threshold,int,50.0,0.0,500.0,,2147483647
+4,autovacuum_naptime,int,60.0,1.0,600.0,s,2147483 (2147483s)
+6,autovacuum_vacuum_scale_factor,float,0.2,0.0,100.0,,100
+7,autovacuum_vacuum_threshold,int,50.0,0.0,1000.0,,2147483647
+8,bgwriter_delay,int,200.0,10.0,2000.0,ms,10000 (10s)
+9,bgwriter_flush_after,int,512.0,0.0,2048.0,kB,256 (2MB)
+10,bgwriter_lru_maxpages,int,100.0,0.0,1000.0,,1073741823
+11,bgwriter_lru_multiplier,float,2.0,0.0,10.0,,10
+12,checkpoint_completion_target,float,0.9,0.0,1.0,,1
+13,checkpoint_flush_after,int,256.0,0.0,2048.0,kB,256 (2MB)
+14,checkpoint_timeout,int,300.0,30.0,3600.0,s,86400 (1d)
+15,checkpoint_warning,int,30.0,0.0,3000.0,s,2147483647 (2147483647s)
+16,commit_siblings,int,5.0,0.0,1000.0,,1000
+17,cpu_index_tuple_cost,float,0.005,0.0,1.0,,1.79769e+308
+18,cpu_operator_cost,float,0.0025,0.0,1.0,,1.79769e+308
+19,cpu_tuple_cost,float,0.01,0.0,1.0,,1.79769e+308
+20,cursor_tuple_fraction,float,0.1,0.0,1.0,,1
+21,default_statistics_target,int,100.0,1.0,1000.0,,10000
+22,effective_cache_size,int,4194304.0,8.0,41943040.0,kB,2147483647 (17179869176kB)
+23,effective_io_concurrency,int,1.0,0.0,1000.0,,1000
+24,extra_float_digits,int,1.0,-15.0,3.0,,3
+25,from_collapse_limit,int,8.0,1.0,800.0,,2147483647
+26,geqo_effort,int,5.0,1.0,10.0,,10
+27,geqo_seed,float,0.0,0.0,1.0,,1
+28,geqo_selection_bias,float,2.0,1.5,2.0,,2
+29,geqo_threshold,int,12.0,2.0,1200.0,,2147483647
+30,gin_pending_list_limit,int,4096.0,64.0,4096000.0,kB,2147483647 (2147483647kB)
+34,join_collapse_limit,int,8.0,1.0,800.0,,2147483647
+35,log_file_mode,int,384.0,0.0,511.0,,511
+37,log_rotation_age,int,1440.0,0.0,144000.0,min,35791394 (35791394min)
+38,log_rotation_size,int,10240.0,0.0,1024000.0,kB,2097151 (2097151kB)
+41,maintenance_work_mem,int,65536.0,1024.0,6553600.0,kB,2147483647 (2147483647kB)
+54,random_page_cost,float,4.0,0.0,400.0,,1.79769e+308
+56,seq_page_cost,float,1.0,0.0,100.0,,1.79769e+308
+57,temp_buffers,int,8192.0,800.0,819200.0,kB,1073741823 (8589934584kB)
+58,vacuum_cost_delay,int,0.0,0.0,100.0,ms,100 (100ms)
+59,vacuum_cost_limit,int,200.0,1.0,2000.0,,10000
+60,vacuum_cost_page_dirty,int,20.0,1.0,10000.0,,10000
+61,vacuum_cost_page_hit,int,1.0,0.0,10000.0,,10000
+62,vacuum_cost_page_miss,int,2.0,0.0,10000.0,,10000
+64,vacuum_freeze_min_age,int,50000000.0,0.0,500000000.0,,1000000000
+65,vacuum_freeze_table_age,int,150000000.0,0.0,1500000000.0,,2000000000
+70,wal_receiver_status_interval,int,10.0,0.0,1000.0,s,2147483 (2147483s)
+71,wal_receiver_timeout,int,60000.0,0.0,6000000.0,ms,2147483647 (2147483647ms)
+73,wal_sender_timeout,int,60000.0,0.0,6000000.0,ms,2147483647 (2147483647ms)
+75,wal_writer_delay,int,200.0,1.0,10000.0,ms,10000 (10s)
+77,work_mem,int,4096.0,64.0,4096000.0,kB,2147483647 (2147483647kB)
+78,array_nulls,enum,on,0.0,2.0,,"[off, on]"
+79,autovacuum,enum,on,0.0,2.0,,"[off, on]"
+80,backslash_quote,enum,safe_encoding,0.0,3.0,,"[safe_encoding, on, off]"
+81,bytea_output,enum,hex,0.0,2.0,,"[escape, hex]"
+82,check_function_bodies,enum,on,0.0,2.0,,"[off, on]"
+83,client_min_messages,enum,notice,0.0,9.0,,"[debug5, debug4, debug3, debug2, debug1, log, notice, warning, error]"
+84,constraint_exclusion,enum,partition,0.0,3.0,,"[partition, on, off]"
+86,debug_pretty_print,enum,on,0.0,2.0,,"[off, on]"
+87,debug_print_parse,enum,off,0.0,2.0,,"[off, on]"
+88,debug_print_plan,enum,off,0.0,2.0,,"[off, on]"
+89,debug_print_rewritten,enum,off,0.0,2.0,,"[off, on]"
+91,default_transaction_deferrable,enum,off,0.0,2.0,,"[off, on]"
+92,default_transaction_isolation,enum,read committed,0.0,4.0,,"['serializable', 'repeatable read', 'read committed','read uncommitted']"
+93,default_transaction_read_only,enum,off,0.0,2.0,,"[off, on]"
+95,enable_bitmapscan,enum,on,0.0,2.0,,"[off, on]"
+97,enable_hashagg,enum,on,0.0,2.0,,"[off, on]"
+98,enable_hashjoin,enum,on,0.0,2.0,,"[off, on]"
+100,enable_indexonlyscan,enum,on,0.0,2.0,,"[off, on]"
+101,enable_indexscan,enum,on,0.0,2.0,,"[off, on]"
+102,enable_material,enum,on,0.0,2.0,,"[off, on]"
+104,enable_mergejoin,enum,on,0.0,2.0,,"[off, on]"
+105,enable_nestloop,enum,on,0.0,2.0,,"[off, on]"
+111,enable_seqscan,enum,on,0.0,2.0,,"[off, on]"
+112,enable_sort,enum,on,0.0,2.0,,"[off, on]"
+113,enable_tidscan,enum,on,0.0,2.0,,"[off, on]"
+114,escape_string_warning,enum,on,0.0,2.0,,"[off, on]"
+115,exit_on_error,enum,off,0.0,2.0,,"[off, on]"
+117,fsync,enum,on,0.0,2.0,,"[off, on]"
+118,full_page_writes,enum,on,0.0,2.0,,"[off, on]"
+119,geqo,enum,on,0.0,2.0,,"[off, on]"
+120,hot_standby_feedback,enum,off,0.0,2.0,,"[off, on]"
+121,ignore_system_indexes,enum,off,0.0,2.0,,"[off, on]"
+122,IntervalStyle,enum,postgres,0.0,4.0,,"[postgres, postgres_verbose, sql_standard, iso_8601]"
+126,krb_caseins_users,enum,off,0.0,2.0,,"[off, on]"
+127,log_checkpoints,enum,on,0.0,2.0,,"[off, on]"
+128,log_hostname,enum,off,0.0,2.0,,"[off, on]"
+130,log_truncate_on_rotation,enum,off,0.0,2.0,,"[off, on]"
+133,plan_cache_mode,enum,auto,0.0,3.0,,"[auto, force_generic_plan, force_custom_plan]"
+134,quote_all_identifiers,enum,off,0.0,2.0,,"[off, on]"
+138,restart_after_crash,enum,on,0.0,2.0,,"[off, on]"
+140,ssl,enum,off,0.0,1.0,,[off]
+145,standard_conforming_strings,enum,on,0.0,2.0,,"[off, on]"
+147,synchronize_seqscans,enum,on,0.0,2.0,,"[off, on]"
+148,synchronous_commit,enum,on,0.0,5.0,,"[local, remote_write, remote_apply, on, off]"
+149,syslog_facility,enum,local0,0.0,8.0,,"[local0, local1, local2, local3, local4, local5, local6, local7]"
+152,trace_notify,enum,off,0.0,2.0,,"[off, on]"
+153,trace_recovery_messages,enum,log,0.0,9.0,,"[debug5, debug4, debug3, debug2, debug1, log, notice, warning, error]"
+154,trace_sort,enum,off,0.0,2.0,,"[off, on]"
+155,transaction_deferrable,enum,off,0.0,2.0,,"[off, on]"
+157,transaction_read_only,enum,off,0.0,2.0,,"[off, on]"
+158,transform_null_equals,enum,off,0.0,2.0,,"[off, on]"
+160,wal_sync_method,enum,fdatasync,0.0,4.0,,"[fsync, fdatasync, open_sync, open_datasync]"
+161,xmlbinary,enum,base64,0.0,2.0,,"[base64, hex]"
+162,xmloption,enum,content,0.0,2.0,,"[content, document]"
+163,autovacuum_freeze_max_age,int,200000000,100000.0,2000000000.0,,
+164,autovacuum_max_workers,int,3,1.0,10000.0,,
+166,autovacuum_vacuum_cost_delay,int,2,-1.0,100.0,,
+167,autovacuum_vacuum_cost_limit,int,-1,-1.0,10000.0,,
+170,backend_flush_after,int,0,0.0,256.0,,
+171,commit_delay,int,0,0.0,4096.0,,
+172,data_sync_retry,enum,off,0.0,2.0,,"['on', 'off']"
+173,deadlock_timeout,int,1000,1.0,5000.0,,
+174,geqo_generations,int,0,0.0,1000.0,,
+175,geqo_pool_size,int,0,0.0,1000.0,,
+179,max_connections,int,100,5.0,10000.0,,
+180,max_files_per_process,int,1000,64.0,50000.0,,
+181,max_locks_per_transaction,int,64,10.0,1024.0,,
+183,max_pred_locks_per_transaction,int,64,10.0,150.0,,
+184,max_prepared_transactions,int,0,0.0,1024.0,,
+185,max_stack_depth,int,100,100.0,7680.0,,
+188,shared_buffers,int,1024,16.0,300000.0,,
+189,temp_file_limit,int,-1,-1.0,100000.0,,
+190,wal_buffers,int,-1,-1.0,20000.0,,
+193,wal_log_hints,enum,off,0.0,2.0,,"['on', 'off']"
