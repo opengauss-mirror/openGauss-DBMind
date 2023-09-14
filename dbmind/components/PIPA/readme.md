@@ -1,9 +1,7 @@
 # PIPA
-
 Probing-Injecting Poisoning Attack Against Learning-based Index Advisors
 
 ### Code structure
-
 .  
 ├── base_config.json　　　　　　　　　　　　　　　　　　　# Experimental configuration file  
 ├── main.py　　　　　　　　　　　　　　　　　　　　　　　# Main process file  

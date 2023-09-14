@@ -1,0 +1,6 @@
+l_orderkey,l_partkey,l_suppkey,l_linenumber,l_quantity,l_extendedprice,l_discount,l_tax,l_returnflag,l_linestatus,l_shipdate,l_commitdate,l_receiptdate,l_shipinstruct,l_shipmode,l_comment
+3303943,102798,2799,2,43.00,77433.97,0.03,0.04,N,O,1995-08-27,1995-07-29,1995-09-08,DELIVER IN PERSON        ,FOB       ,ing deposits. carefully express frays
+4998817,157667,2698,1,25.00,43116.50,0.08,0.00,N,O,1997-02-13,1997-01-16,1997-02-27,DELIVER IN PERSON        ,AIR       ,"ven, pending deposits"
+4721607,41221,3726,1,42.00,48813.24,0.06,0.07,R,F,1995-03-31,1995-03-07,1995-04-02,NONE                     ,FOB       ,y. slyly express ideas haggle fluffily
+219875,37697,5207,1,47.00,76830.43,0.04,0.01,N,O,1996-02-26,1996-03-02,1996-03-13,COLLECT COD              ,RAIL      ,permanent requ
+5690882,8895,6396,1,29.00,52312.81,0.06,0.02,R,F,1993-07-08,1993-06-01,1993-07-25,TAKE BACK RETURN         ,RAIL      ,arefully express requests. regular fr

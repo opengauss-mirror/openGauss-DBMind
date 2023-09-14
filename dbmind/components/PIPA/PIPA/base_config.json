@@ -1,0 +1,311 @@
+{
+  "experiments_id": "001_suboptimal_cikm2020_tpch1gb",
+  "experiments_root": "absolute path of experiment",
+  "victim_model": "CIKM_2020",
+  "dataset": "tpch_1gb",
+  "result_path": "./result",
+  "logging_path": "result",
+  "attack_method": "suboptimal",
+  "poison_percentage": 1,
+  "psql_connect": {
+    "pg_ip": "your ip",
+    "pg_port": "your port",
+    "pg_user": "username",
+    "pg_password": "password"
+  },
+  "CIKM_2020": {
+    "gen_new": "True",
+    "model": {
+      "base": "2020CIKM",
+      "algorithm": [
+        {
+          "constraint": "index_number",
+          "parameters": {
+            "LR": 0.02,
+            "EPISILO": 0.97,
+            "Q_ITERATION": 200,
+            "U_ITERATION": 10,
+            "BATCH_SIZE": 64,
+            "GAMMA": 0.95,
+            "EPISODES": 400,
+            "LEARNING_START": 150,
+            "MEMORY_CAPACITY": 20000,
+            "number": 1
+          },
+          "is_dnn": "False",
+          "is_ps": "True",
+          "is_double": "True"
+        }
+      ]
+    },
+    "probing": {
+      "epoches": 200,
+      "learning_start": 100,
+      "lr": 0.1,
+      "probing_num": 20,
+      "reward_lr": 100
+    },
+    "generate_wl": {
+      "work_dir": "{experiment_path}/victim_models/CIKM_2020/tpch-kit/dbgen",
+      "w_size": "18"
+    }
+  },
+  "ICDE_2020": {
+    "gen_new": "True",
+    "model": {
+      "base": "2020ICDE",
+      "algorithm": [
+        {
+          "constraint": "index_number",
+          "parameters": {
+            "LR": 4e-05,
+            "EPISILO": 0.95,
+            "Q_ITERATION": 200,
+            "U_ITERATION": 10,
+            "BATCH_SIZE": 64,
+            "GAMMA": 0.95,
+            "EPISODES": 500,
+            "LEARNING_START": 150,
+            "MEMORY_CAPACITY": 20000,
+            "number": 1
+          },
+          "is_dnn": "False",
+          "is_ps": "True",
+          "is_double": "True"
+        }
+      ]
+    },
+    "probing": {
+      "epoches": 200,
+      "learning_start": 100,
+      "lr": 0.02,
+      "probing_num": 1,
+      "reward_lr": 100
+    },
+    "generate_wl": {
+      "work_dir": "{experiment_path}/victim_models/CIKM_2020/tpch-kit/dbgen",
+      "w_size": "14"
+    }
+  },
+  "ICDE_2021": {
+    "gen_new": "True",
+    "model": {
+      "base": "2021ICDE",
+      "algorithm": [
+        {
+          "constraint": "storage_cost",
+          "parameters": {
+            "number": 1,
+            "others": "please see ICDE_2021/shared/configs_v2"
+          },
+          "is_dnn": "False",
+          "is_ps": "True",
+          "is_double": "True"
+        }
+      ]
+    },
+    "probing": {
+      "epoches": 200,
+      "learning_start": 100,
+      "lr": 0.01,
+      "probing_num": 50,
+      "reward_lr": 100
+    },
+    "generate_wl": {
+      "work_dir": "{experiment_path}/victim_models/CIKM_2020/tpch-kit/dbgen",
+      "w_size": "14"
+    }
+  },
+  "SWIRL_2022": {
+    "model": [
+      {
+        "id": "TPCH_Test_Experiment_1",
+        "description": "Just a TPCH Test Experiment",
+        "gym_version": 1,
+        "timesteps": 50000,
+        "random_seed": 60,
+        "parallel_environments": 1,
+        "pickle_cost_estimation_caches": false,
+        "action_manager": "MultiColumnIndexActionManager",
+        "observation_manager": "SingleColumnIndexObservationManager",
+        "reward_calculator": "RelativeDifferenceRelativeToStorageReward",
+        "max_steps_per_episode": 200,
+        "validation_frequency": 4000,
+        "filter_utilized_columns": false,
+        "max_index_width": 3,
+        "reenable_indexes": true,
+        "result_path": "result",
+        "workload_embedder": {
+          "type": "PlanEmbedderLSIBOW",
+          "representation_size": 50
+        },
+        "rl_algorithm": {
+          "algorithm": "PPO2",
+          "stable_baselines_version": 2,
+          "gamma": 0.5,
+          "policy": "MlpPolicy",
+          "model_architecture": {
+            "net_arch": [
+              {
+                "vf": [
+                  256,
+                  256
+                ],
+                "pi": [
+                  256,
+                  256
+                ]
+              }
+            ]
+          },
+          "args": {
+            "n_steps": 64
+          }
+        },
+        "workload": {
+          "benchmark": "TPCH",
+          "scale_factor": 10,
+          "size": 19,
+          "varying_frequencies": true,
+          "training_instances": 5000,
+          "validation_testing": {
+            "number_of_workloads": 5,
+            "unknown_query_probabilities": [
+              0
+            ]
+          },
+          "similar_workloads": false,
+          "excluded_query_classes": [
+            2,
+            17,
+            20
+          ],
+          "unknown_queries": 0
+        },
+        "comparison_algorithms": [
+          "db2advis"
+        ],
+        "budgets": {
+          "training": false,
+          "validation_and_testing": [
+            500,
+            1000,
+            1500,
+            2500,
+            3500,
+            5000,
+            6500,
+            8000,
+            10000
+          ]
+        },
+        "column_filters": {
+          "TableNumRowsFilter": 10000
+        }
+      },
+      {
+        "id": "TPCDS_Test_Experiment",
+        "description": "Just a TPCDS Test Experiment",
+        "gym_version": 1,
+        "timesteps": 100000,
+        "random_seed": 60,
+        "parallel_environments": 16,
+        "pickle_cost_estimation_caches": false,
+        "action_manager": "MultiColumnIndexActionManager",
+        "observation_manager": "SingleColumnIndexPlanEmbeddingObservationManagerWithCost",
+        "reward_calculator": "RelativeDifferenceRelativeToStorageReward",
+        "max_steps_per_episode": 200,
+        "validation_frequency": 4000,
+        "filter_utilized_columns": false,
+        "max_index_width": 3,
+        "result_path": "experiment_results",
+        "reenable_indexes": false,
+        "workload_embedder": {
+          "type": "PlanEmbedderLSIBOW",
+          "representation_size": 50
+        },
+        "rl_algorithm": {
+          "algorithm": "PPO2",
+          "stable_baselines_version": 2,
+          "gamma": 0.5,
+          "policy": "MlpPolicy",
+          "model_architecture": {
+            "net_arch": [
+              {
+                "vf": [
+                  256,
+                  256
+                ],
+                "pi": [
+                  256,
+                  256
+                ]
+              }
+            ]
+          },
+          "args": {
+            "n_steps": 64
+          }
+        },
+        "workload": {
+          "benchmark": "TPCDS",
+          "scale_factor": 10,
+          "size": 50,
+          "varying_frequencies": true,
+          "training_instances": 4000,
+          "validation_testing": {
+            "number_of_workloads": 10,
+            "unknown_query_probabilities": [
+              0.2
+            ]
+          },
+          "similar_workloads": true,
+          "query_class_change_frequency": 3,
+          "excluded_query_classes": [
+            4,
+            6,
+            9,
+            10,
+            11,
+            32,
+            35,
+            41,
+            95
+          ],
+          "unknown_queries": 14
+        },
+        "comparison_algorithms": [
+          "db2advis"
+        ],
+        "budgets": {
+          "training": false,
+          "validation_and_testing": [
+            500,
+            1000,
+            1500,
+            2500,
+            3500,
+            5000,
+            6500,
+            8000,
+            10000,
+            12500
+          ]
+        },
+        "column_filters": {
+          "TableNumRowsFilter": 10000
+        }
+      }
+    ],
+    "probing": {
+      "epoches": 200,
+      "learning_start": 100,
+      "lr": 0.02,
+      "probing_num": 1
+    },
+    "generate_wl": {
+      "work_dir": "{experiment_path}/victim_models/CIKM_2020/tpch-kit/dbgen",
+      "w_size": "18"
+    }
+  }
+}
