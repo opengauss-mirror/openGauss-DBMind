@@ -9,7 +9,6 @@ export default class DBMemory extends Component {
     constructor(props) {
         super(props)
         this.state = {
-
             primitiveDataAll: [],
             serviceAllData: [],
             vectorKey: ''
@@ -18,7 +17,6 @@ export default class DBMemory extends Component {
 
     compare(property) {
         return function (a, b) {
-
             var value1 = a.labels[property];
             var value2 = b.labels[property];
             return value1 - value2;
@@ -27,7 +25,7 @@ export default class DBMemory extends Component {
     getdbMemory(data) {
         let result = []
         Object.keys(data).forEach(item => {
-            result.push(data[item])
+            result.push(data[item] ?? [])
         })
         if (result[0]) {
             let newResult = [], xDataArray = [[], [], [], [], [], [], []], yDataArray = [[], [], [], [], [], [], []]

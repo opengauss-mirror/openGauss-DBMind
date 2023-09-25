@@ -31,8 +31,8 @@ export default class DBCapacityMetric extends Component {
         },
     };
 
-    async getdbCapacity(data) {
-        let result = data.pg_database_size_bytes;
+    getdbCapacity(data) {
+        let result = data.pg_database_size_bytes ?? [];
         if (result[0]) {
             let tableHeader = [], historyColumObj = {}, res = [], echartData = [],
                 header = ['Database', 'Used Space (MB)']

@@ -20,15 +20,12 @@ export default class SystemMemory extends Component {
 
   getMemoryData(data) {
     let result = [];
-    // Object.keys(data).forEach(item => {
-    //   result.push(data[item])
-    // })
     result.push(
-      data["node_memory_MemTotal_bytes"],
-      data["os_mem_usage"],
-      data["node_memory_MemAvailable_bytes"],
-      data["node_memory_Buffers_bytes"],
-      data["node_memory_Cached_bytes"]
+      data["node_memory_MemTotal_bytes"] ?? [],
+      data["os_mem_usage"] ?? [],
+      data["node_memory_MemAvailable_bytes"] ?? [],
+      data["node_memory_Buffers_bytes"] ?? [],
+      data["node_memory_Cached_bytes"] ?? []
     );
     if (result[0]) {
       let totalLeft = [],

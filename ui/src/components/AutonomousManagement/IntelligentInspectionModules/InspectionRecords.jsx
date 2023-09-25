@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Card, Table, Modal, message } from "antd";
+import { Card, Table, Modal, message, Spin } from "antd";
 import ResizeableTitle from "../../common/ResizeableTitle";
 import Over from "../../../assets/imgs/over.png";
 import Failure from "../../../assets/imgs/failure.png";
@@ -8,7 +8,7 @@ import Export from "../../../assets/imgs/Export.png";
 import Refresh from "../../../assets/imgs/Refresh.png";
 
 import { ExclamationCircleFilled } from "@ant-design/icons";
-import { formatTableTitleToUpper } from "../../../utils/function";
+import { formatTableTitleToUpper, formatTimestamp } from "../../../utils/function";
 import {
   deleteTask,
   getRealtimeInspectionList,
@@ -102,6 +102,9 @@ export default class InspectionRecords extends Component {
       let tabledata = {};
       for (let i = 0; i < header.length; i++) {
         tabledata[header[i]] = item[i];
+        if (header[i] && (header[i] === 'start' || header[i] === 'end')) {
+          tabledata[header[i]] = formatTimestamp(item[i] + '')
+        }
       }
       tabledata["key"] = index + "";
       res.push(tabledata);
@@ -114,8 +117,8 @@ export default class InspectionRecords extends Component {
   async getRealtimeInspectionList() {
     const { success, data, msg } = await getRealtimeInspectionList();
     if (success) {
-      this.setState({ isShowRecord: true });
       this.handleTableData(data.header, data.rows);
+      this.setState({ isShowRecord: true });
     } else {
       message.error(msg);
     }
@@ -124,13 +127,13 @@ export default class InspectionRecords extends Component {
   onSelectChange(selectedRowKeys, selectRows) {
     this.setState({
       recordselectedRowKeys: selectedRowKeys,
-      selectRows: selectRows
+      selectRows: selectRows,
     });
   }
   clearSelect() {
     this.setState({
-      recordselectedRowKeys: []
-    })
+      recordselectedRowKeys: [],
+    });
   }
   refresh() {
     this.getRealtimeInspectionList();
@@ -139,7 +142,7 @@ export default class InspectionRecords extends Component {
   clickRow(event, record) {
     this.setState({
       downloadData: record,
-    })
+    });
   }
   deleteBtn() {
     confirm({
@@ -157,19 +160,17 @@ export default class InspectionRecords extends Component {
   }
   // 删除报告
   async confirm() {
-    let idMap = []
-    this.state.selectRows.forEach(item => {
-      idMap.push(item.id)
-    })
-    const { success, data, msg } = await deleteTask(
-      idMap.toString()
-    );
+    let idMap = [];
+    this.state.selectRows.forEach((item) => {
+      idMap.push(item.id);
+    });
+    const { success, data, msg } = await deleteTask(idMap.toString());
     if (success) {
       message.success("DELETE SUCCESS");
       this.getRealtimeInspectionList();
       this.setState({
-        recordselectedRowKeys: []
-      })
+        recordselectedRowKeys: [],
+      });
     } else {
       message.error(msg);
     }
@@ -219,7 +220,6 @@ export default class InspectionRecords extends Component {
               dataSource={this.state.dataSource}
               size="small"
               rowKey={(record) => record.key}
-              pagination={false}
               onRow={(record) => ({
                 onClick: (event) => this.clickRow(event, record), // 点击行
               })}
@@ -228,7 +228,7 @@ export default class InspectionRecords extends Component {
             />
           </Card>
         ) : (
-          ""
+          <div style={{ textAlign: 'center' }}><Spin style={{ margin: 'auto' }} /> </div>
         )}
       </div>
     );

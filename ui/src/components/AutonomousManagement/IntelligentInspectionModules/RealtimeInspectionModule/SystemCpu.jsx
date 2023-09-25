@@ -18,7 +18,6 @@ export default class SystemCpu extends Component {
 
     getSystemCpu(data) {
         if (data) {
-
             let data1 = {
                 "legend": [{ image: "", description: "System" }],
                 "xAxisData": data['os_cpu_idle_usage'] ? data['os_cpu_idle_usage'][0].timestamps : [],

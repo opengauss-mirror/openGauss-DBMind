@@ -29,8 +29,10 @@ import SlowQueryTable from "./SlowQueryAnalysisModules/SlowQueryTable";
 import TableofSlowQueryTable from "./SlowQueryAnalysisModules/TableofSlowQueryTable";
 import KilledSlowQueryTable from "./SlowQueryAnalysisModules/KilledSlowQuery";
 import StatisticsForDatabaseChart from "./SlowQueryAnalysisModules/StatisticsForDatabaseChart";
-import main from "../../assets/imgs/main.png";
-import nb from "../../assets/imgs/nb.png";
+import Main from "../../assets/imgs/main.png";
+import Nb from "../../assets/imgs/nb.png";
+import Threshold from "../../assets/imgs/threshold.png";
+import { formatTableTitleToUpper } from "../../utils/function"
 import {
   getSlowQueryAnalysisInterface,
   getSlowQueryRecentCount,
@@ -280,11 +282,12 @@ export default class SlowQueryAnalysis extends Component {
             ) {
               let obj = {
                 name:
-                  key === "slow_query_threshold"
+                  formatTableTitleToUpper(key === "slow_query_threshold"
                     ? key.replace(/_/g, " ") + "    (ms)"
-                    : key.replace(/_/g, " "),
+                    : key.replace(/_/g, " ")),
                 num: data[key],
                 img: iconimg[Math.ceil(Math.random() * 5)],
+                pic: key === "slow_query_threshold" ? Threshold : (key === "main_slow_queries" ? Main : Nb)
               };
               toplistArr.push(obj);
             }
@@ -362,46 +365,22 @@ export default class SlowQueryAnalysis extends Component {
                   >
                     <div className="leftGrid" style={{ width: "80%" }}>
                       <Row gutter={10} className="mb-10">
-                        <Col className="gutter-row cardName" span={8}>
-                          <Card
-                            title="Main Slow Queries"
-                            style={{ height: 100 }}
-                            extra={<img src={main} alt=""></img>}
-                          >
-                            <span style={{ padding: "0" }}>
-                              {this.state.topList.length !== 0
-                                ? this.state.topList[0].num
-                                : 0}
-                            </span>
-                          </Card>
-                        </Col>
-                        <Col className="gutter-row cardName" span={8}>
-                          <Card
-                            title="Nb Unique Slow Queries"
-                            style={{ height: 100 }}
-                            extra={<img src={nb} alt=""></img>}
-                          >
-                            <span style={{ padding: "0" }}>
-                              {this.state.topList.length !== 0
-                                ? this.state.topList[1].num
-                                : 0}
-                            </span>
-                          </Card>
-                        </Col>
-                        <Col className="gutter-row cardName" span={8}>
-                          <Card
-                            title="Slow Query Threshold(ms)"
-                            style={{ height: 100 }}
-                            extra={<img src={nb} alt=""></img>}
-                          >
-                            {/* this.state.topList[2].num */}
-                            <span style={{ padding: "0" }}>
-                              {this.state.topList.length !== 0
-                                ? this.state.topList[2].num
-                                : 0}
-                            </span>
-                          </Card>
-                        </Col>
+                        {this.state.topList.length !== 0 ? this.state.topList.map((item, index) => {
+                          return (
+                            <Col className="gutter-row cardName" span={8}>
+                              <Card
+                                title={item.name}
+                                style={{ height: 100 }}
+                                extra={<img src={item.pic} alt=""></img>}
+                              >
+                                <span style={{ padding: "0" }}>
+                                  {item.num}
+                                </span>
+                              </Card>
+                            </Col>
+                          )
+                        }) : ''
+                        }
                       </Row>
                       <Row gutter={10}>
                         <Col className="gutter-row" span={9}>

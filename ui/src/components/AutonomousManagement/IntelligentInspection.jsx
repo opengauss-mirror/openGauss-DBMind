@@ -11,8 +11,7 @@ export default class IntelligentInspection extends Component {
     this.state = {
       showDetails: false,
       inspectionMode: {},
-      isShowBtn: false,
-      noShow: false
+      isShowBtn: false
     };
   }
   getData = (data, e, i) => {

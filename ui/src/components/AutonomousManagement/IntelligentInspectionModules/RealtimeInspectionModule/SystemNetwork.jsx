@@ -25,16 +25,14 @@ export default class SystemIO extends Component {
 
     compare(property) {
         return function (a, b) {
-
             var value1 = a.labels[property];
             var value2 = b.labels[property];
             return value1 - value2;
         }
     }
     getNetworkData(data) {
-        let result = []
-
-        result.push(data['os_network_receive_bytes'], data['os_network_transmit_bytes'], data['os_network_receive_drop'], data['os_network_transmit_drop'], data['os_network_receive_error'], data['os_network_transmit_error'])
+        let result = [];
+        result.push(data['os_network_receive_bytes'] ?? [], data['os_network_transmit_bytes'] ?? [], data['os_network_receive_drop'] ?? [], data['os_network_transmit_drop'] ?? [], data['os_network_receive_error'] ?? [], data['os_network_transmit_error'] ?? [])
         if (result[0]) {
             result.forEach((item, index) => {
                 item.sort(this.compare('device'))
@@ -69,7 +67,6 @@ export default class SystemIO extends Component {
 
     UNSAFE_componentWillReceiveProps(nextProps) {
         this.getNetworkData(nextProps.systemNetwork)
-
     }
 
     onChange = (key) => {
