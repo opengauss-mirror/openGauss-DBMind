@@ -30,6 +30,7 @@ latest_version = 'v1'
 api_prefix = '/%s/api' % latest_version
 
 
+
 class DBMindOauth2(OAuth2):
     token_url = '/api/token'
 
@@ -98,7 +99,6 @@ class DBMindOauth2(OAuth2):
 
 
 oauth2 = DBMindOauth2.get_dbmind_oauth_instance()
-
 
 @request_mapping('/api/list/agent', methods=['GET'], api=True)
 @request_mapping(api_prefix + '/agent/list', methods=['GET'], api=True)
@@ -512,7 +512,8 @@ def get_log_information():
 @standardized_api_output
 def advise_indexes(pagesize: int, current: int, instance: str, database: str,
                    max_index_num: int, max_index_storage: int, sqls: list):
-    return data_transformer.toolkit_index_advise(current, pagesize, instance, database, sqls, max_index_num,
+    username, password = oauth2.credential
+    return data_transformer.toolkit_index_advise(username, password, current, pagesize, instance, database, sqls, max_index_num,
                                                  max_index_storage)
 
 
@@ -542,7 +543,8 @@ def tune_query(database: str, sql: str,
                use_rewrite: bool = True,
                use_hinter: bool = True,
                use_materialized: bool = True):
-    return data_transformer.toolkit_rewrite_sql(instance, database, sql)
+    username, password = oauth2.credential
+    return data_transformer.toolkit_rewrite_sql(username, password, instance, database, sql)
 
 
 class UpdateDynamicConfig(BaseModel):
@@ -642,7 +644,8 @@ class SlowSQLItem(BaseModel):
 @standardized_api_output
 def diagnosis_slow_sql(item: SlowSQLItem):
     params = dict(item)
-    return data_transformer.toolkit_slow_sql_rca(**params)
+    username, password = oauth2.credential
+    return data_transformer.toolkit_slow_sql_rca(username, password, **params)
 
 
 @request_mapping('/api/summary/regular_inspections', methods=['GET'], api=True)

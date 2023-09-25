@@ -1052,24 +1052,18 @@ def check_credential(username, password, scopes=None):
     return rpc.handshake(username, password, receive_exception=True)
 
 
-def toolkit_index_advise(current, pagesize, instance, database, sqls, max_index_num, max_index_storage):
-    with global_vars.agent_proxy.context(instance):
+def toolkit_index_advise(username, password, current, pagesize, instance, database, sqls, max_index_num, max_index_storage):
+    database_schemas = get_database_schemas()
+    with global_vars.agent_proxy.context(instance, username, password):
         result = sqlparse.split(sqls[0])
-        database_schemas = get_database_schemas()
         schema_names = []
         if instance in database_schemas and database in database_schemas[instance]:
             schema_names = database_schemas[instance][database]
-
+        
         database_templates = dict()
         get_workload_template(database_templates, result, TemplateArgs(10, 5000))
         executor = RpcExecutor(database, None, None, None, None, schema_names)
-        executor2 = RpcExecutor(database, None, None, None, None, schema_names)
 
-        def execute_sqls(sqls):
-            with global_vars.agent_proxy.context(instance):
-                return executor2.execute_sqls(sqls)
-
-        executor.execute_sqls = execute_sqls
         detail_info = rpc_index_advise(executor, database_templates, max_index_num, max_index_storage)
         if detail_info is None:
             return []
@@ -1127,15 +1121,17 @@ def pagination(data, page, size):
         return result
 
 
-def toolkit_rewrite_sql(instance, database, sqls):
-    with global_vars.agent_proxy.context(instance):
+def toolkit_rewrite_sql(username, password, instance, database, sqls):
+    with global_vars.agent_proxy.context(instance, username, password):
         return rewrite_sql_api(database, sqls)
 
 
-def toolkit_slow_sql_rca(**params):
-    query = params.pop('query')
-    db_name = params.pop('db_name')
-    return analyze_slow_query_with_rpc(query, db_name, **params)
+def toolkit_slow_sql_rca(username, password, **params):
+    instance = global_vars.agent_proxy.current_agent_addr()
+    with global_vars.agent_proxy.context(instance, username, password):
+        query = params.pop('query')
+        db_name = params.pop('db_name')
+        return analyze_slow_query_with_rpc(query, db_name, **params)
 
 
 def toolkit_get_query_plan(**params):
@@ -1177,7 +1173,7 @@ def get_regular_inspections_count(inspection_type):
 
 
 def exec_real_time_inspections(inspection_type, start_time, end_time, select_metrics):
-    if inspection_type not in ('daily_check', 'weekly_check', 'monthly_check', 'real_time_check'):
+    if inspection_type not in ('real_time_check_daily', 'real_time_check_weekly', 'real_time_check_monthly', 'real_time_check'):
         raise ValueError('Incorrect value for parameter inspection_type: {}.'.format(inspection_type))
     if not (isinstance(start_time, str) and start_time.isnumeric() and len(start_time) == 13):
         raise ValueError('Incorrect value for parameter start_time: {}.'.format(start_time))
@@ -1186,7 +1182,7 @@ def exec_real_time_inspections(inspection_type, start_time, end_time, select_met
     start_time = datetime.datetime.fromtimestamp(int(start_time)/1000)
     end_time = datetime.datetime.fromtimestamp(int(end_time)/1000)
     cur_instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
-    inspect_state = regular_inspection.real_time_inspection(cur_instance, start_time, end_time, select_metrics)
+    inspect_state = regular_inspection.real_time_inspection(inspection_type, cur_instance, start_time, end_time, select_metrics)
     return {'success': True if inspect_state == 'success' else False}
 
 
