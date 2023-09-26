@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
-import { Empty, Row, Col, message } from 'antd';
+import { Empty, Row, Col } from 'antd';
 import ReactEcharts from 'echarts-for-react';
-import { formatTimestamp } from '../../utils/function';
+import { commonMetricMethod } from '../../utils/function';
 import { getConnection } from '../../api/overview';
 import db from '../../utils/storage';
 
@@ -13,9 +13,12 @@ export default class ConnectionCharts extends Component {
       legendData:[],
       maxData:0,
       minData:0,
+      param: {
+        instance:db.ss.get('Instance_value')
+      },
+      metricData:['gaussdb_total_connection','gaussdb_active_connection']
     }
   }
-  
   getOption = (flg) => {
     return {
       grid:{
@@ -79,34 +82,10 @@ export default class ConnectionCharts extends Component {
       ],
     }
   }
-  async getConnection1 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'gaussdb_total_connection'
-    }
-    const { success, data, msg }= await getConnection(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getConnection2 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'gaussdb_active_connection'
-    }
-    const { success, data, msg }= await getConnection(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
   getConnectionAll(){
     Promise.all([
-      this.getConnection1(),
-      this.getConnection2()
+      commonMetricMethod(this.state.param,{label:this.state.metricData[0]},getConnection),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[1]},getConnection)
     ]).then((result)=>{
       if(result[0]){
         let data = [result[0],result[1]]
@@ -133,28 +112,22 @@ export default class ConnectionCharts extends Component {
       <div >
         {this.state.ifShow ?
                   <Row>
-                  <Col className="gutter-row" span={12}>
-                  <ReactEcharts
-                    ref={(e) => {
-                      this.echartsElement = e
-                    }}
-                    option={this.getOption('one')}
-                    style={{ width: '100%', height: 90 }}
-                    lazyUpdate={true}
-                  >
-                  </ReactEcharts>
-                  </Col>
-                  <Col className="gutter-row" span={12}>
-                  <ReactEcharts
-                    ref={(e) => {
-                      this.echartsElement = e
-                    }}
-                    option={this.getOption('two')}
-                    style={{ width: '100%', height: 90 }}
-                    lazyUpdate={true}
-                  >
-                  </ReactEcharts>
-                  </Col>
+                  {this.state.metricData.map((item,index) => {
+                      return (
+                        <Col className="gutter-row" span={12}>
+                        <ReactEcharts
+                          ref={(e) => {
+                            this.echartsElement = e
+                          }}
+                          option={this.getOption(index ? 'two' : 'one')}
+                          style={{ width: '100%', height: 90 }}
+                          lazyUpdate={true}
+                        >
+                        </ReactEcharts>
+                        </Col>
+                      )
+                    })
+                  }
                 </Row>
           : <Empty description={false} />}
       </div>

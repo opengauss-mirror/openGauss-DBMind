@@ -14,10 +14,10 @@ export default class DBUsage extends Component {
         }
     }
 
-    async getdbUsage(data) {
+    getdbUsage(data) {
         let result = []
         Object.keys(data).forEach(item => {
-            result.push(data[item])
+            result.push(data[item] ?? [])
         })
         if (result[0]) {
             let xDataArray = [[], [], []], yDataArray = [[], [], []]

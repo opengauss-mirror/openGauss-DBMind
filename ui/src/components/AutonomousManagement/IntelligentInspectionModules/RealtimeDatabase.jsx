@@ -31,7 +31,6 @@ export default class RealtimeDatabase extends Component {
       dbUsage: data.resource,
       dbCapacityMetric: data.capacity,
       dbMemory: data.memory,
-
     });
   }
 
@@ -54,7 +53,6 @@ export default class RealtimeDatabase extends Component {
         <DBUsage dbUsage={this.state.dbUsage} />
         <DBCapacityMetric dbCapacityMetric={this.state.dbCapacityMetric} />
         <DBMemory dbMemory={this.state.dbMemory} />
-
       </div>
     );
   }

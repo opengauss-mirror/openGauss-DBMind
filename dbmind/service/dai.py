@@ -37,6 +37,8 @@ from dbmind.constants import (DISTINGUISHING_INSTANCE_LABEL,
 from dbmind.common.algorithm.anomaly_detection.gradient_detector import linear_fitting
 from dbmind.service.multicluster import replace_sequence_ip
 
+PORT_SUFFIX = "(:[0-9]{4,5}|)"
+
 if LINUX:
     mp_shared_buffer = get_mp_sync_manager().defaultdict(dict)
 else:
@@ -700,39 +702,48 @@ def is_driver_result_valid(s):
     return False
 
 
-def get_database_data_directory_status(instance, latest_minutes):
+def get_data_directory_mountpoint_info(instance):
     # return the mountpoint and total size of the disk where the instance data directory is located
-    detail = {'total_space': '', 'iops': '', 'usage_rate': '', 'used_space': '', 'free_space': ''}
-    mountpoint, device, size, iops = '', '', '', ''
     data_directory_sequence = get_latest_metric_value('pg_node_info_uptime').from_server(instance).fetchone()
     if not is_sequence_valid(data_directory_sequence):
-        return detail
+        return
     data_directory = data_directory_sequence.labels['datapath']
-    instance_with_no_port = instance.split(':')[0]
-    instance_regrex = instance_with_no_port + ':?.*'
-    iops_sequences = get_latest_metric_value('os_disk_iops').from_server(instance_with_no_port).fetchall()
-    logging.error("iops: %s, %s", len(iops_sequences), str(iops_sequences))
-    if is_sequence_valid(iops_sequences):
-        detail['iops'] = round(max(sequence.values[-1] for sequence in iops_sequences), 1)
-    filesystem_total_size_sequences = get_latest_metric_value('node_filesystem_size_bytes'). \
-        filter_like(instance=instance_regrex).fetchall()
-    if is_sequence_valid(filesystem_total_size_sequences):
-        filesystem_total_size_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
-        for sequence in filesystem_total_size_sequences:
-            if data_directory.startswith(sequence.labels['mountpoint']):
-                mountpoint = sequence.labels['mountpoint']
-                device = sequence.labels['device']
-                detail['total_space'] = round(sequence.values[-1] / 1024 / 1024 / 1024, 2)
-                break
-    if mountpoint:
-        disk_usage_sequence = get_latest_metric_value('os_disk_usage').\
-            from_server(instance_with_no_port).filter(mountpoint=mountpoint).fetchone()
-        if is_sequence_valid(disk_usage_sequence):
-            detail['usage_rate'] = disk_usage_sequence.values[-1]
-            if detail['total_space']:
-                detail['used_space'] = round(detail['total_space'] * detail['usage_rate'], 2)
-                detail['free_space'] = round(detail['total_space'] - detail['used_space'], 2)
-    return detail 
+    instance_without_port = instance.split(':')[0]
+    instance_regex = instance_without_port + PORT_SUFFIX
+    filesystem_total_size_sequences = get_latest_metric_value('node_filesystem_size_bytes') \
+        .filter_like(instance=instance_regex) \
+        .fetchall()
+    if not is_sequence_valid(filesystem_total_size_sequences):
+        return
+    filesystem_total_size_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
+    for sequence in filesystem_total_size_sequences:
+        if data_directory.startswith(sequence.labels['mountpoint']):
+            return sequence.labels['mountpoint'], \
+                   sequence.labels['device'], round(sequence.values[-1] / 1024 / 1024 / 1024, 2)
+
+
+def get_database_data_directory_status(instance, latest_minutes):
+    # return the data-directory information of current cluster
+    # note: now the node of instance should be deployed opengauss_exporter
+    mountpoint, total_space = '', 0.0
+    detail = {'total_space': '', 'usage_rate': '', 'used_space': '', 'free_space': ''}
+    instance_without_port = instance.split(':')[0]
+    # get data_directory of any node in cluster, because all the node have the same data-directory.
+    mountpoint_info = get_data_directory_mountpoint_info(instance)
+    if mountpoint_info is None:
+        return detail
+    mountpoint, _, total_space = mountpoint_info
+    detail['total_space'] = total_space
+    disk_usage_sequence = get_latest_metric_sequence('os_disk_usage', latest_minutes) \
+        .from_server(instance_without_port) \
+        .filter(mountpoint=mountpoint) \
+        .fetchone()
+    if not is_sequence_valid(disk_usage_sequence):
+        return detail
+    detail['usage_rate'] = round(disk_usage_sequence.values[-1], 4)
+    detail['used_space'] = round(detail['total_space'] * detail['usage_rate'], 2)
+    detail['free_space'] = round(detail['total_space'] - detail['used_space'], 2)
+    return detail
 
 
 def check_instance_status():

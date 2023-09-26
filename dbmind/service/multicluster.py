@@ -285,7 +285,7 @@ class AgentProxy:
             rv[agent_addr] = self._cluster.search_one(agent_addr)
         return rv
 
-    def switch_context(self, agent_addr):
+    def switch_context(self, agent_addr, username=None, pwd=None):
         """Attach the later
         remote calls to a specific agent.
         :param agent_addr: openGauss database instance address, e.g., 127.0.0.1:6789
@@ -302,6 +302,9 @@ class AgentProxy:
             return False
         rpc = self._agents[agent_addr]
         self._thread_context.rpc = rpc
+        if username and pwd:
+            self._thread_context.rpc.username = username
+            self._thread_context.rpc.pwd = pwd 
         self._thread_context.agent_addr = agent_addr
         self._thread_context.cluster = self._cluster.search_one(agent_addr)
         return True
@@ -352,7 +355,7 @@ class AgentProxy:
 
         return iter(self._agents.items())
 
-    def context(self, instance_address):
+    def context(self, instance_address, username=None, pwd=None):
         outer = self
         old = outer.current_rpc()
 
@@ -361,7 +364,7 @@ class AgentProxy:
                 self.addr = addr
 
             def __enter__(self):
-                if not outer.switch_context(self.addr):
+                if not outer.switch_context(self.addr, username, pwd):
                     raise RPCAddressError(
                         'Cannot switch to this RPC address'
                         ' %s' % instance_address

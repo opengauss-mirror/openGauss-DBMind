@@ -545,7 +545,7 @@ class MultipleHoursInspection:
         memory_metrics = ('node_memory_MemTotal_bytes', 'node_memory_MemAvailable_bytes', 'node_memory_SwapTotal_bytes', 'node_memory_SwapFree_bytes', 'os_mem_usage', 'node_memory_Buffers_bytes', 'node_memory_MemAvailable_bytes', 'node_memory_Cached_bytes')
         memory_resource = {}
         for metric_name in memory_metrics:
-            memory_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, agent_instance_no_port, self._start, self._end, regrex=True)
+            memory_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, agent_instance_no_port, self._start, self._end, regex=True)
         instance_resource['memory'] = memory_resource
         network_metrics = ('os_network_receive_bytes', 'os_network_transmit_bytes', 'os_network_receive_drop', 'os_network_transmit_drop', 'os_network_receive_error', 'os_network_transmit_error')
         network_resource = {}
@@ -555,7 +555,7 @@ class MultipleHoursInspection:
         storage_metrics = ('node_filesystem_size_bytes', 'os_disk_usage')
         storage_resource = {}
         for metric_name in storage_metrics:
-            storage_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, agent_instance_no_port, self._start, self._end, fetch_all=True, regrex=True, regrex_labels="device=/.*")
+            storage_resource[metric_name] = data_transformer.get_metric_sequence(metric_name, agent_instance_no_port, self._start, self._end, fetch_all=True, regex=True, regex_labels="device=/.*")
         instance_resource['storage'] = storage_resource
         return instance_resource
     
@@ -609,7 +609,7 @@ class MultipleHoursInspection:
             result['database'] = self.get_database_status
         return result
 
-def real_time_inspection(instance, start, end, select_metrics):
+def real_time_inspection(inspection_type, instance, start, end, select_metrics):
     if not (isinstance(start, datetime) and isinstance(end, datetime)):
         raise TypeError("start and end can only be of type datetime.datetime")
     results = []
@@ -627,7 +627,7 @@ def real_time_inspection(instance, start, end, select_metrics):
     end_record = datetime.now()
     cost_time = end_record - start_record
     results.append({'instance': instance,
-                    'inspection_type': 'real_time_check',
+                    'inspection_type': inspection_type,
                     'start': int(start.timestamp() * 1000),
                     'end': int(end.timestamp()) * 1000,
                     'report': report,

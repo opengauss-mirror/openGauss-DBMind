@@ -15,7 +15,7 @@ import Failure from "../../../assets/imgs/failure.png";
 
 import moment from "moment";
 import TabPane from "antd/lib/tabs/TabPane";
-import { formatTableTitleToUpper } from "../../../utils/function";
+import { formatTableTitleToUpper, formatTimestamp } from "../../../utils/function";
 import {
   getTaskSubmit,
   getRealtimeInspectionList,
@@ -89,6 +89,9 @@ export default class InspectionTask extends Component {
       let tabledata = {};
       for (let i = 0; i < header.length; i++) {
         tabledata[header[i]] = item[i];
+        if (header[i] && (header[i] === 'start' || header[i] === 'end')) {
+          tabledata[header[i]] = formatTimestamp(item[i] + '')
+        }
       }
       tabledata["key"] = index + "";
       res.push(tabledata);
@@ -101,8 +104,8 @@ export default class InspectionTask extends Component {
   async getRealtimeInspectionList() {
     const { success, data, msg } = await getRealtimeInspectionList();
     if (success) {
-      this.setState({ isShowTask: true });
       this.handleTableData(data.header, data.rows);
+      this.setState({ isShowTask: true });
     } else {
       message.error(msg);
     }
@@ -112,14 +115,30 @@ export default class InspectionTask extends Component {
     this.setState({ isModalVisible: true });
   }
   async handleOk() {
-    if(this.state.checkedKey === "real_time_check" && !this.state.startTime){
+    if (this.state.checkedKey === "real_time_check" && !this.state.startTime) {
       message.warning("Please select time!");
       return;
     }
+    let benginTime = "", lastTime = ""
+    if (this.state.checkedKey === "real_time_check_daily") {
+      benginTime = new Date().getTime() - 3600 * 1000 * 24
+      lastTime = new Date().getTime()
+    } else if (this.state.checkedKey === "real_time_check_weekly") {
+
+      benginTime = new Date().getTime() - 3600 * 1000 * 24 * 7
+      lastTime = new Date().getTime()
+
+    } else if (this.state.checkedKey === "real_time_check_monthly") {
+      benginTime = new Date().getTime() - 3600 * 1000 * 24 * 30
+      lastTime = new Date().getTime()
+    } else {
+      benginTime = ""
+      lastTime = ""
+    }
     let params = {
       inspectionType: this.state.checkedKey,
-      startTime: this.state.startTime,
-      endTime: this.state.endTime,
+      startTime: benginTime ? benginTime : this.state.startTime,
+      endTime: lastTime ? lastTime : this.state.endTime,
       selectMetrics: this.state.selected.toString(),
     };
     const { success, data, msg } = await getTaskSubmit(params);
@@ -145,9 +164,7 @@ export default class InspectionTask extends Component {
   onSelectChange(e) {
     this.setState({ selected: e });
   }
-  componentDidMount() {
-    this.getRealtimeInspectionList();
-  }
+
   disabledDate = (current) => {
     return current < moment().subtract(3, "days");
   };
@@ -163,6 +180,9 @@ export default class InspectionTask extends Component {
       unit: e.target.value,
     });
   };
+  componentDidMount() {
+    this.getRealtimeInspectionList();
+  }
   render() {
     const columns = this.state.columns.map((col, index) => ({
       ...col,
@@ -185,8 +205,6 @@ export default class InspectionTask extends Component {
               columns={columns}
               dataSource={this.state.dataSource}
               size="small"
-              rowKey={(record) => record.key}
-              pagination={false}
               style={{ height: 170, overflowY: "auto" }}
               scroll={{ x: "100%" }}
             />
@@ -209,9 +227,9 @@ export default class InspectionTask extends Component {
                   }}
                   className="spectionTask"
                 >
-                  <TabPane tab="daily_check" key="daily_check"></TabPane>
-                  <TabPane tab="week_check" key="weekly_check"></TabPane>
-                  <TabPane tab="month_check" key="monthly_check"></TabPane>
+                  <TabPane tab="daily_check" key="real_time_check_daily"></TabPane>
+                  <TabPane tab="week_check" key="real_time_check_weekly"></TabPane>
+                  <TabPane tab="month_check" key="real_time_check_monthly"></TabPane>
                   <TabPane tab="Real-time Inspection" key="real_time_check">
                     <div className="regularInspection">
                       <div>
@@ -254,7 +272,8 @@ export default class InspectionTask extends Component {
           </Card>
         ) : (
           ""
-        )}
+        )
+        }
       </div>
     );
   }

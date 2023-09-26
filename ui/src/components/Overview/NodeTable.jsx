@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Card, Table, message } from 'antd';
+import { Table, message } from 'antd';
 import ResizeableTitle from '../common/ResizeableTitle';
 import { getNode } from '../../api/overview';
 import iconokgreen from '../../assets/imgs/iconokgreen.png';

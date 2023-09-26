@@ -25,7 +25,7 @@ export default class DBCacheInformation extends Component {
     }
   }
 
-  async getdbCache(data) {
+  getdbCache(data) {
     let result = []
 
     result.push(data['pg_db_blks_read'] ?? [], data['pg_db_blks_hit'] ?? [], data['pg_db_blks_access'] ?? [])

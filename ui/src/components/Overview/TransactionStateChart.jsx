@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
-import { Card, Empty, Modal, message } from 'antd';
+import { Empty, Modal } from 'antd';
 import ReactEcharts from 'echarts-for-react';
+import { commonMetricMethod } from '../../utils/function';
 import { getTransaction } from '../../api/overview';
 import db from '../../utils/storage';
 
@@ -14,6 +15,10 @@ export default class TransactionStateChart extends Component {
       yallData: [],
       ifShow: true,
       isModalVisible:false,
+      param: {
+        instance:db.ss.get('Instance_value')
+      },
+      metricData:['pg_db_xact_commit','pg_db_xact_rollback']
     }
   }
   getOption (flg) {
@@ -82,34 +87,10 @@ export default class TransactionStateChart extends Component {
       ]
     };
   }
-  async getTransaction1 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_db_xact_commit'
-    }
-    const { success, data, msg }= await getTransaction(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getTransaction2 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_db_xact_rollback'
-    }
-    const { success, data, msg }= await getTransaction(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
   getTransactionAll(flg){
     Promise.all([
-      this.getTransaction1(),
-      this.getTransaction2()
+      commonMetricMethod(this.state.param,{label:this.state.metricData[0]},getTransaction),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[1]},getTransaction)
     ]).then((result)=>{
       if(result[0].length){
         let xData = [],commitData = [],abortData = []

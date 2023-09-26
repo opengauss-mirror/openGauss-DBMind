@@ -3,14 +3,9 @@ import { Tabs, Spin, message } from "antd";
 import "../../../assets/css/main/IntelligentInspection.css";
 import RealtimeSystem from "./RealtimeSystem";
 import RealtimeDatabase from "./RealtimeDatabase";
-import InspectionsDay from "./InspectionsDay";
-import InspectionsWeek from "./InspectionsWeek";
-import InspectionsDaySystem from "./InspectionsDaySystem";
-import InspectionsWeekSystem from "./InspectionsWeekSystem";
 import Export from "../../../assets/imgs/Export.png";
 import Back from "../../../assets/imgs/getback.png";
 import { exportPDF } from "../../../utils/exportPdf";
-import { getRegularInspectionsInterface } from "../../../api/clusterInformation";
 import { getTaskReport } from "../../../api/intelligentInspection";
 
 export default class IntelligentInspectionDetail extends Component {
@@ -19,9 +14,6 @@ export default class IntelligentInspectionDetail extends Component {
     this.databaseRef = React.createRef();
     this.state = {
       checkedData: "1",
-      regularInspectionsDay: {},
-      regularInspectionsWeek: {},
-      regularInspectionsMonth: {},
       showflag: false,
       isShowRealtime: false,
       realtimeInspections: {},
@@ -50,44 +42,19 @@ export default class IntelligentInspectionDetail extends Component {
           }
         }
       );
-    } else {
-      message.error(msg);
-    }
-  }
-  async getRegularInspections() {
-    let params = { inspection_type: this.props.inspectionMode.inspection_type };
-    const { success, data, msg } = await getRegularInspectionsInterface(params);
-    if (success) {
-      this.setState({ showflag: true });
-
-      if (this.props.inspectionMode.inspection_type === "daily_check") {
-        this.setState({
-          regularInspectionsDay: data,
-        });
-      } else if (this.props.inspectionMode.inspection_type === "weekly_check") {
-        this.setState({
-          regularInspectionsWeek: data,
-        });
-      } else if (
-        this.props.inspectionMode.inspection_type === "monthly_check"
-      ) {
-        this.setState({
-          regularInspectionsMonth: data,
-        });
+      if (this.props.inspectionMode.inspection_type === "real_time_check_monthly") {
+        message.info('实时查询，数据受tsdb限制');
       }
     } else {
       message.error(msg);
     }
   }
+
   goback() {
     this.props.getBack(false);
   }
   componentDidMount() {
-    if (this.props.inspectionMode.inspection_type === "real_time_check") {
-      this.getRealtimeInspections();
-    } else {
-      this.getRegularInspections();
-    }
+    this.getRealtimeInspections();
   }
   render() {
     const items = [
@@ -97,7 +64,7 @@ export default class IntelligentInspectionDetail extends Component {
 
         children: (
           <div>
-            {this.props.inspectionMode.inspection_type === "real_time_check" ? (
+            {
               this.state.isShowRealtime ? (
                 <RealtimeSystem
                   realtimeInspections={this.state.realtimeInspections.system}
@@ -105,26 +72,7 @@ export default class IntelligentInspectionDetail extends Component {
               ) : (
                 ""
               )
-            ) : this.state.showflag ? (
-              this.props.inspectionMode.inspection_type === "daily_check" ? (
-                <InspectionsDaySystem
-                  regularInspectionsDay={this.state.regularInspectionsDay}
-                />
-              ) : this.props.inspectionMode.inspection_type ===
-                "weekly_check" ? (
-                <InspectionsWeekSystem
-                  regularInspectionsWeek={this.state.regularInspectionsWeek}
-                />
-              ) : (
-                <InspectionsWeekSystem
-                  regularInspectionsWeek={this.state.regularInspectionsMonth}
-                />
-              )
-            ) : (
-              <div style={{ textAlign: "center" }}>
-                <Spin style={{ margin: "100px auto" }} />
-              </div>
-            )}
+            }
           </div>
         ),
       },
@@ -133,7 +81,7 @@ export default class IntelligentInspectionDetail extends Component {
         label: "database",
         children: (
           <div>
-            {this.props.inspectionMode.inspection_type === "real_time_check" ? (
+            {
               this.state.isShowRealtime ? (
                 <RealtimeDatabase
                   DBrealtimeInspections={
@@ -143,26 +91,7 @@ export default class IntelligentInspectionDetail extends Component {
               ) : (
                 ""
               )
-            ) : this.state.showflag ? (
-              this.props.inspectionMode.inspection_type === "daily_check" ? (
-                <InspectionsDay
-                  regularInspectionsDay={this.state.regularInspectionsDay}
-                />
-              ) : this.props.inspectionMode.inspection_type ===
-                "weekly_check" ? (
-                <InspectionsWeek
-                  regularInspectionsWeek={this.state.regularInspectionsWeek}
-                />
-              ) : (
-                <InspectionsWeek
-                  regularInspectionsWeek={this.state.regularInspectionsMonth}
-                />
-              )
-            ) : (
-              <div style={{ textAlign: "center" }}>
-                <Spin style={{ margin: "100px auto" }} />{" "}
-              </div>
-            )}
+            }
           </div>
         ),
       },

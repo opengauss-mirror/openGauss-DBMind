@@ -27,10 +27,6 @@ export default class RealtimeSystem extends Component {
       systemNetwork: data.network,
     });
   }
-
-  componentWillUnmount = () => {
-    this.setState = () => { return }
-  }
   componentDidMount() {
     if (JSON.stringify(this.props.realtimeInspections) !== "{}") {
       this.getRealtimeInspections(this.props.realtimeInspections)

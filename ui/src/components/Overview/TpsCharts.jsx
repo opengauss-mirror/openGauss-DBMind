@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
 import {Row, Col, Empty, message } from 'antd';
 import ReactEcharts from 'echarts-for-react';
-import { formatTimestamp } from '../../utils/function';
 import { getResponseTime } from '../../api/overview';
 import db from '../../utils/storage';
 

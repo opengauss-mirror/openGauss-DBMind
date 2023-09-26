@@ -25,7 +25,6 @@ export default class SystemIO extends Component {
 
   compare(property) {
     return function (a, b) {
-
       var value1 = a.labels[property];
       var value2 = b.labels[property];
       return value1 - value2;
@@ -33,7 +32,7 @@ export default class SystemIO extends Component {
   }
   getIoData(data) {
     let datas = []
-    datas.push(data['os_disk_io_read_bytes'], data['os_disk_io_write_bytes'], data['os_disk_io_read_delay'], data['os_disk_io_write_delay'], data['os_disk_iops'], data['os_disk_io_queue_length'], data['os_disk_ioutils'])
+    datas.push(data['os_disk_io_read_bytes'] ?? [], data['os_disk_io_write_bytes'] ?? [], data['os_disk_io_read_delay'] ?? [], data['os_disk_io_write_delay'] ?? [], data['os_disk_iops'] ?? [], data['os_disk_io_queue_length'] ?? [], data['os_disk_ioutils'] ?? [])
     if (datas[0]) {
       datas.forEach((item, index) => {
         item.sort(this.compare('device'))
@@ -46,10 +45,6 @@ export default class SystemIO extends Component {
         });
         primitiveDataAll.push(DataItems)
       });
-
-      Object.keys(datas).forEach(item => {
-
-      })
       primitiveDataAll.forEach((item, index) => {
         let chartData = []
         let data1 = { 'legend': [{ image: "", description: 'Read Rate' }, { image: "", description: 'Write Rate' }], 'xAxisData': item[0].timestamps, 'seriesData': [{ data: item[0].values, description: 'Read Rate', colors: '#5990FD' }, { data: item[1].values, description: 'Write Rate', colors: '#2DA769' }], 'flg': 0, 'legendFlg': 1, 'unit': 'KB/s', 'fixedflg': 4 }
@@ -60,8 +55,6 @@ export default class SystemIO extends Component {
         chartData.push(data1, data2, data3, data4, data5)
         ioAllArray.push(chartData)
       })
-
-
       this.setState(() => ({
         ioAllData: ioAllArray,
         primitiveDataAll: primitiveDataAll,
@@ -70,12 +63,10 @@ export default class SystemIO extends Component {
         this.onChange(0)
       })
     }
-
   }
 
   UNSAFE_componentWillReceiveProps(nextProps) {
     this.getIoData(nextProps.systemIO)
-
   }
 
   onChange = (key) => {

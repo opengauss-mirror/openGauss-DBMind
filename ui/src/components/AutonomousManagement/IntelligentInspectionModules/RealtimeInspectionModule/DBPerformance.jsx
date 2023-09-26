@@ -25,10 +25,8 @@ export default class DBPerformance extends Component {
     });
     return newArr;
   }
-  async getPerformanceData(data) {
-
+  getPerformanceData(data) {
     let result = []
-
     result.push(data['gaussdb_total_connection'] ?? [], data['gaussdb_active_connection'] ?? [], data['gaussdb_idle_connection'] ?? [], data['pg_sql_count_ddl'] ?? [], data['pg_sql_count_dml'] ?? [], data['pg_sql_count_dcl'] ?? [], data['statement_responsetime_percentile_p80'] ?? [], data['statement_responsetime_percentile_p95'] ?? [])
     if (result[0]) {
       let newResult = [], activeRateData = [], waitingRateData = [], xDataArray = [[], [], [], [], [], [], [], [], [], []], yDataArray = [[], [], [], [], [], [], [], [], [], []]

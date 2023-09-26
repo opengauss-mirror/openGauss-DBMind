@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Card, Empty, Progress, message } from 'antd';
+import { Empty, Progress, message } from 'antd';
 import icon10 from '../../assets/imgs/icon10.png';
 import icon8 from '../../assets/imgs/icon8.png';
 import { getProxy } from '../../api/overview';

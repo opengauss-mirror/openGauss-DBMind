@@ -10,7 +10,7 @@ if (process.env.NODE_ENV === 'development') {
 } else {
   axios.defaults.baseURL = targetUrl + '/api'
 }
-axios.defaults.timeout = 600000//10min
+axios.defaults.timeout = 30000//30s
 axios.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded;charset=UTF-8';
 
 axios.interceptors.request.use(config => {
