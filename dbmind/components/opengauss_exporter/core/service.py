@@ -372,24 +372,27 @@ def update_exporter_fixed_info(k, v):
 
 def query_all_metrics():
     futures = []
-    for instance in query_instances:
-        futures.append(_thread_pool_executor.submit(instance.update))
+    if _thread_pool_executor._work_queue.qsize() == 0:
+        for instance in query_instances:
+            futures.append(_thread_pool_executor.submit(instance.update))
 
-    for future in as_completed(futures):
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                logging.exception(e)
+
+        # refresh fixed info below
         try:
-            future.result()
-        except Exception as e:
-            logging.exception(e)
-
-    # refresh fixed info below
-    update_exporter_fixed_info(
-        'primary', (not driver.is_standby())
-    )
-    # Notice: have to get the private variable
-    exporter_fixed_info = getattr(REGISTRY, '_names_to_collectors')[
-        'opengauss_exporter_fixed_info'
-    ]
-    exporter_fixed_info.clear()
-    exporter_fixed_info.labels(**EXPORTER_FIXED_INFO).set(1)
+            is_primary = not driver.is_standby()
+        except IndexError:
+            is_primary = None
+        update_exporter_fixed_info('primary', is_primary)
+        # Notice: have to get the private variable
+        exporter_fixed_info = getattr(REGISTRY, '_names_to_collectors')[
+            'opengauss_exporter_fixed_info'
+        ]
+        exporter_fixed_info.clear()
+        exporter_fixed_info.labels(**EXPORTER_FIXED_INFO).set(1)
 
     return generate_latest(REGISTRY)
