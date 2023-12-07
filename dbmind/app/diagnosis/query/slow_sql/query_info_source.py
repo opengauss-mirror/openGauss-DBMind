@@ -445,17 +445,17 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         if self.query_type == 'normalized':
             query = replace_question_mark_with_value(query)
             query = replace_question_mark_with_dollar(query)
-            stmts = "set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(
+            stmts = "set explain_perf_mode=normal;set current_schema='%s';" % self.slow_sql_instance.schema_name + ';'.join(
                 get_generate_prepare_sqls_function()(query))
             rows = global_vars.agent_proxy.call('query_in_database',
                                                 stmts,
                                                 self.slow_sql_instance.db_name,
                                                 return_tuples=False,
                                                 fetch_all=True)
-            if len(rows) == 4 and rows[-2]:
+            if len(rows) == 5 and rows[-2]:
                 rows = rows[-2]
         else:
-            stmts = "set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
+            stmts = "set explain_perf_mode=normal;set current_schema='%s';explain %s" % (self.slow_sql_instance.schema_name,
                                                             query)
             rows = global_vars.agent_proxy.call('query_in_database',
                                                 stmts,
