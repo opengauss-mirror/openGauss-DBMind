@@ -41,7 +41,7 @@ try:
     from .executors.gsql_executor import GsqlExecutor
     from .mcts import MCTS
     from .table import get_table_context
-    from .utils import match_table_name, IndexItemFactory, \
+    from .utils import IndexItemFactory, \
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
@@ -56,7 +56,7 @@ except ImportError:
     from executors.gsql_executor import GsqlExecutor
     from mcts import MCTS
     from table import get_table_context
-    from utils import match_table_name, IndexItemFactory, \
+    from utils import IndexItemFactory, \
         AdvisedIndex, ExistingIndex, QueryItem, WorkLoad, QueryType, IndexType, COLUMN_DELIMITER, \
         lookfor_subsets_configs, has_dollar_placeholder, generate_placeholder_indexes, \
         match_columns, infer_workload_benefit, UniqueList, is_multi_node, hypo_index_ctx, split_iter, \
@@ -752,14 +752,24 @@ def query_index_check(executor, query, indexes, sort_by_column_no=True):
         # When the cost values are the same, the execution plan picks the last index created.
         # Sort indexes to ensure that short indexes have higher priority.
         indexes = sorted(indexes, key=lambda index: -len(index.get_columns()))
-    index_check_results = executor.execute_sqls(get_index_check_sqls(query, indexes, is_multi_node(executor)))
-    valid_indexes = get_checked_indexes(index_check_results, set(index.get_table() for index in indexes))
+    indexable_indexes = list(get_indexable_indexes(indexes, executor))
+    index_check_results = executor.execute_sqls(get_index_check_sqls(query, indexable_indexes, is_multi_node(executor)))
+    valid_indexes = get_checked_indexes(indexable_indexes, index_check_results)
     cost = None
     for res in index_check_results:
         if '(cost' in res[0]:
             cost = parse_plan_cost(res[0])
             break
     return valid_indexes, cost
+
+
+def get_indexable_indexes(indexes, executor):
+    for index in indexes:
+        index_check_results = executor.execute_sqls(get_index_check_sqls([],[index],is_multi_node()))
+        for cur_tuple in index_check_results:
+            text = cur_tuple[0]
+            if text.strip().startswith('<') and 'btree' in text:
+                yield text
 
 
 def remove_unused_indexes(executor, statement, valid_indexes):

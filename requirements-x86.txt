@@ -17,4 +17,4 @@ pyyaml
 prometheus-client
 # Rewriter
 sql-metadata
-mo-sql-parsing>=9.262.22323
+mo-sql-parsing==9.262.22323
