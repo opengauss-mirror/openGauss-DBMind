@@ -122,6 +122,10 @@ class AgentProxy:
         self._lock = threading.Lock()
         self._autodiscover_args = {}
 
+    @property
+    def agents(self):
+        return self._agents.copy()
+
     def set_autodiscover_connection_info(self,
                                          username, password,
                                          ssl_certfile=None,
@@ -353,7 +357,7 @@ class AgentProxy:
     def __iter__(self):
         self._try_to_finalize()
 
-        return iter(self._agents.items())
+        return iter(self.agents.items())
 
     def context(self, instance_address, username=None, pwd=None):
         outer = self
