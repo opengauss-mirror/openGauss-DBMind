@@ -466,7 +466,6 @@ class SqlOutPutParserTester(unittest.TestCase):
                       '(171195,<171195>btree_store_sales_ss_item_sk)', 'SELECT 1',
                       '(171196,<171196>btree_store_sales_ss_item_sk_ss_sold_date_sk)', 'SELECT 3',
                       '(<171194>btree_global_item_i_manufact_id,171194,item,"(i_manufact_id)")',
-                      '(<171195>btree_store_sales_ss_item_sk,171195,store_sales,"(ss_item_sk)")',
                       '(<171196>btree_store_sales_ss_item_sk_ss_sold_date_sk,171196,store_sales,"(ss_item_sk, '
                       'ss_sold_date_sk)")',
                       'EXPLAIN', 'Limit  (cost=13107.63..13108.88 rows=100 width=91)',
@@ -494,7 +493,7 @@ class SqlOutPutParserTester(unittest.TestCase):
         inputs = [(_input,) for _input in ori_inputs]
         expected_indexes = [IndexItemFactory().get_index('public.item', 'i_manufact_id', 'global'),
                             IndexItemFactory().get_index('public.store_sales', 'ss_item_sk, ss_sold_date_sk', '')]
-        self.assertEqual(get_checked_indexes(inputs, {'public.item', 'public.store_sales'}), expected_indexes)
+        self.assertEqual(get_checked_indexes(expected_indexes, inputs), expected_indexes)
 
     def test_parse_existed_indexes_results(self):
         ori_inputs = ['SELECT 6',

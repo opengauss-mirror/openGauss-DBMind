@@ -18,10 +18,10 @@ import logging
 from sqlparse.tokens import Punctuation, Keyword, Name
 
 try:
-    from utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList, \
+    from utils import IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList, \
         QUERY_PLAN_SUFFIX, EXPLAIN_SUFFIX, ERROR_KEYWORD, PREPARE_KEYWORD
 except ImportError:
-    from .utils import match_table_name, IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList, \
+    from .utils import IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList, \
         QUERY_PLAN_SUFFIX, EXPLAIN_SUFFIX, ERROR_KEYWORD, PREPARE_KEYWORD
 
 
@@ -231,28 +231,26 @@ def __add_valid_index(record, hypoid_table_column, valid_indexes: list):
                 valid_indexes.append(index)
 
 
-def get_checked_indexes(index_check_results, tables) -> list:
+def get_checked_indexes(indexes, index_check_results) -> list:
     valid_indexes = []
-    hypoid_table_column = {}
     hypo_index_info_length = 4
-    btree_idx = 0
-    index_id_idx = 1
-    table_idx = 2
-    columns_idx = 3
+    hypo_index_names = []
+    hypo_index_name_idx = 0
+    rows_with_index = []
     for cur_tuple in index_check_results:
         # like '(<134672>btree_local_customer_c_customer_sk,134672,customer,"(c_customer_sk)")'
         text = cur_tuple[0]
         if text.strip().startswith('(<') and 'btree' in text:
             if len(text.split(',', 3)) == hypo_index_info_length:
                 hypo_index_info = text.split(',', 3)
-                table_name = re.search(r'btree(_global|_local|)_(.*?%s)' % hypo_index_info[table_idx],
-                                       hypo_index_info[btree_idx]).group(2)
-                match_flag, table_name = match_table_name(table_name, tables)
-                if not match_flag:
-                    return valid_indexes
-                hypoid_table_column[hypo_index_info[index_id_idx]] = \
-                    table_name + ':' + hypo_index_info[columns_idx].strip('"()')
-
+                hypo_index_names.append(hypo_index_info[hypo_index_name_idx].strip('('))
         if 'Index' in text and 'Scan' in text and 'btree' in text:
-            __add_valid_index(text, hypoid_table_column, valid_indexes)
+            rows_with_index.append(text)
+    for row_with_index in rows_with_index:
+        for hypo_index_name in hypo_index_names:
+            if hypo_index_name in row_with_index:
+                used_index = indexes[hypo_index_names.index(hypo_index_name)]
+                if used_index not in valid_indexes:
+                    valid_indexes.append(used_index)
+
     return valid_indexes

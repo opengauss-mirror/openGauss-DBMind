@@ -230,20 +230,6 @@ class IndexItemFactory:
         return self.indexes[(tbl, cols, index_type)]
 
 
-def match_table_name(table_name, tables):
-    for elem in tables:
-        item_tmp = '_'.join(elem.split('.'))
-        if table_name == item_tmp:
-            table_name = elem
-            break
-        elif 'public_' + table_name == item_tmp:
-            table_name = 'public.' + table_name
-            break
-    else:
-        return False, table_name
-    return True, table_name
-
-
 class QueryItem:
     __valid_index_list: List[AdvisedIndex]
 
