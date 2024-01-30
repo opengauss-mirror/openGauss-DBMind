@@ -107,8 +107,6 @@ def get_index_check_sqls(query, indexes, is_multi_node):
         sqls.append("SELECT pg_catalog.hypopg_create_index('CREATE INDEX ON %s(%s) %s')" %
                     (table, columns, index_type))
     sqls.append('SELECT pg_catalog.hypopg_display_index()')
-    sqls.append("SET explain_perf_mode = 'normal';")
-    sqls.append("set plan_cache_mode = 'force_generic_plan';")
     sqls.extend(get_prepare_sqls(query))
     sqls.append('SELECT pg_catalog.hypopg_reset_index()')
     return sqls

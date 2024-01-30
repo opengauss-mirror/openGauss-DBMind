@@ -765,10 +765,10 @@ def query_index_check(executor, query, indexes, sort_by_column_no=True):
 
 def get_indexable_indexes(indexes, executor):
     for index in indexes:
-        index_check_results = executor.execute_sqls(get_index_check_sqls([],[index],is_multi_node()))
+        index_check_results = executor.execute_sqls(get_index_check_sqls('SELECT 1',[index],is_multi_node(executor)))
         for cur_tuple in index_check_results:
             text = cur_tuple[0]
-            if text.strip().startswith('<') and 'btree' in text:
+            if text.strip('()').startswith('<') and 'btree' in text:
                 yield text
 
 
