@@ -57,8 +57,8 @@ export default class NodeNetwork extends Component {
         });
         primitiveDataAll.forEach((item, index) => {
           let chartData = [], data1 = {}, data2 = {}, data3 = {}, data4 = {}
-          data1 = { 'legend': [{ image: CurrentReceiveRate, description: 'Current Receive Rate' }], 'xAxisData': item[0] ? item[0].timestamps : item[1].timestamps, 'seriesData': [{ data: item[0] ? item[0].values : [...item[1].values.fill(0)], description: 'Current Receive Rate', colors: '#2DA769' }], 'flg': 0, 'legendFlg': 1, 'unit': 'KB/s', 'fixedflg': 4, 'toolBox': true }
-          data2 = { 'legend': [{ image: CurrentSendingRate, description: 'Current Sending Rate' }], 'xAxisData': item[1] ? item[1].timestamps : item[0].timestamps, 'seriesData': [{ data: item[1] ? item[1].values : [...item[0].values.fill(0)], description: 'Current Sending Rate', colors: '#5990FD' }], 'flg': 0, 'legendFlg': 1, 'unit': 'KB/s', 'fixedflg': 4, 'toolBox': true }
+          data1 = { 'legend': [{ image: CurrentReceiveRate, description: 'Current Receive Rate' }], 'xAxisData': item[0] ? item[0].timestamps : item[1].timestamps, 'seriesData': [{ data: item[0] ? item[0].values : [...item[1].values.fill(0)], description: 'Current Receive Rate', colors: '#2DA769' }], 'flg': 0, 'legendFlg': 1, 'unit': 'MB/s', 'fixedflg': 4, 'toolBox': true }
+          data2 = { 'legend': [{ image: CurrentSendingRate, description: 'Current Sending Rate' }], 'xAxisData': item[1] ? item[1].timestamps : item[0].timestamps, 'seriesData': [{ data: item[1] ? item[1].values : [...item[0].values.fill(0)], description: 'Current Sending Rate', colors: '#5990FD' }], 'flg': 0, 'legendFlg': 1, 'unit': 'MB/s', 'fixedflg': 4, 'toolBox': true }
           data3 = { 'legend': [{ image: ReceiveDrop, description: 'Receive Drop' }, { image: TransmitDrop, description: 'Transmit Drop' }], 'xAxisData': item[2] ? item[2].timestamps : item[3].timestamps, 'seriesData': [{ data: item[2] ? item[2].values : [...item[3].values.fill(0)], description: 'Receive Drop', colors: '#2DA769' }, { data: item[3] ? item[3].values : [...item[2].values.fill(0)], description: 'Transmit Drop', colors: '#EC6F1A' }], 'flg': 0, 'legendFlg': 1, 'unit': '', 'fixedflg': 4, 'toolBox': true }
           data4 = { 'legend': [{ image: ReceiveError, description: 'Receive Error' }, { image: TransmitError, description: 'Transmit Error' }], 'xAxisData': item[4] ? item[4].timestamps : item[5].timestamps, 'seriesData': [{ data: item[4] ? item[4].values : [...item[5].values.fill(0)], description: 'Receive Error', colors: '#F43146' }, { data: item[5] ? item[5].values : [...item[4].values.fill(0)], description: 'Transmit Error', colors: '#9185F0' }], 'flg': 0, 'legendFlg': 1, 'unit': '', 'fixedflg': 4, 'toolBox': true }
           chartData.push(data1, data2, data3, data4)
@@ -114,12 +114,12 @@ export default class NodeNetwork extends Component {
                     </Col>
                     <Col className="gutter-row" span={5}>
                       <span className='panelTitleSize'>Current Recevice Rate:</span>
-                      <span className='panelTitleBold' >{this.state.primitiveDataAll[index][0] ? (this.state.primitiveDataAll[index][0].values[this.state.primitiveDataAll[index][0].values.length - 1] * 100).toFixed(2) : 0}KB/s</span>
+                      <span className='panelTitleBold' >{this.state.primitiveDataAll[index][0] ? (this.state.primitiveDataAll[index][0].values[this.state.primitiveDataAll[index][0].values.length - 1] * 100).toFixed(2) : 0}MB/s</span>
                       <span className='panelCircle circleColorPurple'></span>
                     </Col>
                     <Col className="gutter-row" span={5}>
                       <span className='panelTitleSize'>Current Sending Rate</span>
-                      <span className='panelTitleBold' >{this.state.primitiveDataAll[index][1] ? (this.state.primitiveDataAll[index][1].values[this.state.primitiveDataAll[index][1].values.length - 1] * 100).toFixed(2) : 0}KB/s</span>
+                      <span className='panelTitleBold' >{this.state.primitiveDataAll[index][1] ? (this.state.primitiveDataAll[index][1].values[this.state.primitiveDataAll[index][1].values.length - 1] * 100).toFixed(2) : 0}MB/s</span>
                       <span className='panelCircle circleColorBlue'></span>
                     </Col>
                   </Row>
