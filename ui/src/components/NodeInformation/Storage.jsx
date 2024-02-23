@@ -73,31 +73,31 @@ export default class Storage extends Component {
       this.getStorageData2()
     ]).then((result)=>{
       if(result[0]){
-          let tableHeader = [],historyColumObj = {},tableData = [],echartsData = [],lastData = [],res = [],echartData = [],
-          header = ['Disk name','Mountpoint','Total space (GB)','Used space (GB)','Usage rate']
-          result[0].forEach((aitem, aindex) => {
-            result[1].forEach((bitem, bindex) => {
+        let tableHeader = [],historyColumObj = {},tableData = [],echartsData = [],lastData = [],res = [],echartData = [],echartsitem = {},
+        header = ['Disk name','Mountpoint','Total space (GB)','Used space (GB)','Usage rate'];
+        result[0].forEach((aitem) => {
+          result[1].forEach((bitem,index) => {
             if(aitem.labels.instance.split(':')[0] === bitem.labels.from_instance && aitem.labels.device === bitem.labels.device){
-              tableData.push(aitem)
-              echartsData.push(bitem)
-              }
-            });
+              tableData.push(aitem);
+              echartsData.push(bitem);
+              lastData.push(echartsData[index].values[echartsData[index].values.length-1]);
+              echartsitem = {'legend':[{image:SystemImg,description:'Usage Rate'}],
+              'xAxisData':echartsData[index].timestamps,
+              'seriesData':[{data:echartsData[index].values,description:'Usage Rate',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%','toolBox':true};
+              echartData.push(echartsitem);
+            }
           });
-          let echartsitem = {'legend':[{image:SystemImg,description:'Usage Rate'}],
-          'xAxisData':echartsData[0].timestamps,
-          'seriesData':[{data:echartsData[0].values,description:'Usage Rate',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%','toolBox':true}
-          echartData.push(echartsitem)
-          lastData.push(echartsData[0].values[echartsData[0].values.length-1])
-          tableData.forEach((item, index) => {
-            let tabledata = {}
-            tabledata["Disk name"] = item.labels.device
-            tabledata["Mountpoint"] = item.labels.mountpoint
-            tabledata["Total space (GB)"] = (item.values/1024/1024/1024).toFixed(2)
-            tabledata["Used space (GB)"] = (item.values/1024/1024/1024*lastData[index]).toFixed(2)
-            tabledata["Usage rate"] = (lastData[index]*100).toFixed(2)+'%'
-            tabledata['key'] = index
-            res.push(tabledata)
-          });
+        });
+        tableData.forEach((item, index) => {
+          let tabledata = {};
+          tabledata['Disk name'] = item.labels.device;
+          tabledata['Mountpoint'] = item.labels.mountpoint;
+          tabledata['Total space (GB)'] = (item.values/1024/1024/1024).toFixed(2);
+          tabledata['Used space (GB)'] = (item.values/1024/1024/1024*lastData[index]).toFixed(2);
+          tabledata['Usage rate'] = (lastData[index]*100).toFixed(2)+'%';
+          tabledata['key'] = index;
+          res.push(tabledata);
+        });
           header.forEach((item,index) => {
             historyColumObj = {
               title: formatTableTitle(item),
