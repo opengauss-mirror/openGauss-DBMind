@@ -54,7 +54,7 @@ export default class DBCapability extends Component {
       data["pg_db_confl_snapshot"] ?? [],
       data["pg_db_confl_bufferpin"] ?? [],
       data["pg_db_confl_deadlock"] ?? [],
-      data["pg_db_deadlocks"] ?? [],
+      data["gaussdb_deadlocks_rate"] ?? [],
       data["pg_db_temp_bytes"] ?? [],
       data["pg_db_temp_files"] ?? [],
       data["gaussdb_tup_inserted_rate"] ?? [],
