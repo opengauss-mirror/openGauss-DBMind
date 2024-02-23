@@ -406,7 +406,8 @@ def get_all_slow_queries(minutes):
         query = sequence.labels['query']
         query_plan = sequence.labels['query_plan'] if sequence.labels['query_plan'] != 'None' else None
         # unit: microsecond
-        start_timestamp = cast_to_int_or_float(sequence.labels['start_time'])
+        start_time = cast_to_int_or_float(sequence.labels['start_time'])
+        finish_time = cast_to_int_or_float(sequence.labels['finish_time'])
         # unit: microsecond
         duration_time = cast_to_int_or_float(sequence.labels['finish_time']) - \
                         cast_to_int_or_float(sequence.labels['start_time'])
@@ -432,7 +433,7 @@ def get_all_slow_queries(minutes):
         slow_sql_info = SlowQuery(
             db_host=db_host, db_port=db_port, query_plan=query_plan,
             schema_name=schema_name, db_name=db_name, query=query,
-            start_timestamp=start_timestamp, duration_time=duration_time,
+            start_time=start_time, finish_time=finish_time, duration_time=duration_time,
             hit_rate=hit_rate, fetch_rate=fetch_rate, track_parameter=track_parameter,
             cpu_time=cpu_time, data_io_time=data_io_time, plan_time=plan_time,
             parse_time=parse_time, db_time=db_time, n_hard_parse=n_hard_parse,
