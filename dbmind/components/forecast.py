@@ -54,7 +54,7 @@ def risk_analysis(sequence, upper, lower, warning_minutes):
         for timestamp, value in zip(forecast_sequence.timestamps, forecast_sequence.values):
             if value >= upper or value <= lower:
                 flag = 'future upper' if value >= upper else 'future lower'
-                remaining_hours = round((timestamp - current_timestamp) / 1000 / 60 / 24, 4)
+                remaining_hours = round((timestamp - current_timestamp) / 1000 / 60 / 60, 4)
                 occur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(timestamp / 1000)))
                 return {'timestamps': forecast_sequence.timestamps,
                         'values': forecast_sequence.values,

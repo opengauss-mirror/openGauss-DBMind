@@ -722,12 +722,25 @@ def get_data_directory_mountpoint_info(instance):
             return sequence.labels['mountpoint'], \
                    sequence.labels['device'], round(sequence.values[-1] / 1024 / 1024 / 1024, 2)
 
+def get_iops(instance):
+    iops = ''
+    instance_without_port = instance.split(':')[0]
+    instance_regex = instance_without_port + PORT_SUFFIX
+    iops_sequence = get_latest_metric_value('os_disk_iops') \
+        .filter_like(instance=instance_regex) \
+        .fetchall()
+    logging.info('iops: %s, %s', len(iops_sequence), str(iops_sequence))
+    if is_sequence_valid(iops_sequence):
+        iops = round(max(sequence.values[-1] for sequence in iops_sequence), 1)
+
+    return iops
+
 
 def get_database_data_directory_status(instance, latest_minutes):
     # return the data-directory information of current cluster
     # note: now the node of instance should be deployed opengauss_exporter
     mountpoint, total_space = '', 0.0
-    detail = {'total_space': '', 'usage_rate': '', 'used_space': '', 'free_space': ''}
+    detail = {'total_space': '', 'usage_rate': '', 'used_space': '', 'free_space': '', 'iops':''}
     instance_without_port = instance.split(':')[0]
     # get data_directory of any node in cluster, because all the node have the same data-directory.
     mountpoint_info = get_data_directory_mountpoint_info(instance)
@@ -744,6 +757,7 @@ def get_database_data_directory_status(instance, latest_minutes):
     detail['usage_rate'] = round(disk_usage_sequence.values[-1], 4)
     detail['used_space'] = round(detail['total_space'] * detail['usage_rate'], 2)
     detail['free_space'] = round(detail['total_space'] - detail['used_space'], 2)
+    detail['iops'] = get_iops(instance)
     return detail
 
 
