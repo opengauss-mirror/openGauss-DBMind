@@ -607,8 +607,6 @@ class SqlGeneratorTester(unittest.TestCase):
                     "SELECT pg_catalog.hypopg_create_index('CREATE INDEX ON "
                     "public.date_dim(d_year) global')",
                     'SELECT pg_catalog.hypopg_display_index()',
-                    "SET explain_perf_mode = 'normal';",
-                    "set plan_cache_mode = 'force_generic_plan';",
                     'prepare prepare_0 as select * from bmsql_customer where c_d_id=1',
                     'explain execute prepare_0',
                     'deallocate prepare prepare_0',
