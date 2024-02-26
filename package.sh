@@ -16,3 +16,4 @@ wget https://nodejs.org/dist/v16.9.0/node-v16.9.0-linux-${version}.tar.xz && tar
 export CI=False
 export PATH=`pwd`/node-v16.9.0-linux-${version}/bin:`pwd`/python/bin:$PATH
 make package
+make test

@@ -70,7 +70,7 @@ clean:
 	rm -rf payload.tar*
 	rm -rf build *.spec
 
-package: clean ui dbmind 3rd test
+package: clean ui dbmind 3rd
 	@echo "Full packaging..."
 	tar --exclude='ui' --exclude='tests' --exclude='Makefile' --exclude='decompress' --exclude='tox.ini' --exclude='node-*' --exclude='miniconda.sh' -cf payload.tar *
 	tar --append --file=payload.tar ui/build
