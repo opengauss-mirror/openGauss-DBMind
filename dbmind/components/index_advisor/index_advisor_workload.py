@@ -769,7 +769,7 @@ def get_indexable_indexes(indexes, executor):
         for cur_tuple in index_check_results:
             text = cur_tuple[0]
             if text.strip('()').startswith('<') and 'btree' in text:
-                yield text
+                yield index
 
 
 def remove_unused_indexes(executor, statement, valid_indexes):
