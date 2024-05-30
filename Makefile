@@ -69,6 +69,7 @@ clean:
 	rm -rf dbmind-installer*.sh
 	rm -rf payload.tar*
 	rm -rf build *.spec
+	rm -rf 3rd
 
 package: clean ui dbmind 3rd
 	@echo "Full packaging..."
