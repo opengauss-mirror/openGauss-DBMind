@@ -18,7 +18,7 @@ ifeq (, $(PYTHON))
   $(error "Not found PYTHON($(PYTHON)) in $(PATH).")
 endif
 
-include constant
+include ./constant
 PYTHON_VERSION=$(shell $(PYTHON) -c 'import sys; print("%d.%d"% sys.version_info[0:2])' )
 PYTHON_VERSION_OK=$(shell $(PYTHON) -c 'import sys;\
   print(int(eval($(MIN_PYTHON_VERSION)) <= sys.version_info[0:2] <= eval($(MAX_PYTHON_VERSION))))' )
