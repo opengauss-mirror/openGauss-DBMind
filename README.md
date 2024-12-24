@@ -59,16 +59,16 @@ DBMind会定期在openGauss-DBMind项目的release页面发布DBMind的安装包
 
 | Name              | Download                                                                                                                                                                        | Remarks                 |
 |-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
-| DBMind X86        | [dbmind-installer-x86_64-python3.11.sh.tar.gz](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/x86/dbmind-installer-x86_64-python3.11.sh.tar.gz)               | X86架构下DBMind安装包         |
-| DBMind X86 SHA256 | [dbmind-installer-x86_64-python3.11.sh.tar.gz.sha256](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/x86/dbmind-installer-x86_64-python3.11.sh.tar.gz.sha256) | DBMind X86安装包SHA256校验文件 |
-| DBMind ARM        | [dbmind-installer-aarch64-python3.11.sh.tar.gz](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/arm/dbmind-installer-aarch64-python3.11.sh.tar.gz)               | ARM架构下DBMind安装包         |
-| DBMind ARM SHA256 | [dbmind-installer-aarch64-python3.11.sh.tar.gz.sha256](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/arm/dbmind-installer-aarch64-python3.11.sh.tar.gz.sha256) | DBMind ARM安装包SHA256校验文件 |
+| DBMind X86        | [dbmind-installer-x86_64.tar.gz](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/x86/dbmind-installer-x86_64.tar.gz)               | X86架构下DBMind安装包         |
+| DBMind X86 SHA256 | [dbmind-installer-x86_64.tar.gz.sha256](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/x86/dbmind-installer-x86_64.tar.gz.sha256) | DBMind X86安装包SHA256校验文件 |
+| DBMind ARM        | [dbmind-installer-aarch64.tar.gz](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/arm/dbmind-installer-aarch64.tar.gz)               | ARM架构下DBMind安装包         |
+| DBMind ARM SHA256 | [dbmind-installer-aarch64.tar.gz.sha256](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/arm/dbmind-installer-aarch64.tar.gz.sha256) | DBMind ARM安装包SHA256校验文件 |
 
 安装包使用：
 
-&emsp;&emsp;解压：tar zxvf dbmind-installer-x86_64-python3.11.sh.tar.gz
+&emsp;&emsp;解压：tar zxvf dbmind-installer-x86_64.tar.gz
 
-&emsp;&emsp;DBMind安装: sh dbmind-installer-x86_64-python3.11.sh
+&emsp;&emsp;DBMind安装: sh dbmind-installer-x86_64-python3.12.sh
 
 
 #### 关于Python运行环境
