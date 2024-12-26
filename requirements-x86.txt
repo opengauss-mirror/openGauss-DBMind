@@ -14,7 +14,7 @@ pycryptodome
 prettytable>=2.5.0
 ## Prometheus Exporter
 pyyaml
-prometheus-client # prometheus_client
+prometheus-client==0.16.0 # prometheus_client
 # Rewriter
 sql-metadata # sql_metadata
 mo-sql-parsing==9.262.22323
