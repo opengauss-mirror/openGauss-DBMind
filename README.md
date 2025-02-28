@@ -64,6 +64,18 @@ DBMind会定期在openGauss-DBMind项目的release页面发布DBMind的安装包
 | DBMind ARM        | [dbmind-installer-aarch64.tar.gz](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/arm/dbmind-installer-aarch64.tar.gz)               | ARM架构下DBMind安装包         |
 | DBMind ARM SHA256 | [dbmind-installer-aarch64.tar.gz.sha256](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/arm/dbmind-installer-aarch64.tar.gz.sha256) | DBMind ARM安装包SHA256校验文件 |
 
+完整性校验：
+
+为确认软件包在传输过程中由于网络原因或存储介质原因是否出现下载不完整的情况，需对软件包的完整性进行校验，通过校验的软件包才能部署，完整性校验步骤如下：
+
+1. 计算下载包的sha256值（以dbmind-installer-aarch64.tar.gz为例，其他版本操作相同）
+
+~~~
+ sha256sum dbmind-installer-aarch64.tar.gz
+~~~
+
+2. 下载对应安装包的SHA256校验文件，对比文件中的sha256值与步骤1中计算出的sha256值，如果一致则可以确认下载下来的包是完整的，否则需要重新下载。
+
 安装包使用：
 
 &emsp;&emsp;解压：tar zxvf dbmind-installer-x86_64.tar.gz
@@ -222,7 +234,7 @@ DBMind的docker镜像的默认执行文件是 `docker_run.py`，该启动脚本�
     SCRAPE_INTERVAL: 可选，指标信息的采集间隔，单位是秒；默认为15秒
     MASTER_USER: 可选，具有管理员权限的数据库用户名，可以用来执行某些数据库变更动作或者查询当前数据库的即时状态信息；若为空，则采用 OPENGAUSS_DSNS 中提供的用户
     MASTER_USER_PWD: 可选，上述 MASTER_USER 对应的用户密码
-    
+
 注：DSN的配置格式可以参考[常见问题](#dsn%E7%9A%84%E6%A0%BC%E5%BC%8F%E8%AF%B4%E6%98%8E)中的说明。
 
 使用`docker run`的`-v`参数可以将路径进行映射，docker容器内的日志统一写到 `/log` 目录中，持久化的数据统一存放在 `/data` 目录中。使用 `-p` 参数可以将容器内的端口号进行映射，Prometheus的容器内端口是9090, DBMind的web服务则使用8080端口。下面是个启动docker服务的例子：
@@ -303,7 +315,7 @@ OpenGauss-exporter is to monitor only one database instance. So if your deployme
 It needs database access with a user having the role of at least **monadmin** (monitoring administrator) granted to run it. For example, you can grant monadmin privilege to role dbmind as below:
 ```
 ALTER USER dbmind monadmin;
-``` 
+```
 Use the following command with the parameters below:
 
 ```
