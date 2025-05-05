@@ -72,7 +72,8 @@ class DBAgent:
                                      passwd=self.password,
                                      database=self.database,
                                      port=self.port,
-                                     application_name='DBMind-sqlidag')
+                                     application_name='DBMind-sqlidag',
+                                     )
         self.conn.set_client_encoding('latin9')
         self.cursor = self.conn.cursor()
 

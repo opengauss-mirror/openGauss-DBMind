@@ -119,7 +119,7 @@ class TemplateModel(AbstractModel):
             with open(template_path, mode='r') as f:
                 self.__hash_table = json.load(f)
         else:
-            logging.error("{} not exist.".format(realpath))
+            logging.error("'%s' does not exist.", realpath)
 
     def save(self, filepath):
         realpath = os.path.realpath(filepath)

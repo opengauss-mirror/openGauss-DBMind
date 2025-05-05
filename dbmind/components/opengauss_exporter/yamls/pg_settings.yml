@@ -14,18 +14,17 @@
 pg_settings:
   name: pg_settings
   desc: OpenGauss database settings
-  query:
-    - name: pg_settings
-      sql: "select name,
-             case when vartype = 'bool' then
-              (case when setting = 'on' then 1. else 0. end) else setting::float end as setting,
-             vartype from pg_settings
-             where vartype not in ('enum', 'string')
-             and name not similar to '(audit_%|dcf_%|debug_%|password_%)';"
-      version: '>=0.0.0'
-      timeout: 1
-      status: enable
-
+  query: |-
+    SELECT 
+      name,
+      CASE WHEN vartype = 'bool' THEN (CASE WHEN setting = 'on' THEN 1. ELSE 0. END) ELSE setting::FLOAT END AS setting,
+      vartype 
+    FROM 
+      pg_catalog.pg_settings
+    WHERE 
+      vartype NOT IN ('enum', 'string')
+      AND 
+      name NOT SIMILAR TO '(audit_%|dcf_%|debug_%|password_%)';
   metrics:
     - name: name
       description: GUC name
@@ -36,7 +35,6 @@ pg_settings:
     - name: vartype
       description: GUC type
       usage: LABEL
-
   status: enable
-  ttl: 600
+  ttl: 10
   timeout: 1

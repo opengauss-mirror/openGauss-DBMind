@@ -48,21 +48,23 @@ def run(remote_server, local_host):
     if len(cmd_files) != 2:
         print('Invalid configuration parameter `benchmark_cmd`. '
               'You should check the item in the configuration file.', file=sys.stderr)
-        exit(-1)
+        exit(1)
     # Check whether these files exist.
     shell_file, conf_file = cmd_files
     shell_file = os.path.join(path, shell_file)
     conf_file = os.path.join(path, conf_file)
-    _, stderr1 = terminal.exec_command_sync('ls %s' % shell_file)
-    _, stderr2 = terminal.exec_command_sync('ls %s' % conf_file)
+    _, stderr1 = terminal.exec_command_sync('ls %s' % shlex.quote(shell_file))
+    _, stderr2 = terminal.exec_command_sync('ls %s' % shlex.quote(conf_file))
     if len(stderr1) > 0 or len(stderr2) > 0:
         print('You should correct the parameter `benchmark_path` that the path contains several executable SQL files '
               'in the configuration file.')
-        exit(-1)
+        exit(1)
     # Clean log file
-    terminal.exec_command_sync('rm -rf %s' % err_logfile)
+    terminal.exec_command_sync('rm -rf %s' % shlex.quote(err_logfile))
     # Run benchmark
-    stdout, stderr = terminal.exec_command_sync('cd %s; %s %s' % (path, shell_file, conf_file))
+    stdout, stderr = terminal.exec_command_sync('cd %s; %s %s' % (shlex.quote(path),
+                                                                  shlex.quote(shell_file),
+                                                                  shlex.quote(conf_file)))
 
     # Find the tpmC result.
     tpmC = None
@@ -74,6 +76,6 @@ def run(remote_server, local_host):
     if tpmC is None and len(stderr) > 0:
         raise ExecutionError(stderr)
     stdout, stderr = terminal.exec_command_sync(
-        "cat %s/benchmarksql-error.log" % path)
+        "cat %s" % shlex.quote(os.path.join(path, 'benchmarksql-error.log')))
     nb_err = stdout.count("ERROR:")  # Penalty term.
     return float(tpmC) - 10 * nb_err  # You can modify the penalty factor.

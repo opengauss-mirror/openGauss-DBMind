@@ -18,14 +18,20 @@ from datetime import datetime
 
 import numpy as np
 from prettytable import PrettyTable
-from scipy import interpolate
+try:
+    from scipy import interpolate
+except ImportError:
+    pass
 
+from dbmind import constants
 from dbmind.app import monitoring
 from dbmind.cmd.edbmind import init_global_configs
 from dbmind.common.algorithm import anomaly_detection
+from dbmind.common.exceptions import InvalidSequenceException
+from dbmind.common.utils.exporter import set_logger
 from dbmind.common.utils.component import initialize_tsdb_param
 from dbmind.common.algorithm.stat_utils import sequence_interpolate
-from dbmind.common.utils.checking import date_type, path_type
+from dbmind.common.utils.checking import date_type, path_type, CheckAddress
 from dbmind.common.utils.cli import (
     raise_fatal_and_exit, RED_FMT, GREEN_FMT
 )
@@ -33,8 +39,14 @@ from dbmind.service import dai
 from dbmind.service.utils import SequenceUtils
 
 DISTRIBUTION_LENGTH = 50
-PLOT_WIDTH = 100
-PLOT_HEIGHT = 20
+try:
+    PLOT_WIDTH = os.get_terminal_size()[0] - 5
+except OSError:
+    PLOT_WIDTH = 100
+
+PLOT_HEIGHT = PLOT_WIDTH // 4
+INTERPOLATE_THRESHOLD = 0.9
+STEP = 15000
 
 ANOMALY_DETECTORS = {
     'level_shift': anomaly_detection.LevelShiftDetector(
@@ -123,10 +135,12 @@ def bash_plot(y, x=None, w=100, h=20, label=None, color_format=RED_FMT,
     step = (x[-1] - x[0]) / (w - 1)
     x_axis = np.arange(x[0], x[-1] + 0.5 * step, step)
     x_axis[-1] = min(x[-1], x_axis[-1])
-    f = interpolate.interp1d(x, y, kind='linear')
+    f = interpolate.interp1d(x, y, kind='zero')
     y_axis = f(x_axis)
 
     res = [left_col]
+    fills = list()
+    last_y_idx = None
     for i, value in enumerate(y_axis):
         y_idx = index(value, y_min, y_max, h)
         col = empty_col[:]
@@ -135,6 +149,21 @@ def bash_plot(y, x=None, w=100, h=20, label=None, color_format=RED_FMT,
             coloring(col, color_format)
 
         res.append(col)
+        if last_y_idx is None or last_y_idx == y_idx:
+            fills.append(None)
+        else:
+            step = int((last_y_idx - y_idx) / abs(last_y_idx - y_idx))
+            fills.append([y_idx, last_y_idx, step])
+
+        last_y_idx = y_idx
+
+    for i in range(len(fills)):
+        if not fills[i]:
+            continue
+
+        y_idx, last_y_idx, step = fills[i]
+        for j in range(y_idx, last_y_idx, step):
+            res[i][j] = marker
 
     res.append(right_col)
 
@@ -189,7 +218,6 @@ def plot(sequences_set, anomalies_set, metric, start_time, end_time):
     end_str = end_datetime.strftime('%Y-%m-%d %H:%M:%S')
 
     table = {}
-
     for host, sequence in sequences_set.items():
         for anomaly_type, seq in anomalies_set[host].items():
             title = f'{anomaly_type} for {metric} from {host}'
@@ -215,9 +243,9 @@ def plot(sequences_set, anomalies_set, metric, start_time, end_time):
 
 def main(argv):
 
-    def anomaly_detect(sequence, anomaly):
+    def anomaly_detect(sequence, anomaly_name):
         try:
-            detector = ANOMALY_DETECTORS[anomaly]
+            detector = ANOMALY_DETECTORS[anomaly_name]
             return detector.fit_predict(sequence)
 
         except Exception as e:
@@ -237,7 +265,7 @@ def main(argv):
     parser.add_argument('-e', '--end-time', required=True, type=date_type,
                         help='set the end time of for retrieving in ms, '
                              'supporting UNIX-timestamp with microsecond or datetime format')
-    parser.add_argument('-H', '--host',
+    parser.add_argument('-H', '--host', action=CheckAddress,
                         help='set a host of the metric, ip only or ip and port.')
     parser.add_argument('-a', '--anomaly', choices=("level_shift", "spike", "seasonal", "volatility_shift"),
                         help='set a anomaly detector of the metric from: '
@@ -245,9 +273,11 @@ def main(argv):
     args = parser.parse_args(argv)
     # Initialize
     os.chdir(args.conf)
+    log_path = os.path.join('logs', constants.ANOMALY_DETECTION_LOG_NAME)
+    set_logger(log_path, "info")
     init_global_configs(args.conf)
     if not initialize_tsdb_param():
-        parser.exit(1, "TSDB service does not exist, exiting...")
+        parser.exit(1, "TSDB service does not exist, exiting...\n")
 
     metric = args.metric
     start_time = args.start_time
@@ -255,42 +285,53 @@ def main(argv):
     host = args.host
     anomaly = args.anomaly
     if end_time - start_time < 30000:
-        parser.exit(1, "The start time must be at least 30 seconds earlier than the end time.")
+        parser.exit(1, "The start time must be at least 30 seconds earlier than the end time.\n")
+    elif end_time - start_time >= STEP * 11000:  # The Prometheus's length limit is up to 11000.
+        parser.exit(1,
+                    f"The time between the start time and the end time is too long. The maximum "
+                    f"time window is {STEP * 11000 // 1000} seconds.\n")
 
     if args.action == 'plot' and None in (host, anomaly):
         parser.exit(1, "Quitting plot action due to missing parameters. "
-                       "(--host or --anomaly)")
+                       "(--host and --anomaly)\n")
 
     start_datetime = datetime.fromtimestamp(start_time / 1000)
     end_datetime = datetime.fromtimestamp(end_time / 1000)
     start_str = start_datetime.strftime('%Y-%m-%d %H:%M:%S')
     end_str = end_datetime.strftime('%Y-%m-%d %H:%M:%S')
 
-    sequences = dai.get_metric_sequence(metric, start_datetime, end_datetime).fetchall()
+    sequences = dai.get_metric_sequence(metric, start_datetime, end_datetime, step=STEP).fetchall()
 
     if not sequences:
-        parser.exit(1, f"No data retrieved for {metric} from {start_str} to {end_str}.")
+        parser.exit(1, f"No data retrieved for {metric} from {start_str} to {end_str}.\n")
 
     if host:
         sequences = [sequence for sequence in sequences if SequenceUtils.from_server(sequence) == host]
         if not sequences:
             parser.exit(1, f"No data retrieved for {metric} from host: {host}. (If the metric {metric} "
-                           " is a DB metric, check if you have enter the host with the port.)")
+                           " is a DB metric, check if you have enter the host with the port.)\n")
 
     anomalies_set = dict()
     sequences_set = dict()
     for sequence in sequences:
         metric_host = SequenceUtils.from_server(sequence)
-        sequence = sequence_interpolate(sequence, strip_details=False)
+        if len(sequence.values) >= (end_time - start_time) / sequence.step * INTERPOLATE_THRESHOLD:
+            try:
+                sequence = sequence_interpolate(sequence, fit_method="zero", strip_details=False)
+            except InvalidSequenceException:
+                continue
+
+        elif len(sequence.values) <= 1:
+            parser.exit(1, "The length of the scraped data from TSDB is too short.\n")
+
         if not all(np.isfinite(sequence.values)):
-            parser.exit(1, "Non-numeric data format was found in sequence values.")
+            parser.exit(1, "Non-numeric data format was found in sequence values.\n")
 
         sequences_set[metric_host] = sequence
         anomalies_set[metric_host] = {}
         if anomaly:
             if anomaly not in ANOMALY_DETECTORS:
-                parser.exit(1, f"Not found anomaly in {list(ANOMALY_DETECTORS.keys())}.")
-
+                parser.exit(1, f"Not found anomaly in {list(ANOMALY_DETECTORS.keys())}.\n")
             anomalies_set[metric_host][anomaly] = anomaly_detect(sequence, anomaly)
         else:
             for anomaly_type in ANOMALY_DETECTORS:

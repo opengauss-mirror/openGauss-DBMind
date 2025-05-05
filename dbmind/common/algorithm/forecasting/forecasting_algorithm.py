@@ -12,11 +12,10 @@
 # See the Mulan PSL v2 for more details.
 
 import logging
+import numpy as np
 import threading
 from types import SimpleNamespace
 from typing import Union, List
-
-import numpy as np
 
 from dbmind.common.utils import dbmind_assert
 from .. import seasonal as seasonal_interface
@@ -43,30 +42,43 @@ class ForecastingFactory:
     _CACHE = threading.local()  # Reuse an instantiated object.
 
     @staticmethod
-    def _get(algorithm_name):
+    def _get_singleton(algorithm_name, given_parameters=None):
         if not hasattr(ForecastingFactory._CACHE, algorithm_name):
             if algorithm_name == 'linear':
                 from .simple_forecasting import SimpleLinearFitting
                 setattr(ForecastingFactory._CACHE, algorithm_name, SimpleLinearFitting(avoid_repetitive_fitting=True))
             elif algorithm_name == 'arima':
                 from .arima_model.arima_alg import ARIMA
-                setattr(ForecastingFactory._CACHE, algorithm_name, ARIMA())
+                setattr(ForecastingFactory._CACHE, algorithm_name, ARIMA(given_parameters=given_parameters))
             else:
                 raise NotImplementedError(f'Failed to load {algorithm_name} algorithm.')
 
         return getattr(ForecastingFactory._CACHE, algorithm_name)
 
     @staticmethod
-    def get_instance(sequence) -> ForecastingAlgorithm:
+    def get_instance(sequence, given_parameters=None) -> ForecastingAlgorithm:
         """Return a forecast model according to the feature of given sequence."""
-        linear = ForecastingFactory._get('linear')
+        linear = ForecastingFactory._get_singleton('linear')
         linear.refit()
         linear.fit(sequence)
         if linear.r2_score >= LINEAR_THRESHOLD:
             logging.debug('Choose linear fitting algorithm to forecast.')
             return linear
         logging.debug('Choose ARIMA algorithm to forecast.')
-        return ForecastingFactory._get('arima')
+        return ForecastingFactory._get_singleton('arima', given_parameters)
+
+    @staticmethod
+    def get_new_instance(sequence, given_parameters=None) -> ForecastingAlgorithm:
+        """Return a forecast model according to the feature of given sequence."""
+        from .simple_forecasting import SimpleLinearFitting
+        linear = SimpleLinearFitting(avoid_repetitive_fitting=True)
+        linear.fit(sequence)
+        if linear.r2_score >= LINEAR_THRESHOLD:
+            logging.debug('Choose linear fitting algorithm to forecast.')
+            return linear
+
+        from .arima_model.arima_alg import ARIMA
+        return ARIMA(given_parameters=given_parameters)
 
 
 def _check_forecasting_time(forecasting_time):
@@ -103,7 +115,6 @@ def decompose_sequence(sequence):
     if is_seasonal:
         seasonal, trend, residual = seasonal_interface.seasonal_decompose(raw_data, period=period)
         train_sequence = Sequence(timestamps=sequence.timestamps, values=trend)
-        train_sequence = sequence_interpolate(train_sequence)
         seasonal_data = SimpleNamespace(
             is_seasonal=is_seasonal,
             seasonal=seasonal,
@@ -116,7 +127,8 @@ def decompose_sequence(sequence):
     return seasonal_data, train_sequence
 
 
-def compose_sequence(seasonal_data, train_sequence, forecast_values):
+def compose_sequence(seasonal_data, train_sequence, forecast_values,
+                     confidence_interval=False):
     forecast_length = len(forecast_values)
     if seasonal_data and seasonal_data.is_seasonal:
         seasonal = seasonal_data.seasonal
@@ -131,7 +143,15 @@ def compose_sequence(seasonal_data, train_sequence, forecast_values):
         else:
             addition = latest_period[:forecast_length]
 
-        forecast_values = forecast_values + addition
+        if confidence_interval:
+            bias = resid.std() * np.sqrt((np.arange(forecast_length) - 1) / period + 1)
+            forecast_values = np.vstack([
+                forecast_values + addition - bias,
+                forecast_values + addition,
+                forecast_values + addition + bias
+            ])
+        else:
+            forecast_values = forecast_values + addition
 
     forecast_timestamps = [train_sequence.timestamps[-1] + train_sequence.step * i
                            for i in range(1, forecast_length + 1)]
@@ -139,7 +159,8 @@ def compose_sequence(seasonal_data, train_sequence, forecast_values):
 
 
 def quickly_forecast(sequence, forecasting_minutes, lower=0, upper=float('inf'),
-                     given_model=None, return_model=False):
+                     given_model="singleton", given_parameters=None,
+                     return_model=False, confidence_interval=False):
     """
     Return forecast sequence in forecasting_minutes from raw sequence.
     :param sequence: type->Sequence
@@ -147,7 +168,9 @@ def quickly_forecast(sequence, forecasting_minutes, lower=0, upper=float('inf'),
     :param lower: The lower limit of the forecast result
     :param upper: The upper limit of the forecast result.
     :param given_model: type->ARIMA or SimpleLinearFitting
+    :param given_parameters: type->tuple(p,d,q): p,d,q for ARIMA model
     :param return_model: type->bool
+    :param confidence_interval: type->bool
     :return: forecast sequence: type->Sequence
     """
 
@@ -167,35 +190,63 @@ def quickly_forecast(sequence, forecasting_minutes, lower=0, upper=float('inf'),
         seasonal_data, train_sequence = decompose_sequence(interpolated_sequence)
 
         # 4. get model from ForecastingFactory or given model
-        if given_model is None:
-            model = ForecastingFactory.get_instance(train_sequence)
+        if given_model == "singleton":
+            model = ForecastingFactory.get_instance(train_sequence, given_parameters)
             model.fit(train_sequence)
-        else:
+        elif given_model == "new":
+            model = ForecastingFactory.get_new_instance(train_sequence, given_parameters)
+            model.fit(train_sequence)
+        elif isinstance(given_model, ForecastingAlgorithm):
             model = given_model
+        else:
+            raise ValueError("Wrong type for 'given_model'.")
 
         forecast_data = model.forecast(forecasting_length)
         forecast_data = trim_head_and_tail_nan(forecast_data)
+        forecast_data = np.asarray(forecast_data)
         dbmind_assert(len(forecast_data) == forecasting_length)
 
         # 5. compose sequence
         forecast_timestamps, forecast_values = compose_sequence(
             seasonal_data,
             train_sequence,
-            forecast_data
+            forecast_data,
+            confidence_interval=confidence_interval
         )
 
-        for i in range(len(forecast_values)):
-            forecast_values[i] = min(forecast_values[i], upper)
-            forecast_values[i] = max(forecast_values[i], lower)
+        forecast_values[forecast_values > upper] = upper
+        forecast_values[forecast_values < lower] = lower
 
-        result_sequence = Sequence(
-            timestamps=forecast_timestamps,
-            values=forecast_values,
-            name=sequence.name,
-            labels=sequence.labels
-        )
+        if confidence_interval:
+            result_sequence = (
+                Sequence(
+                    timestamps=forecast_timestamps,
+                    values=forecast_values[0, :],
+                    name="lower",
+                    labels=sequence.labels
+                ),
+                Sequence(
+                    timestamps=forecast_timestamps,
+                    values=forecast_values[1, :],
+                    name=sequence.name,
+                    labels=sequence.labels
+                ),
+                Sequence(
+                    timestamps=forecast_timestamps,
+                    values=forecast_values[2, :],
+                    name="upper",
+                    labels=sequence.labels
+                )
+            )
+        else:
+            result_sequence = Sequence(
+                timestamps=forecast_timestamps,
+                values=forecast_values,
+                name=sequence.name,
+                labels=sequence.labels
+            )
     except ValueError as e:
-        logging.warning(f"An Exception was raised while quickly forecasting: {e}")
+        logging.warning("An Exception was raised while quickly forecasting: %s", e)
         result_sequence, model = Sequence(), None
 
     if not return_model:

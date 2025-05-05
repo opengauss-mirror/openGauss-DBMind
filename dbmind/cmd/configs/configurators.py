@@ -10,25 +10,37 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import configparser
 import logging
 import os
 from configparser import ConfigParser
 
 from dbmind.cmd.configs.config_constants import (
-    SKIP_LIST, NULL_TYPE, ENCRYPTED_SIGNAL,
-    DBMIND_CONF_HEADER, IV_TABLE,
-    check_config_validity)
-from dbmind.common import security
+    SKIP_LIST,
+    NULL_TYPE,
+    ENCRYPTED_SIGNAL,
+    DBMIND_CONF_HEADER,
+    check_config_validity
+)
+from dbmind import constants
+from dbmind.common import security, utils
 from dbmind.common.exceptions import (
-    InvalidCredentialException, ConfigSettingError)
-from dbmind.common.utils import (ExceptionCatcher,
-                                 cast_to_int_or_float)
+    InvalidCredentialException,
+    ConfigSettingError,
+    DontIgnoreThisError
+)
+from dbmind.common.utils import cast_to_int_or_float
+from dbmind.common.utils.checking import uniform_ip, uniform_instance
 from dbmind.metadatabase.dao.dynamic_config import (
-    dynamic_config_get, dynamic_config_set,
-    dynamic_configs_list, dynamic_category_configs_get)
+    dynamic_config_get,
+    dynamic_config_set,
+    dynamic_configs_list
+)
+from dbmind.metadatabase.schema.config_dynamic_params import IV_TABLE
 
 from .base_configurator import BaseConfig
+from ...metadatabase.ddl import create_dynamic_config_schema
 
 
 class ReadonlyConfig(BaseConfig):
@@ -50,8 +62,22 @@ class ReadonlyConfig(BaseConfig):
         # Otherwise, it will cause the read configuration
         # items to be wrong.
         self._configs = ConfigParser(inline_comment_prefixes='#')
+        self.conf_dir = os.path.dirname(filepath)
         with open(file=filepath, mode='r') as fp:
             self._configs.read_file(fp)
+
+    def check_config_validity(self):
+        microservice, ignore_tsdb = False, False
+        for section in self._configs.sections():
+            for option in self._configs.options(section):
+                if section == 'TSDB' and option == 'name' and self._configs.get(section, option) == 'ignore':
+                    ignore_tsdb = True
+                if section == 'AGENT' and option == 'distribute_mode' and self._configs.get(section, option) == 'true':
+                    microservice = True
+                valid, reason = check_config_validity(section, option, self._configs.get(section, option),
+                                                      silent=True, microservice=microservice, ignore_tsdb=ignore_tsdb)
+                if not valid:
+                    raise ConfigSettingError('%s.' % reason)
 
     def __getattribute__(self, name):
         try:
@@ -69,24 +95,48 @@ class ReadonlyConfig(BaseConfig):
             raise configparser.InterpolationSyntaxError(
                 e.section, e.option, 'Found bad configuration: %s-%s.' % (e.section, e.option)
             ) from None
+
         if value is None:
             logging.warning('Not set %s-%s.', section, option)
             return value
 
         if value == NULL_TYPE:
             value = ''
+
+        if option == "host":
+            if "," in value:
+                value = ",".join([uniform_ip(ip) for ip in value.split(",")])
+            else:
+                value = uniform_ip(value)
+
+        if option == "master_url":
+            res = list()
+            urls = value.split(",")
+            for url in urls:
+                if "//" not in url:
+                    res.append(url)
+                    continue
+
+                url_list = url.strip().split("//", 1)
+                url_list[1] = uniform_instance(url_list[1])
+                res.append("//".join(url_list))
+
+            value = ",".join(res)
+
         if 'password' in option and value != '':
-            s1 = dynamic_config_get(IV_TABLE, 'cipher_s1')
-            s2 = dynamic_config_get(IV_TABLE, 'cipher_s2')
+            s1, s2 = get_config_security_keys(os.path.join(self.conf_dir, constants.CIPHER_S1))
             iv = dynamic_config_get(IV_TABLE, '%s-%s' % (section, option))
             if value.startswith(ENCRYPTED_SIGNAL) and iv:
                 real_value = value[len(ENCRYPTED_SIGNAL):]
             else:
-                raise ExceptionCatcher.DontIgnoreThisError(configparser.InterpolationSyntaxError(
-                    section, option, 'DBMind only supports encrypted password. '
-                                     'Please try to set %s-%s and initialize the configuration file.'
-                                     % (section, option),
-                ))
+                raise DontIgnoreThisError(
+                    configparser.InterpolationSyntaxError(
+                        section,
+                        option,
+                        'DBMind only supports encrypted password. Please try to set %s-%s '
+                        'and initialize the configuration file.' % (section, option),
+                    )
+                )
 
             try:
                 value = security.decrypt(s1, s2, iv, real_value)
@@ -95,28 +145,17 @@ class ReadonlyConfig(BaseConfig):
                     'An exception %s raised while decrypting.' % type(e)
                 ) from None
 
-        else:
-            valid, reason = check_config_validity(section, option, value, silent=True)
-            if not valid:
-                raise ConfigSettingError('DBMind failed to start due to %s.' % reason)
-
         return value
 
     def getint(self, section, option, *args, **kwargs):
         """Faked getint() for ConfigParser class."""
         value = self._configs.get(section, option, *args, **kwargs)
-        valid, reason = check_config_validity(section, option, value, silent=True)
-        if not valid:
-            raise ConfigSettingError('DBMind failed to start due to %s.' % reason)
 
         return int(value)
 
     def getfloat(self, section, option, *args, **kwargs):
         """Faked getfloat() for ConfigParser class."""
         value = self._configs.get(section, option, *args, **kwargs)
-        valid, reason = check_config_validity(section, option, value, silent=True)
-        if not valid:
-            raise ConfigSettingError('DBMind failed to start due to %s.' % reason)
 
         return float(value)
 
@@ -219,7 +258,27 @@ class DynamicConfig:
     def list():
         return dynamic_configs_list()
 
-    @staticmethod
-    def get_category_values(category):
-        return dynamic_category_configs_get(category)
 
+def create_dynamic_configs(s1_file):
+    """Create dynamic configuration schema and
+    generate security keys."""
+    utils.cli.write_to_terminal(
+        'Starting to generate a dynamic config file...',
+        color='green')
+    create_dynamic_config_schema()
+    s1_ = security.safe_random_string(16)
+    s2_ = security.safe_random_string(16)
+    with open(s1_file, 'w') as file_h:
+        file_h.write(s1_)
+    dynamic_config_set(IV_TABLE, 'cipher_s1', s1_)
+    dynamic_config_set(IV_TABLE, 'cipher_s2', s2_)
+    return s1_, s2_
+
+
+def get_config_security_keys(s1_file):
+    if os.path.exists(s1_file):
+        s1 = open(s1_file).read()
+    else:
+        s1 = dynamic_config_get(IV_TABLE, 'cipher_s1')
+    s2 = dynamic_config_get(IV_TABLE, 'cipher_s2')
+    return s1, s2

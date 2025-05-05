@@ -10,14 +10,19 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import logging
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
+import time
 import yaml
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from prometheus_client.exposition import generate_latest
 from prometheus_client.registry import CollectorRegistry
 
+from dbmind import constants
+from dbmind.common import ha
+from . import main
 from .dao import MetricConfig
 from .dao import query
 
@@ -31,15 +36,18 @@ _look_for_dlp_metrics = False  # if to look for data leak protection metrics
 _dlp_metric_units = []  # time units to repeat for data leak protection metrics
 _dlp_metrics_added = []  # data leak protection metrics that were added
 
+metric_clock = defaultdict(dict)
+DEFAULT_COVERAGE_WINDOW = 300  # seconds
+
 
 def register_prometheus_metrics(rule_filepath):
     global _look_for_dlp_metrics
     global _dlb_metric_definition
     with open(rule_filepath) as f:
-        data = yaml.load(f, Loader=yaml.FullLoader)
+        data = yaml.safe_load(f)
 
     for metric_name, item in data.items():
-        if metric_name == 'gaussdb_dlp':
+        if metric_name == 'opengauss_dlp':
             _look_for_dlp_metrics = True
             _dlb_metric_definition = item
             logging.info("Gauss Data Leak Protection metrics is on")
@@ -89,7 +97,7 @@ def add_dpl_metric(dlp_metric_name):
             promo_query = _dlb_metric_definition["promql"]
             promo_query = promo_query.format(dlp_metric_name=dlp_metric_name, time_unit=time_unit)
             metric_name = f"{metric_name_base}_{time_unit}_rate"
-            logging.info(f"Adding data leak protection metric :{metric_name}")
+            logging.info("Adding data leak protection metric: %s", metric_name)
             cnf = MetricConfig(
                 name=metric_name,
                 promql=promo_query,
@@ -107,7 +115,7 @@ def add_dpl_metric(dlp_metric_name):
         pass
 
     except Exception as e:
-        logging.error(f"Failed adding data leak protection metric: {dlp_metric_name}")
+        logging.error("Failed adding data leak protection metric: %s", dlp_metric_name)
         logging.exception(e)
 
 
@@ -118,7 +126,7 @@ def add_dlp_metrics():
     therefore, there is no way to know in advance what metrics to add and we have to dynamically load them all
     @return: None
     """
-    promql = 'sum by(__name__)({ app="gaussdb_data_leak_protection"})'
+    promql = 'sum by(__name__)({ app="opengauss_data_leak_protection"})'
     result = query(promql)
     for item in result:
         add_dpl_metric(item.name)
@@ -143,6 +151,7 @@ def query_all_metrics():
         except Exception as e:
             logging.exception(e)
 
+    scraped_label_values = defaultdict(dict)
     for metric_name, diff_instance_results in queried_results:
         for result_sequence in diff_instance_results:
             if len(result_sequence) == 0:
@@ -158,17 +167,58 @@ def query_all_metrics():
                 if not target_label_name:
                     continue
                 target_labels_map[target_label_name] = v
+
             _standardize_labels(target_labels_map)
             value = result_sequence.values[0]
+
             try:
-                cnf.gauge.labels(**target_labels_map).set(value)
+                label_values = tuple(str(target_labels_map[k]) for k in cnf.labels)
+            except KeyError:
+                continue
+
+            scraped_label_values[metric_name][label_values] = (target_labels_map, value)
+            metric_clock[metric_name][label_values] = time.monotonic() + DEFAULT_COVERAGE_WINDOW
+
+    for metric_name, cnf in _registered_metrics.items():
+        # Scraped label_values - directly set
+        metric_label_values = scraped_label_values.get(metric_name, {})
+        for label_values, (labels, value) in metric_label_values.items():
+            try:
+                cnf.gauge.labels(**labels).set(value)
             except ValueError as e:
-                logging.error(
-                    'Error occurred: %s. '
-                    'Metric name: %s, rendered labels: %s, expected labels: %s, actual labels: %s.',
-                    e.args, metric_name, target_labels_map, cnf.labels, actual_labels
-                )
+                logging.error('Error occurred: %s. Metric name: %s, rendered labels: %s, '
+                              'expected labels: %s.',
+                              e.args, metric_name, labels, cnf.labels)
             except Exception as e:
                 logging.exception(e)
 
+        for label_values in cnf.gauge._metrics.keys() - scraped_label_values.keys():
+            # Remove the expired metric
+            if metric_clock[metric_name].get(label_values, 0) < time.monotonic():
+                logging.info("The metric: %s of %s was discarded.",
+                             metric_name, label_values)
+                cnf.gauge.remove(*label_values)
+                if label_values in metric_clock[metric_name]:
+                    metric_clock[metric_name].pop(label_values)
+
     return generate_latest(_registry)
+
+
+def check_status_reprocessing_exporter(cmd):
+    cur_path = os.path.realpath(os.path.dirname(__file__))
+    proj_path = cur_path[:cur_path.rfind('dbmind')]
+    log_path = main.exporter_info_dict['logfile']
+    pid_file = os.path.join(proj_path, constants.REPROCESSING_PIDFILE_NAME)
+    status_info = ha.check_status_impl(log_path, pid_file, 'reprocessing_exporter', ())
+    ha.record_interface_info('check_status', status_info)
+    return status_info
+
+
+def repair_interface_reprocessing_exporter(cmd):
+    cur_path = os.path.realpath(os.path.dirname(__file__))
+    proj_path = cur_path[:cur_path.rfind('dbmind')]
+    log_path = main.exporter_info_dict['logfile']
+    pid_file = os.path.join(proj_path, constants.REPROCESSING_PIDFILE_NAME)
+    repair_info = ha.repair_interface_impl(log_path, pid_file, 'reprocessing_exporter', ())
+    ha.record_interface_info('repair', repair_info)
+    return repair_info

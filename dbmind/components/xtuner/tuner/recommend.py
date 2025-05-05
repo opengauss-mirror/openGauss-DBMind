@@ -178,25 +178,25 @@ class OpenGaussKnobAdvisor:
         omega = 0.8  # retention corr
         omega_min = 0.65
         total_mem = self.metric.os_mem_total
-        nb_gaussdb = self.metric.nb_gaussdb
+        nb_opengauss = self.metric.nb_opengauss
         # This is a simplified formula that developer gave.
-        suitable_mem = round4(total_mem * omega / nb_gaussdb)
-        min_mem = round4(total_mem * omega_min / nb_gaussdb)
+        suitable_mem = round4(total_mem * omega / nb_opengauss)
+        min_mem = round4(total_mem * omega_min / nb_opengauss)
 
         if min_mem <= self.metric["max_process_memory"] <= suitable_mem:
-            self.report.print_warn("We only found %s gaussdb process(es). "
+            self.report.print_warn("We only found %s opengauss process(es). "
                                    "In this case, your 'max_process_memory' setting may be just fitting."
-                                   % self.metric.nb_gaussdb)
+                                   % self.metric.nb_opengauss)
 
         if self.metric["max_process_memory"] > suitable_mem:
-            self.report.print_warn("We only found %s gaussdb process(es). "
+            self.report.print_warn("We only found %s opengauss process(es). "
                                    "In this case, your 'max_process_memory' setting may be a bit large."
-                                   % self.metric.nb_gaussdb)
+                                   % self.metric.nb_opengauss)
 
         if self.metric["max_process_memory"] < min_mem:
-            self.report.print_bad("We only found %s gaussdb process(es). "
+            self.report.print_bad("We only found %s opengauss process(es). "
                                   "In this case, your 'max_process_memory' setting is heavily small."
-                                  % self.metric.nb_gaussdb)
+                                  % self.metric.nb_opengauss)
 
         # Should always return the recommendation because other recommendations depend on it.
         return instantiate_knob(name="max_process_memory",

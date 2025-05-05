@@ -63,17 +63,17 @@ export default class RcaSql extends Component {
   }
   render () {
     return (
-      <div>
-        <Card title="Rca Distribution Of Slow Sql" className="mb-20">
+      <div style={{ textAlign: 'center' }}>
+        <Card title="Rca Distribution Of Slow Sql">
         {this.state.ifShow ? <ReactEcharts
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption()}
-            style={{ width: '100%', height: '210px' }}
+            style={{ width: '100%', height: '250px' }}
             lazyUpdate={true}
           >
-          </ReactEcharts> : <Empty description={this.state.ifShow} style={{ height: 210, paddingTop: 50 }} />}
+          </ReactEcharts> : <Empty description={this.state.ifShow} style={{ height: 250, paddingTop: 50 }} />}
         </Card>
       </div>
     )

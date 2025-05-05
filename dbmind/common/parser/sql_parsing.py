@@ -11,25 +11,31 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-import ast
 import re
 from datetime import datetime
 from itertools import count
 import logging
 
 import sqlparse
-from sqlparse.sql import Identifier, IdentifierList
+from sqlparse.sql import Identifier, IdentifierList, Token
 from sqlparse.sql import Where, Comparison, Function, Parenthesis
-from sqlparse.tokens import Keyword, DML, Token
+from sqlparse.tokens import Keyword, DML, Operator, Whitespace, Literal
 from sqlparse.tokens import Name
+
+from dbmind.common.utils import dbmind_assert
+
 
 OPERATOR = ('lt', 'lte', 'gt', 'gte', 'eq', 'neq')
 
 
-def analyze_column(column, where_clause):
-    for tokens in where_clause.tokens:
-        if isinstance(tokens, Comparison) and isinstance(tokens.left, Identifier):
-            column.add(tokens.left.value)
+def analyze_column(column, cond_item):
+    if isinstance(cond_item, Comparison):
+        if isinstance(cond_item.left, Identifier):
+            column.add(cond_item.left.value)
+        else:
+            for item in cond_item.left.tokens:
+                if isinstance(item, Identifier) and '"' not in item.value:
+                    column.add(item.value)
 
 
 def get_columns(sql):
@@ -37,33 +43,9 @@ def get_columns(sql):
     parsed_tree = sqlparse.parse(sql)[0]
     for item in parsed_tree:
         if isinstance(item, Where):
-            analyze_column(column, item)
+            for cond_item in item:
+                analyze_column(column, cond_item)
     return list(column)
-
-
-def get_indexes(dbagent, sql, timestamp):
-    """
-    Get indexes of SQL from dataset.
-    :param timestamp:
-    :param dbagent: obj, interface for sqlite3.
-    :param sql: str, query.
-    :return: list, the set of indexes.
-    """
-    indexes = []
-    indexes_dict = dbagent.fetch_all_result("SELECT indexes from wdr where timestamp ==\"{timestamp}\""
-                                            " and query == \"{query}\"".format(timestamp=timestamp,
-                                                                               query=sql))
-    if len(indexes_dict):
-        try:
-            indexes_dict = ast.literal_eval(indexes_dict[0][0])
-            indexes_def_list = list(list(indexes_dict.values())[0].values())
-            for sql_index in indexes_def_list:
-                value_in_bracket = re.compile(r'[(](.*?)[)]', re.S)
-                indexes.append(re.findall(value_in_bracket, sql_index)[0].split(',')[0])
-        except Exception as e:
-            logging.exception(e)
-            return indexes
-    return indexes
 
 
 def wdr_sql_processing(sql):
@@ -106,12 +88,6 @@ def standardize_sql(sql):
     )
 
 
-def is_num(input_str):
-    if isinstance(input_str, str) and re.match(r'^\d+\.?\d+$', input_str):
-        return True
-    return False
-
-
 def str2int(input_str):
     return int(re.match(r'^(\d+)\.?\d+$', input_str).groups()[0])
 
@@ -140,7 +116,7 @@ def fill_value(query_content):
     case: select id from table where info = $1 and id_d < $2; PARAMETERS: $1 = 1, $2 = 4;
     result: select id from table where info = '1' and id_d < '4';
     """
-    if len(query_content.split(';')) == 2 and 'parameters: $1' in query_content.lower():
+    if len(sqlparse.split(query_content)) == 2 and 'parameters: $1' in query_content.lower():
         template, parameter = query_content.split(';')
     else:
         return query_content
@@ -156,9 +132,41 @@ def fill_value(query_content):
 
 
 def exists_regular_match(query):
-    """Determine if there is such a regular case in SQL: like '%xxxx', 'xxxx%', '%xxxx%'"""
-    result = re.findall(r"like\s+'%\S+'|like\s+'\S+%'", query)
-    return result
+    """
+    Extract all left-matching LIKE patterns in SQL statements (starting with '%' but not ending with '%')
+    Param: sql (str): SQL statement to be analyzed
+    Returns:
+     list: A list containing all left-matching results (e.g. ["%sxf"])
+    """
+    results = []
+
+    try:
+        parsed = sqlparse.parse(query)
+
+        for statement in parsed:
+            # Iterate over all tokens in the SQL statement
+            tokens = list(statement.flatten())
+            for i, token in enumerate(tokens):
+                # Checks whether it is a LIKE comparison operation
+                if token.ttype is Operator.Comparison:
+                    # Find LIKE or NOT LIKE operations
+                    if token.value.upper() == 'LIKE' or token.value.upper() == 'NOT LIKE':
+                        # Get the value after LIKE
+                        j = i + 1
+                        while j < len(tokens):
+                            like_token = tokens[j]
+                            if like_token.ttype is not Whitespace:
+                                if like_token.ttype is Literal.String.Single:
+                                    # Get the pattern string and remove the quotes
+                                    # Checks for a left-matching pattern (starts with %)
+                                    if like_token.value.strip().strip("'").startswith('%'):
+                                        results.append("%s %s" % (token.value, like_token.value.strip()))
+                                break
+                            j += 1
+    except Exception as e:
+        logging.error('parse error in exists_regular_match function.')
+
+    return results
 
 
 def exist_track_parameter(query):
@@ -216,6 +224,49 @@ def exists_function(query):
     parsed_tree = sqlparse.parse(query)[0]
     get_function(parsed_tree)
     return flags
+
+
+def existing_computation(query):
+    """
+    whether there is a computation in the where clause
+    """
+    flags = []
+    related_columns = set()
+    parsed = sqlparse.parse(query)[0]
+    for token in parsed.tokens:
+        if isinstance(token, Where):
+            for where_clause in token.tokens:
+                if isinstance(where_clause, Comparison):
+                    existing = False
+                    if where_clause.left.is_group \
+                            and any(isinstance(t, Token) and t.ttype in Operator for t in where_clause.left):
+                        existing = True
+                        flags.append(where_clause.left.value)
+                    if where_clause.right.is_group \
+                            and any(isinstance(t, Token) and t.ttype in Operator for t in where_clause.right):
+                        existing = True
+                        flags.append(where_clause.right.value)
+                    if existing:
+                        analyze_column(related_columns, where_clause)
+    return flags, list(related_columns)
+
+
+def existing_inequality_compare(query):
+    """
+    whether there is a computation in the where clause
+    """
+    inequality_operators = ['<', '>', '<=', '>=', '<>', '!=']
+    flags = []
+    related_columns = set()
+    parsed = sqlparse.parse(query)[0]
+    for token in parsed.tokens:
+        if isinstance(token, Where):
+            for where_token in token.tokens:
+                if isinstance(where_token, Comparison):
+                    if any(t.value in inequality_operators and t.ttype in Operator for t in where_token):
+                        flags.append(where_token.value)
+                        analyze_column(related_columns, where_token)
+    return flags, list(related_columns)
 
 
 def regular_match(pattern, string, **kwargs):
@@ -297,12 +348,16 @@ def get_placeholders(query):
 def get_generate_prepare_sqls_function():
     counter = count(start=0, step=1)
 
-    def get_prepare_sqls(statement):
+    def get_prepare_sqls(statement, is_m_compat=False):
         #  Ensure that the end of sql does not exist ';'
         statement = statement.strip().strip(';')
         prepare_id = 'prepare_' + str(next(counter))
         placeholder_size = len(get_placeholders(statement))
         prepare_args = '' if not placeholder_size else '(%s)' % (','.join(['NULL'] * placeholder_size))
+        dbmind_assert(len(sqlparse.split(statement)) == 1)
+        if is_m_compat:
+            return [f'prepare {prepare_id} from "{statement}"', f'explain execute {prepare_id}{prepare_args}',
+                    f'deallocate prepare {prepare_id}']
         return [f'prepare {prepare_id} as {statement}', f'explain execute {prepare_id}{prepare_args}',
                 f'deallocate prepare {prepare_id}']
 
@@ -360,6 +415,25 @@ def replace_question_mark_with_dollar(query):
 
 
 def exists_count_operation(query):
-    if re.search(r"[\s+|\s*,]count\(-?[\d+|\*]\)", query, flags=re.IGNORECASE):
-        return True
-    return False
+    try:
+        parsed = sqlparse.parse(query)
+        for statement in parsed:
+            for token in statement.flatten():
+                # Examining the COUNT function
+                if isinstance(token, Function) and token.get_name().upper() == 'COUNT':
+                    return True
+
+                # Checks for COUNT as part of an identifier (e.g. COUNT(*))
+                if isinstance(token, Identifier) and 'COUNT' in token.value.upper():
+                    return True
+
+                # Check COUNT keyword
+                if token.ttype is Keyword and token.value.upper() == 'COUNT':
+                    return True
+
+                # Check COUNT as name
+                if token.ttype is Name and token.value.upper() == 'COUNT':
+                    return True
+    except Exception as e:
+        logging.error('parse error in exist_count_operation function.')
+        return False

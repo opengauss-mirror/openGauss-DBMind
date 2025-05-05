@@ -10,30 +10,48 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import os
 from configparser import NoSectionError, NoOptionError
 
 from dbmind import constants
 from dbmind.cmd.configs.config_constants import (
-    ENCRYPTED_SIGNAL, check_config_validity, NULL_TYPE, IV_TABLE
+    ENCRYPTED_SIGNAL, check_config_validity, NULL_TYPE,
 )
-from dbmind.cmd.configs.configurators import ReadonlyConfig, UpdateConfig
-from dbmind.common import security, utils
+from dbmind.cmd.configs.configurators import ReadonlyConfig, UpdateConfig, create_dynamic_configs, \
+    get_config_security_keys
+from dbmind.common import security
 from dbmind.common.exceptions import ConfigSettingError
+from dbmind.common.utils.checking import uniform_ip, uniform_instance
 from dbmind.common.utils.cli import write_to_terminal
 from dbmind.metadatabase.dao.dynamic_config import dynamic_config_get, dynamic_config_set
-from dbmind.metadatabase.ddl import create_dynamic_config_schema
+from dbmind.metadatabase.schema.config_dynamic_params import IV_TABLE
 
 
 def load_sys_configs(confile):
-    return ReadonlyConfig(confile)
+    config = ReadonlyConfig(confile)
+    config.check_config_validity()
+    return config
 
 
 def set_config_parameter(confpath, section: str, option: str, value: str):
     if not os.path.exists(confpath):
         raise ConfigSettingError("Invalid directory '%s', please set up first." % confpath)
 
-    # Section is case sensitive.
+    os.chdir(confpath)
+    dynamic_config_path = os.path.join(confpath, constants.DYNAMIC_CONFIG)
+    if not os.path.exists(dynamic_config_path):
+        create_dynamic_configs(os.path.join(confpath, constants.CIPHER_S1))
+    else:
+        s1, s2 = get_config_security_keys(os.path.join(confpath, constants.CIPHER_S1))
+        if not (s1 and s2):
+            os.unlink(dynamic_config_path)
+            create_dynamic_configs(os.path.join(confpath, constants.CIPHER_S1))
+
+    if section.upper() == 'IV_TABLE':
+        raise ConfigSettingError(f'The config {section} parameter is not correct.')
+
+    # Section is case-sensitive.
     if section.isupper():
         with UpdateConfig(os.path.join(confpath, constants.CONFILE_NAME)) as config:
             # If not found, raise NoSectionError or NoOptionError.
@@ -41,15 +59,35 @@ def set_config_parameter(confpath, section: str, option: str, value: str):
                 old_value, comment = config.get(section, option)
             except (NoSectionError, NoOptionError):
                 raise ConfigSettingError('Not found the parameter %s-%s.' % (section, option))
-            valid, reason = check_config_validity(section, option, value)
+            # Allow user to set null value for agent info.
+            valid, reason = check_config_validity(section, option, value, microservice=True, ignore_tsdb=True)
             if not valid:
                 raise ConfigSettingError('Incorrect value due to %s.' % reason)
+
+            if option == "host":
+                if "," in value:
+                    value = ",".join([uniform_ip(ip) for ip in value.split(",")])
+                else:
+                    value = uniform_ip(value)
+
+            if option == "master_url":
+                res = list()
+                urls = value.split(",")
+                for url in urls:
+                    if "//" not in url:
+                        res.append(url)
+                        continue
+
+                    url_list = url.strip().split("//", 1)
+                    url_list[1] = uniform_instance(url_list[1])
+                    res.append("//".join(url_list))
+                value = ",".join(res)
+
             # If user wants to change password, we should encrypt the plain-text password first.
             if 'password' in option:
                 # dynamic_config_xxx searches file from current working directory.
                 os.chdir(confpath)
-                s1 = dynamic_config_get(IV_TABLE, 'cipher_s1')
-                s2 = dynamic_config_get(IV_TABLE, 'cipher_s2')
+                s1, s2 = get_config_security_keys(os.path.join(confpath, constants.CIPHER_S1))
                 # Every time a new password is generated, update the IV.
                 iv = security.generate_an_iv()
                 dynamic_config_set(IV_TABLE, '%s-%s' % (section, option), iv)
@@ -72,26 +110,6 @@ def set_config_parameter(confpath, section: str, option: str, value: str):
                                  'Please take note that section string is case sensitive.' % section)
 
     write_to_terminal('Success to modify parameter %s-%s.' % (section, option), color='green')
-
-
-def create_dynamic_configs():
-    """Create dynamic configuration schema and
-    generate security keys."""
-    utils.cli.write_to_terminal(
-        'Starting to generate a dynamic config file...',
-        color='green')
-    create_dynamic_config_schema()
-    s1_ = security.safe_random_string(16)
-    s2_ = security.safe_random_string(16)
-    dynamic_config_set(IV_TABLE, 'cipher_s1', s1_)
-    dynamic_config_set(IV_TABLE, 'cipher_s2', s2_)
-    return s1_, s2_
-
-
-def get_config_security_keys():
-    s1 = dynamic_config_get(IV_TABLE, 'cipher_s1')
-    s2 = dynamic_config_get(IV_TABLE, 'cipher_s2')
-    return s1, s2
 
 
 def config_standardize_null_value(value):

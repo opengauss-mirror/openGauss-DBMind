@@ -6,7 +6,7 @@ let saveArr = []
 let timer = null
 let ifChanged = 0
 const { Panel } = Collapse;
-export default class DbmindSettings extends React.Component {
+export default class EditableTable extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -92,10 +92,7 @@ export default class DbmindSettings extends React.Component {
       ifChanged = 2
       timer = setTimeout(() => {
         ifChanged = 0
-        if(this.state.isModalVisible){
-          this.setState({ isModalVisible: false })
-          this.getSettingList()
-        }
+        this.setState({ isModalVisible: false })
       }, 2000);
     } else {
       message.error(msg)
@@ -120,14 +117,10 @@ export default class DbmindSettings extends React.Component {
   }
   handleSave () {
     if (this.state.editTableData.length > 0) {
+      let flag = 0
       this.state.editTableData.forEach((item) => {
         if (item.value === '') {
-          message.warning('The data cannot be empty.')
-          this.getSettingList()
-          this.setState({
-            isModalVisible: false
-          })
-          ifChanged = 0
+          flag = -1
           return
         } else {
           let configFlag = item.key.split('@')
@@ -140,6 +133,16 @@ export default class DbmindSettings extends React.Component {
           this.putSettingDetails(params)
         }
       })
+      if (flag === -1) {
+        message.warning('The data cannot be empty.')
+        this.getSettingList()
+        this.setState({
+          isModalVisible: false
+        })
+        ifChanged = 0
+      } else {
+        this.getSettingList()
+      }
     } else {
       this.setState({
         isModalVisible: false

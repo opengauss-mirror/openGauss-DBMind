@@ -64,6 +64,8 @@ class RPCServer:
         """
         try:
             req = RPCRequest.from_json(_json)
+            password = req.pwd
+            req.pwd = '******'
         except Exception as e:
             return RPCResponse(
                 RPCRequest(None, None, 'unknown'), success=False,
@@ -80,9 +82,14 @@ class RPCServer:
                 ).json()
 
             # Validate credential.
-            if not self.checker(req.username, req.pwd):
-                return RPCResponse(req, success=False,
-                                   exception='Failed to validate authorization.').json()
+            pwd_check_res, pwd_check_msg = self.checker(req.username, password)
+            if not pwd_check_res:
+                if pwd_check_msg and isinstance(pwd_check_msg, str):
+                    return RPCResponse(req, success=False,
+                                       exception=pwd_check_msg).json()
+                else:
+                    return RPCResponse(req, success=False,
+                                       exception='Failed to validate authorization.').json()
 
             # If request is only for authorization test, we can return here.
             if funcname == AUTH_FLAG:
@@ -118,6 +125,8 @@ class RPCServer:
                 req, success=False,
                 exception='Unexpected error occurred: %s.' % e
             ).json()
+        finally:
+            del password
 
 
 class RPCListenService:
@@ -135,7 +144,7 @@ def start_rpc_service(
         ssl_keyfile=None, ssl_certfile=None, ssl_keyfile_password=None
 ):
     def checker(u, p):
-        return u == username and p == pwd
+        return (u == username and p == pwd), None
 
     rpc = RPCServer(register, credential_checker=checker)
     service = HttpService()

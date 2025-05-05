@@ -123,8 +123,8 @@ export default class WarningData extends Component {
     };
     return (
       <div>
-        <Card title="Warning" className="mb-10 formlabel-160">
-          <Table size="small" bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={warningProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
+        <Card title="Warning" className="mb-20 formlabel-160">
+          <Table bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={warningProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
         </Card>
       </div>
     )

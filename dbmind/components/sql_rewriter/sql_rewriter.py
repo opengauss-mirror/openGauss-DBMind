@@ -13,6 +13,7 @@
 import argparse
 import getpass
 import logging
+import os
 import re
 import sys
 from copy import deepcopy
@@ -21,7 +22,6 @@ from functools import partial
 import sqlparse
 from mo_sql_parsing import parse, format
 from prettytable import PrettyTable
-from sql_metadata.compat import get_query_tables
 from sqlparse.sql import Parenthesis, IdentifierList, Values
 from sqlparse.tokens import Punctuation, Whitespace
 
@@ -29,7 +29,10 @@ from dbmind import global_vars
 from dbmind.common.parser.sql_parsing import get_generate_prepare_sqls_function
 from dbmind.common.utils.checking import CheckWordValid, path_type, positive_int_type
 from dbmind.common.utils.cli import read_input_from_pipe
+from dbmind.common.utils.exporter import set_logger
+from dbmind.common.utils import escape_single_quote
 from dbmind.constants import __version__
+from dbmind.components.index_advisor.parser import get_query_tables
 from .executor import Executor
 from .rules import (AlwaysTrue, DistinctStar, OrderbyConst, Star2Columns, UnionAll, Delete2Truncate,
                     Or2In, In2Exists,
@@ -174,7 +177,9 @@ class SQLRewriter:
         # correct "$(\d+)" to the correct placeholder format $(\d+)
         sql_string = re.sub(r'"\$(\d+)"', r'$\1', sql_string)
         if Delete2Truncate().__class__.__name__ in checked_rules:
-            return True, 'TRUNCATE TABLE ' + sql_string.split('(')[1].split(')')[0] + ';'
+            table_match = re.search(r'\((.*)\)', sql_string)
+            if table_match:
+                return True, 'TRUNCATE TABLE ' + table_match.group(1) + ';'
 
         if if_format:
             sql_string = sqlparse.format(sql_string, reindent=True, keyword_case='upper')
@@ -230,14 +235,21 @@ def rewrite_sql_api(database, sqls, rewritten_flags=None, if_format=True, driver
         executor = partial(driver.query, force_connection_db=database)
     else:
         executor = partial(global_vars.agent_proxy.call, funcname='query_in_database', database=database)
-    schemas_results = executor(stmt='select distinct(table_schema) from information_schema.tables;', return_tuples=True)
+    is_m_compat = executor(stmt='SHOW sql_compatibility;', return_tuples=True)[0][0] == 'M'
+    info_schema_tables = 'information_schema.tables'
+    info_schema_columns = 'information_schema.columns'
+    if is_m_compat:
+        info_schema_tables = 'information_schema.gs_tables'
+        info_schema_columns = 'information_schema.gs_columns'
+    table_schema_stmt = 'select distinct(table_schema) from %s;' % info_schema_tables
+    schemas_results = executor(stmt=table_schema_stmt, return_tuples=True)
     schemas = ','.join([res[0] for res in schemas_results]) if schemas_results else 'public'
     for _sql in sqls.split(';'):
         if not _sql.strip():
             continue
         sql = _sql + ';'
         formatted_sql = sqlparse.format(sql, keyword_case='lower', identifier_case='lower', strip_comments=True)
-        prepare_sqls = get_prepare_sqls(formatted_sql)
+        prepare_sqls = get_prepare_sqls(formatted_sql, is_m_compat=is_m_compat)
         sql_checking_stmt = f'set current_schema={schemas};{";".join(prepare_sqls)}'
         checking_results = executor(stmt=sql_checking_stmt, return_tuples=False, fetch_all=True)
         if not checking_results:
@@ -251,15 +263,16 @@ def rewrite_sql_api(database, sqls, rewritten_flags=None, if_format=True, driver
         tableinfo = TableInfo()
         for table_name in involved_tables:
             search_table_stmt = "select column_name, ordinal_position " \
-                                "from information_schema.columns where table_name='%s';" % table_name
+                                "from %s where table_name='%s';" % (info_schema_columns, escape_single_quote(table_name))
             results = sorted(executor(stmt=search_table_stmt, return_tuples=True), key=lambda x: x[1])
             table_columns[table_name] = [res[0] for res in results]
             exists_primary_stmt = "SELECT count(*)  FROM information_schema.table_constraints WHERE " \
-                                  "constraint_type in ('PRIMARY KEY', 'UNIQUE') AND table_name = '%s'" % table_name
+                                  "constraint_type in ('PRIMARY KEY', 'UNIQUE') AND table_name = '%s'" % escape_single_quote(table_name)
             table_exists_primary[table_name] = \
                 executor(stmt=exists_primary_stmt, return_tuples=True)[0][0]
-            notnull_columns_stmt = f"SELECT attname from pg_attribute where attrelid=(select oid from pg_class " \
-                                   f"where relname='{table_name}') and attnotnull=true"
+            notnull_columns_stmt = f"SELECT attname from pg_catalog.pg_attribute where " \
+                                   f"attrelid in (select oid from pg_catalog.pg_class " \
+                                   f"where relname='{escape_single_quote(table_name)}') and attnotnull=true"
             table_notnull_columns[table_name] = [_tuple[0] for _tuple in
                                                  executor(stmt=notnull_columns_stmt, return_tuples=True)]
         tableinfo.table_columns = table_columns
@@ -287,8 +300,14 @@ def main(argv):
     arg_parser.add_argument('-v', '--version', action='version', version=__version__)
 
     args = arg_parser.parse_args(argv)
+    log_file_path = os.path.join(os.getcwd(), 'dbmind_sql_rewriter.log')
+    set_logger(log_file_path, "info")
     args.W = get_password()
     executor = Executor(args.database, args.db_user, args.W, args.db_host, args.db_port, args.schema)
+    if executor.get_num_cn() is None:
+        arg_parser.exit(1, 'Can not get the deployment mode.\n')
+    if executor.get_num_cn() > 0:
+        arg_parser.exit(1, 'The SQL Rewriter module does not support distributed.\n')
     field_names = ('Raw SQL', 'Rewritten SQL')
     output_table = PrettyTable()
     output_table.field_names = field_names

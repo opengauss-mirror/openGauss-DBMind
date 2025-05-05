@@ -32,7 +32,7 @@ def check_file(file_path):
 
 
 def test_calculate_weight():
-    from dbmind.app.diagnosis.query.slow_sql.featurelib.feature_model import calculate_weight
+    from dbmind.components.slow_query_diagnosis.featurelib.feature_model import calculate_weight
 
     features, labels = np.zeros((FEATURES_NUMBER, FEATURES_DIMENSION)), np.zeros(FEATURES_NUMBER)
     logging.debug('slow query feature lib: %s.', FEATURE_PATH)
@@ -48,7 +48,7 @@ def test_calculate_weight():
 
 
 def test_build_model():
-    from dbmind.app.diagnosis.query.slow_sql.featurelib.feature_model import build_model
+    from dbmind.components.slow_query_diagnosis.featurelib.feature_model import build_model
 
     feature_lib_path = 'test_feature_lib.npz'
     remove_file(feature_lib_path)

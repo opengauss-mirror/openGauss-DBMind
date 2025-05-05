@@ -37,6 +37,10 @@ class MadDetector(AbstractDetector):
         """Nothing to impl"""
 
     def _predict(self, s: Sequence) -> Sequence:
+        length = len(s.values)
+        if self.least_length is not None and length < self.least_length:
+            return Sequence(timestamps=s.timestamps, values=[False] * length)
+
         x = np.array(s.values)
         x_median = np.median(x)
         abs_diff_median = np.abs(x - x_median)

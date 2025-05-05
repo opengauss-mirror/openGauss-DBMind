@@ -2,7 +2,6 @@ import React, { Component } from 'react';
 import { Tabs, Select, message, Input } from 'antd';
 import CacheInformation from '../NodeInformation/CacheInformation';
 import LockInformation from '../NodeInformation/LockInformation';
-import Refresh from '../../assets/imgs/Refresh.png';
 
 export default class DBLockingAndCaching extends Component {
   constructor(props) {
@@ -15,9 +14,6 @@ export default class DBLockingAndCaching extends Component {
   onChange = (key) => {
     this.setState(() => ({tabChildkey: key}))
   };
-  handleRefresh(){
-    this.LockInformationRef.getLockingQueryData()
-  }
   componentDidMount () {
 
   }
@@ -31,20 +27,13 @@ export default class DBLockingAndCaching extends Component {
       {
         key: '2',
         label: `Cache Information`,
-        children: <CacheInformation ref={(e) => {this.CacheInformationRef = e}} tabkey={this.props.tabkey} tabChildkey={this.state.tabChildkey} startTime={this.props.startTime} endTime={this.props.endTime} selValue={this.props.selValue} selTimeValue={this.props.selTimeValue} />,
+        children: <CacheInformation ref={(e) => {this.CacheInformationRef = e}} tabkey={this.props.tabkey} tabChildkey={this.state.tabChildkey} selValue={this.props.selValue} selTimeValue={this.props.selTimeValue} />,
       }
     ]
     return (
-      <div className='thirdTabClass'>
+      <div className='nodeselect'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card " destroyInactiveTabPane={true}  defaultActiveKey="1" items={items} onChange={this.onChange} tabBarExtraContent={
-          (this.state.tabChildkey === '1') &&<img
-          src={Refresh}
-          title='Refresh'
-          alt=""
-          onClick={() => this.handleRefresh()}
-        ></img>
-        } /> : ''}
+        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} /> : ''}
       </div>
     )
   }

@@ -5,7 +5,6 @@ import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTitle } from '../../../utils/function';
 import { getKnobRecommendationSnapshot } from '../../../api/databaseOptimization'
-import { getTimedTaskStatus } from '../../../api/overview';
 
 export default class MetricData extends Component {
   static propTypes={
@@ -60,21 +59,6 @@ export default class MetricData extends Component {
       }))
     }
   }
-  async getTimedTaskStatus () {
-    const { success, data, msg } = await getTimedTaskStatus()
-    if (success) {
-      data.rows.forEach(item => {
-        if(item[0] === 'knob_recommend' && item[1] === 'Running' ){
-          this.getKnobRecommendationSnapshot({
-            current: 1,
-            pagesize: 10,
-          })
-        }
-      })
-    } else {
-      message.error(msg)
-    }
-  }
   async getKnobRecommendationSnapshot (params) {
     const { success, data, msg } = await getKnobRecommendationSnapshot(params)
     if (success) {
@@ -117,7 +101,10 @@ export default class MetricData extends Component {
     });
   };
   componentDidMount () {
-    this.getTimedTaskStatus()
+    this.getKnobRecommendationSnapshot({
+      current: 1,
+      pagesize: 10,
+    })
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -138,10 +125,12 @@ export default class MetricData extends Component {
       onChange: (current,pageSize) => this.changePage(current,pageSize)
     };
     return (
-      <div>
-          <Card title="Metric Snapshot" className="mb-10 formlabel-160">
+      <div className="contentWrap">
+        <div className="mb-20">
+          <Card title="Metric Snapshot" className="mb-20 formlabel-160">
             <Table size="small" bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={metricProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
           </Card>
+        </div>
       </div>
     )
   }

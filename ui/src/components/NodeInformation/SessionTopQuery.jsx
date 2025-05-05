@@ -2,7 +2,6 @@ import React, { Component } from 'react';
 import { Tabs, Select, message, Input } from 'antd';
 import TopQuery from '../NodeInformation/TopQuery';
 import Session from '../NodeInformation/Session';
-import Refresh from '../../assets/imgs/Refresh.png';
 
 export default class SessionTopQuery extends Component {
   constructor(props) {
@@ -15,13 +14,6 @@ export default class SessionTopQuery extends Component {
   onChange = (key) => {
     this.setState(() => ({tabSessionkey: key}))
   };
-  handleRefresh(){
-    if(this.state.tabSessionkey === "1"){
-      this.SessionRef.getSessionData()
-    } else {
-      this.TopQueryRef.getTopQueryData()
-    }
-  }
   componentDidMount () {
 
   }
@@ -39,16 +31,9 @@ export default class SessionTopQuery extends Component {
       }
     ]
     return (
-      <div className='thirdTabClass'>
+      <div className='nodeselect'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} abBarExtraContent={
-          <img
-          src={Refresh}
-          title='Refresh'
-          alt=""
-          onClick={() => this.handleRefresh()}
-        ></img>
-        } /> : ''}
+        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} /> : ''}
       </div>
     )
   }

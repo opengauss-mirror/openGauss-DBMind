@@ -55,7 +55,7 @@ source ${ABSPATH}/constant
 
 # Set local Python VM if we have.
 export PATH=${ABSPATH}/python/bin:$PATH
-PYTHON=$(which python3)
+PYTHON=$(cd "$(dirname `which python3`)" && pwd)/python3
 if [[ "$?" != "0" ]]; then
   die "Not found the Python environment."
 fi
@@ -67,11 +67,19 @@ if [[ "$?" != "1" ]]; then
   die "Not supported Python (${PYTHON}) version. At least Python ${MIN_PYTHON_VERSION}"
 fi
 
+# Check whether PYTHONPATH is exported.
+if [[ $PYTHONPATH ]]; then
+  echo "NOTICE: You have set the variable PYTHONPATH. DBMind ignored it."
+fi
+
+# Set dependency environment variable.
+export PYTHONPATH=${ABSPATH}/3rd
+
 # Run set command
 if [[ $1 == "set" ]]; then
   cd $ORIGIN_PATH
   echo "WARN: The SET operation will not detect the integrity of the module, please install the module in advance."
-  $PYTHON $DBMIND_PATH/ $@ &
+  $PYTHON $DBMIND_PATH/ $@
   exit $?
 fi
 
@@ -93,10 +101,6 @@ else
 fi
 
 ## Secondly, check whether each library has been installed.
-if [[ $PYTHONPATH ]]; then
-  echo "NOTICE: You have set the variable PYTHONPATH. DBMind ignored it."
-fi
-export PYTHONPATH=${ABSPATH}/3rd
 installed_list=$($PYTHON -m pip list --disable-pip-version-check)
 while read line; do
   libname=$(extract_libname $line)
@@ -125,7 +129,8 @@ done <$requirements
 # Furthermore, if users want to use several components, he should install optional dependencies.
 ## e.g., gs_dbmind component sqldiag ...
 optional_reqs=$REQUIREMENT_PATH/"requirements-optional.txt"
-if [[ "$1" == "component" ]] && [[ "$2" == "sqldiag" || "$2" == "xtuner" ]]; then
+if [[ "$1" == "component" ]] && [[ "$2" == "sqldiag" || "$2" == "xtuner" || "$2" == "sql_rewriter" ]]; then
+
   while read line; do
     libname=$(extract_libname $line)
     # skip comment
@@ -137,18 +142,19 @@ if [[ "$1" == "component" ]] && [[ "$2" == "sqldiag" || "$2" == "xtuner" ]]; the
     if [[ $found == "" ]]; then
       echo -e "NOTICE: Maybe you need dependency ${libname} while using this component. You should use pip to install it, following:\n
             ${PYTHON} -m pip install -r ${optional_reqs}"
+      exit 1
     fi
   done <$optional_reqs
 fi
 
 set -f
-for arg in "${@}"; do
-  if [[ ${arg:0:1} != '-' ]]; then
-    arg=$(echo $arg | sed 's/"""/\\\\\\"\\\\\\"\\\\\\"/g')
-    arg=$(${PYTHON} -c "import shlex;print(shlex.quote(\"\"\"$arg\"\"\"))")
-  fi
-  _args=$_args" "$arg
+cmd_prefix=("$PYTHON" "$DBMIND_PATH/")
+merged_list=("${cmd_prefix[@]}" "${@}")
+for arg in "${merged_list[@]}"; do
+    arg=$(echo $arg |sed 's/\\/\\\\/g' | sed 's/"/\\"/g')
+    arg=$(${PYTHON} -c "import shlex;print(shlex.quote(\"\"\"$arg\"\"\"))" 2>/dev/null)
+    _args=$_args" "$arg
 done
 
 cd $ORIGIN_PATH
-eval $PYTHON $DBMIND_PATH/ $_args
+eval $_args

@@ -17,6 +17,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, session
 
+from dbmind.common.types import ALARM_TYPES, ALARM_LEVEL
 from dbmind.constants import DYNAMIC_CONFIG
 from dbmind.metadatabase import result_db_session, ResultDbBase
 from dbmind.metadatabase.ddl import create_dynamic_config_schema
@@ -90,68 +91,49 @@ def test_slow_queries():
 
 def test_history_alarms():
     truncate_history_alarm()
-
-    get_batch_insert_history_alarms_functions().add(instance='127.0.0.1',
-                                                    alarm_type='system',
-                                                    start_at=int(time.time() * 1000),
-                                                    end_at=int(time.time() * 1000) + 3000,
-                                                    metric_name='os_cpu_usage',
-                                                    alarm_level='info',
-                                                    alarm_content='CPU exceeds.',
-                                                    extra_info="{'node_id': 1, 'msg': 'test'}",
-                                                    anomaly_type="a"
-                                                    ).commit()
-    get_batch_insert_history_alarms_functions().add(instance='127.0.0.1',
-                                                    alarm_type='log',
-                                                    start_at=int(time.time() * 1000),
-                                                    end_at=int(time.time() * 1000) + 3000,
-                                                    metric_name='os_cpu_usage',
-                                                    alarm_level='error',
-                                                    extra_info="{'node_id': 1, 'msg': 'test'}",
-                                                    anomaly_type="b"
-                                                    ).commit()
+    function = get_batch_insert_history_alarms_functions
+    for _ in range(2):
+        function().add(
+            Alarm(
+                instance='127.0.0.1',
+                metric_name='os_cpu_usage',
+                metric_filter={},
+                alarm_type=ALARM_TYPES.SYSTEM,
+                alarm_level=ALARM_LEVEL.INFO,
+                start_timestamp=int(time.time() * 1000),
+                end_timestamp=int(time.time() * 1000) + 3000,
+                alarm_content='CPU exceeds.',
+                extra="{'node_id': 1, 'msg': 'test'}",
+                anomaly_type="a"
+            )
+        ).commit()
     assert count_history_alarms() == 2
-    last_occurrence_time = float('inf')
+
+    alarm_args = {'instance': '127.0.0.2', 'metric_name': 'os_disk_usage'}
+    for alarm_id in range(1, 3):
+        update_history_alarm(alarm_id, **alarm_args)
     alarm_ids = list()
-    for alarm in select_history_alarm():
+    result = select_history_alarm()
+    field_names = result.statement.columns.keys()
+    assert field_names == ['history_alarm_id', 'instance', 'metric_name', 'metric_filter', 'alarm_type',
+                           'alarm_level', 'start_at', 'end_at', 'alarm_content', 'extra_info', 'anomaly_type',
+                           'alarm_cause']
+
+    last_occurrence_time = float('inf')
+    for alarm in result:  # ordered by descend alarm's start time
         assert alarm.start_at < last_occurrence_time  # due to descend
         assert alarm.extra_info == "{'node_id': 1, 'msg': 'test'}"
+        assert alarm.instance == '127.0.0.2'
+        assert alarm.metric_name == 'os_disk_usage'
         last_occurrence_time = alarm.start_at
         alarm_ids.append(alarm.history_alarm_id)
 
-    delete_timeout_history_alarms(oldest_occurrence_time=int(time.time() * 1000))
+    delete_timeout_history_alarms(oldest_occurrence_time=int(time.time() * 1000 + 3000))
     assert count_history_alarms() == 0
-
-
-def test_future_alarms():
-    truncate_future_alarm()
-
-    get_batch_insert_future_alarms_functions().add(alarm_type='system', instance='127.0.0.1',
-                                                   metric_name='cpu',
-                                                   start_at=int(time.time() * 1000 + 200000)).commit()
-    get_batch_insert_future_alarms_functions().add(alarm_type='system', instance='127.0.0.1',
-                                                   metric_name='disk_usage',
-                                                   start_at=int(time.time() * 1000 + 200000)).commit()
-    get_batch_insert_future_alarms_functions().add(alarm_type='system', instance='127.0.0.1',
-                                                   metric_name='workload',
-                                                   start_at=int(time.time() * 1000 + 200000),
-                                                   end_at=int(time.time()) * 1000 + 300000).commit()
-    get_batch_insert_future_alarms_functions().add(alarm_type='system', instance='127.0.0.1',
-                                                   metric_name='memory',
-                                                   start_at=int(time.time() * 1000 + 200000)).commit()
-    assert count_future_alarms(metric_name='disk_usage') == 1
-    assert count_future_alarms() == 4
-    for alarm in select_future_alarm():
-        assert alarm.start_at > int(time.time() * 1000)
-    truncate_future_alarm()
-    assert count_future_alarms() == 0
 
 
 def test_dynamic_config_db():
     create_dynamic_config_schema()
-    assert dynamic_config_get('slow_sql_threshold', 'index_number_threshold') == '3'
-    dynamic_config_set('slow_sql_threshold', 'index_number_threshold', 1)
-    assert dynamic_config_get('slow_sql_threshold', 'index_number_threshold') == '1'
-
-    dynamic_config_set('slow_sql_threshold', 'no_this_name', 1)
-    assert dynamic_config_get('slow_sql_threshold', 'no_this_name') == '1'
+    assert dynamic_config_get('slow_query_threshold', 'index_number_threshold') == '6'
+    dynamic_config_set('slow_query_threshold', 'index_number_threshold', '1')
+    assert dynamic_config_get('slow_query_threshold', 'index_number_threshold') == '1'

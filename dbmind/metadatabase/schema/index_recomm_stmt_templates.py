@@ -19,6 +19,6 @@ class IndexRecommendationStmtTemplates(ResultDbBase):
     __tablename__ = 'tb_index_recommendation_stmt_templates'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    instance = Column(String(24), nullable=False)
+    instance = Column(String(64), nullable=False)
     db_name = Column(String(32), nullable=False)
     template = Column(TEXT)

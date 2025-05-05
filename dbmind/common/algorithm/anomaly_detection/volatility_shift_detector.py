@@ -33,6 +33,10 @@ class VolatilityShiftDetector(AbstractDetector):
                                                 low=THRESHOLD.get(self.side)[1])
 
     def _predict(self, s: Sequence) -> Sequence:
+        length = len(s.values)
+        if self.least_length is not None and length < self.least_length:
+            return Sequence(timestamps=s.timestamps, values=[False] * length)
+
         abs_rel_diff_values = stat_utils.np_double_rolling(
             s.values,
             window=(self.window, self.window),

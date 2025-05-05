@@ -123,7 +123,7 @@ export default class PositiveSql extends Component {
     };
     return (
       <div>
-        <Card title="Existing Indexes" className="mb-10">
+        <Card title="Existing Indexes">
           <Table size="small" bordered components={this.components} columns={columns} dataSource={this.state.dataSource} rowKey={record => record.key} pagination={paginationProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
         </Card>
       </div>

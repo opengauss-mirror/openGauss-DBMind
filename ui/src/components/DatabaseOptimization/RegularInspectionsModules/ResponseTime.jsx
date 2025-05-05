@@ -13,7 +13,7 @@ export default class ResponseTime extends Component {
     super(props)
     this.state = {
       dataSource: [],
-    
+      columns: []
     }
   }
   components = {
@@ -22,18 +22,40 @@ export default class ResponseTime extends Component {
     },
   };
   handleTableData (data) {
-    let responseArr = [];
-
-    for (let i in data) {
-      let activeObj = {
-        name: i,
-        value: data[i],
-      };
-      responseArr.push(activeObj);
-    }
+    let arr = []
+    let columnArr = []
+    let headNameOne,headNameTwo = ''
+    Object.keys(data).forEach(function (key, i, v) {
+      if(i === 0){
+        headNameOne = key
+        headNameTwo = data[key]
+      }
+      if(i > 0){
+        arr.push({[headNameOne]:key,[headNameTwo]:data[key]})
+      }
+    })
+    let columnName = {},columnName1 = {}
+    Object.keys(data).forEach(function (key, i, v) {
+      if(i === 0){
+        columnName = {
+          title: formatTableTitle(key),
+          dataIndex: key,
+          key: key,
+          ellipsis: true,
+        }
+        columnName1 = {
+          title: data[key],
+          dataIndex: data[key],
+          key: data[key],
+          ellipsis: true,
+        }
+        columnArr.push(columnName)
+        columnArr.push(columnName1)
+      }
+    })
     this.setState(() => ({
-      dataSource: responseArr,
-     
+      dataSource: arr,
+      columns: columnArr,
     }))
   }
   handleResize = index => (e, { size }) => {
@@ -47,24 +69,20 @@ export default class ResponseTime extends Component {
     });
   };
   UNSAFE_componentWillReceiveProps (nextProps) {
-    this.handleTableData(nextProps?.responseTime)
+    this.handleTableData(nextProps.responseTime)
   }
   render () {
-   
+    const columns = this.state.columns.map((col, index) => ({
+      ...col,
+      onHeaderCell: column => ({
+        width: column.width,
+        onResize: this.handleResize(index)
+      })
+    }))
     return (
-      <div className='tableDiv'>
-        <Card title="Response Time" className="tps mb-20">
-         
-          <ul style={{width:'100%',display:'flex'}}>
-          {this.state.dataSource.map((item) => {
-              return (
-                <li className="connectionTitle">
-                  <p>{item.name}</p>
-                  <h4>{item.value}</h4>
-                </li>
-              );
-            })}
-         </ul>
+      <div style={{ textAlign: 'center' }} className='tableDiv'>
+        <Card title="Response Time">
+          <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 200, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>
       </div>
     )

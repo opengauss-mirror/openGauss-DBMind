@@ -10,10 +10,11 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+from .anomaly_detectors_list import AnomalyDetectors
 from .existing_index import ExistingIndexes
-from .future_alarms import FutureAlarms
 from .healing_records import HealingRecords
 from .history_alarms import HistoryAlarms
+from .history_cluster_diagnosis import HistoryClusterDiagnosis
 from .index_recomm import IndexRecommendation
 from .index_recomm_stats import IndexRecommendationStats
 from .index_recomm_stmt_details import IndexRecommendationStmtDetails
@@ -25,6 +26,10 @@ from .slow_queries import SlowQueries
 from .slow_queries_journal import SlowQueriesJournal
 from .slow_queries_killed import SlowQueriesKilled
 from .regular_inspections import RegularInspection
+from .high_availability_status import HighAvailabilityStatus
+from .security_anomalies import SecurityAnomalies
+from .security_metric_models import SecurityMetricModels
+from .metric_statistics import MetricStatistics
 
 
 def load_all_schema_models():

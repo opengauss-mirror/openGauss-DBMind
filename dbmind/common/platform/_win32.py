@@ -84,7 +84,7 @@ STILL_ACTIVE = 259
 class UNICODE_STRING(ctypes.Structure):
     _fields_ = (('Length', wintypes.USHORT),
                 ('MaximumLength', wintypes.USHORT),
-                ('Buffer', wintypes.PWCHAR))  # to_pointer(wintypes.WCHAR)
+                ('Buffer', wintypes.PWCHAR))
 
 
 class LIST_ENTRY(ctypes.Structure):
@@ -138,7 +138,6 @@ class RTL_USER_PROCESS_PARAMETERS(ctypes.Structure):
                 ('DllPath', UNICODE_STRING),
                 ('ImagePathName', UNICODE_STRING),
                 ('CommandLine', UNICODE_STRING)
-                # ...
                 )
 
 
@@ -213,11 +212,6 @@ def _win32_get_user_process_params(handle):
 
 def win32_get_process_cwd(pid):
     """Implement the func with pure WIN32 API.
-
-    Reference:
-
-    - https://stackoverflow.com/questions/14018280/how-to-get-a-process-working-dir-on-windows
-    - https://stackoverflow.com/questions/35106511/how-to-access-the-peb-of-another-process-with-python-ctypes
 
     :param pid: Process ID
     :return: return process's current working directory

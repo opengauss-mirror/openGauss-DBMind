@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
-import { Empty, Row, Col } from 'antd';
+import { Empty, Row, Col, message } from 'antd';
 import ReactEcharts from 'echarts-for-react';
-import { commonMetricMethod } from '../../utils/function';
+import { formatTimestamp } from '../../utils/function';
 import { getConnection } from '../../api/overview';
 import db from '../../utils/storage';
 
@@ -13,12 +13,9 @@ export default class ConnectionCharts extends Component {
       legendData:[],
       maxData:0,
       minData:0,
-      param: {
-        instance:db.ss.get('Instance_value')
-      },
-      metricData:['gaussdb_total_connection','gaussdb_active_connection']
     }
   }
+  
   getOption = (flg) => {
     return {
       grid:{
@@ -30,7 +27,7 @@ export default class ConnectionCharts extends Component {
       title: {
         show: true,
         text: flg === 'one' ? 'Max Connection' : 'Active Connection',
-        subtext: flg === 'one' ? (this.state.maxData === 0 ? "0" : this.state.maxData) : this.state.minData === 0 ? "0" : this.state.minData,
+        subtext: flg === 'one' ? this.state.maxData : this.state.minData === 0 ? "0" : this.state.minData,
         textStyle: {    // 标题样式
         color: '#737a80',    //字体颜色
         fontSize: 14,    //字体大小
@@ -69,8 +66,8 @@ export default class ConnectionCharts extends Component {
         },
         markPoint: {
         data: [{
-          yAxis: flg === 'one' ? this.state.maxData : this.state.minData, 
-          x: '96%' 
+          yAxis: 1330, 
+          x: '98.5%' 
         }],
         symbol: 'circle',
         symbolSize: 7,
@@ -82,10 +79,34 @@ export default class ConnectionCharts extends Component {
       ],
     }
   }
+  async getConnection1 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'opengauss_total_connection'
+    }
+    const { success, data, msg }= await getConnection(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getConnection2 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'opengauss_active_connection'
+    }
+    const { success, data, msg }= await getConnection(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
   getConnectionAll(){
     Promise.all([
-      commonMetricMethod(this.state.param,{label:this.state.metricData[0]},getConnection),
-      commonMetricMethod(this.state.param,{label:this.state.metricData[1]},getConnection)
+      this.getConnection1(),
+      this.getConnection2()
     ]).then((result)=>{
       if(result[0]){
         let data = [result[0],result[1]]
@@ -112,22 +133,28 @@ export default class ConnectionCharts extends Component {
       <div >
         {this.state.ifShow ?
                   <Row>
-                  {this.state.metricData.map((item,index) => {
-                      return (
-                        <Col className="gutter-row" span={12}>
-                        <ReactEcharts
-                          ref={(e) => {
-                            this.echartsElement = e
-                          }}
-                          option={this.getOption(index ? 'two' : 'one')}
-                          style={{ width: '100%', height: 90 }}
-                          lazyUpdate={true}
-                        >
-                        </ReactEcharts>
-                        </Col>
-                      )
-                    })
-                  }
+                  <Col className="gutter-row" span={12}>
+                  <ReactEcharts
+                    ref={(e) => {
+                      this.echartsElement = e
+                    }}
+                    option={this.getOption('one')}
+                    style={{ width: '100%', height: 90 }}
+                    lazyUpdate={true}
+                  >
+                  </ReactEcharts>
+                  </Col>
+                  <Col className="gutter-row" span={12}>
+                  <ReactEcharts
+                    ref={(e) => {
+                      this.echartsElement = e
+                    }}
+                    option={this.getOption('two')}
+                    style={{ width: '100%', height: 90 }}
+                    lazyUpdate={true}
+                  >
+                  </ReactEcharts>
+                  </Col>
                 </Row>
           : <Empty description={false} />}
       </div>

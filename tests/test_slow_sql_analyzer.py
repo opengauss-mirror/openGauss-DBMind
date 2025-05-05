@@ -17,11 +17,10 @@ import numpy as np
 import pytest
 
 from dbmind.app import monitoring
-from dbmind.app.diagnosis.query.slow_sql import analyzer
-from dbmind.app.diagnosis.query.slow_sql import query_info_source
-from dbmind.app.diagnosis.query.slow_sql.featurelib import load_feature_lib, get_feature_mapper
-from dbmind.app.diagnosis.query.slow_sql.significance_detection import average_base, ks_base, sum_base
-from dbmind.app.diagnosis.query.slow_sql.slow_query import SlowQuery
+from dbmind.components.slow_query_diagnosis import analyzer, query_info_source
+from dbmind.components.slow_query_diagnosis.featurelib import load_feature_lib, get_feature_mapper
+from dbmind.components.slow_query_diagnosis.significance_detection import ks_base, average_base, sum_base
+from dbmind.common.types.slow_query import SlowQuery
 from dbmind.metadatabase.schema.config_dynamic_params import DynamicParams
 
 big_current_data = [10, 10, 10, 10, 10]
@@ -35,44 +34,44 @@ ilegal_history_data = [1, 1, 1, 1, 1]
 
 configs = configparser.ConfigParser()
 configs.add_section('detection_threshold')
-for option, value, _ in DynamicParams.__default__.get('detection_threshold'):
+for option, value, _, _ in DynamicParams.__default__.get('detection_threshold'):
     configs.set('detection_threshold', option, str(value))
 
-configs.add_section('slow_sql_threshold')
-for option, value, _ in DynamicParams.__default__.get('slow_sql_threshold'):
-    configs.set('slow_sql_threshold', option, str(value))
+configs.add_section('slow_query_threshold')
+for option, value, _, _ in DynamicParams.__default__.get('slow_query_threshold'):
+    configs.set('slow_query_threshold', option, str(value))
 
-slow_sql_instance = SlowQuery(db_host='127.0.0.1', db_port='8080', db_name='database1', schema_name='schema1',
-                              query='update schema1.table1 set age=30 where id=3', start_timestamp=1640139691000,
-                              duration_time=1000, track_parameter=True, plan_time=1000, parse_time=20, db_time=2000,
-                              hit_rate=0.8, fetch_rate=0.98, cpu_time=14200, data_io_time=1231243,
-                              template_id=12432453234, query_plan=None,
-                              sort_count=13, sort_mem_used=12.43, sort_spill_count=3, hash_count=0, hash_mem_used=0,
-                              hash_spill_count=0, lock_wait_count=10, lwlock_wait_count=20, n_returned_rows=1,
-                              n_tuples_returned=100000, n_tuples_fetched=0, n_tuples_deleted=0, n_tuples_inserted=0,
-                              n_tuples_updated=0)
-slow_sql_instance.tables_name = {'schema1': ['table1']}
+slow_query_instance = SlowQuery(db_host='127.0.0.1', db_port='8080', db_name='database1', schema_name='schema1',
+                                query='update schema1.table1 set age=30 where id=3', start_time=1640139691000,
+                                duration_time=1000, track_parameter=True, plan_time=1000, parse_time=20, db_time=2000,
+                                hit_rate=0.8, fetch_rate=0.98, cpu_time=14200, data_io_time=1231243,
+                                template_id=12432453234, query_plan=None,
+                                sort_count=13, sort_mem_used=12.43, sort_spill_count=3, hash_count=0, hash_mem_used=0,
+                                hash_spill_count=0, lock_wait_count=10, lwlock_wait_count=20, n_returned_rows=1,
+                                n_tuples_returned=100000, n_tuples_fetched=0, n_tuples_deleted=0, n_tuples_inserted=0,
+                                n_tuples_updated=0)
+slow_query_instance.tables_name = {'schema1': ['table1']}
 
 
 def mock_get_detection_threshold(param):
     return configs.getfloat('detection_threshold', param)
 
 
-def mock_get_slow_sql_param(param):
-    return configs.getfloat('slow_sql_threshold', param)
+def mock_get_slow_query_param(param):
+    return configs.getfloat('slow_query_threshold', param)
 
 
 @pytest.fixture
 def mock_get_funcntion(monkeypatch):
     monkeypatch.setattr(monitoring, 'get_detection_threshold',
                         mock.Mock(side_effect=lambda x: mock_get_detection_threshold(param=x)))
-    monkeypatch.setattr(monitoring, 'get_slow_sql_param',
-                        mock.Mock(side_effect=lambda x: mock_get_slow_sql_param(param=x)))
+    monkeypatch.setattr(monitoring, 'get_slow_query_param',
+                        mock.Mock(side_effect=lambda x: mock_get_slow_query_param(param=x)))
 
 
 class MockedComplexQueryContext(query_info_source.QueryContext):
-    def __init__(self, slow_sql_instance):
-        super().__init__(slow_sql_instance)
+    def __init__(self, slow_query_instance):
+        super().__init__(slow_query_instance)
 
     @staticmethod
     def acquire_pg_settings():

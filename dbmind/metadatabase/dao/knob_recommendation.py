@@ -55,7 +55,7 @@ def batch_insert_knob_metric_snapshot(instance, metric_dict):
         # Check for NaN and None.
         if metric_value is None or metric_value != metric_value:
             logging.warning("batch_insert_knob_metric_snapshot: the value of %s is invalid, "
-                            "so skipping the insertion." % metric_name)
+                            "so skipping the insertion.", metric_name)
             continue
         metric_lists.append(
             KnobRecommendationMetricSnapshot(

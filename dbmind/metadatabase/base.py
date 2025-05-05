@@ -23,7 +23,8 @@ ResultDbBase = declarative_base()
 class DynamicConfigCommon:
     category = Column(String, primary_key=True)
     name = Column(String, primary_key=True)
-    value = Column(String, nullable=False)
+    value = Column(String, nullable=True)
+    tag = Column(String, nullable=False)
     annotation = Column(String, nullable=True)
 
     @classmethod
@@ -31,11 +32,12 @@ class DynamicConfigCommon:
         default = getattr(cls, '__default__', {})
         rows = []
         for category, params in default.items():
-            for name, value, annotation in params:
+            for name, value, tag, annotation in params:
                 obj = cls()
                 obj.category = category
                 obj.name = name
                 obj.value = value
+                obj.tag = tag
                 obj.annotation = annotation
                 rows.append(obj)
         return rows

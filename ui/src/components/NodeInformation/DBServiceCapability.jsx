@@ -1,28 +1,214 @@
 import React, { Component } from 'react';
 import { Col, Row, message, Collapse } from 'antd';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
-import { commonMetricMethod } from '../../utils/function';
+import { getServiceCapabilityData } from '../../api/autonomousManagement';
 
 const { Panel } = Collapse;
-const metricData = ['pg_db_xact_commit','pg_db_xact_rollback','pg_db_conflicts','pg_db_confl_lock',
-'pg_db_confl_snapshot','pg_db_confl_bufferpin','pg_db_confl_deadlock','pg_db_deadlocks',
-'pg_db_temp_bytes','pg_db_temp_files','gaussdb_tup_inserted_rate','gaussdb_tup_deleted_rate',
-'gaussdb_tup_updated_rate','gaussdb_tup_fetched_rate'];
 export default class DBServiceCapability extends Component {
   constructor(props) {
     super(props)
     this.state = {
+      selValue:this.props.selValue,
+      selTimeValue:this.props.selTimeValue,
       primitiveDataAll:[],
       serviceAllData:[],
-      vectorKey:["0"],
-      param: {
-        instance:this.props.selValue,
-        latest_minutes:this.props.selTimeValue ? this.props.selTimeValue : null,
-        fetch_all:true,
-        regex:false,
-        from_timestamp:this.props.startTime ? this.props.startTime : null,
-        to_timestamp:this.props.endTime ? this.props.endTime : null
-      }
+      vectorKey:''
+    }
+  }
+  async getServiceData1 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_xact_commit',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData2 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_xact_rollback',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData3 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_conflicts',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData4 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_confl_lock',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData5 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_confl_snapshot',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData6 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_confl_bufferpin',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData7 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_confl_deadlock',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData8 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_deadlocks',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData9 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_temp_bytes',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData10 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'pg_db_temp_files',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData11 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'opengauss_tup_inserted_rate',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData12 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'opengauss_tup_deleted_rate',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData13 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'opengauss_tup_updated_rate',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getServiceData14 () {
+    let param = {
+      instance:this.state.selValue,
+      minutes:this.state.selTimeValue,
+      label:'opengauss_tup_fetched_rate',
+      fetch:true
+    }
+    const { success, data, msg }= await getServiceCapabilityData(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
     }
   }
   compare(property){
@@ -40,30 +226,26 @@ export default class DBServiceCapability extends Component {
   }
   divisionItem(arr1, arr2) {
     let newArr = arr1.map(function (item, index) {
-      if((item + arr2[index])){
-        return item/(item + arr2[index]);
-      } else {
-        return 0;
-      }
+      return item/(item + arr2[index]);
     });
     return newArr;
   }
 async getServiceDataAll () {
   Promise.all([
-    commonMetricMethod(this.state.param,{label:metricData[0]}),
-    commonMetricMethod(this.state.param,{label:metricData[1]}),
-    commonMetricMethod(this.state.param,{label:metricData[2]}),
-    commonMetricMethod(this.state.param,{label:metricData[3]}),
-    commonMetricMethod(this.state.param,{label:metricData[4]}),
-    commonMetricMethod(this.state.param,{label:metricData[5]}),
-    commonMetricMethod(this.state.param,{label:metricData[6]}),
-    commonMetricMethod(this.state.param,{label:metricData[7]}),
-    commonMetricMethod(this.state.param,{label:metricData[8]}),
-    commonMetricMethod(this.state.param,{label:metricData[9]}),
-    commonMetricMethod(this.state.param,{label:metricData[10]}),
-    commonMetricMethod(this.state.param,{label:metricData[11]}),
-    commonMetricMethod(this.state.param,{label:metricData[12]}),
-    commonMetricMethod(this.state.param,{label:metricData[13]})
+    this.getServiceData1(),
+    this.getServiceData2(),
+    this.getServiceData3(),
+    this.getServiceData4(),
+    this.getServiceData5(),
+    this.getServiceData6(),
+    this.getServiceData7(),
+    this.getServiceData8(),
+    this.getServiceData9(),
+    this.getServiceData10(),
+    this.getServiceData11(),
+    this.getServiceData12(),
+    this.getServiceData13(),
+    this.getServiceData14()
   ]).then((result)=>{
     if(result[0]){
       result.forEach((item,index) => {
@@ -94,26 +276,31 @@ async getServiceDataAll () {
       result[0].forEach((item,index) => {
         let DataItems = []
         newResult.forEach((oitem,oindex) => {
+          //根据不同的接口数据index进行特异性处理
+          // oitem[index].values.forEach((pitem,pindex) => {
+          //   oitem[index].values[pindex] = (pitem/1024/1024/1024).toFixed(2)
+          // });
           DataItems.push(oitem[index])
       });
       primitiveDataAll.push(DataItems)
       });
       primitiveDataAll.forEach((item,index) => {
               let chartData = []
-              let data1 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'},{image: '', description: 'Total'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description: 'Success', colors: '#2DA769'}, { data:item[1].values, description: 'Failure', colors: '#F43146'}, { data:item[2].values, description: 'Total', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Success/Failure/Total Transactions','unit':'','fixedflg':0,'toolBox':true}
-              let data2 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'}],'xAxisData':item[3].timestamps,'seriesData':[{data:item[3].values,description: 'Success', colors: '#2DA769'}, { data:item[4].values, description: 'Failure', colors: '#5990FD'}],'flg':1,'legendFlg':2,title:"Transaction Success/Failure Rate",'unit':'%','fixedflg':0,'toolBox':true}
-              let data3 = {'legend':[{image: '', description: 'Conflicts'},{image: '', description: 'Confl Lock'},{image: '', description: 'Confl Snapshot'},{image: '', description: 'Confl Bufferpin'},{image: '', description: 'Confl Deadlock'}],'xAxisData':item[5].timestamps,'seriesData':[{data:item[5].values,description: 'Conflicts', colors: '#2DA769'},{data:item[6].values, description: 'Confl Lock', colors: '#F43146'},{data:item[7].values, description: 'Confl Snapshot', colors: '#5990FD'},{data:item[8].values, description: 'Confl Bufferpin', colors: '#EEBA18'},{data:item[9].values, description: 'Confl Deadlock', colors: '#9185F0'}],'flg':0,'legendFlg':2,title:"Conflicts Rate",'unit':'','fixedflg':0,'toolBox':true}
-              let data4 = {'legend':[{image: '', description: 'Deadlock Rate'}],'xAxisData':item[10].timestamps,'seriesData':[{data:item[10].values,description: 'Deadlock Rate', colors: '#EEBA18'}],'flg':0,'legendFlg':2,title:"Deadlock Rate",'unit':'','fixedflg':0,'toolBox':true}
-              let data5 = {'legend':[{image: '', description: 'Temp Files'},{image: '', description: 'Temp Bytes'}],'xAxisData':item[11].timestamps,'seriesData':[{data:item[12].values,description: 'Temp Files', colors: '#EC6F1A'},{data:item[11].values,description: 'Temp Bytes', colors: '#9185EF'}],'flg':0,'legendFlg':2,title:"Temp File",'unit':'','fixedflg':0,'toolBox':true}
-              let data6 = {'legend':[{image: '', description:'Insert'},{image: '', description: 'Delete'},{image: '', description: 'Update'},{image: '', description: 'Select'}],'xAxisData':item[13].timestamps,'seriesData':[{data:item[13].values,description: 'Insert', colors: '#2DA769'},{ data:item[14].values, description: 'Delete', colors: '#F43146'},{ data:item[15].values, description: 'Update', colors: '#5990FD'},{ data:item[16].values, description: 'Select', colors: '#EEBA18'}],'flg':0,'legendFlg':2,title:"Averaged Rate Of DML",'unit':'','fixedflg':0,'toolBox':true}
+              let data1 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'},{image: '', description: 'Total'}],'xAxisData':item[0].timestamps,'seriesData':[{data:item[0].values,description: 'Success', colors: '#2DA769'}, { data:item[1].values, description: 'Failure', colors: '#F43146'}, { data:item[2].values, description: 'Total', colors: '#5990FD'}],'flg':0,'legendFlg':2,title:'Success/Failure/Total Transactions','unit':'','fixedflg':0}
+              let data2 = {'legend':[{image: '', description:'Success'},{image: '', description: 'Failure'}],'xAxisData':item[3].timestamps,'seriesData':[{data:item[3].values,description: 'Success', colors: '#2DA769'}, { data:item[4].values, description: 'Failure', colors: '#5990FD'}],'flg':1,'legendFlg':2,title:"Transaction Success/Failure Rate",'unit':'%','fixedflg':1}
+              let data3 = {'legend':[{image: '', description: 'Conflicts'},{image: '', description: 'Confl Lock'},{image: '', description: 'Confl Snapshot'},{image: '', description: 'Confl Bufferpin'},{image: '', description: 'Confl Deadlock'}],'xAxisData':item[5].timestamps,'seriesData':[{data:item[5].values,description: 'Conflicts', colors: '#2DA769'},{data:item[6].values, description: 'Confl Lock', colors: '#F43146'},{data:item[7].values, description: 'Confl Snapshot', colors: '#5990FD'},{data:item[8].values, description: 'Confl Bufferpin', colors: '#EEBA18'},{data:item[9].values, description: 'Confl Deadlock', colors: '#9185F0'}],'flg':0,'legendFlg':2,title:"Conflicts Rate",'unit':'','fixedflg':0}
+              let data4 = {'legend':[{image: '', description: 'Deadlock Rate'}],'xAxisData':item[10].timestamps,'seriesData':[{data:item[10].values,description: 'Deadlock Rate', colors: '#EEBA18'}],'flg':0,'legendFlg':2,title:"Deadlock Rate",'unit':'','fixedflg':0}
+              let data5 = {'legend':[{image: '', description: 'Temp Files'},{image: '', description: 'Temp Bytes'}],'xAxisData':item[11].timestamps,'seriesData':[{data:item[12].values,description: 'Temp Files', colors: '#EC6F1A'},{data:item[11].values,description: 'Temp Bytes', colors: '#9185EF'}],'flg':0,'legendFlg':2,title:"Temp File",'unit':'','fixedflg':0}
+              let data6 = {'legend':[{image: '', description:'Insert'},{image: '', description: 'Delete'},{image: '', description: 'Update'},{image: '', description: 'Select'}],'xAxisData':item[13].timestamps,'seriesData':[{data:item[13].values,description: 'Insert', colors: '#2DA769'},{ data:item[14].values, description: 'Delete', colors: '#F43146'},{ data:item[15].values, description: 'Update', colors: '#5990FD'},{ data:item[16].values, description: 'Select', colors: '#EEBA18'}],'flg':1,'legendFlg':2,title:"Averaged Rate Of DML",'unit':'%','fixedflg':1}
               chartData.push(data1,data2,data3,data4,data5,data6)
               serviceAllArray.push(chartData)
             })
           this.setState(() => ({
             serviceAllData: serviceAllArray,
             primitiveDataAll:primitiveDataAll,
+            vectorKey:0,
           }),()=>{
-            this.onChange(this.state.vectorKey)
+            this.onChange(0)
           })
     }
     }).catch((error) => {
@@ -121,9 +308,9 @@ async getServiceDataAll () {
     })
   }
   componentDidUpdate(prevProps) {
-    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
+    if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        param:Object.assign(this.state.param,{instance: this.props.selValue,latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,from_timestamp: this.props.startTime,to_timestamp: this.props.endTime})
+        selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
       }),()=>{
         if(this.props.tabkey === "1"){
           this.getServiceDataAll()
@@ -135,9 +322,7 @@ async getServiceDataAll () {
     this.getServiceDataAll()
   }
   onChange = (key) => {
-    this.setState({vectorKey:key}, () => {
-      this.forceUpdate();
-    })
+    this.setState({vectorKey:key})
   };
   render() {
     return (
@@ -149,22 +334,22 @@ async getServiceDataAll () {
                 <Panel header={this.state.primitiveDataAll[index][0].labels.datname} key={index} forceRender={true} className='panelStyle'>
                 <Row gutter={[10, 10]}>
                   <Col className="gutter-row cpuborder" span={12}>
-                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[0]} />:''}
+                    <NodeEchartFormWork echartData={item[0]} />
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[1]} />:''}
+                    <NodeEchartFormWork echartData={item[1]} />
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[2]} />:''}
+                    <NodeEchartFormWork echartData={item[2]} />
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[3]} />:''}
+                    <NodeEchartFormWork echartData={item[3]} />
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[4]} />:''}
+                    <NodeEchartFormWork echartData={item[4]} />
                   </Col>
                   <Col className="gutter-row cpuborder" span={12}>
-                    {this.state.vectorKey.indexOf(index.toString()) !== -1 ?<NodeEchartFormWork echartData={item[5]} />:''}
+                    <NodeEchartFormWork echartData={item[5]} />
                   </Col>
                 </Row>
               </Panel>

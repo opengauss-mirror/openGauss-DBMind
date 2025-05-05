@@ -10,13 +10,13 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-
+import time
 import logging
 from threading import Thread, Event
 
 from dbmind import global_vars, constants
 
-minimal_timed_task_interval = 30
+minimal_timed_task_interval = constants.MINIMAL_TIMED_TASK_INTERVAL
 
 
 class RepeatedTimer(Thread):
@@ -35,13 +35,16 @@ class RepeatedTimer(Thread):
 
     def run(self):
         while not self._finished.is_set():
+            start_time = time.monotonic()
             try:
                 self._function(*self._args, **self._kwargs)
             except Exception as e:
-                logging.error('RepeatedTimer<%s%s, %d> occurred an error because %s.'
-                              % (self._function.__name__, self._args, self._interval, e))
+                logging.error('RepeatedTimer<%s%s, %d> occurred an error because %s.',
+                              self._function.__name__, self._args, self._interval, e)
                 logging.exception(e)
-            self._finished.wait(self._interval)
+            elapsed_time = time.monotonic() - start_time
+            actual_wait_time = 0 if self._interval < elapsed_time else (self._interval - elapsed_time)
+            self._finished.wait(actual_wait_time)
         self._finished.set()
 
     def cancel(self):
@@ -119,11 +122,11 @@ class _TimedTaskManager:
                 logging.error("Timed-task '%s' not existed.", timed_task)
             else:
                 func = global_vars.timed_task[timed_task]['object']
-                if timed_task in (constants.DAILY_INSPECTION,
-                                  constants.WEEKLY_INSPECTION, constants.MONTHLY_INSPECTION):
-                    seconds = global_vars.timed_task[timed_task].get('seconds')
-                else:
-                    seconds = global_vars.configs.getint('TIMED_TASK', f'{timed_task}_interval',
+                seconds = global_vars.configs.getint('TIMED_TASK', f'{timed_task}_interval',
+                                                     fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
+                if timed_task == constants.SLOW_QUERY_DIAGNOSIS \
+                        and seconds == constants.TIMED_TASK_DEFAULT_INTERVAL:
+                    seconds = global_vars.configs.getint('TIMED_TASK', f'{constants.SLOW_SQL_DIAGNOSIS}_interval',
                                                          fallback=constants.TIMED_TASK_DEFAULT_INTERVAL)
                 if not self.check(timed_task):
                     self.apply(func, seconds)
@@ -179,6 +182,8 @@ def timer(seconds):
 def customized_timer(seconds):
     """User customized timer."""
     def inner(func):
+        if global_vars.is_distribute_mode:
+            return func
         global_vars.timed_task[func.__name__] = {'object': func, 'seconds': seconds}
         if func.__name__ in global_vars.default_timed_task:
             TimedTaskManager.apply(func, seconds)

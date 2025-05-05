@@ -12,7 +12,10 @@
 # See the Mulan PSL v2 for more details.
 
 import numpy as np
-from scipy.linalg import toeplitz
+try:
+    from scipy.linalg import toeplitz
+except ImportError:
+    pass
 
 from .linear_models import OLS
 

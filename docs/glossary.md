@@ -23,7 +23,7 @@
       The directory path which stores common data, including configuration, log, pid, etc.
      
    ``exporter``
-      [Prometheus](https://prometheus.io/)'s plugin. The purpose of exporters is to scrape metrics from monitored object. See more via [Prometheus exporter](https://prometheus.io/docs/instrumenting/exporters/).
+      The purpose of exporters is to scrape metrics from monitored object.
       
    ``metadatabase``
       The database which you configure in the configuration file is to store monitoring, prediction and forecast result in periodical tasks. Hence, the response time for users to browse the results is quicker.

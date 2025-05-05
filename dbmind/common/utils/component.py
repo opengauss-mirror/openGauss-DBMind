@@ -64,4 +64,4 @@ def choose_an_rpc():
         raise_fatal_and_exit('\nNot selected an RPC agent, exiting...')
     else:
         if not global_vars.agent_proxy.switch_context(agent_addr[int(no)]):
-            raise AssertionError()
+            raise AssertionError('can not switch to context {}'.format(agent_addr[int(no)]))

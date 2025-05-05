@@ -42,6 +42,10 @@ class GradientDetector(AbstractDetector):
         """Nothing to impl"""
 
     def _predict(self, s: Sequence) -> Sequence:
+        length = len(s.values)
+        if self.least_length is not None and length < self.least_length:
+            return Sequence(timestamps=s.timestamps, values=[False] * length)
+
         normal_sequence = remove_spike(s)  # remove spike points
         predicted = self.do_gradient_detect(normal_sequence)  # do detect for rapid change
         return Sequence(timestamps=normal_sequence.timestamps, values=predicted)

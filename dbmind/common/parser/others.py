@@ -83,3 +83,74 @@ def parse_dsn(dsn):
 
     except ImportError:
         raise NotImplementedError()
+
+
+def parse_mixed_quotes_string(input_string):
+    # Regular expression to match quoted or unquoted strings
+    pattern = r'"((?:[^"]|"")*)"|([^,]+)'
+
+    # Find all matches in the input string
+    matches = re.findall(pattern, input_string)
+
+    # Process matches to handle quoted and unquoted values
+    parsed_list = []
+    for match in matches:
+        if match[0]:  # This is a quoted string
+            parsed_list.append(match[0].replace('""', '"'))
+        else:  # This is an unquoted string
+            parsed_list.append(match[1])
+
+    return parsed_list
+
+
+def extract_ip_groups(input_string):
+    # Define a regex pattern to match key-value pairs
+    input_string = input_string.strip(';')
+    pattern = re.compile(r'''
+        (?:
+            # Match parts enclosed in quotes
+            ['"]([^'"]+)['"]
+        |
+            # Match unquoted parts (cannot contain multiple colons)
+            ([^:]+)
+        )
+        \s*:\s*
+        (?:
+            ['"]([^'"]+)['"]
+        |
+            ([^,:;]+)
+        )
+        ''', re.VERBOSE)
+    
+    # [] Support
+    input_string = input_string.replace('[', '"').replace(']', '"')
+    # Split the string by semicolons to separate groups
+    groups = input_string.split(';')
+    result = []
+
+    for group in groups:
+        group_results = []
+        pairs = group.split(',')
+
+        for pair in pairs:
+            stripped_pair = pair.strip()
+
+            # If not enclosed in quotes, check the count of colons
+            if not (stripped_pair.startswith('"') or stripped_pair.startswith("'")):
+                if stripped_pair.count(':') != 1:
+                    return []  # Return an empty list if unquoted strings have more than one colon
+
+            # Search for regex matches and parse
+            match = pattern.fullmatch(stripped_pair)
+            if match:
+                key = match.group(1) or match.group(2)
+                value = match.group(3) or match.group(4)
+                group_results.append((key, value))
+            else:
+                return []  # Return an empty list if the format does not match
+
+        # Add parsed results
+        result.append(group_results)
+
+    return result
+

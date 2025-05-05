@@ -10,8 +10,11 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import logging
 from threading import Lock
+
+from psycopg2.extensions import make_dsn
 
 from dbmind.common.rpc import RPCServer, RPCFunctionRegister
 from dbmind.common.opengauss_driver import Driver
@@ -32,7 +35,8 @@ def query_in_postgres(stmt):
 @_rpc_service
 def query_in_database(stmt, database, return_tuples=False, fetch_all=False, ignore_error=False):
     res = _agent_exclusive_driver.query(
-        stmt, force_connection_db=database,
+        stmt,
+        force_connection_db=database,
         return_tuples=return_tuples,
         fetch_all=fetch_all,
         ignore_error=ignore_error)
@@ -48,20 +52,25 @@ def get_driver_address():
 
 def create_agent_rpc_service():
     def checker(username, pwd):
-        if (_agent_exclusive_driver.initialized and
+        if (
+            _agent_exclusive_driver.initialized and
             _agent_exclusive_driver.username == username and
-                _agent_exclusive_driver.pwd == pwd):
-            return True
+            _agent_exclusive_driver.pwd == pwd
+        ):
+            return True, None
+        else:
+            _agent_exclusive_driver.initialized = False
 
         host, port = get_driver_address()
         try:
             with _check_lock:
-                dsn = 'user={} password={} dbname=postgres host={} port={}'.format(
-                    username, pwd, host, port
-                )
+                dsn = make_dsn(user=username, password=pwd, dbname="postgres", host=host, port=port)
                 _agent_exclusive_driver.initialize(dsn)
-                return True
-        except ConnectionError:
-            return False
+                del dsn
+                return True, None
+        except ConnectionError as e:
+            return False, str(e)
+        except PermissionError as e:
+            return False, str(e)
 
     return RPCServer(_rpc_register, checker)

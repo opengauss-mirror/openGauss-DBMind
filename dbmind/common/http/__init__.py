@@ -18,5 +18,4 @@ from ._service_impl import request_mapping
 from ._service_impl import standardized_api_output
 from ._service_impl import Request
 
-__all__ = ['HttpService', 'OAuth2', 'Response', 'JSONResponse',
-           'request_mapping', 'standardized_api_output', 'Request']
+__all__ = ['HttpService', 'OAuth2', 'Response', 'JSONResponse', 'request_mapping', 'standardized_api_output', 'Request']

@@ -19,7 +19,7 @@ class SlowQueriesKilled(ResultDbBase):
     __tablename__ = "tb_killed_slow_queries"
 
     killed_query_id = Column(Integer, primary_key=True, autoincrement=True)
-    instance = Column(String(24), nullable=False)
+    instance = Column(String(64), nullable=False)
     db_name = Column(String(64), nullable=False)
     query = Column(TEXT, nullable=False)
     killed = Column(Boolean, nullable=False)

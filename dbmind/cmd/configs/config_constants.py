@@ -18,6 +18,8 @@ import dbmind.common
 from dbmind.common.rpc import ping_rpc_url
 from dbmind.common.utils import write_to_terminal
 from dbmind.common.utils.checking import check_port_valid, check_ip_valid
+from dbmind.common.parser.others import extract_ip_groups
+from dbmind import constants
 
 # header text
 DBMIND_CONF_HEADER = """\
@@ -50,8 +52,8 @@ ENCRYPTED_SIGNAL = 'Encrypted->'
 
 # Used by check_config_validity().
 CONFIG_OPTIONS = {
-    'TSDB-name': ['prometheus', 'influxdb'],
-    'METADATABASE-dbtype': ['sqlite', 'opengauss', 'postgresql'],
+    'TSDB-name': ['prometheus', 'influxdb', 'ignore'],
+    'METADATABASE-dbtype': ['sqlite', 'opengauss', 'opengauss', 'postgresql'],
     'WORKER-type': ['local', 'dist'],
     'LOG-level': ['DEBUG', 'INFO', 'WARNING', 'ERROR']
 }
@@ -59,18 +61,18 @@ POSITIVE_INTEGER_CONFIG = ['LOG-maxbytes', 'LOG-backupcount']
 BOOLEAN_CONFIG = []
 
 
-def check_config_validity(section, option, value, silent=False):
+def check_config_validity(section, option, value, silent=False, microservice=False, ignore_tsdb=False):
     config_item = '%s-%s' % (section, option)
     # exceptional cases:
     if config_item in ('METADATABASE-port', 'METADATABASE-host'):
         if value.strip() == '' or value == NULL_TYPE:
             return True, None
 
-    if config_item == 'AGENT-username' or config_item == 'AGENT-password':
-        if value.strip() == '':
+    if (config_item == 'AGENT-username' or config_item == 'AGENT-password') and not microservice:
+        if value.strip() in ('', NULL_TYPE):
             return False, 'Not set Agent-username or Agent-password'
 
-    if config_item == 'AGENT-master_url':
+    if config_item == 'AGENT-master_url' and not silent:
         if value.strip() in ('', NULL_TYPE):
             write_to_terminal(
                 'Notice: Without explicitly setting agent configurations, '
@@ -86,16 +88,33 @@ def check_config_validity(section, option, value, silent=False):
                         color='yellow'
                     )
 
+    if section == 'TIMED_TASK' and option.endswith('_interval'):
+        if not value.isdigit() or int(value) < constants.MINIMAL_TIMED_TASK_INTERVAL:
+            return False, f'Invalid task interval for {option.replace("_interval", "")}: "{value}"' \
+                          f'(positive integer not less than {constants.MINIMAL_TIMED_TASK_INTERVAL} expected)'
+
     # normal inspection process:
-    if 'port' in option:
-        valid_port = check_port_valid(value)
-        if not valid_port:
+    if option == 'port':
+        if section == 'METADATABASE':
+            for item in value.split(','):
+                if not check_port_valid(item.strip()):
+                    return False, 'Invalid port for %s: %s(1024-65535)' % (config_item, value)
+        elif section == 'TSDB':
+            if not ignore_tsdb and not check_port_valid(value):
+                return False, 'Invalid port for %s: %s(1024-65535)' % (config_item, value)
+        elif not check_port_valid(value):
             return False, 'Invalid port for %s: %s(1024-65535)' % (config_item, value)
-    if 'host' in option:
-        valid_host = check_ip_valid(value)
-        if not valid_host:
+    if option == 'host':
+        if section == 'METADATABASE':
+            for item in value.split(','):
+                if not check_ip_valid(item.strip()):
+                    return False, 'Invalid IP Address for %s: %s' % (config_item, value)
+        elif section == 'TSDB':
+            if not ignore_tsdb and not check_ip_valid(value):
+                return False, 'Invalid IP Address for %s: %s' % (config_item, value)
+        elif not check_ip_valid(value):
             return False, 'Invalid IP Address for %s: %s' % (config_item, value)
-    if 'database' in option:
+    if option == 'database':
         if value == NULL_TYPE or value.strip() == '':
             return False, 'Unspecified database name %s' % value
     if config_item in POSITIVE_INTEGER_CONFIG:
@@ -108,14 +127,14 @@ def check_config_validity(section, option, value, silent=False):
     if options and value not in options:
         return False, 'Invalid choice for %s: %s' % (config_item, value)
 
-    if 'dbtype' in option and value == 'opengauss' and not silent:
+    if 'dbtype' == option and value in ('opengauss', 'opengauss') and not silent:
         write_to_terminal(
-            'WARN: default PostgreSQL connector (psycopg2-binary) does not support openGauss.\n'
-            'It would help if you compiled psycopg2 with openGauss manually or '
+            'WARN: default PostgreSQL connector (psycopg2-binary) does not support GaussDB.\n'
+            'It would help if you compiled psycopg2 with GaussDB manually or '
             'created a connection user after setting the GUC password_encryption_type to 1.',
             color='yellow'
         )
-    if 'dbtype' in option and value == 'sqlite' and not silent:
+    if 'dbtype' == option and value == 'sqlite' and not silent:
         write_to_terminal(
             'NOTE: SQLite currently only supports local deployment, so you only need to provide '
             'METADATABASE-database information. If you provide other information, DBMind will '
@@ -123,16 +142,26 @@ def check_config_validity(section, option, value, silent=False):
             color='yellow'
         )
     if value != NULL_TYPE and 'ssl_certfile' in option:
-        dbmind.common.utils.checking.warn_ssl_certificate(value, None)
+        dbmind.common.utils.checking.warn_ssl_certificate(value, None, None)
     if value != NULL_TYPE and 'ssl_keyfile' == option:
-        dbmind.common.utils.checking.warn_ssl_certificate(None, value)
+        dbmind.common.utils.checking.warn_ssl_certificate(None, value, None)
+    if value != NULL_TYPE and 'ssl_ca_file' == option:
+        dbmind.common.utils.checking.warn_ssl_certificate(None, None, value)
+    if section == 'IP_MAP' and option == 'ip_map' and value != NULL_TYPE and value:
+        ip_groups = extract_ip_groups(value)
+        if not ip_groups:
+            return False, f'Please check the format of ip_map'
+        for ip_group in ip_groups:
+            for ip_pair in ip_group:
+                if not len(ip_pair) == 2:
+                    return False, f'Invalid format for {config_item}: {value}'
+                for ip in ip_pair:
+                    if not check_ip_valid(ip):
+                        return False, f'Invalid IP in the {config_item}: {ip}'
 
     # Add more checks here.
     return True, None
 
 
 # Ignore the following sections while config iterates
-SKIP_LIST = ('COMMENT', 'LOG', 'TIMED_TASK')
-
-# IV table name
-IV_TABLE = 'iv_table'
+SKIP_LIST = ('COMMENT', 'LOG', 'TIMED_TASK', 'TIMED_TASK_LIST')

@@ -15,8 +15,8 @@ import configparser
 import glob
 import logging
 import os
-import sys
 import random
+import sys
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -26,23 +26,31 @@ from unittest.mock import MagicMock
 import pytest
 
 from dbmind import global_vars
-from dbmind.constants import DYNAMIC_CONFIG
 from dbmind.cmd.configs.configurators import DynamicConfig
 from dbmind.cmd.edbmind import get_worker_instance
 from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
 from dbmind.common.types import Sequence
+from dbmind.constants import DYNAMIC_CONFIG
 from dbmind.metadatabase.ddl import create_dynamic_config_schema
 from dbmind.metadatabase.schema.config_dynamic_params import DynamicParams
+from dbmind.service import multicluster
 
 metadatabase_name = 'test_metadatabase.db'
 prom_addr = os.environ.get('PROMETHEUS_ADDR', 'hostname:9090')
-prom_host, prom_port = prom_addr.split(':')
+prom_host, prom_port = prom_addr.rsplit(":", 1)
 
 configs = configparser.ConfigParser()
 configs.add_section('TSDB')
 configs.set('TSDB', 'name', 'prometheus')
 configs.set('TSDB', 'host', prom_host)
 configs.set('TSDB', 'port', prom_port)
+configs.set('TSDB', 'dbname', 'test')
+configs.set('TSDB', 'username', 'aaa'),
+configs.set('TSDB', 'password', 'bbb'),
+configs.set('TSDB', 'ssl_certfile', ''),
+configs.set('TSDB', 'ssl_keyfile', ''),
+configs.set('TSDB', 'ssl_keyfile_password', ''),
+configs.set('TSDB', 'ssl_ca_file', '')
 configs.add_section('SELF-DIAGNOSIS')
 configs.add_section('SELF-HEALING')
 
@@ -56,9 +64,12 @@ configs.set('METADATABASE', 'database', metadatabase_name)
 configs.set('SELF-DIAGNOSIS', 'diagnosis_time_window', '300')
 configs.set('SELF-HEALING', 'enable_self_healing', 'False')
 
+if os.path.exists(DYNAMIC_CONFIG):
+    os.unlink(DYNAMIC_CONFIG)
 create_dynamic_config_schema()
+
 for section, param_list in DynamicParams.__default__.items():
-    for option, value, _, in param_list:
+    for option, value, _, _ in param_list:
         DynamicConfig.set(section, option, str(value))
 
 global_vars.must_filter_labels = {}
@@ -68,6 +79,7 @@ if os.path.exists(metadatabase_name):
 global_vars.configs = configs
 global_vars.dynamic_configs = DynamicConfig()
 global_vars.worker = get_worker_instance('local', -1)
+global_vars.agent_proxy = multicluster.AgentProxy()
 TsdbClientFactory.set_client_info(
     global_vars.configs.get('TSDB', 'name'),
     global_vars.configs.get('TSDB', 'host'),
@@ -105,12 +117,12 @@ def mock_get_current_metric_value(metric_name, label_config=None, *args, **kwarg
     return [s]
 
 
-def mock_get_metric_sequence(metric_name, start_time, end_time):
+def mock_get_metric_sequence(metric_name, start_time, end_time, **kwargs):
     from dbmind.service import dai
 
     class MockFetcher(dai.LazyFetcher):
         def _fetch_sequence(self, *args, **kwargs):
-            hosts = ('xx.xx.xx.100:1234', 'xx.xx.xx.101:5678', 'xx.xx.xx.102:1111')
+            hosts = ('xx.xx.xx.100:1234', 'xx.xx.xx.101:5678', '192.168.0.1:1111')
             rv = list()
 
             self.step = self.step or 5
@@ -186,6 +198,7 @@ def mock_dai(monkeypatch):
         mock_client = mock.MagicMock()
         mock_client_instance = mock_client.return_value
         mock_client_instance.get_current_metric_value = mock_get_current_metric_value
+        mock_client_instance.scrape_interval = 15
         monkeypatch.setattr(TsdbClientFactory, 'get_tsdb_client', mock_client)
 
         # Use faked data source since not found PROMETHEUS_ADDR environment variable.
@@ -198,13 +211,11 @@ def mock_dai(monkeypatch):
 
     dai.save_history_alarms = mock_save
     dai.save_slow_queries = mock_save
-    dai.save_forecast_sequence = mock_save
-    dai.save_future_alarms = mock_save
 
     return dai
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope='session')
 def run_before_and_after_tests(caplog):
     print("Starting to run all tests.")
 
@@ -219,3 +230,11 @@ def run_before_and_after_tests(caplog):
 
     clean_up()
     print('Tear down all tests.')
+
+
+def assert_raise(exception, func, *args, **kwargs):
+    try:
+        func(*args, **kwargs)
+    except exception:
+        return True
+    return False

@@ -24,8 +24,8 @@ from .base import RPCRequest, RPCResponse
 from .errors import RPCExecutionError, RPCConnectionError
 from .server import DEFAULT_URI, HEARTBEAT_FLAG, AUTH_FLAG
 
-standard_rpc_url_pattern = re.compile('(https?)://[-A-Za-z0-9+&@#%?=~_|!:,.;]+/[-A-Za-z0-9]+')
-rpc_endpoint_pattern = re.compile('(https?)://[-A-Za-z0-9+&@#%?=~_|!:,.;]+/?$')
+standard_rpc_url_pattern = re.compile('(https?)://[-A-Za-z0-9+&@#%?=~_|!:,.;\[\]]+/[-A-Za-z0-9]+')
+rpc_endpoint_pattern = re.compile('(https?)://[-A-Za-z0-9+&@#%?=~_|!:,.;\[\]]+/?$')
 
 
 class RPCClient:
@@ -129,7 +129,7 @@ class RPCClient:
                 self.pwd = password
 
                 try:
-                    return self._call_without_lock(AUTH_FLAG) == 'ok'
+                    return (self._call_without_lock(AUTH_FLAG) == 'ok'), None
                 finally:
                     self.username = old_username
                     self.pwd = old_pwd
@@ -137,9 +137,9 @@ class RPCClient:
             except RPCConnectionError as e:
                 if receive_exception:
                     raise e
-                return False
-            except RPCExecutionError:
-                return False
+                return False, 'Can not connect to the RPC server, please check your opengauss_exporter.'
+            except RPCExecutionError as e:
+                return False, str(e)
 
 
 def ping_rpc_url(url):

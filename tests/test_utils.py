@@ -13,12 +13,45 @@
 import os
 import threading
 import time
+import logging
+from unittest import mock
+
+import pytest
 
 import dbmind.common.utils.cli
 from dbmind.common import utils
+from dbmind.common.utils import cast_to_int_or_float, dbmind_assert, split, string_to_dict, try_to_get_an_element, \
+    adjust_timezone
 from dbmind.constants import METRIC_MAP_CONFIG, MISC_PATH
 
+from .conftest import assert_raise
+
 CURR_DIR = os.path.realpath(os.path.dirname(__file__))
+
+FAKE_LOG = {"path": ""}
+
+
+@pytest.fixture(scope='function', autouse=True)
+def initialize_fake_log():
+    """ Create a empty file stream as /dev/null. Recover it after this test."""
+    path = os.path.abspath(os.path.dirname(__file__))
+    fake_log = os.path.join(path, "fake_log")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    try:
+        with os.fdopen(os.open(fake_log, flags, 0o600), 'w'):
+            pass
+
+        os.chmod(fake_log, 0o600)
+    except FileExistsError:
+        pass
+
+    FAKE_LOG["path"] = fake_log
+
+    yield
+
+    # Recovery
+    if os.path.exists(fake_log):
+        os.remove(fake_log)
 
 
 def test_read_simple_conf_file():
@@ -145,3 +178,110 @@ def test_fixed_dict():
 
     # Test case 5: Check maximum length attribute
     assert d.max_len == 3
+
+
+def test_cast_to_int_or_float():
+    assert cast_to_int_or_float(1) == 1
+    assert cast_to_int_or_float(1.0) == 1.0
+    assert cast_to_int_or_float('1') == 1
+    assert cast_to_int_or_float('1.0') == 1.0
+
+
+def test_dbmind_assert():
+    with pytest.raises(AssertionError) as assert_err:
+        dbmind_assert(condition=None, comment=None)
+    assert assert_err.type == AssertionError
+
+    with pytest.raises(ValueError) as value_err:
+        dbmind_assert(condition=None, comment='msg')
+    assert value_err.type == ValueError
+
+
+def test_split():
+    assert split('') == []
+    assert split('a,b,c') == ['a', 'b', 'c']
+
+
+def test_string_to_dict():
+    assert string_to_dict('a=1,b=2,c=3') == {'a': '1', 'b': '2', 'c': '3'}
+
+
+def test_try_to_get_an_element():
+    assert try_to_get_an_element([], 0) is None
+    assert try_to_get_an_element([1, 2, 3], 5) == 1
+    assert try_to_get_an_element([1, 2, 3], 1) == 2
+
+
+def test_adjust_timezone():
+    assert str(adjust_timezone('UTC-8')) == 'UTC-08:00'
+    assert str(adjust_timezone('UTC+8')) == 'UTC+08:00'
+    assert str(adjust_timezone('UTC+8:00')) == 'UTC+08:00'
+    assert str(adjust_timezone('UTC+8:30')) == 'UTC+08:30'
+    assert adjust_timezone('UTC+8:300') is None
+    assert adjust_timezone('UTC+8::30') is None
+    assert adjust_timezone('ABC+8:30') is None
+
+
+def test_where_am_i():
+    assert utils.where_am_i(globals()) == 'tests.test_utils'
+
+
+def test_mp_rf_handler():
+    logger = logging.getLogger()
+    logging_handler = utils.MultiProcessingRFHandler(filename=FAKE_LOG["path"], maxBytes=100, backupCount=1)
+    logging_handler.add_sensitive_word('w1')
+    logging_handler.add_sensitive_word(['w2', 'w3'])
+    logger.addHandler(logging_handler)
+    logger.setLevel('DEBUG')
+    logging.info("logging content")
+
+
+@utils.ExceptionCatcher(strategy='raise', name='f1')
+def exception_func1():
+    raise ValueError("Wrong value type in f1")
+
+
+@utils.ExceptionCatcher(strategy='ignore', name='f2')
+def exception_func2():
+    raise ValueError("Wrong value type in f2")
+
+
+@utils.ExceptionCatcher(strategy='sensitive', name='f3')
+def exception_func3():
+    raise ValueError("password_is tom")
+
+
+@utils.ExceptionCatcher(strategy='sensitive', name='f3')
+def exception_func4():
+    raise ValueError("username is tom")
+
+
+def test_exception_catcher():
+    assert_raise(ValueError, exception_func1)
+    assert exception_func2() is None
+    assert_raise(AssertionError, exception_func3)
+    assert_raise(ValueError, exception_func4)
+
+
+def test_retry():
+    count = 0
+
+    @utils.base.retry(times_limit=2)
+    def retry_func():
+        nonlocal count
+        count = count + 1
+        raise ValueError('error')
+    assert_raise(ValueError, retry_func)
+    assert count == 2
+
+
+@pytest.fixture(autouse=False, name="new_env")
+def mock_os_get_env(monkeypatch):
+    env_choices = {'env1': None, 'env2': '!@#${} ()'}
+    monkeypatch.setattr(os, 'getenv', mock.Mock(side_effect=lambda x: env_choices[x]))
+
+
+def test_get_env(new_env):
+    assert utils.get_env('env1') is None
+    assert utils.get_env('env1', 'val1') == 'val1'
+    assert_raise(Exception, utils.get_env, os.getenv('env2'))

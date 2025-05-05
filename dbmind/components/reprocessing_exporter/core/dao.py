@@ -10,6 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import time
 
 from prometheus_client import Gauge
@@ -43,10 +44,11 @@ class MetricConfig:
         return self._label_map.get(sequence_label)
 
     def query(self):
-        if self.ttl and time.time() < self._expired_time:
-            self._expired_time = time.time() + self.ttl
+        if self.ttl and time.monotonic() < self._expired_time:
             return self._cached_result
+
         self._cached_result = query(self.promql, timeout=self.timeout)
+        self._expired_time = time.monotonic() + self.ttl
         return self._cached_result
 
     def __repr__(self):
@@ -65,11 +67,11 @@ class MetricConfig:
         return self._gauge
 
 
-def set_prometheus_client(url, username, password):
+def set_prometheus_client(url, username, password, ssl_context=None):
     global _prometheus_client
 
     client = PrometheusClient(
-        url, username=username, password=password
+        url, username=username, password=password, ssl_context=ssl_context
     )
     if not client.check_connection():
         raise ConnectionRefusedError("Failed to connect to the TSDB url: %s" % url)

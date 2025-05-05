@@ -20,13 +20,12 @@ from dbmind.metadatabase.schema import config_dynamic_params
 
 def get_default_dynamic_param(category, name):
     params = config_dynamic_params.DynamicParams.__default__.get(category)
-    for _name, _value, _annotation in params:
+    for _name, _value, _tag, _annotation in params:
         if _name == name:
-            logging.warning(
-                'Cannot get the %s parameter %s. '
-                'DBMind used a default value %s as an alternative. '
-                'Please check and update the dynamic configuration.',
-                category, name, _value)
+            logging.info('Cannot get the %s %s parameter %s. '
+                         'DBMind used a default value %s as an alternative. '
+                         'Please check and update the dynamic configuration.',
+                         _tag, category, name, _value)
             return _value
     else:
         raise KeyError('The %s-%s is not even in the default dynamic configs. '
@@ -37,16 +36,17 @@ def get_dynamic_param(category, name):
     try:
         value = global_vars.dynamic_configs.get(category, name)
     except AttributeError:
-        value = None
-
-    if value is None:
         value = get_default_dynamic_param(category, name)
 
     return value
 
 
-def get_detection_param(name: str):
-    value = get_dynamic_param('detection_params', name)
+def get_detection_param(name: str, default=None):
+    try:
+        value = get_dynamic_param('detection_params', name)
+    except AttributeError:
+        return default
+
     if isinstance(value, (int, float)):
         return value
     elif isinstance(value, str):
@@ -58,12 +58,26 @@ def get_detection_param(name: str):
             if value != "None":
                 return value
     else:
-        return None
+        return default
 
 
-def get_slow_sql_param(name: str):
-    return cast_to_int_or_float(get_dynamic_param('slow_sql_threshold', name))
+def get_slow_query_param(name: str):
+    return cast_to_int_or_float(get_dynamic_param('slow_query_threshold', name))
 
 
-def get_detection_threshold(name: str) -> [float, int]:
-    return cast_to_int_or_float(get_dynamic_param('detection_threshold', name))
+def get_detection_threshold(name: str, default=None) -> [float, int]:
+    try:
+        return cast_to_int_or_float(get_dynamic_param('detection_threshold', name))
+    except AttributeError:
+        return default
+
+
+def get_self_optimization(name: str) -> [float, int]:
+    return cast_to_int_or_float(get_dynamic_param('self_optimization', name))
+
+
+def get_self_monitoring(name: str, default=None) -> [float, int]:
+    try:
+        return cast_to_int_or_float(get_dynamic_param("self_monitoring", name))
+    except AttributeError:
+        return default

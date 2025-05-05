@@ -10,6 +10,7 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import logging
 import time
 import threading
@@ -23,20 +24,12 @@ import psycopg2.pool
 import sqlparse
 
 from dbmind.common.utils import dbmind_assert, write_to_terminal
+from dbmind.common.utils.checking import prepare_ip
 
 _psycopg2_kwargs = dict(
     options="-c session_timeout=15 -c search_path=public",
-    application_name='DBMind-openGauss-exporter',
-    sslmode='disable',
+    application_name='DBMind-openGauss-exporter'
 )
-
-
-def psycopg2_connect(dsn):
-    # Set the session_timeout to prevent connection leak.
-    conn = psycopg2.connect(
-        dsn, **_psycopg2_kwargs
-    )
-    return conn
 
 
 class ConnectionPool(psycopg2.pool.ThreadedConnectionPool):
@@ -63,11 +56,39 @@ class ConnectionPool(psycopg2.pool.ThreadedConnectionPool):
 
 
 class Driver:
+    UPDATE_PERIOD = 300  # seconds
+
     def __init__(self):
         self._url = None
-        self.parsed_dsn = None
+        self.parsed_dsn = {}
         self.initialized = False
         self._pool = None
+        self.last_updated = 0
+
+    def psycopg2_connect(self, dsn):
+        # Set the session_timeout to prevent connection leak.
+        if self.multi_connection:
+            kwargs = {
+                **_psycopg2_kwargs,
+                **{"connect_timeout": 1, "target_session_attrs": "primary"}
+            }
+            if self.last_updated > 0 and time.monotonic() - self.last_updated < self.UPDATE_PERIOD:
+                # if not timed out, we don't need to update.
+                return self.current_connection(dsn, kwargs)
+
+            conn = psycopg2.connect(dsn, **kwargs)
+            logging.info("Multi-connections updated: %s:%s.",
+                         prepare_ip(conn.info.host), conn.info.port)
+            self.last_updated = time.monotonic()
+
+        else:
+            kwargs = _psycopg2_kwargs
+            conn = psycopg2.connect(dsn, **kwargs)
+
+        self.parsed_dsn['host'] = conn.info.host
+        self.parsed_dsn['port'] = conn.info.port
+        conn.set_session(readonly=True)
+        return conn
 
     def initialize(self, url, pool_size=None):
         """
@@ -77,23 +98,83 @@ class Driver:
         """
         try:
             # Specify default schema is public.
-            conn = psycopg2_connect(url)
-            conn.cursor().execute('select 1;')
-            conn.close()
             self._url = url
-            self.parsed_dsn = psycopg2.extensions.parse_dsn(url)
+            conn = self.psycopg2_connect(url)
+            conn.cursor().execute('select 1;')
+            cur = conn.cursor()
+            cur.execute(
+                'select rolmonitoradmin from pg_catalog.pg_roles where rolname = pg_catalog.CURRENT_USER();'
+            )
+            result = cur.fetchone()
+            if not result[0]:
+                raise PermissionError('Monitor admin role is required to access DBMind.')
+            cur.close()
+            conn.close()
+            parsed_dsn = psycopg2.extensions.parse_dsn(url)
+            parsed_dsn['host'] = self.parsed_dsn.get('host') or parsed_dsn['host']
+            parsed_dsn['port'] = self.parsed_dsn.get('port') or parsed_dsn['port']
+            self.parsed_dsn = parsed_dsn.copy()
             if pool_size:
                 self._pool = ConnectionPool(
                     minconn=1, maxconn=pool_size,
                     dsn=url, **_psycopg2_kwargs
                 )
             self.initialized = True
+        except PermissionError as e:
+            raise PermissionError(e)
         except Exception as e:
             raise ConnectionError(e)
 
+    def current_connection(self, dsn, kwargs):
+        given_dsn = psycopg2.extensions.parse_dsn(dsn)
+        parsed_dsn = self.parsed_dsn.copy()
+        parsed_dsn["dbname"] = given_dsn["dbname"]
+        parsed_dsn = psycopg2.extensions.make_dsn(**parsed_dsn)
+        try:
+            conn = psycopg2.connect(parsed_dsn, **kwargs)
+        except psycopg2.Error as e:
+            conn = psycopg2.connect(dsn, **kwargs)
+            logging.exception(e)
+            logging.info("Multi-connections updated: %s:%s.",
+                         prepare_ip(conn.info.host), conn.info.port)
+
+            self.last_updated = time.monotonic()
+            self.parsed_dsn['host'] = conn.info.host
+            self.parsed_dsn['port'] = conn.info.port
+
+        return conn
+
     @property
     def address(self):
-        return '%s:%s' % (self.parsed_dsn['host'], self.parsed_dsn['port'])
+        if self.initialized and self.parsed_dsn['host'] in ["127.0.0.1", "localhost", "::1"]:
+            try:
+                real_host = self.query(
+                    "SELECT setting FROM pg_catalog.pg_settings where name = 'local_bind_address';",
+                    return_tuples=True
+                )[0][0]
+                self.parsed_dsn['host'] = real_host
+            except IndexError:
+                logging.warning("No local bind address found in settings. Use dsn host instead.")
+            except psycopg2.Error as e:
+                logging.exception(e)
+
+        return f"{prepare_ip(self.parsed_dsn['host'])}:{self.parsed_dsn['port']}"
+
+    @property
+    def deployment(self):
+        deployment = None
+        if self.initialized:
+            try:
+                deployment = self.query(
+                    "SELECT pg_catalog.gs_deployment() AS gs_deployment;",
+                    return_tuples=True
+                )[0][0]
+            except IndexError:
+                logging.warning("No local bind address found in settings. Use dsn host instead.")
+            except psycopg2.Error as e:
+                logging.exception(e)
+
+        return deployment
 
     @property
     def host(self):
@@ -113,7 +194,12 @@ class Driver:
 
     @property
     def pwd(self):
-        return self.parsed_dsn['password']
+        return str(self.parsed_dsn['password'])
+
+    @property
+    def multi_connection(self):
+        parsed_dsn = psycopg2.extensions.parse_dsn(self._url)
+        return len(parsed_dsn['host'].split(',')) > 1
 
     def query(self, stmt, timeout=0, force_connection_db=None,
               return_tuples=False, fetch_all=False, ignore_error=False):
@@ -124,13 +210,14 @@ class Driver:
             cursor_dict['cursor_factory'] = psycopg2.extras.RealDictCursor
         try:
             conn = self.get_conn(force_connection_db)
-            with conn.cursor(
-                    **cursor_dict
-            ) as cursor:
+            # Do not perform non-read transactions
+            conn.set_session(readonly=True)
+            with conn.cursor(**cursor_dict) as cursor:
                 try:
                     start = time.monotonic()
                     if timeout > 0:
                         cursor.execute('SET statement_timeout = %d;' % (timeout * 1000))
+
                     if not fetch_all:
                         cursor.execute(stmt)
                         result = cursor.fetchall()
@@ -140,24 +227,25 @@ class Driver:
                             if ignore_error:
                                 try:
                                     cursor.execute(sql)
-                                except Exception as e:
+                                except Exception:
                                     result.append(None)
                                     continue
                                 finally:
                                     conn.commit()
+
                             else:
                                 cursor.execute(sql)
+
                             if cursor.pgresult_ptr is not None:
                                 result.append(cursor.fetchall())
                             else:
                                 result.append(None)
+
                     conn.commit()
                 except psycopg2.extensions.QueryCanceledError as e:
-                    logging.error('%s: %s.' % (e.pgerror, stmt))
-                    logging.info(
-                        'Time elapsed during execution is %fs '
-                        'but threshold is %fs.' % (time.monotonic() - start, timeout)
-                    )
+                    logging.error('%s: %s.', e.pgerror, stmt)
+                    logging.info('Time elapsed during execution is %fs but threshold is %fs.',
+                                 time.monotonic() - start, timeout)
                     result = []
                 except psycopg2.errors.FeatureNotSupported:
                     logging.warning('FeatureNotSupported while executing %s.', stmt)
@@ -171,13 +259,19 @@ class Driver:
                 except psycopg2.errors.UndefinedColumn:
                     logging.warning('UndefinedColumn while executing %s.', stmt)
                     result = []
-            self.put_conn(conn)
+                except psycopg2.errors.ConnectionFailure:
+                    logging.warning('ConnectionFailure while executing %s.', stmt)
+                    result = []
+                finally:
+                    self.put_conn(conn)
+
         except psycopg2.InternalError as e:
-            logging.error("Cannot execute '%s' due to internal error: %s." % (stmt, e.pgerror))
+            logging.error("Cannot execute '%s' due to internal error: %s.", stmt, e.pgerror)
             result = []
         except Exception as e:
             logging.exception(e)
             result = []
+
         return result
 
     def get_conn(self, force_connection_db=None):
@@ -188,18 +282,20 @@ class Driver:
         # If query wants to connect to other database by force, we can generate and cache
         # the new connection as the following.
         if force_connection_db:
-            parsed_dsn = self.parsed_dsn.copy()
-            parsed_dsn['dbname'] = force_connection_db
-            dsn = ' '.join(['{}={}'.format(k, v) for k, v in parsed_dsn.items()])
+            parsed_dsn = psycopg2.extensions.parse_dsn(self._url)
+            parsed_dsn["dbname"] = force_connection_db
+            parsed_dsn["user"] = self.parsed_dsn["user"]
+            parsed_dsn["password"] = self.parsed_dsn["password"]
+            dsn = psycopg2.extensions.make_dsn(**parsed_dsn)
             # We don't cache the connection that uses force_connection_db because
             # this scenario is not frequent and we also don't advise users use this
             # mode usually in the code. If users have to connect to multiple database,
             # they should use the DriverBundle instead.
-            return psycopg2_connect(dsn)
+            return self.psycopg2_connect(dsn)
 
         # If not used connection pool, create and return a new connection directly.
         if not self._pool:
-            return psycopg2_connect(dsn=self._url)
+            return self.psycopg2_connect(dsn=self._url)
 
         conn = self._pool.getconn()
         # Check whether the connection is timeout or invalid.
@@ -211,14 +307,10 @@ class Driver:
                 psycopg2.errors.AdminShutdown,
                 psycopg2.OperationalError
         ) as e:
-            logging.warning(
-                'Cached database connection to openGauss'
-                ' has been timeout due to %s.' % e
-            )
+            logging.warning('Cached database connection to openGauss has been timeout due to %s.', e)
             self._pool.putconn(conn, close=True)
         except Exception as e:
-            logging.error('Failed to connect to openGauss '
-                          'with cached connection (%s).' % e)
+            logging.error('Failed to connect to openGauss with cached connection (%s).', e)
             self._pool.putconn(conn, close=True)
 
         return conn
@@ -231,6 +323,7 @@ class Driver:
             # close the connection directly.
             conn.close()
             return
+
         self._pool.putconn(conn, close=close)
 
 
@@ -244,17 +337,18 @@ class DriverBundle:
     )
 
     def __init__(
-            self, url,
-            include_db_list=None,
-            exclude_db_list=None,
-            each_db_max_connections=None,
-            log_to_terminal=True
+        self, url,
+        include_db_list=None,
+        exclude_db_list=None,
+        each_db_max_connections=None,
+        log_to_terminal=True
     ):
         # this bundle is to maintain all database connections,
         # which will be updated by `self.update()`
         self.main_driver = Driver()
         # If cannot access, raise a ConnectionError.
         self.main_driver.initialize(url, each_db_max_connections)
+        self._each_db_max_connections = each_db_max_connections
 
         if self.main_dbname != DriverBundle.__main_db_name__:
             msg = (
@@ -268,7 +362,7 @@ class DriverBundle:
 
         if not self.guarantee_access():
             msg = (
-                'The current user does not have the Monitoradmin/Sysadmin privilege, '
+                'The current user does not have the Monitoradmin privilege, '
                 'which will cause many metrics to fail to obtain. '
                 'Please consider granting this privilege to the connecting user.'
             )
@@ -280,7 +374,6 @@ class DriverBundle:
         self._bundle = dict()
         self._include_db_list = include_db_list
         self._exclude_db_list = exclude_db_list
-        self._each_db_max_connections = each_db_max_connections
         self._last_updated = 0
         self._update_lock = threading.RLock()
         self.update()
@@ -288,9 +381,10 @@ class DriverBundle:
     def update(self):
         # update bundle databases if timed out.
         last_updated, self._last_updated = self._last_updated, time.monotonic()
-        if time.monotonic() - last_updated < self.UPDATE_PERIOD:
+        if last_updated > 0 and time.monotonic() - last_updated < self.UPDATE_PERIOD:
             # if not timed out, we don't need to update.
             return
+
         with self._update_lock:
             # clean items if exists
             self._bundle.clear()
@@ -306,15 +400,15 @@ class DriverBundle:
                     # Ensure that each driver can access corresponding database.
                     self._bundle[dbname] = driver
                 except ConnectionError:
-                    logging.warning(
-                        'Cannot connect to the database %s by using the given user.', dbname
-                    )
+                    logging.warning('Cannot connect to the database %s by using the given user.', dbname)
 
     def _discover_databases(self, include_dbs, exclude_dbs):
         if not include_dbs:
             include_dbs = {}
+
         if not exclude_dbs:
             exclude_dbs = {}
+
         include_dbs = set(include_dbs)
         exclude_dbs = set(exclude_dbs)
 
@@ -327,7 +421,7 @@ class DriverBundle:
         )
         discovered = set()
         for dbname in all_db_list:
-            if dbname[0] in ('template0', 'template1'):  # Skip these useless databases.
+            if dbname[0] in ('template0', 'template1', 'templatem', 'templatea', 'template_pdb'):  # Skip these useless databases.
                 continue
             discovered.add(dbname[0])
 
@@ -339,7 +433,7 @@ class DriverBundle:
     def _splice_url_for_other_db(self, dbname):
         parsed_dsn = self.main_driver.parsed_dsn.copy()
         parsed_dsn['dbname'] = dbname
-        return ' '.join(['{}={}'.format(k, v) for (k, v) in parsed_dsn.items()])
+        return psycopg2.extensions.make_dsn(**parsed_dsn)
 
     def query(self, stmt, timeout=0, force_connection_db=None, return_tuples=False):
         """A decorator for Driver.query. If the caller sets
@@ -356,6 +450,7 @@ class DriverBundle:
         if force_connection_db is not None:
             if force_connection_db not in self._bundle:
                 return []
+
             return self._bundle[force_connection_db].query(stmt, timeout, None, return_tuples)
 
         # Use multiple threads to query.
@@ -379,8 +474,10 @@ class DriverBundle:
                         union_set.add(tuple(row))
                     else:
                         union_set.add(tuple(row.items()))
+
             except Exception as e:
                 logging.exception(e)
+
         if return_tuples:
             return list(union_set)
         else:
@@ -390,7 +487,9 @@ class DriverBundle:
                 dict_based_row = {}
                 for k, v in row:
                     dict_based_row[k] = v
+
                 ret.append(dict_based_row)
+
             return ret
 
     @property
@@ -413,9 +512,17 @@ class DriverBundle:
     def username(self):
         return self.main_driver.username
 
+    @property
+    def multi_connection(self):
+        return self.main_driver.multi_connection
+
+    @property
+    def deployment(self):
+        return self.main_driver.deployment
+
     def is_monitor_admin(self):
         r = self.main_driver.query(
-            'select rolmonitoradmin from pg_roles where rolname = CURRENT_USER;',
+            'select rolmonitoradmin from pg_catalog.pg_roles where rolname = pg_catalog.CURRENT_USER();',
             return_tuples=True
         )
         return r[0][0]
@@ -423,7 +530,7 @@ class DriverBundle:
     def is_system_admin(self):
         """test if the current user is the system user."""
         res = self.main_driver.query(
-            'select rolsystemadmin from pg_roles where rolname = CURRENT_USER;',
+            'select rolsystemadmin from pg_catalog.pg_roles where rolname = pg_catalog.CURRENT_USER();',
             return_tuples=True
         )
         return res[0][0]
@@ -431,17 +538,13 @@ class DriverBundle:
     def guarantee_access(self):
         if self.is_monitor_admin():
             return True
+
         if self.is_system_admin():
             # although we have sysadmin privileges,
             # the tables under dbe_perf are still not
             # accessible, so we need to self-grant.
-            self.main_driver.query(
-                f'ALTER USER {self.username} monadmin;',
-                return_tuples=True,
-                fetch_all=True,
-                ignore_error=True
-            )
-            return self.is_monitor_admin()
+            logging.warning("Note that the current user has sysadmin privileges.")
+
         return False
 
     def is_standby(self):
@@ -450,4 +553,3 @@ class DriverBundle:
             return_tuples=True
         )
         return r[0][0]
-

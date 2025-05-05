@@ -1,9 +1,17 @@
 import React, { Component } from 'react';
-import { Card, message, Row, Col } from 'antd';
+import { Card, message, Tooltip, Spin, Empty, Row, Col } from 'antd';
 import { getInterface } from '../../api/overview';
+import icon1 from '../../assets/imgs/icon1.png';
+import icon2 from '../../assets/imgs/icon2.png';
+import icon3 from '../../assets/imgs/icon3.png';
+import icon4 from '../../assets/imgs/icon4.png';
+import icon5 from '../../assets/imgs/icon5.png';
+import icon6 from '../../assets/imgs/icon6.png';
+import alarm1 from '../../assets/imgs/alarm1.png';
+import alarm2 from '../../assets/imgs/alarm2.png';
+import alarm3 from '../../assets/imgs/alarm3.png';
+import alarm4 from '../../assets/imgs/alarm4.png';
 
-const demoImgArr = ['icon1','icon2','icon3','icon4','icon5','icon6','alarm1','alarm2','alarm3','alarm4']
-const ticks = demoImgArr.map(item => require("../../assets/imgs/" + item + ".png"))
 export default class Instance extends Component {
   constructor() {
     super()
@@ -28,39 +36,39 @@ export default class Instance extends Component {
     return (
       <Row gutter={10} className="bgcolor">
       <Col className="gutter-row antclopercent_20" >
-        <Card title="Instance Status" className='instancefontsize' style={{ height: 100}} extra={<img src={ticks[0].default} alt="" ></img>}>
-          <span className='textstyle'><img src={ticks[5].default} alt="" className='iconstyle'></img>{this.state.alertData.status}</span>
+        <Card title="Instance Status" className='instancefontsize' style={{ height: 100}} extra={<img src={icon1} alt="" ></img>}>
+          <span className='textstyle'><img src={icon6} alt="" className='iconstyle'></img>{this.state.alertData.status}</span>
         </Card>
       </Col>
       <Col className="gutter-row antclopercent_20" >
-        <Card title="Deployment Mode" className='instancefontsize' style={{ height: 100}} extra={<img src={ticks[1].default} alt="" ></img>}>
+        <Card title="Deployment Mode" className='instancefontsize' style={{ height: 100}} extra={<img src={icon2} alt="" ></img>}>
           <span className='textstyle'>{this.state.alertData.deployment_mode}</span>
         </Card>
       </Col>
       <Col className="gutter-row antclopercent_20" >
-        <Card title="Strength Version" className='instancefontsize' style={{ height: 100}} extra={<img src={ticks[2].default} alt="" ></img>}>
+        <Card title="Strength Version" className='instancefontsize' style={{ height: 100}} extra={<img src={icon3} alt="" ></img>}>
         <span className='textstyle' title={this.state.alertData.strength_version}>{this.state.alertData.strength_version}</span>
         </Card>
       </Col>
       <Col className="gutter-row antclopercent_20" >
-        <Card title="Operating System" className='instancefontsize' style={{ height: 100}}  extra={<img src={ticks[3].default} alt="" ></img>}>
+        <Card title="Operating System" className='instancefontsize' style={{ height: 100}}  extra={<img src={icon4} alt="" ></img>}>
         <span className='textstyle' >{this.state.alertData.operating_system}</span>
         </Card>
       </Col>
       <Col className="gutter-row antclopercent_20" >
-        <Card title="Alarm List" className='instancefontsize' style={{ height: 100}}  extra={<img src={ticks[4].default} alt="" ></img>}>
+        <Card title="Alarm List" className='instancefontsize' style={{ height: 100}}  extra={<img src={icon5} alt="" ></img>}>
             <Row gutter={2}>
                 <Col className="gutter-row" span={6}>
-                  <span className='textstyle'><img src={ticks[6].default} alt="" className='alarmstyle'></img><span className='numstyle'>{this.state.alertData.major_risk}</span></span>
+                  <span className='textstyle'><img src={alarm1} alt="" className='alarmstyle'></img><span className='numstyle'>{this.state.alertData.major_risk}</span></span>
                 </Col>
                 <Col className="gutter-row" span={6}>
-                  <span className='textstyle'><img src={ticks[7].default} alt="" className='alarmstyle'></img><span className='numstyle'>{this.state.alertData.high_risk}</span></span>
+                  <span className='textstyle'><img src={alarm2} alt="" className='alarmstyle'></img><span className='numstyle'>{this.state.alertData.high_risk}</span></span>
                 </Col>
                 <Col className="gutter-row" span={6}>
-                  <span className='textstyle'><img src={ticks[8].default} alt="" className='alarmstyle'></img><span className='numstyle'>{this.state.alertData.general_risk}</span></span>
+                  <span className='textstyle'><img src={alarm3} alt="" className='alarmstyle'></img><span className='numstyle'>{this.state.alertData.general_risk}</span></span>
                 </Col>
                 <Col className="gutter-row" span={6}>
-                  <span className='textstyle'><img src={ticks[9].default} alt="" className='alarmstyle'></img><span className='numstyle'>{this.state.alertData.low_risk}</span></span>
+                  <span className='textstyle'><img src={alarm4} alt="" className='alarmstyle'></img><span className='numstyle'>{this.state.alertData.low_risk}</span></span>
                 </Col>
             </Row>
         </Card>

@@ -18,16 +18,14 @@ from dbmind.common.exceptions import DuplicateTableError, SQLExecutionError
 from dbmind.constants import DYNAMIC_CONFIG
 
 from . import load_all_schema_models, ResultDbBase, DynamicConfigDbBase
-from .schema.config_dynamic_params import DynamicParams
-from .result_db_session import get_session
+from .result_db_session import get_session, update_session_clz_from_configs
 from .result_db_session import session_clz
-from .result_db_session import update_session_clz_from_configs
 from .dao.dynamic_config import Table
 from .utils import create_dsn
 
 
 def create_metadatabase_schema(check_first=True):
-    update_session_clz_from_configs()
+    update_session_clz_from_configs(is_terminal=True)
     load_all_schema_models()
     try:
         ResultDbBase.metadata.create_all(
@@ -41,7 +39,7 @@ def create_metadatabase_schema(check_first=True):
 
 
 def destroy_metadatabase():
-    update_session_clz_from_configs()
+    update_session_clz_from_configs(is_terminal=True)
     load_all_schema_models()
     try:
         ResultDbBase.metadata.drop_all(
@@ -74,3 +72,4 @@ def truncate_table(table_name):
         else:
             sql_prefix = 'TRUNCATE TABLE '
         session.execute(text(sql_prefix + table_name))
+

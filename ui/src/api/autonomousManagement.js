@@ -1,11 +1,20 @@
 import { get, post } from './request';
-// RiskAnalysis
+
+// ----Workload Forecasting
+export const getWorkloadForecastInterface = (data) => {
+  return get(`/workload_forecasting/sequence/${data.name}`, data.time);
+};
+export const getForecastChartInterface = (data) => {
+  return get(`/workload_forecasting/sequence/forecast/${data.name}`, data.para);
+}
+// search metric
 export const getSearchMetricInterface = () => {
   return get('/list/metric');
 };
 export const getForecastInterface = (data) => {
   return get(`/toolkit/risk-analysis/${data.metric_name}?instance=${data.instance_name}&warning_hours=${data.warning_hours}&upper=${data.upper}&lower=${data.lower}&labels=${data.labels}`);
 };
+
 // ----Alarms
 export const getHistoryAlarmsInterface = (data) => {
   return get('/alarm/history', data);
@@ -16,34 +25,63 @@ export const getHistoryAlarmsInterfaceCount = (data) => {
 export const getRegularInspections = (data) => {
   return get('/summary/correlation_result', data);
 };
+export const getSelfHealingRecordsInterface = (data) => {
+  return get('/alarm/healing', data);
+};
+export const getSelfHealingRecordsInterfaceCount = (data) => {
+  return get('/alarm/healing_count', data);
+};
+// ----Slow/Top Query
+export const getRecentSlowQueryInterface = (data) => {
+  return get('/query/slow/recent', data);
+};
+export const getRecentSlowQueryInterfaceCount = (data) => {
+  return get('/query/slow/recent_count', data);
+};
 export const getTopQueryInterface = (data) => {
   return get('/query/top', data);
 };
-//---- Active SQL Statements
+export const getIntelligentSqlAnalysisInterface = (data) => {
+  return post(`/toolkit/predict/query?database=${data.database}&sql=${data.sql}`)
+};
+export const getItemsListInterface = () => {
+  return get('/list/database');
+};
 export const getKillSlowQueryInterface = (data) => {
   return get('/query/slow/killed', data);
 };
 export const getKillSlowQueryInterfaceCount = (data) => {
   return get('/query/slow/killed_count', data);
 };
+//---- Active SQL Statements
 export const getActiveSQLDataInterface = () => {
   return get('/query/active');
-};
-export const getKillData = (data) => {
-  return get(`/app/kill/${data}`);
-};
-export const getDetailsData = (data) => {
-  return get(`/app/query/wait_status`,data);
 };
 export const getLockingQueryInterface = () => {
   return get('/query/locking');
 };
-export const getMetric = (data) => {
-  return get(`/summary/metrics/${data.label}`,data);
+
+// ----Log Information
+export const getLogSummaryInterface = () => {
+  return get('/summary/log')
+};
+
+export const getCommonMetric = (data) => {
+  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}`);
+};
+export const getStorageData = (data) => {
+  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}&regrex=True&regrex_labels=device=/.*`);
+};
+export const getMemoryData = (data) => {
+  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}&regrex=True`);
+};
+export const getServiceCapabilityData = (data) => {
+  return get(`/latest-sequence/${data.label}?latest_minutes=${data.minutes}&fetch_all=${data.fetch}&instance=${data.instance}&regrex=False`);
 };
 export const getDBMemoryData = (data) => {
-  return get(`/summary/metrics/pg_total_memory_detail_mbytes`,data);
+  return get(`/latest-sequence/pg_total_memory_detail_mbytes?latest_minutes=${data.minutes}&labels=type=${data.label}&fetch_all=False&instance=${data.instance}&regrex=False`);
 };
+
 export const getSelfhealingface = (data) => {
   return post(`/anomaly_detection/detectors/${data}/view`);
 };
@@ -55,16 +93,4 @@ export const getSelfhealingSubmit = (data) => {
 };
 export const getSelfhealingDelete = (data) => {
   return post(`/anomaly_detection/detectors/${data}/deletion`);
-};
-export const getSelfhealingPause = (data) => {
-  return post(`/anomaly_detection/detectors/${data}/pause`);
-};
-export const getSelfhealingResumption = (data) => {
-  return post(`/anomaly_detection/detectors/${data}/resumption`);
-};
-export const getTreeDetails = (data) => {
-  return get(`/app/query/wait_tree?sessionid=${data}`);
-};
-export const getExecutionPlan = (data) => {
-  return post(`/app/query/get-plan`,data);
 };

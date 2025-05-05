@@ -10,10 +10,12 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import datetime
 import logging
 import multiprocessing
-import sys
 import os
+import re
+import sys
 import threading
 import time
 import traceback
@@ -23,10 +25,23 @@ from functools import wraps, lru_cache
 from logging.handlers import RotatingFileHandler
 from queue import Empty
 
+from dbmind.common.exceptions import DontIgnoreThisError
+from dbmind.common.security import EncryptedText
+
 RED_FMT = "\033[31;1m{}\033[0m"
 GREEN_FMT = "\033[32;1m{}\033[0m"
 YELLOW_FMT = "\033[33;1m{}\033[0m"
 WHITE_FMT = "\033[37;1m{}\033[0m"
+
+sensitive_words = ['PASSWORD', 'PWD', 'PASSWD', 'PIN', 'PASSCODE', 'CERTIFICATE', 'SSL']
+SENSITIVE_WORD = set()
+for sensitive_word in sensitive_words:
+    SENSITIVE_WORD.add(sensitive_word)
+    SENSITIVE_WORD.add(sensitive_word + "S")
+
+escape_single_quote = lambda x: x.replace("'", "''")
+escape_double_quote = lambda x: x.replace('"', '""')
+escape_back_quote = lambda x: x.replace('`', '``')
 
 
 class cached_property:
@@ -42,23 +57,6 @@ class cached_property:
         value = self.func(instance)
         setattr(instance, self.func.__name__, value)
         return value
-
-
-def memoize(func):
-    """The function is a generic cache,
-     which won't cache unhashable types (e.g., dict, list) but only the immutable types."""
-    memtbl = {}
-
-    @wraps(func)
-    def wrapper(*args):
-        if args in memtbl:
-            return memtbl[args]
-        else:
-            rv = func(*args)
-            memtbl[args] = rv
-            return rv
-
-    return wrapper
 
 
 def ttl_cache(seconds, maxsize=32):
@@ -249,7 +247,7 @@ class MultiProcessingRFHandler(RotatingFileHandler):
         super().__init__(*args, **kwargs)
 
         self._queue = multiprocessing.Queue(-1)
-        self._sensitive_words = []
+        self._sensitive_words = list()
         self._should_exit = False
         self._receiv_thr = threading.Thread(target=self._receive, name='LoggingReceiverThread')
         self._receiv_thr.daemon = True
@@ -261,8 +259,6 @@ class MultiProcessingRFHandler(RotatingFileHandler):
                 if self._should_exit and self._queue.empty():
                     break
                 record = self._queue.get(timeout=.2)
-                if not os.path.exists(self.baseFilename):
-                    self.stream = open(self.baseFilename, 'a', encoding=self.encoding)
                 super().emit(record)
             except (KeyboardInterrupt, SystemExit):
                 raise
@@ -282,7 +278,11 @@ class MultiProcessingRFHandler(RotatingFileHandler):
     def add_sensitive_word(self, word):
         """Prevent sensitive information from leaking
         in plaintext through logs, such as passwords."""
-        self._sensitive_words.append(word)
+        if isinstance(word, (list, tuple)):
+            for single_word in word:
+                self._sensitive_words.append(EncryptedText(single_word))
+        elif isinstance(word, str):
+            self._sensitive_words.append(EncryptedText(word))
 
     def emit(self, record):
         try:
@@ -292,6 +292,10 @@ class MultiProcessingRFHandler(RotatingFileHandler):
             if record.exc_info:
                 self.format(record)
                 record.exc_info = None
+            if not os.path.exists(self.baseFilename):
+                os.makedirs(os.path.dirname(self.baseFilename), mode=0o700, exist_ok=True)
+                self.stream = open(self.baseFilename, 'a', encoding=self.encoding)
+                os.chmod(self.baseFilename, 0o600)
             self._send(record)
         except (KeyboardInterrupt, SystemExit):
             raise
@@ -300,9 +304,14 @@ class MultiProcessingRFHandler(RotatingFileHandler):
 
     def format(self, record):
         s = super().format(record)
-        for word in self._sensitive_words:
-            s = s.replace(word, '******')
-        return s
+        lines = s.split("\n")
+        for i, line in enumerate(lines):
+            has_sensitive_word = any(word in line for word in self._sensitive_words)
+            word_set = set(re.split("[^a-zA-Z]", line.upper()))
+            if has_sensitive_word or word_set & SENSITIVE_WORD:
+                lines[i] = "Involves sensitive information, details are ignored."
+
+        return "\n".join(lines)
 
     def close(self):
         if not self._should_exit:
@@ -313,9 +322,6 @@ class MultiProcessingRFHandler(RotatingFileHandler):
 
 class ExceptionCatcher:
     """Class for catching object exception"""
-
-    class DontIgnoreThisError(Exception):
-        pass
 
     def __init__(self, strategy='warn', name='UNKNOWN'):
         """
@@ -338,22 +344,21 @@ class ExceptionCatcher:
                 return func(*args, **kwargs)
             except Exception as e:
                 if self.strategy == 'warn':
-                    logging.warning(f"[{self.name}] {func.__name__} occurred exception: {str(e)}", exc_info=True)
+                    logging.warning("[%s] %s occurred exception: %s",
+                                    self.name, func.__name__, str(e), exc_info=True)
                 elif self.strategy == 'raise':
                     raise e
                 elif self.strategy == 'ignore':
                     pass
                 elif self.strategy == 'sensitive':
-                    SENSITIVE_WORD = (
-                        'PASSWORD', 'PWD', 'AUTH', 'USERNAME', 'USER', 'CERTIFICATE', 'SSL'
-                    )
                     error = str(e).upper()
-                    for word in SENSITIVE_WORD:
-                        if word in error and not isinstance(e, self.DontIgnoreThisError):
-                            raise AssertionError(
-                                "Involves sensitive information, details are ignored, "
-                                "please check the call stack."
-                            ).with_traceback(sys.exc_info()[2]) from None
+                    word_set = set(re.split("[^a-zA-Z]", error))
+                    if word_set & SENSITIVE_WORD and not isinstance(e, DontIgnoreThisError):
+                        raise AssertionError(
+                            "Involves sensitive information, details are ignored, "
+                            "please check the call stack."
+                        ).with_traceback(sys.exc_info()[2]) from None
+
                     raise e
                 elif self.strategy == 'exit':
                     from .cli import raise_fatal_and_exit
@@ -379,9 +384,8 @@ def retry(times_limit=2):
                 except Exception as e:
                     try_times += 1
                     if try_times < times_limit:
-                        logging.warning(
-                            'Caught an exception while %s running, and try to run again.', func.__name__
-                        )
+                        logging.warning('Caught an exception while %s running, and try to run again.',
+                                        func.__name__)
                         continue
                     else:
                         raise e
@@ -450,22 +454,115 @@ def split(s, delimiter=','):
     return rv
 
 
-def string_to_dict(values, delimiter=','):
+def string_to_dict(key_value_str, delimiter=','):
     # transfer string to dict: 'a=1,b=2,c=3' to {'a': 1, 'b': 2, 'c': 3}
-    d = {}
-    try:
-        for pair in values.split(delimiter):
-            name, value = pair.split('=')
-            d[name.strip()] = value.strip()
-    except Exception:
-        logging.error("error occured when transfer %s to dict", values)
+    d = dict()
+    if not delimiter:
         return d
+
+    if not isinstance(key_value_str, str):
+        return d
+
+    for pair in key_value_str.split(delimiter):
+        if "=" not in pair:
+            continue
+
+        name, value = pair.split('=', 1)
+        name, value = name.strip(), value.strip()
+        try:
+            dbmind_assert(name and value)
+        except (AssertionError, ValueError):
+            logging.error("error occurred when transfer %s to dict", key_value_str)
+            continue
+
+        d[name] = value
+
     return d
 
 
-def try_to_get_an_element(l, idx):
-    if len(l) == 0:
+def try_to_get_an_element(arr, idx):
+    if len(arr) == 0:
         return None
-    if len(l) <= idx:
-        return l[0]  # default to return the first one
-    return l[idx]
+    if len(arr) <= idx:
+        return arr[0]  # default to return the first one
+    return arr[idx]
+
+
+class SecurityChecker(object):
+    """check security conditions"""
+    INJECTION_CHAR_LIST = ["|", ";", "&", "$", "<", ">", "`", "\\", "'", "\"", "{", "}", "(", ")",
+                           "[", "]", "~", "*", "?", " ", "!", "\n"]
+
+    @staticmethod
+    def check_injection_char(check_value):
+        """
+        function: check suspicious injection value
+        input : check_value
+        output: NA
+        """
+        if not check_value.strip():
+            return
+        if any(rac in check_value for rac in SecurityChecker.INJECTION_CHAR_LIST):
+            raise Exception(" There are illegal characters.")
+
+
+def get_env(env_param, default_value=None):
+    """
+    function: get the filter environment variable
+    input:env_param: String
+          default_value: String
+    output:envValue
+    """
+    env_value = os.getenv(env_param)
+
+    if env_value is None:
+        if default_value:
+            return default_value
+        else:
+            return env_value
+
+    env_value = env_value.replace("\\", "\\\\").replace('"', '\\"\\"')
+    SecurityChecker.check_injection_char(env_value)
+    return env_value
+
+
+def adjust_timezone(tz):
+    # Convert time zone string to timezone type notes: only supports UTC
+    # example: UTC-8, UTC+8, UTC-8:35
+    if tz is None:
+        return None
+    try:
+        unit, hour, minute = re.match(r"UTC([-+])(\d{1,2})(:\d{1,2})?$", tz).groups()
+        hour = int(hour)
+        minute = int(minute[1:]) if minute is not None else 0
+        unit = -1 if unit == '-' else 1
+        tz = datetime.timezone(datetime.timedelta(hours=unit * hour, minutes=unit * minute))
+        return tz
+    except Exception:
+        logging.warning("There is a problem with the time zone '%s', please refer to: UTC+8,UTC+8:35", tz)
+        return None
+
+
+def parse_accept_language(accept_language):
+    """
+    Transfer the browser's Accept-language to language mark
+
+    :param accept_language: str, the browser's Accept-language
+    :return: str，language mark
+    """
+    languages = accept_language.split(",")
+    languages = [language.split(";")[0].strip() for language in languages]
+
+    # add more mapping here
+    language_map = {
+        "zh-CN": "zh",
+        "zh-TW": "zh",
+        "en-US": "en",
+        "en-GB": "en",
+    }
+
+    for language in languages:
+        if language in language_map:
+            return language_map[language]
+
+    return accept_language

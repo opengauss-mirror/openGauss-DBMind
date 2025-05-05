@@ -10,6 +10,8 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
+import asyncio
 import contextlib
 import inspect
 import json
@@ -21,19 +23,22 @@ import threading
 import time
 from functools import partial, wraps
 
-from dbmind.common.security import safe_random_string
+from dbmind.common.security import safe_random_string, EncryptedText
 from dbmind.common.utils import TTLOrderedDict, dbmind_assert
 
 """FastAPI is more modern, so we regard it as the first choice and abandon flask."""
+import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, Request
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from fastapi.exceptions import StarletteHTTPException
 from fastapi.responses import JSONResponse, Response
 from fastapi.openapi.models import OAuth2 as OAuth2Model
-from starlette.staticfiles import StaticFiles
-import uvicorn
 from pydantic import BaseModel
+from starlette.staticfiles import StaticFiles
 
+from dbmind.common.http import error_code
+
+SESSION_TTL = 600
 _RequestMappingTable = dict()
 dbmind_assert(Response)
 
@@ -58,19 +63,31 @@ class HttpService:
     """
 
     def __init__(self, name=__name__):
-        self.app = FastAPI(title=name)
+        self.app = FastAPI(title=name, openapi_url=None, docs_url=None, redoc_url=None)
         self._server = None
         self.static_directory = None
         self.need_to_exit = False
 
         @self.app.exception_handler(StarletteHTTPException)
         async def exception_handler(_, exc):
-            return JSONResponse(
-                content={'success': False, 'msg': str(exc.detail)},
-                status_code=exc.status_code
-            )
+            err = error_code.ERROR_CODE.get(exc.detail, None)
+            if err is not None:
+                return JSONResponse(
+                    content={'success': False, 'msg': str(exc.detail), 'error_code': err},
+                    status_code=exc.status_code
+                )
+            else:
+                return JSONResponse(
+                    content={'success': False, 'msg': str(exc.detail)},
+                    status_code=exc.status_code
+                )
 
         self.rule_num = 0
+
+        @self.app.middleware("http")
+        async def set_language_middleware(request: Request, call_next):
+            response = await call_next(request)
+            return response
 
     def attach(self, func, rule, **options):
         """Attach a rule to the backend app."""
@@ -94,14 +111,16 @@ class HttpService:
         __import__(module_name)
 
     def mount_static_files(self, directory):
-        if not os.path.exists(directory) and os.path.isdir(directory):
-            raise NotADirectoryError(directory)
-
-        self.static_directory = directory
+        if directory is None:
+            logging.info("Not found static directory for UI")
+        elif not os.path.exists(directory) or not os.path.isdir(directory):
+            logging.info("Not found static directory for UI")
+        else:
+            self.static_directory = directory
 
     def start_listen(self, host, port,
-                     ssl_keyfile=None, ssl_certfile=None, ssl_keyfile_password=None,
-                     ssl_ca_file=None):
+                     ssl_keyfile=None, ssl_certfile=None,
+                     ssl_keyfile_password=None, ssl_ca_file=None):
         this_service = self
 
         class Server(uvicorn.Server):
@@ -133,8 +152,10 @@ class HttpService:
                 '/', StaticFiles(directory=self.static_directory), 'ui'
             )
 
-        config = uvicorn.Config(self.app, host=host, port=port,
-                                ssl_keyfile=ssl_keyfile, ssl_certfile=ssl_certfile,
+        config = uvicorn.Config(self.app,
+                                host=host, port=port,
+                                ssl_keyfile=ssl_keyfile,
+                                ssl_certfile=ssl_certfile,
                                 ssl_keyfile_password=ssl_keyfile_password,
                                 ssl_ca_certs=ssl_ca_file,
                                 ssl_cert_reqs=ssl.CERT_REQUIRED,
@@ -142,9 +163,10 @@ class HttpService:
         config.load()
         if config.is_ssl:
             config.ssl.options |= (
-                    ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
+                ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
             )  # RFC 7540 Section 9.2: MUST be TLS >=1.2
             config.ssl.set_ciphers('DHE+AESGCM:ECDHE+AESGCM')
+
         self._server = Server(config)
         if sys.version_info >= (3, 7):
             with self._server.run_in_thread():
@@ -194,19 +216,19 @@ class OAuth2:
     __session_ttl__ = 600  # The limit time for no operations to clean token.
 
     # Notice: the following variables are static.
-    # When you new one more objects, they may be conflict,
+    # When you know one more objects, they may be conflict,
     # particularly in multiple-threading or multiple-process.
     oauth2_scheme = OAuth2PasswordBearer(tokenUrl=__token_url__)
     timed_session = TTLOrderedDict(__session_ttl__)
 
-    # thread-unsafe
+    # thread unsafe
     __instance__ = None
 
     @staticmethod
     def get_instance(token_url, pwd_checker, ttl=__session_ttl__):
         """This class has to be implemented with the singleton pattern
         since `oauth2_scheme` and `timed_session` are static, which means
-        if we new multiple instances with different startup parameters,
+        if we know multiple instances with different startup parameters,
         these instances will be conflict.
         """
 
@@ -256,21 +278,30 @@ class OAuth2:
         OAuth2.timed_session.ttl = seconds
 
     def login_handler(self, user: User):
+        if not (user.username and user.password and user.scope):
+            raise HTTPException(400, detail='The input username, password or scope is incomplete.')
+
         try:
-            if not self._pwd_checker(user.username, user.password, scopes=[user.scope]):
-                raise HTTPException(400, detail='Incorrect username or password.')
+            check_res, check_msg = self._pwd_checker(user.username, user.password, scopes=[user.scope])
+            if not check_res:
+                raise HTTPException(
+                    400,
+                    detail=check_msg.replace("\"", "").replace("\n", "").replace("\t", " ")
+                )
         except ConnectionError:
-            raise HTTPException(500, detail='Cannot connect to the agent. Please check whether the agent '
-                                            'has been deployed correctly.')
+            raise HTTPException(
+                500,
+                detail=f'Cannot connect to the agent. Please check whether the agent: {user.scope} '
+                       'has been deployed correctly.'
+            )
 
         # Generate a unique token, using implicit mode.
-        token = safe_random_string(16)
+        token = safe_random_string(32)
         while token in OAuth2.timed_session:
-            token = safe_random_string(16)
+            token = safe_random_string(32)
         OAuth2.timed_session[token] = {'username': user.username,
-                                       'password': user.password,
-                                       'scopes': [user.scope]
-                                       }
+                                       'password': EncryptedText(user.password),
+                                       'scopes': [user.scope]}
 
         # Not used JWT because we don't require the stateless function.
         return {
@@ -318,9 +349,7 @@ class OAuth2:
                 default=Depends(self._authenticate), annotation=str
             )
 
-            sig = sig.replace(
-                parameters=tuple(sig.parameters.values()) + (token_param,)
-            )
+            sig = sig.replace(parameters=tuple(sig.parameters.values()) + (token_param,))
             wrapped.__signature__ = sig
             return wrapped
 
@@ -381,18 +410,16 @@ def standardized_api_output(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         try:
-            return ToleratedJSONResponse(content={
-                'success': True,
-                'data': f(*args, **kwargs)
-            }
-            )
+            if inspect.iscoroutinefunction(f):
+                data = asyncio.run(f(*args, **kwargs))
+            else:
+                data = f(*args, **kwargs)
+
+            return ToleratedJSONResponse(content={'success': True, 'data': data})
         except HTTPException as e:
             raise e
         except Exception as e:
             logging.getLogger('uvicorn.error').exception(e)
-            return {
-                'success': False,
-                'msg': str(e)
-            }
+            return {'success': False, 'msg': 'Internal server error'}
 
     return wrapper

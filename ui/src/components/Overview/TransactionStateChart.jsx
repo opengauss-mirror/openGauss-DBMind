@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
-import { Empty, Modal } from 'antd';
+import { Card, Empty, Modal, message } from 'antd';
 import ReactEcharts from 'echarts-for-react';
-import { commonMetricMethod } from '../../utils/function';
 import { getTransaction } from '../../api/overview';
 import db from '../../utils/storage';
 
@@ -15,10 +14,6 @@ export default class TransactionStateChart extends Component {
       yallData: [],
       ifShow: true,
       isModalVisible:false,
-      param: {
-        instance:db.ss.get('Instance_value')
-      },
-      metricData:['pg_db_xact_commit','pg_db_xact_rollback']
     }
   }
   getOption (flg) {
@@ -39,7 +34,7 @@ export default class TransactionStateChart extends Component {
       },
       grid: {
         x:60,
-        y: '10%',
+        y: '12%',
       },
       xAxis: [
         {
@@ -55,18 +50,10 @@ export default class TransactionStateChart extends Component {
       ],
       yAxis: [
         {
-          axisLabel: {
-            margin: 2,
-            formatter: (value, index) => {
-              if (value >= 10000 && value < 10000000) {
-                value = value / 10000 + "万";
-              } else if (value >= 10000000) {
-                value = value / 10000000 + "千万";
-              }
-              return value;
-            }
-          },
-          type: 'value'
+          type: 'value',
+        },
+        {
+          type: 'value',
         }
       ],
       color:['#5990fdff','#fecd03ff'],
@@ -81,16 +68,41 @@ export default class TransactionStateChart extends Component {
         {
           name: 'abort',
           type: 'bar',
+          yAxisIndex: 1,
           barWidth:flg ? 18 : 36,
           data: flg ? this.state.ypartData[0] : this.state.yallData[0],
         },
       ]
     };
   }
+  async getTransaction1 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_db_xact_commit'
+    }
+    const { success, data, msg }= await getTransaction(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getTransaction2 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_db_xact_rollback'
+    }
+    const { success, data, msg }= await getTransaction(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
   getTransactionAll(flg){
     Promise.all([
-      commonMetricMethod(this.state.param,{label:this.state.metricData[0]},getTransaction),
-      commonMetricMethod(this.state.param,{label:this.state.metricData[1]},getTransaction)
+      this.getTransaction1(),
+      this.getTransaction2()
     ]).then((result)=>{
       if(result[0].length){
         let xData = [],commitData = [],abortData = []

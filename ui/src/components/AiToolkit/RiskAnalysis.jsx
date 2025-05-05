@@ -51,10 +51,7 @@ export default class RiskAnalysis extends Component {
     let optionArr = ''
     Object.keys(data).forEach(function (key) {
       if(key === db.ss.get('Instance_value')){
-        data[key].forEach(item => {
-          data[key].push(item.split(":")[0])
-        })
-        optionArr = ([...new Set(data[key])])
+        optionArr = (data[key])
       }
     })
     if (success) {
@@ -245,7 +242,7 @@ export default class RiskAnalysis extends Component {
         extraCssText: 'position:fixed',
         formatter: function (params) {
           let res = ''
-          if (params[0].value || params[0].value === 0) {
+          if (params[0].value) {
             res = `${params[0].name} <br/><span style="background: ${params[0].color}; height:10px; width: 10px; border-radius: 50%;display: inline-block;margin-right:10px;"></span> ${params[0].seriesName} ：${params[0].value}<br/>`
           } else {
             res = `${params[1].name} <br/><span style="background: ${params[1].color}; height:10px; width: 10px; border-radius: 50%;display: inline-block;margin-right:10px;"></span> ${params[1].seriesName} ：${params[1].value}<br/>`
@@ -343,7 +340,7 @@ export default class RiskAnalysis extends Component {
   }
   render () {
     return (
-      <div className="contentWrap riskanalysis">
+      <div className="contentWrap">
         <Card title="Risk Analysis" extra={<ReloadOutlined className="more_link " onClick={() => { this.handleRefresh() }}  style={{height: "100%"}} />}>
           <Row className="analysis" style={{ width: '90%'}} justify="space-between">
             <Col>
