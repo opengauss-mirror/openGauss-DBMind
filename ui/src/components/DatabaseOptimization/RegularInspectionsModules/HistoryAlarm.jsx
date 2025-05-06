@@ -67,8 +67,8 @@ export default class HistoryAlarm extends Component {
       })
     }))
     return (
-      <div>
-        <Card title="History Alarm" className="tps tableHeight  mb-20">
+      <div style={{ textAlign: 'center' }}>
+        <Card title="History Alarm">
           <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 250, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>
       </div>

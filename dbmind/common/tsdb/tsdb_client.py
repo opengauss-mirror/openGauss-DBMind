@@ -62,6 +62,8 @@ class TsdbClient(object):
     def get_current_metric_value(self,
                                  metric_name: str,
                                  label_config: dict = None,
+                                 min_value: float = None,
+                                 max_value: float = None,
                                  params: dict = None):
         """get metric target from tsdb"""
         pass
@@ -73,6 +75,8 @@ class TsdbClient(object):
                               end_time: datetime = datetime.now(),
                               chunk_size: timedelta = None,
                               step: str = None,
+                              min_value: float = None,
+                              max_value: float = None,
                               params: dict = None):
         """get metric target from tsdb"""
         pass

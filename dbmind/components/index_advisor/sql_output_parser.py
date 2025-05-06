@@ -17,12 +17,8 @@ import logging
 
 from sqlparse.tokens import Punctuation, Keyword, Name
 
-try:
-    from utils import IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList, \
-        QUERY_PLAN_SUFFIX, EXPLAIN_SUFFIX, ERROR_KEYWORD, PREPARE_KEYWORD
-except ImportError:
-    from .utils import IndexItemFactory, ExistingIndex, AdvisedIndex, get_tokens, UniqueList, \
-        QUERY_PLAN_SUFFIX, EXPLAIN_SUFFIX, ERROR_KEYWORD, PREPARE_KEYWORD
+from .utils import get_tokens, QUERY_PLAN_SUFFIX, EXPLAIN_SUFFIX, ERROR_KEYWORD
+from .models import UniqueList, ExistingIndex, AdvisedIndex, IndexItemFactory
 
 
 def __get_columns_from_indexdef(indexdef):
@@ -45,6 +41,14 @@ def __get_index_type_from_indexdef(indexdef):
             elif content.value.upper() == 'GLOBAL':
                 return 'global'
 
+
+def is_lp_plan(results):
+    for cur_tuple in results:
+        text = cur_tuple[0]
+        if 'Data Node Scan' in text and ('__REMOTE_LIGHT_QUERY__' in text):
+            return True
+    return False
+    
 
 def parse_existing_indexes_results(results, schema) -> List[ExistingIndex]:
     indexes = list()
@@ -132,7 +136,7 @@ def parse_explain_plan(results, query_num):
         # Consider execution errors and ensure that the cost value of an explain is counted only once.
         if ERROR_KEYWORD in text and 'prepared statement' not in text:
             if i >= query_num:
-                logging.info(f'Cannot correct parse the explain results: {results}')
+                logging.info('Cannot correct parse the explain results: %s', results)
                 raise ValueError("The size of queries is not correct!")
             costs.append(0)
             index_names_list.append(index_names)
@@ -140,19 +144,24 @@ def parse_explain_plan(results, query_num):
             i += 1
         if found_plan and '(cost=' in text:
             if i >= query_num:
-                logging.info(f'Cannot correct parse the explain results: {results}')
+                logging.info('Cannot correct parse the explain results: %s', results)
                 raise ValueError("The size of queries is not correct!")
             query_cost = parse_plan_cost(text)
             costs.append(query_cost)
             found_plan = False
             i += 1
         if 'Index' in text and 'Scan' in text:
-            ind1, ind2 = re.search(r'Index.*Scan(.*)on ([^\s]+)',
-                                   text.strip(), re.IGNORECASE).groups()
+            try:
+                ind1, ind2 = re.search(r'Index.*Scan.* using (.*) on (.*) \(cost',
+                                       text.strip(), re.IGNORECASE).groups()
+            except:
+                ind1, ind2 = re.search(r'Index.*Scan(.*)on ([^\s]+)',
+                                       text.strip(), re.IGNORECASE).groups()
+                ind1 = ind1.strip().split(' ')[-1]
             if ind1.strip():
                 # `Index (Only)? Scan (Backward)? using index1`
-                if ind1.strip().split(' ')[-1] not in index_names:
-                    index_names.append(ind1.strip().split(' ')[-1])
+                if ind1 not in index_names:
+                    index_names.append(ind1)
             else:
                 index_names.append(ind2)
     index_names_list.append(index_names)
@@ -163,6 +172,7 @@ def parse_explain_plan(results, query_num):
     # when a syntax error causes multiple explain queries to be run as one query
     while len(index_names_list) < query_num:
         index_names_list.append([])
+    while len(plans) < query_num:
         plans.append([])
     while i < query_num:
         costs.append(0)
@@ -209,28 +219,6 @@ def parse_single_advisor_results(results) -> List[AdvisedIndex]:
     return indexes
 
 
-def __add_valid_index(record, hypoid_table_column, valid_indexes: list):
-    # like 'Index Scan using <134667>btree_global_item_i_manufact_id on item  (cost=0.00..68.53 rows=16 width=59)'
-    tokens = record.split(' ')
-    for token in tokens:
-        if 'btree' in token:
-            if 'btree_global_' in token:
-                index_type = 'global'
-            elif 'btree_local_' in token:
-                index_type = 'local'
-            else:
-                index_type = ''
-            hypo_index_id = re.search(
-                r'\d+', token.split('_', 1)[0]).group()
-            table_columns = hypoid_table_column.get(hypo_index_id)
-            if not table_columns:
-                continue
-            table, columns = table_columns.split(':')
-            index = IndexItemFactory().get_index(table, columns, index_type)
-            if index not in valid_indexes:
-                valid_indexes.append(index)
-
-
 def get_checked_indexes(indexes, index_check_results) -> list:
     valid_indexes = []
     hypo_index_info_length = 4
@@ -240,17 +228,21 @@ def get_checked_indexes(indexes, index_check_results) -> list:
     for cur_tuple in index_check_results:
         # like '(<134672>btree_local_customer_c_customer_sk,134672,customer,"(c_customer_sk)")'
         text = cur_tuple[0]
-        if text.strip().startswith('(<') and 'btree' in text:
+        if text.strip('("').startswith('<') and 'btree' in text:
             if len(text.split(',', 3)) == hypo_index_info_length:
                 hypo_index_info = text.split(',', 3)
-                hypo_index_names.append(hypo_index_info[hypo_index_name_idx].strip('('))
+                hypo_index_name = hypo_index_info[hypo_index_name_idx].strip('(')
+                if hypo_index_name.startswith('"'):
+                    hypo_index_name = hypo_index_name[1:-1]
+                hypo_index_names.append(hypo_index_name)
+
         if 'Index' in text and 'Scan' in text and 'btree' in text:
             rows_with_index.append(text)
-    for row_with_index in rows_with_index:
-        for hypo_index_name in hypo_index_names:
-            if hypo_index_name in row_with_index:
-                used_index = indexes[hypo_index_names.index(hypo_index_name)]
-                if used_index not in valid_indexes:
-                    valid_indexes.append(used_index)
+        for row_with_index in rows_with_index:
+            for hypo_index_name in hypo_index_names:
+                if hypo_index_name in row_with_index:
+                    used_index = indexes[hypo_index_names.index(hypo_index_name)]
+                    if used_index not in valid_indexes:
+                        valid_indexes.append(used_index)
 
     return valid_indexes

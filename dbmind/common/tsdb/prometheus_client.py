@@ -12,10 +12,10 @@
 # See the Mulan PSL v2 for more details.
 import logging
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode
 
 from dbmind.common.http.requests_utils import create_requests_session
-from dbmind.common.utils import cached_property
+from dbmind.common.utils import cached_property, cast_to_int_or_float
 
 from .tsdb_client import TsdbClient, cast_duration_to_seconds
 from ..exceptions import ApiClientException
@@ -23,20 +23,26 @@ from ..types import Sequence
 from ..types.ssl import SSLContext
 
 
+def escape_label_value(value):
+    # Escape backslashes and double quotes
+    return value.replace('"', '\\"')
+
+
 def label_to_query(labels: dict = None, labels_like: dict = None):
     query_list = list()
     if isinstance(labels, dict) and labels:
         for k, v in labels.items():
-            query_list.append(f"{k}=\"{v}\"")
+            query_list.append(f'{k}="{escape_label_value(v)}"')
     if isinstance(labels_like, dict) and labels_like:
         for k, v in labels_like.items():
-            query_list.append(f"{k}=~\"{v}\"")
+            query_list.append(f'{k}=~"{escape_label_value(v)}"')
     return "{" + ",".join(query_list) + "}"
 
 
 # Standardized the format of return value.
 def _standardize(data, step=None):
     if step is not None:
+        step = cast_to_int_or_float(step)
         step = step * 1000  # convert to ms
     rv = []
     for datum in data:
@@ -56,6 +62,7 @@ def _standardize(data, step=None):
             )
         )
     return rv
+
 
 class PrometheusClient(TsdbClient):
     """
@@ -97,7 +104,7 @@ class PrometheusClient(TsdbClient):
         Check Prometheus connection.
         :param params: (dict) Optional dictionary containing parameters to be
             sent along with the API request.
-        :returns: (bool) True if the endpoint can be reached, False if cannot be reached.
+        :returns: (bool) True if the endpoint can be reached, False if it cannot be reached.
         """
         response = self._get(
             "{0}/".format(self.url),
@@ -238,19 +245,19 @@ class PrometheusClient(TsdbClient):
 
     def delete_metric_data(self,
                            metric_name: str,
-                           from_timestamp: int = None,
-                           to_timestamp: int = None,
+                           from_datetime: datetime = None,
+                           to_datetime: datetime = None,
                            labels: dict = None,
                            labels_like: dict = None,
                            flush: bool = False
                            ):
-        if from_timestamp > to_timestamp:
+        if from_datetime > to_datetime:
             raise ValueError("There is a problem with the start time being greater than the end time.")
         params = {}
-        if from_timestamp is not None:
-            params['start'] = from_timestamp
-        if to_timestamp is not None:
-            params['end'] = to_timestamp
+        if from_datetime is not None:
+            params['start'] = round(from_datetime.timestamp())
+        if to_datetime is not None:
+            params['end'] = round(to_datetime.timestamp())
         metric_filter_labels = label_to_query(labels, labels_like)
         filter_condition = metric_filter_labels if metric_filter_labels != '{}' else ''
         if metric_name is not None:
@@ -265,7 +272,7 @@ class PrometheusClient(TsdbClient):
                 "HTTP Status Code {} ({!r})".format(response.status_code, response.content)
             )
         logging.debug('Delete sequences (%s) from tsdb from %s to %s.',
-                      metric_name, from_timestamp, to_timestamp)
+                      metric_name, from_datetime, to_datetime)
         if flush:
             response = self._post(
                 "{0}/api/v1/admin/tsdb/clean_tombstones".format(self.url),
@@ -282,8 +289,7 @@ class PrometheusClient(TsdbClient):
         Send a custom query to a Prometheus Host.
         This method takes as input a string which will be sent as a query to
         the specified Prometheus Host. This query is a PromQL query.
-        :param query: (str) This is a PromQL query, a few examples can be found
-            at https://prometheus.io/docs/prometheus/latest/querying/examples/
+        :param query: (str) This is a PromQL query.
         :param params: (dict) Optional dictionary containing GET parameters to be
             sent along with the API request, such as "time"
         :param timeout: how long to wait for query
@@ -316,8 +322,7 @@ class PrometheusClient(TsdbClient):
         Send a query_range to a Prometheus Host.
         This method takes as input a string which will be sent as a query to
         the specified Prometheus Host. This query is a PromQL query.
-        :param query: (str) This is a PromQL query, a few examples can be found
-            at https://prometheus.io/docs/prometheus/latest/querying/examples/
+        :param query: (str) This is a PromQL query.
         :param start_time: (datetime) A datetime object that specifies the query range start time.
         :param end_time: (datetime) A datetime object that specifies the query range end time.
         :param step: (str) Query resolution step width in duration format or float number of seconds
@@ -362,7 +367,17 @@ class PrometheusClient(TsdbClient):
             return cast_duration_to_seconds(response['data'][0])
         return None
 
-    @cached_property
+    @property
+    def current_scrape_interval(self):
+        response = self._get(
+            "{0}/api/v1/label/interval/values".format(self.url),
+            headers=self.headers
+        ).json()
+        if response['status'] == 'success' and len(response['data']) > 0:
+            return cast_duration_to_seconds(response['data'][0])
+        return None
+
+    @property
     def all_metrics(self):
         response = self._get(
             "{0}/api/v1/label/__name__/values".format(self.url),

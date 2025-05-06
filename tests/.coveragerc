@@ -1,0 +1,12 @@
+[run]
+branch = True
+omit =
+    */controllers/*
+    */common/parser/semantic_analysis.py
+    */components/deployment/*
+
+[report]
+precision = 2
+
+exclude_lines=
+    if __name__ == '__main__':

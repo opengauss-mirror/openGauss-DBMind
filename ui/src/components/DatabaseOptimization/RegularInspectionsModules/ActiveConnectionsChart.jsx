@@ -21,112 +21,75 @@ export default class ActiveConnectionsChart extends Component {
     return {
       title: {
         text: 'Active Connections',
-        left: 'left',
+        left: 'center',
         textStyle:{
-          fontSize: "14",
-          fontFamily: "Arial",
-          fontWeight: "Bold"
+          color: '#314b71',
+          fontSize: '12'
         }
       },
       legend: {
         data:this.state.legendData,
-        right:22
+        x: 'right' 
       },
       grid: {
-        top: "15%",
-        left: "3%",
-        right: "4%",
-        bottom: "2%",
         containLabel: true,
-        
+        width: '100%',
+        left: '0%',
+        top: '15%',
+        right: '0%',
       },
       xAxis: {
-        type: 'category',
-        boundaryGap: false,
-        splitLine: {
-          //网格线
-          show: true, //是否显示
-          lineStyle: {
-            //网格线样式
-            color: '#F2F2F2', //网格线颜色
-            width: 1, //网格线的加粗程度
-            type: 'dashed' //网格线类型
-          }
-        },
         axisLine: {
-          show: true,
           lineStyle: {
-            color: '#939393',
-            width: 1,
-            type: 'solid'
+            width: 0,
           }
         },
         axisLabel: {
-          show: true,
-          margin: 10,
+          padding: [0, 0, 0, 80],
           textStyle: {
-            color: '#4D5964',
-            fontSize: 11,
-            fontFamily: 'Arial',
-            fontWeight: 'normal'
+            color: '#5470c6',
+            fontSize: '10'
           }
         },
-        data: this.state.xdata.map(function (str) {
-          return str.replace(' ', '\n');
-        })
+        type: 'category',
+        data: this.state.xdata
       },
       yAxis: {
-        min: 0,
-        splitLine: {
-          //网格线
-          show: true, //是否显示
-          lineStyle: {
-            //网格线样式
-            color: '#F2F2F2', //网格线颜色
-            width: 1, //网格线的加粗程度
-            type: 'dashed' //网格线类型
-          }
+        type: 'value',
+        nameTextStyle: {
+          color: '#5470c6',
+          padding: [0, 0, 10, 50],
         },
-        ayisLine: {
-          show: true,
-          lineStyle: {
-            color: '#939393',
-            width: 1,
-            type: 'solid'
-          }
-        },
+        nameGap: 10,
         axisLabel: {
-          margin: 10,
-          
-          show: true,
           textStyle: {
-            color: '#4D5964',
-            fontSize: 11,
-            fontFamily: 'Arial',
-            fontWeight: 'normal',
-            align: 'right'
-          }
-        },
-        type:'value'
-      },
-     
-      tooltip: {
-        trigger: 'axis',
-       
-        axisPointer: {
-          type: 'cross',
-          label: {
-            backgroundColor: '#6a7985'
+            color: '#5470c6',
+            fontSize: '10'
           }
         }
       },
-     
+      tooltip: {
+          trigger: 'axis',
+          textStyle: {
+          align: 'left'
+        }
+      },
+      dataZoom: {
+        start: 0,
+        end: 100,
+        show: true,
+        type: 'slider',
+        handleSize: '100%',
+        left: '0%',
+        right: '0.8%',
+        height: 15
+      },
       series: this.state.seriesData
     };
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
     if (JSON.stringify(nextProps.activeLineChart.data) !== '{}') {
-      let colors = [ '#2CA768','#EC6F1A', '#EEBA18','#5890FD'], legendData = []
+      let colors = ['#5470c6', '#91cc75', '#fac858', '#007acc' ], legendData = []
           // 处理X轴
           let formatTimeData = [];
           nextProps.activeLineChart.timestamps.forEach(ele => {
@@ -140,18 +103,8 @@ export default class ActiveConnectionsChart extends Component {
                 type: 'line',
                 smooth: true,
                 name: data,
-                symbol: 'circle',
-                symbolSize: 3,
-               
-                itemStyle: {
-                  normal: {
-                    color: colors[i],
-                    lineStyle: {
-                      width: 1,
-                    },
-                  },
-                },
-               
+                symbol: 'none',
+                color: colors[i],
               }
               allData.push(seriesItem)
             })
@@ -172,7 +125,6 @@ export default class ActiveConnectionsChart extends Component {
       <div >
         {this.state.ifShow ?
           <ReactEcharts
-          className="systemBorder"
             ref={(e) => {
               this.echartsElement = e
             }}

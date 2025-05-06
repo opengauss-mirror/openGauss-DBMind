@@ -19,6 +19,6 @@ class KnobRecommendationMetricSnapshot(ResultDbBase):
     __tablename__ = "tb_knob_recommendation_metric_snapshot"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    instance = Column(String(24), nullable=False)
+    instance = Column(String(64), nullable=False)
     metric = Column(String(128), nullable=False)
     value = Column(String(128), nullable=False)

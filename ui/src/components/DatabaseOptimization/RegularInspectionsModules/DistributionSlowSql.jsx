@@ -69,8 +69,8 @@ export default class DistributionSlowSql extends Component {
       })
     }))
     return (
-      <div>
-        <Card title="Distribution Slow Sql" className="tps tableHeight mb-20">
+      <div style={{ textAlign: 'center' }}>
+        <Card title="Distribution Slow Sql">
           <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 200, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>
       </div>

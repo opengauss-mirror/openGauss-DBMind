@@ -30,6 +30,10 @@ class QuantileDetector(AbstractDetector):
         self.lower_bound = np.nanquantile(s.values, self.low)
 
     def _predict(self, s: Sequence) -> Sequence:
+        length = len(s.values)
+        if self.least_length is not None and length < self.least_length:
+            return Sequence(timestamps=s.timestamps, values=[False] * length)
+
         np_values = np.array(s.values)
         predicted_values = (np_values > self.upper_bound) | (np_values < self.lower_bound)
         return Sequence(timestamps=s.timestamps, values=predicted_values)

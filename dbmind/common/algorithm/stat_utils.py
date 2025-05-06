@@ -11,9 +11,27 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import numpy as np
-from scipy.interpolate import interp1d
+try:
+    from scipy.interpolate import interp1d
+except ImportError:
+    pass
 
+from dbmind.common.exceptions import InvalidSequenceException
 from dbmind.common.types import Sequence
+
+
+def np_nanstd(values):
+    if len(values) == 1:
+        return 0.0
+    else:
+        return np.nanstd(values, ddof=1)
+
+
+stat_funcs = {
+    'median': np.nanmedian,
+    'mean': np.nanmean,
+    'std': np_nanstd
+}
 
 
 def double_padding(values, window):
@@ -36,23 +54,12 @@ def np_shift(values, shift_distance=1, fill_value=np.nan):
     return shifted_values
 
 
-def np_nanstd(values):
-    if len(values) == 1:
-        return 0.0
-    else:
-        return np.nanstd(values, ddof=1)
-
-
 def np_rolling(values, window=1, trim=False, agg='median'):
     """Transformer that rolls a sliding window along a time series, and
     aggregates using a user-selected operation.
     """
-    funcs = {
-        'median': np.nanmedian,
-        'mean': np.nanmean,
-        'std': np_nanstd
-    }
-    func = funcs[agg]
+    window = int(window)
+    func = stat_funcs[agg]
     sequence_length = len(values)
     res = np.zeros(sequence_length)
     left_idx = window - 1 - (window - 1) // 2
@@ -145,10 +152,10 @@ def tidy_up_sequence(sequence):
             """Everything is normal, skipping."""
         elif 0 < error < 1:
             # Align the current timestamp.
-            timestamps[i] = timestamps[i - 1] + sequence.step
+            timestamps[i] = int(timestamps[i - 1] + sequence.step)
         else:
             # Fill up missing value with NaN.
-            next_ = timestamps[i - 1] + sequence.step
+            next_ = int(timestamps[i - 1] + sequence.step)
             timestamps.insert(i, next_)
             values.insert(i, float('nan'))
         i += 1
@@ -174,7 +181,7 @@ def sequence_interpolate(sequence: Sequence, fit_method="linear", strip_details=
             )
 
     if not any(has_defined):
-        raise ValueError("All of sequence values are undefined.")
+        raise InvalidSequenceException("All of sequence values are undefined.")
 
     y_raw = np.array(filled_sequence.values)
     x_raw = np.arange(len(y_raw))

@@ -13,6 +13,7 @@
 import os
 
 from dbmind.common import cmd_executor
+from dbmind.common.cmd_executor import bytes2text, ExecutorFactory
 from dbmind.common.platform import LINUX
 
 
@@ -85,3 +86,18 @@ def test_to_cmds():
         actual = cmd_executor.to_cmds(cmdline)
         assert len(actual[0]) == len(actual[1])
         assert actual == expected
+
+
+def test_bytes2text():
+    assert (bytes2text(['a', 'b', 'c']) == 'abc')
+    assert (bytes2text([b'ab', b'cd', b'e']) == 'abcde')
+    assert (bytes2text(b'abc') == 'abc')
+
+
+def test_executor_factory():
+    if not LINUX:
+        return
+    local_ssh = ExecutorFactory() \
+        .set_host('127.0.0.1') \
+        .get_executor()
+    assert local_ssh.exec_command_sync('echo a; echo b && echo c | grep c')[0] == 'c'

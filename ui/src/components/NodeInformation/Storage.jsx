@@ -3,7 +3,7 @@ import { Table,Col, Row, Empty, message } from 'antd';
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
 import ResizeableTitle from '../common/ResizeableTitle';
-import { getMetric } from '../../api/autonomousManagement';
+import { getStorageData } from '../../api/autonomousManagement';
 import SystemImg from '../../assets/imgs/System.png';
 import { formatTimestamp, formatTableTitle } from '../../utils/function';
 
@@ -21,8 +21,6 @@ export default class Storage extends Component {
       echartData:[],
       selValue:this.props.selValue,
       selTimeValue:this.props.selTimeValue,
-      startTime:this.props.startTime,
-      endTime:this.props.endTime,
     }
   }
 
@@ -34,15 +32,11 @@ export default class Storage extends Component {
   async getStorageData1 () {
     let param = {
       instance:this.state.selValue,
-      latest_minutes:0,
+      minutes:0,
       label:'node_filesystem_size_bytes',
-      fetch_all:true,
-      regex:true,
-      regex_labels:'device=/.*',
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
+      fetch:true
     }
-    const { success, data, msg }= await getMetric(param)
+    const { success, data, msg }= await getStorageData(param)
     if (success) {
       return data
     } else {
@@ -52,15 +46,11 @@ export default class Storage extends Component {
   async getStorageData2 () {
     let param = {
       instance:this.state.selValue,
-      latest_minutes:this.state.selTimeValue ? this.state.selTimeValue : null,
+      minutes:this.state.selTimeValue,
       label:'os_disk_usage',
-      fetch_all:true,
-      regex:true,
-      regex_labels:'device=/.*',
-      from_timestamp:this.state.startTime ? this.state.startTime : null,
-      to_timestamp:this.state.endTime ? this.state.endTime : null
+      fetch:true
     }
-    const { success, data, msg }= await getMetric(param)
+    const { success, data, msg }= await getStorageData(param)
     if (success) {
       return data
     } else {
@@ -73,31 +63,37 @@ export default class Storage extends Component {
       this.getStorageData2()
     ]).then((result)=>{
       if(result[0]){
-        let tableHeader = [],historyColumObj = {},tableData = [],echartsData = [],lastData = [],res = [],echartData = [],echartsitem = {},
-        header = ['Disk name','Mountpoint','Total space (GB)','Used space (GB)','Usage rate'];
-        result[0].forEach((aitem) => {
-          result[1].forEach((bitem,index) => {
-            if(aitem.labels.instance.split(':')[0] === bitem.labels.from_instance && aitem.labels.device === bitem.labels.device){
-              tableData.push(aitem);
-              echartsData.push(bitem);
-              lastData.push(echartsData[index].values[echartsData[index].values.length-1]);
-              echartsitem = {'legend':[{image:SystemImg,description:'Usage Rate'}],
-              'xAxisData':echartsData[index].timestamps,
-              'seriesData':[{data:echartsData[index].values,description:'Usage Rate',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%','toolBox':true};
-              echartData.push(echartsitem);
-            }
+          let tableHeader = [],historyColumObj = {},tableData = [],echartsData = [],lastData = [],res = [],echartData = [],
+          header = ['Disk name','Mountpoint','Total space (GB)','Used space (GB)','Usage rate']
+          result[0].forEach((aitem, aindex) => {
+            result[1].forEach((bitem, bindex) => {
+            if(aitem.labels.instance.split(':').slice(0, -1).join(':') === bitem.labels.from_instance && aitem.labels.device === bitem.labels.device){
+              tableData.push(aitem)
+              echartsData.push(bitem)
+              }
+            });
           });
-        });
-        tableData.forEach((item, index) => {
-          let tabledata = {};
-          tabledata['Disk name'] = item.labels.device;
-          tabledata['Mountpoint'] = item.labels.mountpoint;
-          tabledata['Total space (GB)'] = (item.values/1024/1024/1024).toFixed(2);
-          tabledata['Used space (GB)'] = (item.values/1024/1024/1024*lastData[index]).toFixed(2);
-          tabledata['Usage rate'] = (lastData[index]*100).toFixed(2)+'%';
-          tabledata['key'] = index;
-          res.push(tabledata);
-        });
+          echartsData.forEach((bitem, bindex) => {
+            let seriesData = []
+            bitem.values.forEach((item, index) => {
+              seriesData.push((item*100).toFixed(2))
+            });
+            let echartsitem = {'legend':[{image:SystemImg,description:'Usage Rate'}],
+            'xAxisData':bitem.timestamps,
+            'seriesData':[{data:seriesData,description:'Usage Rate',colors:'#2DA769'}],'flg':1,'legendFlg':1,'unit':'%'}
+            echartData.push(echartsitem)
+            lastData.push(bitem.values[bitem.values.length-1])
+          });
+          tableData.forEach((item, index) => {
+            let tabledata = {}
+            tabledata["Disk name"] = item.labels.device
+            tabledata["Mountpoint"] = item.labels.mountpoint
+            tabledata["Total space (GB)"] = (item.values/1024/1024/1024).toFixed(2)
+            tabledata["Used space (GB)"] = (item.values/1024/1024/1024*lastData[index]).toFixed(2)
+            tabledata["Usage rate"] = (lastData[index]*100).toFixed(2)+'%'
+            tabledata['key'] = index
+            res.push(tabledata)
+          });
           header.forEach((item,index) => {
             historyColumObj = {
               title: formatTableTitle(item),
@@ -137,9 +133,9 @@ export default class Storage extends Component {
       })
     }
     componentDidUpdate(prevProps) {
-      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
+      if(prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.tabkey !== this.props.tabkey) {
         this.setState(() => ({
-          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue,startTime: this.props.startTime,endTime: this.props.endTime
+          selValue: this.props.selValue,selTimeValue: this.props.selTimeValue
         }),()=>{
           if(this.props.tabkey === "5"){
             this.getStorageDataAll()
@@ -159,13 +155,13 @@ export default class Storage extends Component {
   };
   customExpandIcon(props) {
     if (props.expanded) {
-        return <span style={{ color: 'black' }}  onClick={e => {
+        return <a style={{ color: 'black' }} onClick={e => {
             props.onExpand(props.record, e);
-        }}><UpOutlined /></span>
+        }}><UpOutlined /></a>
     } else {
-        return <span style={{ color: 'black' }}  onClick={e => {
+        return <a style={{ color: 'black' }} onClick={e => {
             props.onExpand(props.record, e);
-        }}><DownOutlined /></span>
+        }}><DownOutlined /></a>
     }
   }
   componentDidMount () {
@@ -188,7 +184,8 @@ export default class Storage extends Component {
               expandable={{
                 expandedRowRender: (record,index) => (
                   <NodeEchartFormWork  echartData={this.state.echartData[index]}/>
-                )
+                ),
+                // rowExpandable: (record) => record.name !== 'Not Expandable',
               }}
             />
       </div>

@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 
 from abc import abstractmethod
+import shlex
 
 from .utils import cached_property
 
@@ -170,6 +171,7 @@ class OpenGaussMetric(AbstractMetric):
         :param db: Use db_agent to interact with the database.
         """
         self._db = db
+        self._is_m_compat = self._is_m_compatibility()
         AbstractMetric.__init__(self)
 
     def __getitem__(self, item):
@@ -179,6 +181,10 @@ class OpenGaussMetric(AbstractMetric):
             return float(value)
         except ValueError:
             return value
+
+    def _is_m_compatibility(self):
+        result = self._db.exec_statement("SHOW sql_compatibility;")
+        return result[0][0] == 'M'
 
     def _get_numeric_metric(self, sql):
         result = self._db.exec_statement(sql)
@@ -194,7 +200,7 @@ class OpenGaussMetric(AbstractMetric):
         # main mem: max_connections * (work_mem + temp_buffers) + shared_buffers + wal_buffers
         sql = "select " \
               "setting " \
-              "from pg_settings " \
+              "from pg_catalog.pg_settings " \
               "where name in ('max_connections', 'work_mem', 'temp_buffers', 'shared_buffers', 'wal_buffers') " \
               "order by name;"
         res = self._db.exec_statement(sql)
@@ -208,31 +214,40 @@ class OpenGaussMetric(AbstractMetric):
         # You could define used internal state here.
         # this is a demo, cache_hit_rate, we will use it while tuning shared_buffer.
         cache_hit_rate_sql = "select blks_hit / (blks_read + blks_hit + 0.001) " \
-                             "from pg_stat_database " \
+                             "from pg_catalog.pg_stat_database " \
                              "where datname = '{}';".format(self._db.db_name)
         return self._get_numeric_metric(cache_hit_rate_sql)
 
     @property
     def uptime(self):
         # unit: hour
-        return self._get_numeric_metric(
-            "select extract(epoch from pg_catalog.now()-pg_catalog.pg_postmaster_start_time()) / 60 / 60;")
+        uptime_sql = "select extract(epoch from pg_catalog.now()-pg_catalog.pg_postmaster_start_time()) / 60 / 60;"
+        if self._is_m_compat:
+            uptime_sql = "select (unix_timestamp(pg_catalog.now(6)) - unix_timestamp(timestamptz_datetime_mysql( " \
+                         "pg_catalog.pg_postmaster_start_time(),6))) / 60 / 60;"
+        return self._get_numeric_metric(uptime_sql)
 
     @property
     def current_connections(self):
         return self._get_numeric_metric(
-            "select pg_catalog.count(1) from pg_stat_activity where client_port is not null;")
+            "select pg_catalog.count(1) from pg_catalog.pg_stat_activity where client_port is not null;")
 
     @property
     def average_connection_age(self):
-        return self._get_numeric_metric(
-            "select extract(epoch from pg_catalog.avg(pg_catalog.now()-backend_start)) as age "
-            "from pg_stat_activity where client_port is not null;")  # unit: second
+        # unit: second
+        age_sql = "select extract(epoch from pg_catalog.avg(pg_catalog.now() - backend_start)) as age " \
+                  "from pg_catalog.pg_stat_activity where client_port is not null;"
+        if self._is_m_compat:
+            age_sql = "select pg_catalog.avg(unix_timestamp(pg_catalog.now(6)) - " \
+                      "unix_timestamp(timestamptz_datetime_mysql(backend_start,6))) as age " \
+                      "from pg_catalog.pg_stat_activity where client_port is not null;"
+        return self._get_numeric_metric(age_sql)
 
     @property
     def all_database_size(self):
         return self._get_numeric_metric(
-            "select sum(pg_catalog.pg_database_size(datname)) / 1024 from pg_database;")  # unit: kB
+            "select pg_catalog.sum(pg_catalog.pg_database_size(datname)) / 1024 "
+            "from pg_catalog.pg_database;")  # unit: kB
 
     @property
     def max_processes(self):
@@ -244,13 +259,13 @@ class OpenGaussMetric(AbstractMetric):
 
     @property
     def current_prepared_xacts_count(self):
-        return self._get_numeric_metric("select pg_catalog.count(1) from pg_prepared_xacts;")
+        return self._get_numeric_metric("select pg_catalog.count(1) from pg_catalog.pg_prepared_xacts;")
 
     @property
     def current_locks_count(self):
         return self._get_numeric_metric(
-            "select pg_catalog.count(1) from pg_locks "
-            "where transactionid in (select transaction from pg_prepared_xacts)")
+            "select pg_catalog.count(1) from pg_catalog.pg_locks "
+            "where transactionid in (select transaction from pg_catalog.pg_prepared_xacts)")
 
     @property
     def checkpoint_dirty_writing_time_window(self):
@@ -259,27 +274,27 @@ class OpenGaussMetric(AbstractMetric):
     @property
     def checkpoint_proactive_triggering_ratio(self):
         return self._get_numeric_metric(
-            "select checkpoints_req / (checkpoints_timed + checkpoints_req) from pg_stat_bgwriter;"
+            "select checkpoints_req / (checkpoints_timed + checkpoints_req) from pg_catalog.pg_stat_bgwriter;"
         )
 
     @property
     def checkpoint_avg_sync_time(self):
         return self._get_numeric_metric(
-            "select checkpoint_sync_time / (checkpoints_timed + checkpoints_req) from pg_stat_bgwriter;"
+            "select checkpoint_sync_time / (checkpoints_timed + checkpoints_req) from pg_catalog.pg_stat_bgwriter;"
         )
 
     @property
     def shared_buffer_heap_hit_rate(self):
         return self._get_numeric_metric(
             "select pg_catalog.sum(heap_blks_hit)*100/(pg_catalog.sum(heap_blks_read)+pg_catalog.sum(heap_blks_hit)+1) "
-            "from pg_statio_user_tables ;")
+            "from pg_catalog.pg_statio_user_tables ;")
 
     @property
     def shared_buffer_toast_hit_rate(self):
         return self._get_numeric_metric(
             "select "
             "pg_catalog.sum(toast_blks_hit)*100/(pg_catalog.sum(toast_blks_read)+pg_catalog.sum(toast_blks_hit)+1) "
-            "from pg_statio_user_tables ;"
+            "from pg_catalog.pg_statio_user_tables ;"
         )
 
     @property
@@ -287,7 +302,7 @@ class OpenGaussMetric(AbstractMetric):
         return self._get_numeric_metric(
             "select "
             "pg_catalog.sum(tidx_blks_hit)*100/(pg_catalog.sum(tidx_blks_read)+pg_catalog.sum(tidx_blks_hit)+1) "
-            "from pg_statio_user_tables ;"
+            "from pg_catalog.pg_statio_user_tables ;"
         )
 
     @property
@@ -295,13 +310,14 @@ class OpenGaussMetric(AbstractMetric):
         return self._get_numeric_metric(
             "select "
             "pg_catalog.sum(idx_blks_hit)*100/(pg_catalog.sum(idx_blks_read)+pg_catalog.sum(idx_blks_hit)+1) "
-            "from pg_statio_user_tables ;"
+            "from pg_catalog.pg_statio_user_tables ;"
         )
 
     @property
     def temp_file_size(self):
         return self._get_numeric_metric(
-            "select pg_catalog.max(temp_bytes / temp_files) / 1024 from pg_stat_database where temp_files > 0;"
+            "select pg_catalog.max(temp_bytes / temp_files) / 1024 from pg_catalog.pg_stat_database "
+            "where temp_files > 0;"
         )  # unit: kB
 
     @property
@@ -334,21 +350,28 @@ class OpenGaussMetric(AbstractMetric):
 
     @property
     def read_tup_speed(self):
-        return self._get_numeric_metric(
-            "select tup_returned / (extract (epoch from (pg_catalog.now() - stats_reset))) "
-            "from pg_catalog.pg_stat_database where datname = '%s';" % self._db.db_name
-        )
+        read_tup_speed_sql = "select tup_returned / (extract (epoch from (pg_catalog.now() - stats_reset))) " \
+                             "from pg_catalog.pg_stat_database where datname = '%s';" % self._db.db_name
+        if self._is_m_compat:
+            read_tup_speed_sql = "select tup_returned / (unix_timestamp(pg_catalog.now(6)) - " \
+                                 "unix_timestamp(timestamptz_datetime_mysql(stats_reset, 6))) " \
+                                 "from pg_catalog.pg_stat_database where datname = '%s';" % self._db.db_name
+        return self._get_numeric_metric(read_tup_speed_sql)
 
     @property
     def write_tup_speed(self):
-        return self._get_numeric_metric(
-            "select "
-            "(tup_inserted + tup_updated + tup_deleted) / (extract (epoch from (pg_catalog.now() - stats_reset))) "
-            "from pg_catalog.pg_stat_database where datname = '%s';" % self._db.db_name
-        )
+        write_tup_speed_sql = "select (tup_inserted + tup_updated + tup_deleted) / " \
+                              "(extract (epoch from (pg_catalog.now() - stats_reset))) " \
+                              "from pg_catalog.pg_stat_database where datname = '%s';" % self._db.db_name
+        if self._is_m_compat:
+            write_tup_speed_sql = "select (tup_inserted + tup_updated + tup_deleted) / " \
+                                  "(unix_timestamp(pg_catalog.now(6)) - " \
+                                  "unix_timestamp(timestamptz_datetime_mysql(stats_reset,6))) " \
+                                  "from pg_catalog.pg_stat_database where datname = '%s';" % self._db.db_name
+        return self._get_numeric_metric(write_tup_speed_sql)
 
     @cached_property
-    def nb_gaussdb(self):
+    def nb_opengauss(self):
         return int(
             self._db.exec_command_on_host("ps -ux | grep gaussd[b] | wc -l")
         ) or 1  # set a default value
@@ -371,9 +394,9 @@ class OpenGaussMetric(AbstractMetric):
     @cached_property
     def is_hdd(self):
         mount_point = self._db.exec_command_on_host(
-            "df %s | awk '{print $6}' | awk 'NR==2{print}'" % self._db.data_path)
+            "df %s | awk '{print $6}' | awk 'NR==2{print}'" % shlex.quote(self._db.data_path))
         return self._db.exec_command_on_host(
-            "lsblk -o rota,mountpoint | grep %s | awk '{print $1}'" % mount_point) == '1'  # 1 means hdd, 0 means ssd.
+            "lsblk -o rota,mountpoint | grep %s | awk '{print $1}'" % shlex.quote(mount_point)) == '1'
 
     @cached_property
     def is_64bit(self):
@@ -390,7 +413,7 @@ class OpenGaussMetric(AbstractMetric):
     @cached_property
     def block_size(self):
         return self._get_numeric_metric(
-            "select setting / 1024 from pg_settings where name = 'block_size';"
+            "select setting / 1024 from pg_catalog.pg_settings where name = 'block_size';"
         )  # unit: kB
 
     @property

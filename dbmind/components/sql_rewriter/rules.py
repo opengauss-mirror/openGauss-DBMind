@@ -99,6 +99,8 @@ class In2Exists(Rule):
                         if not isinstance(right['from'], str) and not (
                                 isinstance(right['select'], dict) and 'value' in right['select']):
                             continue
+                        if right.keys() - {'select', 'from'}:
+                            continue
                         table2 = right['from'].split('.')[-1]
                         column2 = right['select']['value'].split('.')[-1]
                         in_count += 1

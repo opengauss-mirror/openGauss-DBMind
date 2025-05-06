@@ -16,56 +16,465 @@
 # query: <common query command>
 # metrics:
 #   - <metric_suffix>:
-#     subquery: <read the execution result of common query command
-#                from standard input stream, and filter
-#                the result by using the subquery>
+#     method: the method to extract the value or label
+#     args: the args to the method above
+#       arg1:
+#       arg2:
 #     usage: <type>
 #     description: <description text, optional>
 #   ...
 
-
-gaussdb_cluster:
-  query: "cm_ctl query -Cvip"
-  timeout: 5
+opengauss_cluster:
+  timeout: 8
+  null_coverage_window: 0
   metrics:
-    - state:
-        subquery: grep cluster_state | awk '{if ($3=="Normal") print 1; else print 0}'
-        usage: "GAUGE"
-        description: "cluster state, 0 meaning abnormal and 1 meaning normal"
-    - primary:
-        subquery: grep -E "Primary " | sed 's/|/\n/g' | grep -E "Primary" | awk '{printf "%s:%s\n",$3,$5}'
-        usage: "LABEL"
-        description: "primary node list"
-    - standby:
-        subquery: grep -E "Primary " | sed 's/|/\n/g' | grep -E "Standby" | awk '{printf "%s:%s\n",$3,$5}' | sed -z 's/\n/,/g'
-        usage: "LABEL"
-        description: "standby node list"
-    - normal:
-        subquery: grep -E "Primary " | sed 's/|/\n/g' | grep -E "Normal" | awk '{printf "%s:%s\n",$3,$5}' | sed -z 's/\n/,/g'
-        usage: "LABEL"
-        description: "normal node list"
-    - abnormal:
-        subquery: grep -E "Primary " | sed 's/|/\n/g' | grep -E "Abnormal|Down|Pending|Unknown" | awk '{printf "%s:%s\n",$3,$5}' | sed -z 's/\n/,/g'
-        usage: "LABEL"
-        description: "abnormal node list"
+    - name: cm_state
+      method: get_shell_output
+      args:
+        cmd: cm_ctl query -Cvidp
+        stdin: ''
+        timeout: remaining_time
+      description: the bulk output for 'cm_ctl query -Cvidp'
 
-gaussdb_progress:
-  query: "ps -aux | grep gaussdb"
-  timeout: 5
+    - name: state
+      method: get_shell_output_lines
+      args:
+        cmd: sed -n '/Cluster State/,/^\[.*State.*]/p' | grep cluster_state | awk '{if ($3=="Normal") print 1; else print 0}'
+        stdin: 'CACHE:opengauss_cluster:cm_state'
+        timeout: remaining_time
+      usage: GAUGE
+      description: cluster state, 0 meaning abnormal and 1 meaning normal
+
+    - name: cms_state
+      method: parse_state_detail
+      args:
+        name: cms_state
+        cmd: sed -n '/CMServer State/,/^\[.*State.*]/p' | egrep "^[0-9]+ .*" | sed -z 's/\n/,/g'
+        stdin: 'CACHE:opengauss_cluster:cm_state'
+        timeout: remaining_time
+      usage: LABEL
+      description: cms state information
+
+    - name: etcd_state
+      method: parse_state_detail
+      args:
+        name: etcd_state
+        cmd: sed -n '/ETCD State/,/^\[.*State.*]/p' | egrep "^[0-9]+ .*" | sed -z 's/\n/,/g'
+        stdin: 'CACHE:opengauss_cluster:cm_state'
+        timeout: remaining_time
+      usage: LABEL
+      description: etcd state information
+
+    - name: cn_state
+      method: parse_state_detail
+      args:
+        name: cn_state
+        cmd: sed -n '/Coordinator State/,/^\[.*State.*]/p' | egrep "^[0-9]+ .*" | sed -z 's/\n/,/g'
+        stdin: 'CACHE:opengauss_cluster:cm_state'
+        timeout: remaining_time
+      usage: LABEL
+      description: cn state information
+
+    - name: central_cn_state
+      method: parse_state_detail
+      args:
+        name: central_cn_state
+        cmd: sed -n '/Central Coordinator State/,/^\[.*State.*]/p' | egrep "^[0-9]+ .*" | sed -z 's/\n/,/g'
+        stdin: 'CACHE:opengauss_cluster:cm_state'
+        timeout: remaining_time
+      usage: LABEL
+      description: central cn state information
+
+    - name: gtm_state
+      method: parse_state_detail
+      args:
+        name: gtm_state
+        cmd: sed -n '/GTM State/,/^\[.*State.*]/p' | egrep "^[0-9]+ .*" | sed -z 's/\n/,/g'
+        stdin: 'CACHE:opengauss_cluster:cm_state'
+        timeout: remaining_time
+      usage: LABEL
+      description: gtm state information
+
+    - name: dn_state
+      method: parse_state_detail
+      args:
+        name: dn_state
+        cmd: sed -n '/Datanode State/,${p}'| egrep "^([[:space:]]\|[[:space:]])?[0-9]+ .*" | sed -z 's/\n/,/g'
+        stdin: 'CACHE:opengauss_cluster:cm_state'
+        timeout: remaining_time
+      usage: LABEL
+      description: dn state information
+
+    - name: primary
+      method: parse_dn_state
+      args:
+        name: primary
+        dn_state: 'CACHE:opengauss_cluster:dn_state'
+      usage: LABEL
+      description: primary node list
+
+    - name: standby
+      method: parse_dn_state
+      args:
+        name: standby
+        dn_state: 'CACHE:opengauss_cluster:dn_state'
+      usage: LABEL
+      description: standby node list
+
+    - name: normal
+      method: parse_dn_state
+      args:
+        name: normal
+        dn_state: 'CACHE:opengauss_cluster:dn_state'
+      usage: LABEL
+      description: normal node list
+
+    - name: abnormal
+      method: parse_dn_state
+      args:
+        name: abnormal
+        dn_state: 'CACHE:opengauss_cluster:dn_state'
+      usage: LABEL
+      description: abnormal node list
+
+opengauss_process:
+  timeout: 8
+  ttl: 180
   metrics:
-    - cpu_usage:
-        subquery: awk '{print $3}'
-        usage: "GAUGE"
-        description: "cpu usage of gaussdb process"
-    - mem_usage:
-        subquery: awk '{print $4}'
-        usage: "GAUGE"
-        description: "mem usage of gaussdb process"
-    - user:
-        subquery: awk '{print $1}'
-        usage: "LABEL"
-        description: "all of users who have gaussdb process"
-    - pid:
-        subquery: awk '{print $2}'
-        usage: "LABEL"
-        description: "pid of gaussdb process"
+    - name: process_state
+      method: get_process_state
+      args:
+       cluster_state: 'CACHE:opengauss_cluster:ALL'
+       local_ips: 'CACHE:opengauss_mount:local_ips'
+       timeout: remaining_time
+      description: process information
+
+    - name: cpu_usage
+      method: get_ps_info
+      args:
+        name: cpu_usage
+        process_state: 'CACHE:opengauss_process:process_state'
+      usage: GAUGE
+      description: cpu usage of opengauss process
+
+    - name: mem_usage
+      method: get_ps_info
+      args:
+        name: mem_usage
+        process_state: 'CACHE:opengauss_process:process_state'
+      usage: GAUGE
+      description: mem usage of opengauss process
+
+    - name: leaked_fds
+      method: get_ps_info
+      args:
+        name: leaked_fds
+        process_state: 'CACHE:opengauss_process:process_state'
+      usage: GAUGE
+      description: leaked fds of opengauss process
+
+    - name: user
+      method: get_ps_info
+      args:
+        name: user
+        process_state: 'CACHE:opengauss_process:process_state'
+      usage: LABEL
+      description: all of users who have opengauss process
+
+    - name: role
+      method: get_ps_info
+      args:
+        name: role
+        process_state: 'CACHE:opengauss_process:process_state'
+      usage: LABEL
+      description: process information
+
+    - name: pid
+      method: get_ps_info
+      args:
+        name: pid
+        process_state: 'CACHE:opengauss_process:process_state'
+      usage: LABEL
+      description: pid of opengauss process
+
+    - name: ip
+      method: get_ps_info
+      args:
+        name: ip
+        process_state: 'CACHE:opengauss_process:process_state'
+      usage: LABEL
+      description: cwd of opengauss process
+
+    - name: port
+      method: get_ps_info
+      args:
+        name: port
+        process_state: 'CACHE:opengauss_process:process_state'
+      usage: LABEL
+      description: cwd of opengauss process
+
+    - name: cwd
+      method: get_ps_info
+      args:
+        name: cwd
+        process_state: 'CACHE:opengauss_process:process_state'
+      usage: LABEL
+      description: cwd of opengauss process
+
+opengauss_ping:
+  timeout: 8
+  null_coverage_window: 30
+  metrics:
+    - name: ip_info
+      method: parse_ip_info
+      args:
+        local_ips: 'CACHE:opengauss_mount:local_ips'
+        cluster_state: 'CACHE:opengauss_cluster:ALL'
+      description: get the ip information from cluster state
+
+    - name: ping_state
+      method: get_ping_state
+      args:
+        ip_info: 'CACHE:opengauss_ping:ip_info'
+      description: get the ping state
+
+    - name: state
+      method: get_ping_info
+      args:
+        name: state
+        ping_state: 'CACHE:opengauss_ping:ping_state'
+      usage: GAUGE
+      description: check if network is ok between all nodes
+
+    - name: packet_rate
+      method: get_ping_info
+      args:
+        name: packet_rate
+        ping_state: 'CACHE:opengauss_ping:ping_state'
+      usage: GAUGE
+      description: get the packet rate between all nodes
+
+    - name: lag
+      method: get_ping_info
+      args:
+        name: lag
+        ping_state: 'CACHE:opengauss_ping:ping_state'
+      usage: GAUGE
+      description: get the lag between all nodes
+
+    - name: source
+      method: get_ping_info
+      args:
+        name: source
+        ping_state: 'CACHE:opengauss_ping:ping_state'
+      usage: LABEL
+      description: the source ip list
+
+    - name: target
+      method: get_ping_info
+      args:
+        name: target
+        ping_state: 'CACHE:opengauss_ping:ping_state'
+      usage: LABEL
+      description: the target ip list
+
+    - name: to_primary_dn
+      method: get_ping_info
+      args:
+        name: to_primary_dn
+        ping_state: 'CACHE:opengauss_ping:ping_state'
+      usage: LABEL
+      description: if the target ip has a primery dn
+
+opengauss_mount:
+  timeout: 9
+  metrics:
+    - name: local_ips
+      method: get_local_ips
+      args:
+        ip_list: 'CACHE:opengauss_mount:local_ips'
+      description: information from 'hostname -I'
+
+    - name: blk_info
+      method: parse_lsblk
+      description: information from 'lsblk'
+
+    - name: df_info
+      method: parse_df
+      description: information from 'df'
+
+    - name: mount_state
+      method: get_mount_state
+      args:
+        cluster_state: 'CACHE:opengauss_cluster:ALL'
+        process_state: 'CACHE:opengauss_process:process_state'
+        blk_info: 'CACHE:opengauss_mount:blk_info'
+        df_info: 'CACHE:opengauss_mount:df_info'
+        local_ips: 'CACHE:opengauss_mount:local_ips'
+      description: get the mount state for every single node
+
+    - name: usage
+      method: get_mount_info
+      args:
+        name: usage
+        mount_state: 'CACHE:opengauss_mount:mount_state'
+      usage: GAUGE
+      description: verify the mount usage for every single node
+
+    - name: role
+      method: get_mount_info
+      args:
+        name: role
+        mount_state: 'CACHE:opengauss_mount:mount_state'
+      usage: LABEL
+      description: instance's role
+
+    - name: ip
+      method: get_mount_info
+      args:
+        name: ip
+        mount_state: 'CACHE:opengauss_mount:mount_state'
+      usage: LABEL
+      description: instance's ip
+
+    - name: port
+      method: get_mount_info
+      args:
+        name: port
+        mount_state: 'CACHE:opengauss_mount:mount_state'
+      usage: LABEL
+      description: instance's port
+
+    - name: path
+      method: get_mount_info
+      args:
+        name: path
+        mount_state: 'CACHE:opengauss_mount:mount_state'
+      usage: LABEL
+      description: instance's data path
+
+    - name: device
+      method: get_mount_info
+      args:
+        name: device
+        mount_state: 'CACHE:opengauss_mount:mount_state'
+      usage: LABEL
+      description: instance's device name
+
+    - name: file_system
+      method: get_mount_info
+      args:
+        name: file_system
+        mount_state: 'CACHE:opengauss_mount:mount_state'
+      usage: LABEL
+      description: instance's file system name
+
+    - name: kernel_name
+      method: get_mount_info
+      args:
+        name: kernel_name
+        mount_state: 'CACHE:opengauss_mount:mount_state'
+      usage: LABEL
+      description: instance's kernel name
+
+    - name: instance_id
+      method: get_mount_info
+      args:
+        name: instance_id
+        mount_state: 'CACHE:opengauss_mount:mount_state'
+      usage: LABEL
+      description: get the instance_id of the db process
+
+opengauss_xlog:
+  timeout: 9
+  metrics:
+    - name: chroot_prefix
+      method: get_chroot_prefix
+      args:
+        cluster_state: 'CACHE:opengauss_cluster:ALL'
+        process_state: 'CACHE:opengauss_process:process_state'
+        local_ips: 'CACHE:opengauss_mount:local_ips'
+      description: checkout if the database runs in chroot mode and return the chroot_prefix
+
+    - name: xlog_state
+      method: get_xlog_state
+      args:
+        local_ips: 'CACHE:opengauss_mount:local_ips'
+        dn_state: 'CACHE:opengauss_cluster:dn_state'
+        cn_state: 'CACHE:opengauss_cluster:cn_state'
+        chroot_prefix: 'CACHE:opengauss_xlog:chroot_prefix'
+        blk_info: 'CACHE:opengauss_mount:blk_info'
+        df_info: 'CACHE:opengauss_mount:df_info'
+      description: get the state of the xlog paths
+
+    - name: count
+      method: get_xlog_info
+      args:
+        name: count
+        xlog_state: 'CACHE:opengauss_xlog:xlog_state'
+      usage: GAUGE
+      description: get the count of the xlog files
+
+    - name: oldest_lsn
+      method: get_xlog_info
+      args:
+        name: oldest_lsn
+        xlog_state: 'CACHE:opengauss_xlog:xlog_state'
+      usage: GAUGE
+      description: get the oldest lsn of the xlog files
+
+    - name: role
+      method: get_xlog_info
+      args:
+        name: role
+        xlog_state: 'CACHE:opengauss_xlog:xlog_state'
+      usage: LABEL
+      description: get the role of the instance
+
+    - name: path
+      method: get_xlog_info
+      args:
+        name: path
+        xlog_state: 'CACHE:opengauss_xlog:xlog_state'
+      usage: LABEL
+      description: get the path of the xlog files
+
+    - name: from_instance
+      method: get_xlog_info
+      args:
+        name: from_instance
+        xlog_state: 'CACHE:opengauss_xlog:xlog_state'
+      usage: LABEL
+      description: get the instances of the xlog files
+
+    - name: device
+      method: get_xlog_info
+      args:
+        name: device
+        xlog_state: 'CACHE:opengauss_xlog:xlog_state'
+      usage: LABEL
+      description: get the file-system of the xlog disk
+
+    - name: instance_id
+      method: get_xlog_info
+      args:
+        name: instance_id
+        xlog_state: 'CACHE:opengauss_xlog:xlog_state'
+      usage: LABEL
+      description: get the instance_id of the xlog instance
+
+opengauss_nic:
+  timeout: 5
+  null_coverage_window: 0
+  metrics:
+    - name: state
+      method: get_dummy_value
+      usage: GAUGE
+      description: check the count of the xlog files
+
+    - name: ip
+      method: get_ip
+      args:
+        local_ips: 'CACHE:opengauss_mount:local_ips'
+      usage: LABEL
+      description: get the dn instances

@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 
 import logging
+import shlex
 
 from .character import OpenGaussMetric
 from .exceptions import DBStatusError, SecurityError, ExecutionError, OptionError
@@ -97,7 +98,7 @@ class DB_Agent:
         # Check whether the binary files of the database can be located through environment variables.
         try:
             self.exec_command_on_host("which gsql")
-            self.exec_command_on_host("which gaussdb")
+            self.exec_command_on_host("which opengauss")
             self.exec_command_on_host("which gs_guc")
             self.exec_command_on_host("which gs_ctl")
         except ExecutionError as e:
@@ -109,7 +110,7 @@ class DB_Agent:
 
         # Check whether the third-party libraries can be properly loaded.
         try:
-            self.exec_command_on_host("gaussdb --version")
+            self.exec_command_on_host("opengauss --version")
             self.exec_command_on_host("gsql --version")
         except ExecutionError as e:
             logging.exception("An exception occurred while checking connection parameters: %s", e)
@@ -127,7 +128,7 @@ class DB_Agent:
 
             # Get database instance pid and data_path.
             self.data_path = self.exec_statement(
-                "SELECT datapath FROM pg_node_env;"
+                "SELECT datapath FROM pg_catalog.pg_node_env;"
             )[0][0]
         except ExecutionError as e:
             logging.exception("An exception occurred while checking connection parameters: %s", e)
@@ -137,7 +138,7 @@ class DB_Agent:
 
         # Check whether the current user has sufficient permission to perform tuning.
         try:
-            self.exec_statement("select * from pg_user;")
+            self.exec_statement("select * from pg_catalog.pg_user;")
         except ExecutionError as e:
             logging.exception("An exception occurred while checking connection parameters: %s", e)
             raise DBStatusError("The current database user may not have the permission to tune best_knobs. "
@@ -157,7 +158,7 @@ class DB_Agent:
             check_special_character(knob)
             wherein_list.append("'%s'" % knob)
 
-        sql = "SELECT name, setting, min_val, max_val FROM pg_settings WHERE name IN ({})".format(
+        sql = "SELECT name, setting, min_val, max_val FROM pg_catalog.pg_settings WHERE name IN ({})".format(
             ','.join(wherein_list)
         )
 
@@ -188,12 +189,12 @@ class DB_Agent:
         :param timeout: Int type. Unit second.
         :return: The parsed result from SQL statement execution.
         """
-        command = "gsql -p {db_port} -U {db_user} -d {db_name} -W {db_user_pwd} -c \"{sql}\";".format(
-            db_port=self.db_port,
-            db_user=self.db_user,
-            db_name=self.db_name,
-            db_user_pwd=self.db_user_pwd,
-            sql=sql
+        command = "gsql -p {db_port} -U {db_user} -d {db_name} -W {db_user_pwd} -c {sql}".format(
+            db_port=shlex.quote(str(self.db_port)),
+            db_user=shlex.quote(self.db_user),
+            db_name=shlex.quote(self.db_name),
+            db_user_pwd=shlex.quote(self.db_user_pwd),
+            sql=shlex.quote(sql)
         )
 
         stdout, stderr = self.ssh.exec_command_sync(command, timeout)
@@ -210,8 +211,8 @@ class DB_Agent:
         :return: True means running and vice versa.
         """
         try:
-            stdout = self.exec_command_on_host("ps -ux | grep gaussdb | wc -l")
-            at_least_count = 1  # Includes one 'grep gaussdb' command.
+            stdout = self.exec_command_on_host("ps -ux | grep opengauss | wc -l")
+            at_least_count = 1  # Includes one 'grep opengauss' command.
             if int(stdout.strip()) <= at_least_count:
                 return False
         except ExecutionError:
@@ -247,7 +248,7 @@ class DB_Agent:
                 logging.warning(error_msg)
             else:
                 raise ExecutionError(error_msg)
-        return stdout
+        return stdout.strip(" \n\r")
 
     def get_knob_normalized_vector(self):
         nv = list()
@@ -280,14 +281,15 @@ class DB_Agent:
 
     def get_knob_value(self, name):
         check_special_character(name)
-        sql = "SELECT setting FROM pg_settings WHERE name = '{}';".format(name)
+        sql = "SELECT setting FROM pg_catalog.pg_settings WHERE name = '{}';".format(name)
         value = self.exec_statement(sql)[0][0]
         return value
 
     def set_knob_value(self, name, value):
         logging.info("change knob: [%s=%s]", name, value)
         try:
-            self.exec_command_on_host("gs_guc reload -c \"%s=%s\" -D %s" % (name, value, self.data_path))
+            self.exec_command_on_host("gs_guc reload -c %s -D %s" % (shlex.quote(name + '=' + str(value)),
+                                                                     shlex.quote(self.data_path)))
         except ExecutionError as e:
             if str(e).find('Success to perform gs_guc!') < 0:
                 logging.warning(e)
@@ -301,9 +303,9 @@ class DB_Agent:
             self.exec_statement("checkpoint;")  # Prevent the database from being shut down for a long time.
         except ExecutionError:
             logging.warning("Cannot checkpoint perhaps due to bad GUC settings.")
-        self.exec_command_on_host("gs_ctl stop -D {data_path}".format(data_path=self.data_path),
+        self.exec_command_on_host("gs_ctl stop -D {data_path}".format(data_path=shlex.quote(self.data_path)),
                                   ignore_status_code=True)
-        self.exec_command_on_host("gs_ctl start -D {data_path}".format(data_path=self.data_path),
+        self.exec_command_on_host("gs_ctl start -D {data_path}".format(data_path=shlex.quote(self.data_path)),
                                   ignore_status_code=True)
 
         if self.is_alive():
@@ -317,11 +319,13 @@ class DB_Agent:
     def drop_cache(self):
         try:
             # Check whether frequent input password is required.
-            user_desc = self.exec_command_on_host('sudo -n -l -U %s' % self.host_user, ignore_status_code=True)
+            user_desc = self.exec_command_on_host('sudo -n -l -U %s' % shlex.quote(self.host_user),
+                                                  ignore_status_code=True)
             if (not user_desc) or user_desc.find('NOPASSWD') < 0:
-                logging.warning(
-                    "Hint: You must add this line '%s ALL=(root)   NOPASSWD: /usr/bin/tee /proc/sys/vm/drop_caches'"
-                    " to the file '/etc/sudoers' with administrator permission.", self.host_user)
+                logging.warning("Hint: You must add this line '%s ALL=(root)   "
+                                "NOPASSWD: /usr/bin/tee /proc/sys/vm/drop_caches'"
+                                " to the file '/etc/sudoers' with administrator permission.",
+                                self.host_user)
                 return False
 
             self.exec_command_on_host('sync')

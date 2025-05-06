@@ -10,11 +10,12 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-from sqlalchemy import update, desc, func
 
+from sqlalchemy import update, desc, func, and_, or_
+
+from dbmind.common.types import Alarm
 from dbmind.metadatabase.ddl import truncate_table
 from ..result_db_session import get_session
-from ..schema import FutureAlarms
 from ..schema import HistoryAlarms
 
 
@@ -22,20 +23,21 @@ def get_batch_insert_history_alarms_functions():
     objs = []
 
     class _Inner:
-        def add(self, instance, alarm_type, start_at, end_at, metric_name,
-                alarm_level=None, alarm_content=None, extra_info=None,
-                anomaly_type=None
-                ):
+        def add(self, alarm: Alarm):
+            alarm_metric_filter = ",".join([f"{k}={alarm.metric_filter.get(k, '')}"
+                                            for k in sorted(alarm.metric_filter.keys())])
             obj = HistoryAlarms(
-                instance=instance,
-                metric_name=metric_name,
-                alarm_type=alarm_type,
-                alarm_level=alarm_level,
-                start_at=start_at,
-                end_at=end_at,
-                alarm_content=alarm_content,
-                extra_info=extra_info,
-                anomaly_type=anomaly_type
+                instance=alarm.instance,
+                metric_name=alarm.metric_name,
+                metric_filter=alarm_metric_filter,
+                alarm_type=str(alarm.alarm_type),
+                alarm_level=alarm.alarm_level,
+                start_at=alarm.start_timestamp,
+                end_at=alarm.end_timestamp,
+                alarm_content=alarm.alarm_content,
+                extra_info=alarm.extra,
+                anomaly_type=alarm.anomaly_type,
+                alarm_cause=alarm.alarm_cause
             )
             objs.append(obj)
             return self
@@ -61,9 +63,9 @@ def select_history_alarm(instance=None, offset=None, limit=None, group: bool = F
             result = session.query(HistoryAlarms)
 
         if instance is not None:
-            if isinstance(instance, (tuple, list)):
+            if isinstance(instance, list):
                 result = result.filter(HistoryAlarms.instance.in_(instance))
-            else:
+            elif isinstance(instance, str):
                 result = result.filter(HistoryAlarms.instance == instance)
 
         metric_name = alarm_args.get("metric_name")
@@ -83,11 +85,17 @@ def select_history_alarm(instance=None, offset=None, limit=None, group: bool = F
             result = result.filter(HistoryAlarms.alarm_level == alarm_level)
 
         start_at = alarm_args.get("start_at")
-        if start_at is not None:
-            result = result.filter(HistoryAlarms.start_at >= start_at)
-
         end_at = alarm_args.get("end_at")
-        if end_at is not None:
+        if start_at is not None and end_at is not None:
+            result = result.filter(
+                or_(
+                    and_(HistoryAlarms.start_at >= start_at, HistoryAlarms.start_at <= end_at),
+                    and_(HistoryAlarms.start_at <= start_at, HistoryAlarms.end_at >= start_at)
+                )
+            )
+        elif start_at is not None:
+            result = result.filter(HistoryAlarms.start_at >= start_at)
+        elif end_at is not None:
             result = result.filter(HistoryAlarms.end_at <= end_at)
 
         alarm_content = alarm_args.get("alarm_content")
@@ -105,7 +113,8 @@ def select_history_alarm(instance=None, offset=None, limit=None, group: bool = F
         if group:
             return result.group_by(HistoryAlarms.instance, HistoryAlarms.alarm_content)
 
-        result = result.order_by(desc(HistoryAlarms.start_at))
+        result = result.order_by(desc(HistoryAlarms.start_at),
+                                 desc(HistoryAlarms.history_alarm_id))
         if offset is not None:
             result = result.offset(offset)
 
@@ -116,15 +125,13 @@ def select_history_alarm(instance=None, offset=None, limit=None, group: bool = F
 
 
 def count_history_alarms(instance=None, **alarm_args):
-    return select_history_alarm(
-        instance=instance, **alarm_args 
-    ).count()
+    return select_history_alarm(instance=instance, **alarm_args).count()
 
 
 def delete_timeout_history_alarms(oldest_occurrence_time):
     with get_session() as session:
         session.query(HistoryAlarms).filter(
-            HistoryAlarms.start_at <= oldest_occurrence_time
+            HistoryAlarms.end_at <= oldest_occurrence_time
         ).delete()
 
 
@@ -132,91 +139,19 @@ def truncate_history_alarm():
     truncate_table(HistoryAlarms.__tablename__)
 
 
-def update_history_alarm(alarm_id, alarm_status=None, end_at=None, recovery_time=None):
-    kwargs = dict()
-    if alarm_status is not None:
-        kwargs.update(alarm_status=alarm_status)
-    if recovery_time is not None:
-        kwargs.update(recovery_at=recovery_time)
-    if end_at is not None:
-        kwargs.update(end_at=end_at)
-    if len(kwargs) == 0:
+def update_history_alarm(alarm_id, **alarm_args):
+    alarm_filter = dict()
+    for column, value in alarm_args.items():
+        if value is not None:
+            alarm_filter[column] = value
+
+    if not alarm_filter:
         return
 
     with get_session() as session:
         session.execute(
             update(HistoryAlarms)
             .where(HistoryAlarms.history_alarm_id == alarm_id)
-            .values(**kwargs)
+            .values(**alarm_filter)
             .execution_options(synchronize_session="fetch")
         )
-
-
-def get_batch_insert_future_alarms_functions():
-    objs = []
-
-    class _Inner:
-        def add(self, instance, metric_name, alarm_type,
-                alarm_level=None, start_at=None,
-                end_at=None, alarm_content=None, extra_info=None
-                ):
-            obj = FutureAlarms(
-                instance=instance,
-                metric_name=metric_name,
-                alarm_type=alarm_type,
-                alarm_level=alarm_level,
-                start_at=start_at,
-                end_at=end_at,
-                alarm_content=alarm_content,
-                extra_info=extra_info
-            )
-            objs.append(obj)
-            return self
-
-        @staticmethod
-        def commit():
-            with get_session() as session:
-                session.bulk_save_objects(objs)
-
-    return _Inner()
-
-
-def select_future_alarm(instance=None, metric_name=None, start_at=None, end_at=None,
-                        offset=None, limit=None, group: bool = False):
-    with get_session() as session:
-        if group:
-            result = session.query(
-                FutureAlarms.instance,
-                FutureAlarms.alarm_content,
-                func.count(FutureAlarms.alarm_content)
-            )
-        else:
-            result = session.query(FutureAlarms)
-        if metric_name is not None:
-            result = result.filter(FutureAlarms.metric_name == metric_name)
-        if instance is not None:
-            if type(instance) in (tuple, list):
-                result = result.filter(FutureAlarms.instance.in_(instance))
-            else:
-                result = result.filter(FutureAlarms.instance == instance)
-        if start_at is not None:
-            result = result.filter(FutureAlarms.start_at >= start_at)
-        if end_at is not None:
-            result = result.filter(FutureAlarms.end_at <= end_at)
-
-        if group:
-            return result.group_by(FutureAlarms.alarm_content, FutureAlarms.instance)
-        result = result.order_by(desc(FutureAlarms.start_at))
-        if offset is not None:
-            result = result.offset(offset)
-        if limit is not None:
-            result = result.limit(limit)
-        return result
-
-
-def count_future_alarms(instance=None, metric_name=None, start_at=None, group=False):
-    return select_future_alarm(instance=instance, metric_name=metric_name, start_at=start_at, group=group).count()
-
-
-def truncate_future_alarm():
-    truncate_table(FutureAlarms.__tablename__)

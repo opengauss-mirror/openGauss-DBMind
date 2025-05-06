@@ -67,9 +67,9 @@ export default class TopkSql extends Component {
       })
     }))
     return (
-      <div>
-        <Card title="Topk Template Of Slow Sql" className="mb-20">
-          <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 210, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
+      <div style={{ textAlign: 'center' }}>
+        <Card title="Topk Template Of Slow Sql">
+          <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 250, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>
       </div>
     )

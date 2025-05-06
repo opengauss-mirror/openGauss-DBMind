@@ -16,7 +16,10 @@
 [data-theme='dark'] .editable-row:hover .editable-cell-value-wrap {
   border: 1px solid #434343;
 }
-
+/* dbmind-settings表格列宽 */
+/* .tablecellclass .ant-table-cell-fix-left{
+  width:200px;
+} */
 @keyframes blink{
   0%{opacity: 1;}
   100%{opacity: 0;}

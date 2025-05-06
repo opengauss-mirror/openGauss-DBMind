@@ -19,18 +19,15 @@ import re
 import shutil
 import sys
 import tarfile
-import threading
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, wait
 
-import paramiko
 import psycopg2
 import requests
-from paramiko.ssh_exception import SSHException, NoValidConnectionsError
 from requests.adapters import HTTPAdapter
+from pexpect import ExceptionPexpect
 
 from dbmind.common.cmd_executor import SSH
 from dbmind.common.utils.checking import (
-    check_ip_valid, check_port_valid, check_ssh_version
+    check_ip_valid, check_port_valid
 )
 
 
@@ -43,134 +40,12 @@ class ConfigParser(configparser.ConfigParser):
             return text.rsplit(delimiter, 1)[0].strip()
 
 
-class SFTP(object):
-    def __init__(self, host, user, password, port=22):
-        check_ssh_version()
-        self.host = host
-        self.port = port
-        self.username = user
-        self.password = password
-        self.transporter = None
-        self.client = None
-        ssh = SSH(host, user, password, port=int(port))
-        self.remote_executor = ssh.exec_command_sync
-
-    def connect(self):
-        transporter = paramiko.Transport((self.host, self.port))
-        transporter.connect(username=self.username, password=self.password)
-        self.transporter = transporter
-
-        client = paramiko.SFTPClient.from_transport(transporter)
-        self.client = client
-
-    def quit(self):
-        if not self.client:
-            self.client.close()
-
-        if not self.transporter:
-            self.transporter.close()
-
-    def exists(self, remote_path):
-        try:
-            self.client.stat(remote_path)
-            return True
-        except FileNotFoundError:
-            return False
-
-    def upload_file(self, file, local_dir, remote_dir):
-        local_file = os.path.join(local_dir, file)
-        remote_file = os.path.join(remote_dir, file).replace('\\', '/')
-        if not os.path.isfile(local_file):
-            raise FileNotFoundError(f'File {local_file} is not found.')
-        try:
-            self.client.put(local_file, remote_file)
-            print(f"Successfully uploaded local {local_file} to {self.host}{remote_file}.")
-        except IOError:
-            print(f"WARNING: Transportation of {local_file} to {self.host}{remote_file} failed, "
-                  f"check if '{file}' is running in processes.")
-
-    def upload_dir(self, item, local_dir, remote_dir):
-        local_item = os.path.join(local_dir, item)
-        remote_item = os.path.join(remote_dir, item).replace('\\', '/')
-        self.mkdir(remote_item)
-        for entry in os.scandir(local_item):
-            if entry.is_dir():
-                self.upload_dir(entry.name, local_item, remote_item)
-            elif entry.is_file():
-                self.upload_file(entry.name, local_item, remote_item)
-
-    def mkdir(self, path):
-        if self.exists(path):
-            return
-        try:
-            self.mkdir(os.path.dirname(path))
-            self.client.mkdir(path)
-        except paramiko.ssh_exception.AuthenticationException:
-            raise paramiko.ssh_exception.AuthenticationException(
-                "Invalid username, password, address or unauthorized path for "
-                r"{}@{}:{}/{}".format(self.username, self.host, self.port, path)
-            )
-
-    def __enter__(self):
-        self.connect()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.quit()
-
-
-thr_local_variables = threading.local()
-
-
-def sftp_put(ip, local_file, remote_file):
-    client = thr_local_variables.client
-    if not os.path.isfile(local_file):
-        raise FileNotFoundError(f'File {local_file} is not found.')
-    try:
-        client.put(local_file, remote_file)
-        print(f"Successfully uploaded local {local_file} to {ip}{remote_file}.")
-    except IOError:
-        print(f"WARNING: Transportation of {local_file} to {ip}{remote_file} failed, "
-              f"check if '{remote_file}' is running in processes.")
-
-
-def initializer(ip, port, username, passwd):
-    transporter = paramiko.Transport((ip, port))
-    transporter.connect(username=username, password=passwd)
-    client = paramiko.SFTPClient.from_transport(transporter)
-    thr_local_variables.client = client
-
-
-def transfer_pool(ip, port, username, passwd, upload_list, workers=4, method='process'):
-    if method == "process":
-        pool = ProcessPoolExecutor
-    elif method == "thread":
-        pool = ThreadPoolExecutor
-    else:
-        raise AttributeError("Attribute method must be 'process' or 'thread'.")
-
-    with pool(
-            max_workers=workers,
-            initializer=initializer,
-            initargs=(ip, port, username, passwd)
-    ) as executor:
-        futures = [executor.submit(sftp_put, *(ip, local_file, remote_file))
-                   for local_file, remote_file in upload_list]
-
-        wait(futures)
-        for future in futures:
-            try:
-                future.result()
-            except Exception as e:
-                print(e)
-
-
 def validate_ssh_connection(pwd, username, host, port):
     try:
-        client = SSH(host, username, pwd, port=int(port))
+        client = SSH(host, username, pwd, port=int(port), timeout=3)
         client.close()
         return True
-    except (SSHException, NoValidConnectionsError):
+    except ExceptionPexpect:
         return False
 
 
@@ -273,7 +148,7 @@ def download(path, url, timeout=10):
         print('\n')
         print(e)
         print('{file} The current network is abnormal, exiting...'.format(file=filename))
-        sys.exit(0)
+        sys.exit(1)
 
 
 def unzip(path, filename, extract_path):
@@ -314,7 +189,7 @@ def unzip(path, filename, extract_path):
 
         print(e)
         print("{}'s extraction failed.".format(filename))
-        sys.exit(0)
+        sys.exit(1)
 
 
 def checksum_sha256(path, filename, sha256_checksum):
@@ -344,7 +219,7 @@ def checksum_sha256(path, filename, sha256_checksum):
     except Exception as e:
         print(e)
         print('Checksum unfinished.')
-        sys.exit(0)
+        sys.exit(1)
 
 
 def url_generate(filename, host):
@@ -408,7 +283,11 @@ def check_config_validity(section, option, value):
             return False, 'Invalid port for {}-{}: {}(1024-65535)'.format(section, option, value)
 
     if option == 'host' or option == 'listen_address':
-        if not check_ip_valid(value):
+        if section == 'METADATABASE':
+            for item in value.split(','):
+                if not check_ip_valid(item.strip()):
+                    return False, 'Invalid IP Address for {}-{}: {}'.format(section, option, value)
+        elif not check_ip_valid(value):
             return False, 'Invalid IP Address for {}-{}: {}'.format(section, option, value)
 
         if option == 'listen_address' and value.strip() == '0.0.0.0':
@@ -417,10 +296,10 @@ def check_config_validity(section, option, value):
     if option == 'targets':
         for db_address in value.split(','):
             if not (
-                db_address.strip() and
-                db_address.count(':') == 1 and
-                db_address.count('/') == 1 and
-                db_address.find(':') < db_address.find('/')
+                    db_address.strip() and
+                    db_address.count(':') == 1 and
+                    db_address.count('/') == 1 and
+                    db_address.find(':') < db_address.find('/')
             ):
                 return False, f'Illegal db instance "{db_address}", e.g. ip:port/dbname'
 

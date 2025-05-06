@@ -46,6 +46,11 @@
   margin-right: 1%;
 }
 
+.indexadvisor .ant-card-head{
+  min-height: 50px;
+  padding: 0px 20px;
+  border-bottom: 1px solid #dddddd;
+}
 .indexadvisor .ant-card-head-title{
   padding: 10px 0px;
 }
@@ -71,12 +76,16 @@
   padding: 0;
 }
 
-.indexadvisor .ant-card-head, .intelligent .ant-card-head, .querytuning .ant-card-head, .riskanalysis .ant-card-head{
+/* card改下划线样式
+.ant-card-head{
   min-height: 50px;
   padding: 0;
   margin: 0px 20px;
   border-bottom: 1px solid #dddddd;
 }
-.intelligent .ant-picker-separator,.ant-picker-suffix{
-  color: #5990FD;
+.ant-card-head-title{
+  padding: 12px 0px;
 }
+.ant-card-body{
+  padding: 8px 20px;
+} */

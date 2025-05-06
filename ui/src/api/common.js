@@ -1,7 +1,7 @@
-import { post, get } from './request';
+import { qspost, get } from './request';
 
 export const loginInterface = data => {
-  return post('/token', data);
+  return qspost('/token', data);
 };
 export const getAgentListInterface = () => {
   return get('/list/agent');

@@ -10,16 +10,19 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 from typing import Optional
 import threading
 import time
 
 from dbmind.common.exceptions import ApiClientException
-from dbmind.common.tsdb.prometheus_client import PrometheusClient
+from dbmind.common.tsdb.dummy_client import DummyClient
 from dbmind.common.tsdb.influxdb_client import InfluxdbClient
+from dbmind.common.tsdb.prometheus_client import PrometheusClient
 from dbmind.common.tsdb.tsdb_client import TsdbClient
 from dbmind.common.types import SSLContext
 from dbmind.common.utils import dbmind_assert, raise_fatal_and_exit
+from dbmind.common.utils.checking import prepare_ip
 
 
 class TsdbClientFactory(object):
@@ -60,12 +63,13 @@ class TsdbClientFactory(object):
 
     @classmethod
     def _init_client(cls):
-        dbmind_assert(cls.tsdb_name and cls.host and cls.port)
+        if cls.tsdb_name != 'ignore':
+            dbmind_assert(cls.tsdb_name and cls.host and cls.port)
 
         if cls.ssl_context:
-            url = 'https://' + cls.host + ':' + cls.port
+            url = f"https://{prepare_ip(cls.host)}:{cls.port}"
         else:
-            url = 'http://' + cls.host + ':' + cls.port
+            url = f"http://{prepare_ip(cls.host)}:{cls.port}"
 
         if cls.tsdb_name == 'prometheus':
             client = PrometheusClient(url=url, username=cls.username, password=cls.password,
@@ -78,6 +82,9 @@ class TsdbClientFactory(object):
                                     ssl_context=cls.ssl_context, dbname=cls.dbname)
             if not client.check_connection():
                 raise ApiClientException("Failed to connect TSDB url: %s" % url)
+            cls.tsdb_client = client
+        elif cls.tsdb_name == 'ignore':
+            client = DummyClient()
             cls.tsdb_client = client
 
         if cls.tsdb_client is None:

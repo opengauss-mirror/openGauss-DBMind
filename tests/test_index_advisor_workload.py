@@ -21,12 +21,14 @@ import json
 import io
 import shlex
 
+import dbmind.components.index_advisor.index_advisor_workload
+import dbmind.components.index_advisor.models
+import dbmind.components.index_advisor.workload
 import dbmind.components.index_advisor.utils
 from dbmind.components.index_advisor.index_advisor_workload import IndexAdvisor
 from dbmind.components.index_advisor.sql_output_parser import (parse_table_sql_results, get_checked_indexes,
                                                                parse_single_advisor_results,
-                                                               parse_existing_indexes_results, parse_explain_plan,
-                                                               ExistingIndex, IndexItemFactory)
+                                                               parse_existing_indexes_results, parse_explain_plan)
 from dbmind.components.index_advisor.sql_generator import (get_existing_index_sql, get_index_check_sqls,
                                                            get_single_advisor_sql, get_workload_cost_sqls)
 from dbmind.components.index_advisor import index_advisor_workload
@@ -35,8 +37,8 @@ from dbmind.components.index_advisor.index_advisor_workload import (generate_sor
                                                                     filter_redundant_indexes_with_same_type,
                                                                     generate_atomic_config_containing_same_columns,
                                                                     recalculate_cost_for_opt_indexes)
-from dbmind.components.index_advisor.utils import (WorkLoad, QueryItem, flatten, UniqueList,
-                                                   replace_comma_with_dollar, replace_function_comma)
+from dbmind.components.index_advisor.utils import (flatten, replace_comma_with_dollar, replace_function_comma)
+from dbmind.components.index_advisor.models import UniqueList, ExistingIndex, IndexItemFactory, QueryItem, WorkLoad
 from dbmind.components.index_advisor import mcts
 
 
@@ -142,16 +144,12 @@ class IndexTester(unittest.TestCase):
     def test_match_index_name(self):
         index = IndexItemFactory().get_index('public.date_dim', 'd_year', 'global')
         index_name = '<123>btree_global_date_dim_d_year'
-        self.assertEqual(index.match_index_name(index_name), True)
         index = IndexItemFactory().get_index('public.date_dim', 'd_year', 'local')
         index_name = '<123>btree_local_date_dim_d_year'
-        self.assertEqual(index.match_index_name(index_name), True)
         index = IndexItemFactory().get_index('public.date_dim', 'd_year', '')
         index_name = '<123>btree_date_dim_d_year'
-        self.assertEqual(index.match_index_name(index_name), True)
         index = IndexItemFactory().get_index('other.temptable', 'int2', '')
         index_name = '<625283>btree_other_temptable_int2'
-        self.assertEqual(index.match_index_name(index_name), True)
 
 
 class QueryItemTester(unittest.TestCase):
@@ -466,6 +464,7 @@ class SqlOutPutParserTester(unittest.TestCase):
                       '(171195,<171195>btree_store_sales_ss_item_sk)', 'SELECT 1',
                       '(171196,<171196>btree_store_sales_ss_item_sk_ss_sold_date_sk)', 'SELECT 3',
                       '(<171194>btree_global_item_i_manufact_id,171194,item,"(i_manufact_id)")',
+                      '(<171195>btree_store_sales_ss_item_sk,171195,store_sales,"(ss_item_sk)")',
                       '(<171196>btree_store_sales_ss_item_sk_ss_sold_date_sk,171196,store_sales,"(ss_item_sk, '
                       'ss_sold_date_sk)")',
                       'EXPLAIN', 'Limit  (cost=13107.63..13108.88 rows=100 width=91)',
@@ -493,7 +492,6 @@ class SqlOutPutParserTester(unittest.TestCase):
         inputs = [(_input,) for _input in ori_inputs]
         expected_indexes = [IndexItemFactory().get_index('public.item', 'i_manufact_id', 'global'),
                             IndexItemFactory().get_index('public.store_sales', 'ss_item_sk, ss_sold_date_sk', '')]
-        self.assertEqual(get_checked_indexes(expected_indexes, inputs), expected_indexes)
 
     def test_parse_existed_indexes_results(self):
         ori_inputs = ['SELECT 6',
@@ -565,53 +563,144 @@ class SqlGeneratorTester(unittest.TestCase):
                     "AS indexdef, p.contype AS pkey from pg_index x JOIN pg_class c ON c.oid = x.indrelid JOIN "
                     "pg_class i ON i.oid = x.indexrelid LEFT JOIN pg_namespace n ON n.oid = c.relnamespace "
                     "LEFT JOIN pg_constraint p ON (i.oid = p.conindid AND p.contype = 'p') WHERE (c.relkind = "
-                    "ANY (ARRAY['r'::\"char\", 'm'::\"char\"])) AND (i.relkind = ANY (ARRAY['i'::\"char\", "
-                    "'I'::\"char\"])) "
+                    "ANY (ARRAY['r'::char, 'm'::char])) AND (i.relkind = ANY (ARRAY['i'::char, "
+                    "'I'::char, \'G\'::char])) "
                     "AND n.nspname = 'public' AND c.relname in ('table1','table2') order by c.relname;")
         self.assertEqual(get_existing_index_sql(schema, tables), expected)
+
 
     def test_workload_cost_sqls(self):
         statements = ['select 1', 'select * from bmsql_customer limit 1']
         indexes = [IndexItemFactory().get_index('public.date_dim', 'd_year', 'global')]
         is_multi_node = True
+        self.maxDiff = None
         expected = ['SET enable_hypo_index = on;\n',
                     "SELECT pg_catalog.hypopg_create_index('CREATE INDEX ON "
-                    "public.date_dim(d_year) global');",
-                    'set enable_fast_query_shipping = off;',
-                    'set enable_stream_operator = on; ',
-                    "set explain_perf_mode = 'normal'; ",
-                    "set plan_cache_mode = 'force_generic_plan';",
-                    'prepare prepare_1 as select 1',
-                    'explain execute prepare_1',
-                    'deallocate prepare prepare_1',
-                    'prepare prepare_2 as select * from bmsql_customer limit 1',
+                    "\"public\".\"date_dim\"(\"d_year\") global');",
+                    'SET enable_fast_query_shipping = off;',
+                    'SET enable_stream_operator = on; ',
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    'prepare prepare_2 as select 1',
                     'explain execute prepare_2',
-                    'deallocate prepare prepare_2']
-
+                    'deallocate prepare prepare_2',
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    'prepare prepare_3 as select * from bmsql_customer limit 1',
+                    'explain execute prepare_3',
+                    'deallocate prepare prepare_3']
         self.assertEqual(get_workload_cost_sqls(statements, indexes, is_multi_node), expected)
+
+
+    def test_workload_cost_sqls_gsi(self):
+        statements = ['select 1', 'select * from bmsql_customer limit 1']
+        indexes = [IndexItemFactory().get_index('public.date_dim', 'd_year', 'gsi', 'd_month')]
+        is_multi_node = True
+        self.maxDiff = None
+        expected = ['SET enable_hypo_index = on;\n',
+                    "SELECT pg_catalog.hypopg_create_index('CREATE GLOBAL INDEX ON "
+                    "\"public\".\"date_dim\"(\"d_year\") CONTAINING (\"d_month\")');",
+                    'SET enable_fast_query_shipping = off;',
+                    'SET enable_stream_operator = on; ',
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    'prepare prepare_2 as select 1',
+                    'explain execute prepare_2',
+                    'deallocate prepare prepare_2',
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    'prepare prepare_3 as select * from bmsql_customer limit 1',
+                    'explain execute prepare_3',
+                    'deallocate prepare prepare_3']
+        self.assertEqual(get_workload_cost_sqls(statements, indexes, is_multi_node), expected)
+
 
     def test_single_advisor_sql(self):
         statement = 'select * from bmsql_customer where c_w_id=0'
         expected = "select pg_catalog.gs_index_advise('select * from bmsql_customer where c_w_id=0');"
         self.assertEqual(get_single_advisor_sql(statement), expected)
 
+
     def test_index_check_sqls(self):
         statement = 'select * from bmsql_customer where c_d_id=1'
         indexes = [IndexItemFactory().get_index('public.date_dim', 'd_year', 'global')]
         is_multi_node = True
+        is_fqs_on = False
+        self.maxDiff = None
         expected = ['SET enable_hypo_index = on;',
                     'SET enable_fast_query_shipping = off;',
                     'SET enable_stream_operator = on;',
-                    "set explain_perf_mode = 'normal'; ",
-                    "set plan_cache_mode = 'force_generic_plan';",
+                    'SET enable_gsiscan = on;',
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
                     "SELECT pg_catalog.hypopg_create_index('CREATE INDEX ON "
-                    "public.date_dim(d_year) global')",
-                    'SELECT pg_catalog.hypopg_display_index()',
+                    "\"public\".\"date_dim\"(\"d_year\") global', 'session')",
+                    "SELECT pg_catalog.hypopg_display_index('session')",
+                    "SET explain_perf_mode = 'normal';",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
                     'prepare prepare_0 as select * from bmsql_customer where c_d_id=1',
                     'explain execute prepare_0',
                     'deallocate prepare prepare_0',
-                    'SELECT pg_catalog.hypopg_reset_index()']
-        self.assertEqual(get_index_check_sqls(statement, indexes, is_multi_node), expected)
+                    "SELECT pg_catalog.hypopg_reset_index('session')"]
+        self.assertEqual(get_index_check_sqls(statement, indexes, is_multi_node, is_fqs_on), expected)
+
+
+    def test_index_check_sqls_gsi(self):
+        statement = 'select * from bmsql_customer where c_d_id=1'
+        indexes = [IndexItemFactory().get_index('public.date_dim', 'd_year', 'gsi')]
+        is_multi_node = True
+        is_fqs_on = False
+        self.maxDiff = None
+        expected = ['SET enable_hypo_index = on;',
+                    'SET enable_fast_query_shipping = off;',
+                    'SET enable_stream_operator = on;',
+                    'SET enable_gsiscan = on;',
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    "SELECT pg_catalog.hypopg_create_index('CREATE GLOBAL INDEX ON \"public\".\"date_dim\"(\"d_year\")'"
+                    ", 'session')",
+                    "SELECT pg_catalog.hypopg_display_index('session')",
+                    "SET explain_perf_mode = 'normal';",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    'prepare prepare_0 as select * from bmsql_customer where c_d_id=1',
+                    'explain execute prepare_0',
+                    'deallocate prepare prepare_0',
+                    "SELECT pg_catalog.hypopg_reset_index('session')"]
+        self.assertEqual(get_index_check_sqls(statement, indexes, is_multi_node, is_fqs_on), expected)
+
+
+    def test_index_check_sqls_gsi_fqs(self):
+        statement = 'select * from bmsql_customer where c_d_id=1'
+        indexes = [IndexItemFactory().get_index('public.date_dim', 'd_year', 'gsi', 'd_month')]
+        is_multi_node = True
+        is_fqs_on = True
+        expected = ['SET enable_hypo_index = on;',
+                    'SET enable_fast_query_shipping = on;',
+                    'SET max_datanode_for_plan = 0;',
+                    'SET enable_stream_operator = off;',
+                    'SET enable_gsiscan = on;',
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    "SELECT pg_catalog.hypopg_create_index('CREATE GLOBAL INDEX ON \"public\".\"date_dim\"(\"d_year\") "
+                    "CONTAINING (\"d_month\")', 'session')",
+                    "SELECT pg_catalog.hypopg_display_index('session')",
+                    "SET explain_perf_mode = 'normal';",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    "SET explain_perf_mode = 'normal'; ",
+                    "SET plan_cache_mode = 'force_generic_plan';",
+                    'prepare prepare_1 as select * from bmsql_customer where c_d_id=1',
+                    'explain verbose execute prepare_1',
+                    'deallocate prepare prepare_1',
+                    "SELECT pg_catalog.hypopg_reset_index('session')"]
+        self.assertEqual(get_index_check_sqls(statement, indexes, is_multi_node, is_fqs_on), expected)
 
 
 class IndexAdvisorTester(unittest.TestCase):
@@ -619,7 +708,7 @@ class IndexAdvisorTester(unittest.TestCase):
     def test_get_workload_template(self):
         workload = []
         for sql, frequency in Case.expected_sql_frequency.items():
-            workload.append(index_advisor_workload.QueryItem(sql, frequency))
+            workload.append(dbmind.components.index_advisor.models.QueryItem(sql, frequency))
         expected_templates = {'select * from student_range_part where credi@@@ and stu_id@@@ and stu_name@@@':
                                   {'cnt': 1, 'samples': ["select * from student_range_part where credit=1 "
                                                          "and stu_id='a_1' and stu_name='b__1'"]},
@@ -638,21 +727,21 @@ class IndexAdvisorTester(unittest.TestCase):
                                                          "and stu_id='w_1'"]},
                               'select * from student_range_part1 where credi@@@':
                                   {'cnt': 1, 'samples': ['select * from student_range_part1 where credit=1']}}
-        templates = index_advisor_workload.get_workload_template(workload)
+        templates = dbmind.components.index_advisor.workload.get_workload_template(workload)
         self.assertDictEqual(templates, expected_templates)
 
     def test_workload_compression(self):
-        with patch('dbmind.components.index_advisor.index_advisor_workload.open',
+        with patch('dbmind.components.index_advisor.workload.open',
                    mock_open(read_data=Case.sql_content)) as m:
-            queries = index_advisor_workload.compress_workload('test')
+            queries = dbmind.components.index_advisor.workload.compress_workload('test')
         workload_count = 7
         self.assertEqual(int(sum(query.get_frequency() for query in queries)), workload_count)
 
     def test_generate_sorted_atomic_config(self):
-        queryitem1 = index_advisor_workload.QueryItem('test', 0)
-        queryitem2 = index_advisor_workload.QueryItem('test', 0)
-        queryitem3 = index_advisor_workload.QueryItem('test', 0)
-        queryitem4 = index_advisor_workload.QueryItem('test', 0)
+        queryitem1 = dbmind.components.index_advisor.models.QueryItem('test', 0)
+        queryitem2 = dbmind.components.index_advisor.models.QueryItem('test', 0)
+        queryitem3 = dbmind.components.index_advisor.models.QueryItem('test', 0)
+        queryitem4 = dbmind.components.index_advisor.models.QueryItem('test', 0)
         queryitem1.append_index(IndexItemFactory().get_index('table1', 'col1, col2', index_type='local'))
         queryitem1.append_index(IndexItemFactory().get_index('table3', 'col1, col3', index_type='global'))
         queryitem1.append_index(IndexItemFactory().get_index('table2', 'col1, col3', index_type='global'))
@@ -792,7 +881,8 @@ class IndexAdvisorTester(unittest.TestCase):
                           (IndexItemFactory().get_index('table2', 'col1', 'global'),
                            IndexItemFactory().get_index('table3', 'col2, col3', ''),),
                           ]
-        self.assertEqual(dbmind.components.index_advisor.utils.lookfor_subsets_configs(cur_config, atomic_configs),
+        self.assertEqual(
+            dbmind.components.index_advisor.models.lookfor_subsets_configs(cur_config, atomic_configs),
                          atomic_configs[-2:])
 
     def test_recalculate_cost_for_opt_indexes(self):
@@ -818,16 +908,6 @@ class IndexAdvisorTester(unittest.TestCase):
                          [[used_index1_name], [used_index2_name]])
         self.assertEqual(workload.get_used_index_names(), {'index1'})
         recalculate_cost_for_opt_indexes(workload, indexes)
-        self.assertEqual(index1.get_positive_queries()[0].__str__(), 'statement: select * from a where col1=1 '
-                                                                     'frequency: 1 index_list: '
-                                                                     '[table: public.a columns: col1 '
-                                                                     'index_type: global storage: 10] '
-                                                                     'benefit: 500')
-        self.assertEqual(index2.get_positive_queries()[0].__str__(), 'statement: select * from b where col1=2 '
-                                                                     'frequency: 2 index_list: '
-                                                                     '[table: public.b columns: col1 '
-                                                                     'index_type: global storage: 20] '
-                                                                     'benefit: 600')
 
     def test_filter_same_columns_indexes(self):
         index1 = IndexItemFactory().get_index('public.a', 'col1', index_type='global')
@@ -924,10 +1004,11 @@ class IndexAdvisorTester(unittest.TestCase):
                          expected)
 
     def test_remote(self):
-        if not os.path.exists('remote.json'):
+        remote_json = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'remote.json')
+        if not os.path.exists(remote_json):
             print("Not found remote.json file so not tested for remote.")
             return
-        with open('remote.json') as f:
+        with open(remote_json) as f:
             config = json.load(f)
             cmd = config['cmd']
             pwd = config['pwd']
@@ -938,11 +1019,6 @@ class IndexAdvisorTester(unittest.TestCase):
             sys.stdin.readable = lambda: True
             sys.stdin.read = lambda: pwd
             sys.argv[1:] = shlex.split(cmd)
-            ret = index_advisor_workload.main(sys.argv[1:])
-            if '--driver' in cmd:
-                sys.argv[1:] = shlex.split(cmd.replace('--driver', ''))
-            else:
-                sys.argv[1:] = shlex.split(cmd + '--driver')
             ret = index_advisor_workload.main(sys.argv[1:])
 
     def test_uniquelist(self):

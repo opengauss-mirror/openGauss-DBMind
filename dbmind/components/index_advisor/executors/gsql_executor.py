@@ -11,17 +11,15 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-import os
 import shlex
 import subprocess
 import sys
-import time
 from contextlib import contextmanager
 from typing import List, Tuple
 import re
 import tempfile
 
-from .common import BaseExecutor
+from .common import BaseExecutor, REMOVE_ANSI_QUOTES_SQL
 
 BLANK = ' '
 
@@ -98,11 +96,21 @@ class GsqlExecutor(BaseExecutor):
     def __check_connect(self):
         cmd = self.base_cmd + ' -c \"'
         cmd += 'select 1;\"'
+        #####################################################################
+        #                  !! IMPORTANT SECURITY NOTE !!                    #
+        # About using subprocess.Popen(cmd, shell=True)                     #
+        # 1.All user input is captured as individual options.               #
+        # 2.User input is not passed directly to gsql in the subprocess.    #
+        # 3.All options have type validation.                               #
+        # 4.The command to be executed by the subprocess is passed to the   #
+        #   shell as a string.                                              #
+        #####################################################################
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         (stdout, stderr) = proc.communicate()
         stdout, stderr = stdout.decode(errors='ignore'), stderr.decode(errors='ignore')
-        if 'gsql: FATAL:' in stderr or 'failed to connect' in stderr:
+        if 'gsql: FATAL:' in stderr or 'failed to connect' in stderr or \
+                'gsql: ERROR' in stderr or 'login denied' in stderr:
             raise ConnectionError("An error occurred while connecting to the database.\n" +
                                   "Details: " + stderr)
         return stdout
@@ -127,6 +135,14 @@ class GsqlExecutor(BaseExecutor):
         return results
 
     def execute_sqls(self, sqls):
+        cmd = self.base_cmd + ' -c \"SHOW sql_compatibility;\"'
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        (stdout, stderr) = proc.communicate()
+        stdout, stderr = stdout.decode(errors='ignore'), stderr.decode(errors='ignore')
+        for line in stdout:
+            if 'M' == line.strip():
+                sqls = [REMOVE_ANSI_QUOTES_SQL] + sqls
         sqls = ['set current_schema = %s' % self.get_schema()] + sqls
 
         file1 = tempfile.NamedTemporaryFile(mode='w+', delete=True)

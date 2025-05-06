@@ -25,9 +25,6 @@ from .utils import dbmind_assert
 
 def _merge_intervals(sorted_, start: Callable, end: Callable, merge_func: Callable):
     """In-place merging for sorted list.
-
-    The following link describes the whole problem:
-    https://leetcode.com/problems/merge-intervals
     """
     cursor = 1
     while cursor < len(sorted_):
@@ -418,10 +415,8 @@ class SequenceTree:
         dbmind_assert(start <= end)
         node = self.search_node(start, end)
         if not node:
-            logging.debug(
-                'SequenceTree cannot search the appointed range %d - %d. The returned node is %s. ' % (
-                    start, end, node)
-            )
+            logging.debug('SequenceTree cannot search the appointed range %d - %d. The returned node is %s.',
+                          start, end, node)
             raise LookupError('Not found the given range.')
 
         # Maybe the data itself is fragmented in the time-series database.
@@ -531,8 +526,15 @@ def is_dict_matched_regex(parent: dict, regex: dict):
         # If not given rules, means anyone can be allowed.
         return True
     for k, rule in regex.items():
-        if k not in parent or not re.match(rule, parent[k]):
+        try:
+            pattern = re.compile(rule)
+        except re.error:
+            rule = rule.replace("\\\\", "\\")
+            pattern = re.compile(rule)
+
+        if k not in parent or not pattern.match(parent[k]):
             return False
+
     return True
 
 
@@ -544,7 +546,7 @@ class SequenceBufferPool:
         And the final value is a list of SequenceTree,
         which the list is sorted by step field.
         e.g.,
-                                      os_cpu_usage
+                                      os_mem_usage
                               /                               \
          {'from_instance': 'host1'}                        {'from_instance': 'host2'}
                    /                                                           \
@@ -646,10 +648,8 @@ class SequenceBufferPool:
         :param sequence: need to be processed sequence.
         :return: aligned sequence.
         """
-        logging.debug(
-            '[SequenceBuffer] align sequences: (%d, %d) and (%d, %d) with step %d.'
-            % (tree_start, tree_end, sequence.timestamps[0], sequence.timestamps[-1], sequence.step)
-        )
+        logging.debug('[SequenceBuffer] align sequences: (%d, %d) and (%d, %d) with step %d.',
+                      tree_start, tree_end, sequence.timestamps[0], sequence.timestamps[-1], sequence.step)
         sequence_start = sequence.timestamps[0]
         distance = tree_end - sequence_start
         if distance % sequence.step == 0:
@@ -827,10 +827,6 @@ class SequenceBufferPool:
                     sequence = self._sample(raw_sequence, step)
                     rv.append(sequence)
                 except LookupError as e:
-                    logging.warning(
-                        'Cannot fetch the sequence %s from %s to %s. The tree is (%d, %d, %d).' % (
-                            metric_name, start_time, end_time,
-                            tree.start, tree.end, tree.step
-                        ), exc_info=e
-                    )
+                    logging.warning('Cannot fetch the sequence %s from %s to %s. The tree is (%d, %d, %d).',
+                                    metric_name, start_time, end_time, tree.start, tree.end, tree.step, exc_info=e)
             return rv

@@ -15,18 +15,18 @@ export default class DataDiskCharts extends Component {
   async getDataDisk () {
     const { success, data, msg }= await getDataDisk(db.ss.get('Instance_value'))
     if (success && JSON.stringify(data) !== "{}") {
-      if(data.iops > db.ss.get('iops_Max')){
-        db.ss.set('iops_Max', data.iops)
-      } else if(data.iops < db.ss.get('iops_Min')){
-        db.ss.set('iops_Min', data.iops)
+      if(data.tilt_rate > db.ss.get('tilt_rate_Max')){
+        db.ss.set('tilt_rate_Max', data.tilt_rate)
+      } else if(data.tilt_rate < db.ss.get('tilt_rate_Min')){
+        db.ss.set('tilt_rate_Min', data.tilt_rate)
       }
       let allData = [[
         { value: data.used_space, name: 'Used Space' },
         { value: data.free_space, name: 'Free Space' },
       ],[
-        { value: db.ss.get('iops_Max'), name: 'Max' },
-        { value: db.ss.get('iops_Min'), name: 'Min' },
-      ],[{totalLeft:data.usage_rate,totalRight:data.iops}]]
+        { value: db.ss.get('tilt_rate_Max'), name: 'Max' },
+        { value: db.ss.get('tilt_rate_Min'), name: 'Min' },
+      ],[{totalLeft:data.usage_rate,totalRight:data.tilt_rate}]]
       this.setState(() => ({
         chartData: allData,
         instance:db.ss.get('Instance_value')
@@ -42,7 +42,7 @@ export default class DataDiskCharts extends Component {
       },
         legend: { // 对图形的解释部分
           orient: 'vertical',
-          right: flg === 'one' ? '2%': '8%',
+          right: flg === 'one' ? '2%': '4%',
           top:'20%',
           y: 'center',
           icon: 'none',			// 添加
@@ -60,7 +60,7 @@ export default class DataDiskCharts extends Component {
                 `{value|${value+'GB'}}`
             ].join('\n') : [
               `{name|${name}}`,
-              `{value|${value+'/s'}}`
+              `{value|${value+'MB/s'}}`
             ].join('\n')
           },
           textStyle: {	// 添加
@@ -81,13 +81,13 @@ export default class DataDiskCharts extends Component {
         },
       title: {
         show: true,
-        text:flg === 'one' ? 'Usage rate' : 'IOPS',
+        text:flg === 'one' ? 'Usage rate' : 'Tilt Rate',
         textStyle: {    // 标题样式
         color: '#272727',    //字体颜色
         fontSize: 14,    //字体大小
         fontWeight: '400',    //字体粗细
       },
-        left: flg === 'one' ? '26%' : '28%',
+        left: '26%',
         top:'84%'
       },
       series: [
@@ -105,7 +105,7 @@ export default class DataDiskCharts extends Component {
               position: 'center',
               show: true,
               formatter:() => {
-                  let str = (flg === 'one' ? ((this.state.chartData[2][0].totalLeft*100).toFixed(2)+'%') : (this.state.chartData[2][0].totalRight+'/s'))
+                  let str = (flg === 'one' ? ((this.state.chartData[2][0].totalLeft*100).toFixed(2)+'%') : (this.state.chartData[2][0].totalRight+'MB/s'))
                   return str
               },
               color: '#5990fdff ',
@@ -154,9 +154,9 @@ export default class DataDiskCharts extends Component {
     };
   }
   componentDidMount () {
-    if(db.ss.get('iops_Max') === null || db.ss.get('iops_Min') === null){
-      db.ss.set('iops_Max', 0)
-      db.ss.set('iops_Min', 0)
+    if(db.ss.get('tilt_rate_Max') === null || db.ss.get('tilt_rate_Min') === null){
+      db.ss.set('tilt_rate_Max', 0)
+      db.ss.set('tilt_rate_Min', 0)
     }
     this.getDataDisk()
   }

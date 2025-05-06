@@ -17,6 +17,8 @@ from ...types import Sequence
 
 
 class AbstractDetector(object):
+    least_length = None
+
     @abstractmethod
     def _fit(self, sequence: Sequence):
         pass

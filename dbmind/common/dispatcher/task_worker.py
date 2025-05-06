@@ -141,9 +141,7 @@ class ProcessWorker(AbstractWorker):
     def __init__(self, worker_num):
         if worker_num <= 0:
             worker_num = max(os.cpu_count() // 2, 3)
-            logging.warning(
-                '[ProcessWorker] automatically set worker_num = %d due to target error.', worker_num
-            )
+            logging.warning('[ProcessWorker] automatically set worker_num = %d due to target error.', worker_num)
         if WIN32:
             from concurrent.futures.thread import ThreadPoolExecutor
             self.pool = ThreadPoolExecutor(worker_num)

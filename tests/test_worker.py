@@ -33,16 +33,16 @@ def test_process_worker():
     assert process_worker.parallel_execute(square, ((0,), (1,), (2,), (3,), (4,))) == [0, 1, 4, 9, 16]
 
     # Should execute in parallel, only waiting for the slowest one.
-    start_time = time.time()
+    start_time = time.monotonic()
     process_worker.parallel_execute(sleepy_square, [(v,) for v in range(10)])
-    end_time = time.time()
+    end_time = time.monotonic()
     assert 0.2 < (end_time - start_time) < 0.3
 
 
 def test_blocking_task():
-    start_time = time.time()
+    start_time = time.monotonic()
     process_worker._parallel_execute(sleepy_square, [[1], [1], [1], [1], [1]])
-    end_time = time.time()
+    end_time = time.monotonic()
 
     interval = end_time - start_time
     assert 0.2 < interval < 0.3

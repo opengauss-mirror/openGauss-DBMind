@@ -1,22 +1,22 @@
 ## For DBMind-core ##
-cryptography
-paramiko>=2.7.2
-numpy
-scipy
-requests
-sqlparse
-fastapi<=0.99.0
-uvicorn
-sqlalchemy==1.4.44
+numpy~=1.19.0
+scipy==1.6.2
+pexpect>=4.9.0
+scipy>=1.6.2
+requests==2.31.0
+sqlparse>=0.4.4
+fastapi==0.95.2
+uvicorn>=0.20.0
+sqlalchemy==1.4.22
 # Use `#` to set an alternative psycopg2
 psycopg2-binary # psycopg2
-pycryptodome
+pycryptodome==3.19.1
 ## For components ##
-prettytable>=2.5.0
+prettytable>=3.3.0
 ## Prometheus Exporter
-pyyaml
-prometheus-client==0.16.0 # prometheus_client
-# Rewriter
-sql-metadata # sql_metadata
-mo-sql-parsing>=9.262.22323
+pyyaml==6.0
+prometheus-client==0.16.0
+## SQL Rewriter
+sql_metadata
+mo-sql-parsing==9.262.22323
 

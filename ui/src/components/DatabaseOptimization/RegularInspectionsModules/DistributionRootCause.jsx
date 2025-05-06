@@ -1,34 +1,28 @@
-import React, { Component } from "react";
-import { Card, Empty } from "antd";
-import PropTypes from "prop-types";
-import ReactEcharts from "echarts-for-react";
+import React, { Component } from 'react';
+import { Card, Empty } from 'antd';
+import PropTypes from 'prop-types';
+import ReactEcharts from 'echarts-for-react';
 
 export default class DistributionRootCause extends Component {
-  static propTypes = {
-    distributionRootCause: PropTypes.object.isRequired,
-  };
+  static propTypes={
+    distributionRootCause:PropTypes.object.isRequired
+  }
   constructor(props) {
-    super(props);
+    super(props)
     this.state = {
       ydata: [],
       ifShow: true,
-    };
+    }
   }
-  getOption() {
+  getOption () {
     return {
       tooltip: {
-        trigger: "item",
+        trigger: 'item'
       },
       legend: {
-        orient: "center",
-       top:'10%',
-       right:'15%',
-       
-        tooltip: {
-          show: true,
-        },
+        orient: 'center',
+        left: 'right'
       },
-      
       series: [
         {
           type: 'pie',
@@ -52,49 +46,36 @@ export default class DistributionRootCause extends Component {
       ]
     };
   }
-  UNSAFE_componentWillReceiveProps(nextProps) {
-    let ydataArr = [];
-    if (JSON.stringify(nextProps.distributionRootCause) !== "{}") {
-      Object.keys(nextProps.distributionRootCause).forEach(function (
-        key,
-        i,
-        v
-      ) {
-        ydataArr.push({
-          value: nextProps.distributionRootCause[key],
-          name: key,
-        });
-      });
+  UNSAFE_componentWillReceiveProps (nextProps) {
+    let ydataArr = []
+    if (JSON.stringify(nextProps.distributionRootCause) !== '{}') {
+      Object.keys(nextProps.distributionRootCause).forEach(function (key, i, v) {
+        ydataArr.push({value:nextProps.distributionRootCause[key],name:key})
+      })
       this.setState({
-        ydata: ydataArr,
-      });
+        ydata: ydataArr
+      })
     } else {
       this.setState({
-        ifShow: false,
-      });
+        ifShow: false
+      })
     }
   }
-  render() {
+  render () {
     return (
-      <div>
-        <Card title="Distribution Root Cause" className="tps tableHeight mb-20" style={{height:250}}>
-          {this.state.ifShow ? (
-            <ReactEcharts
-              ref={(e) => {
-                this.echartsElement = e;
-              }}
-              option={this.getOption()}
-              style={{ width: "100%", height: "210px" }}
-              lazyUpdate={true}
-            ></ReactEcharts>
-          ) : (
-            <Empty
-              description={this.state.ifShow}
-              style={{ height: 200, paddingTop: 50 }}
-            />
-          )}
+      <div style={{ textAlign: 'center' }}>
+        <Card title="Distribution Root Cause">
+        {this.state.ifShow ? <ReactEcharts
+            ref={(e) => {
+              this.echartsElement = e
+            }}
+            option={this.getOption()}
+            style={{ width: '100%', height: '200px' }}
+            lazyUpdate={true}
+          >
+          </ReactEcharts> : <Empty description={this.state.ifShow} style={{ height: 200, paddingTop: 50 }} />}
         </Card>
       </div>
-    );
+    )
   }
 }

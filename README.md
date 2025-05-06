@@ -19,13 +19,69 @@ DBMind支持的主要能力：
 - 异常检测与分析
 - 多指标关联分析
 - 慢SQL根因分析
-- 时序预测
+- 风险分析
 - 参数调优与推荐
 - SQL改写与优化
-- 故障自动修复
+- 集群故障诊断
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'lineColor': '#00BFFF' }}}%%
+flowchart LR
+    subgraph _[ ]
+        client(client) & Grafana(Grafana)
+    end
+    style _ fill:none, stroke:none
+    style Grafana stroke:#333,stroke-width:3px,stroke-dasharray:5
 
-![DBMind架构图](docs/dbmind.png)
+    DBMind_Service(DBMind<br>Service)
+    style DBMind_Service fill:#0077be,stroke:#000,color:#fff
+
+    client --> |"pull results"| DBMind_Service
+   
+    subgraph __[" "]
+        Prometheus_server[(Prometheus<br>server)] 
+        metadata_storage[(metadata<br>storage)]
+    end
+    style __ fill:none, stroke:none
+    
+    DBMind_Service --> |"pull metrics"| Prometheus_server
+    DBMind_Service --> |"read & write results"|metadata_storage
+    
+    joint[.]
+    style joint width:0, height:0
+
+    Prometheus_server --> |"scrape: pull metrics"| joint
+    
+    subgraph "metrics collector"
+        openGauss[(openGauss)] & opengauss_exporter(opengauss-<br>exporter) & node_exporter(node-exporter) & cmd_exporter(cmd-exporter)
+    end
+    
+    subgraph "secondary operation"
+        reprocessing_exporter(reprocessing<br>exporter)
+    end
+    
+    joint --> reprocessing_exporter
+    joint --> openGauss
+    joint --> opengauss_exporter
+    joint --> node_exporter
+    joint --> cmd_exporter
+    DBMind_Service --> |"control"| openGauss
+    linkStyle 9 stroke-dasharray:5;
+```
+
+图中各关键组件说明：
+- DBMind Service：DBMind后台服务，可用于定期离线计算，包括慢SQL根因分析、时序预测等；
+- Prometheus-server：存储Prometheus监控指标的服务器；
+- metadatabase：DBMind在离线计算结束后，将计算结果存储在此处，支持openGauss、SQLite等数据库；
+- client：用户读取DBMind离线计算结果的客户端，目前该客户端仅支持命令行操作；若采用支持openGauss等数据库存储DBMind的计算结果，则用户可以自行配置Grafana等可视化工具，用于对该结果进行可视化；
+- opengauss-exporter：用户从支持openGauss数据库节点上采集监控指标，供DBMind服务进行计算；
+- node-exporter：Prometheus官方提供的exporter，可用于监控对应节点的系统指标，如CPU和内存使用情况；
+- cmd-exporter：在用户安装数据库的环境上执行命令行，并采集该命令行的执行结果，同时，也尝试将数据库日志内容转化为监控指标；例如通过执行cm_ctl命令，查看数据库实例的状态；
+- reprocessing-exporter：用于对Prometheus采集到的指标进行二次加工处理，例如计算CPU使用率等。
+
+除上述服务架构外，DBMind也支持以无状态的微服务模式启动。在该模式下，DBMind不进行实例管理，即不对实例进行纳管，运行中不存储实例信息。当需要针对特定的实例执行特定的功能时，需要从接口传入对应的实例连接信息。这意味着，DBMind以微服务模式启动时，所依赖的外部状态全部由接口传入或是配置在元数据库中，因此可以分布式地部署多个DBMind服务，从而在调用功能时实现负载均衡、服务高可用与单节点异常时的秒级切换。
+
+除上述使用的Prometheus-server外，DBMind现已支持从InfluxDB-server中提取依赖的指标数据。但是采集组件Exporter当前不支持向InfluxDB写入指标。因此，需要确保DBMind所配置的TSDB中有全量DBMind正常工作所依赖的指标数据。
 
 ## 开始使用DBMind
 ### 下载并安装DBMind
@@ -35,10 +91,6 @@ DBMind基于Python语言实现，在使用DBMind时，需要运行环境具备Py
 DBMind主要使用Python语言进行编写，因此，可以在下载获取DBMind的源代码后，使用操作系统上安装的Python虚拟机直接运行，不过该过程中的第三方依赖需要用户手动安装。
 
 用户可以通过 `git clone` 命令从Gitee或者Github上下载代码，例如：
-
-```
-git clone --depth 1 https://gitee.com/opengauss/openGauss-DBMind.git
-```
 
 也可以通过Gitee或者Github提供的zip包下载路径进行下载，而后解压缩该zip包即可。
 
@@ -55,32 +107,11 @@ source ~/.bashrc
 #### 方式二：使用安装包进行部署
 DBMind会定期在openGauss-DBMind项目的release页面发布DBMind的安装包，可以通过下载该DBMind安装包进行安装部署。该安装包会自动将DBMind解压到指定目录，并配置好环境变量。
 
-安装包和校验码的下载地址为：
-
-| Name              | Download                                                                                                                                                                        | Remarks                 |
-|-------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
-| DBMind X86        | [dbmind-installer-x86_64.tar.gz](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/x86/dbmind-installer-x86_64.tar.gz)               | X86架构下DBMind安装包         |
-| DBMind X86 SHA256 | [dbmind-installer-x86_64.tar.gz.sha256](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/x86/dbmind-installer-x86_64.tar.gz.sha256) | DBMind X86安装包SHA256校验文件 |
-| DBMind ARM        | [dbmind-installer-aarch64.tar.gz](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/arm/dbmind-installer-aarch64.tar.gz)               | ARM架构下DBMind安装包         |
-| DBMind ARM SHA256 | [dbmind-installer-aarch64.tar.gz.sha256](https://opengauss.obs.cn-south-1.myhuaweicloud.com/latest/dbmind/arm/dbmind-installer-aarch64.tar.gz.sha256) | DBMind ARM安装包SHA256校验文件 |
-
-完整性校验：
-
-为确认软件包在传输过程中由于网络原因或存储介质原因是否出现下载不完整的情况，需对软件包的完整性进行校验，通过校验的软件包才能部署，完整性校验步骤如下：
-
-1. 计算下载包的sha256值（以dbmind-installer-aarch64.tar.gz为例，其他版本操作相同）
-
-~~~
- sha256sum dbmind-installer-aarch64.tar.gz
-~~~
-
-2. 下载对应安装包的SHA256校验文件，对比文件中的sha256值与步骤1中计算出的sha256值，如果一致则可以确认下载下来的包是完整的，否则需要重新下载。
-
 安装包使用：
 
-&emsp;&emsp;解压：tar zxvf dbmind-installer-x86_64.tar.gz
+&emsp;&emsp;解压：tar zxvf dbmind-installer-x86_64-python3.10.sh.tar.gz
 
-&emsp;&emsp;DBMind安装: sh dbmind-installer-x86_64-python3.12.sh
+&emsp;&emsp;DBMind安装: sh dbmind-installer-x86_64-python3.10.sh
 
 
 #### 关于Python运行环境
@@ -109,17 +140,22 @@ python3 -m pip install -r requirements-x86.txt -t 3rd
 
 ### 使用DBMind
 #### 部署Prometheus
-可以通过 [Prometheus](https://prometheus.io/) 官方网站获取下载方式，下载并部署Prometheus，以便汇集对openGauss实例的监控结果。
+可以通过Prometheus官方网站获取下载方式，下载并部署Prometheus，以便汇集对openGauss实例的监控结果。
+```
+prometheus --config.file=prometheus.yml
+```
 
 #### 部署Node Exporter
-下载并启动 [Prometheus node exporter](https://prometheus.io/download/#node_exporter). 
-
-Node exporter 可以用于监控Linux系统，因此每个Linux环境（或容器内）只需要部署一个实例即可。
+下载并启动Prometheus node exporter. 
+一般而言，Prometheus监控平台都需要部署node-exporter用于监控Linux操作系统，后文提到的部分AI功能也需要依赖node-exporter采集Linux系统指标，故也需要用户来部署；使用方法详见：https://prometheus.io/docs/guides/node-exporter/#installing-and-running-the-node-exporter， 因此每个Linux环境（或容器内）只需要部署一个实例即可。
+```
+node_exporter
+```
 
 ### 启动 DBMind 组件
 如果希望将DBMind作为后台服务运行，则下面的DBMind组件是必须安装的，否则获取不到数据库的监控信息。为了获得更高的安全机制，DBMind提供的exporter默认是使用Https协议的，如果您觉得您的场景中不需要使用Https协议，则可以通过 `--disable-https` 选项禁用。
 
-#### openGauss Exporter
+#### 部署openGauss Exporter
 openGauss exporter 从openGauss数据库中读取系统表（或系统视图）的数据，并通过Prometheus存储起来。由于openGauss exporter需要读取监控数据库的系统表信息，因此至少应该具备 **monadmin** 权限。例如，可以通过下述SQL语句为名为 `dbmind_monitor` 用户赋予权限：
 ```
 ALTER USER dbmind_monitor monadmin;
@@ -127,7 +163,11 @@ ALTER USER dbmind_monitor monadmin;
 
 使用 `gs_dbmind component opengauss_exporter ...` 命令即可启动该openGauss exporter组件。例如，可以通过下述命令监控某个数据库，通过 `--url` 参数指定被监控的数据库实例地址：
 ```
-gs_dbmind component opengauss_exporter --url postgresql://username:password@host:port/database --web.listen-address 0.0.0.0 --web.listen-port 9187 --log.level warn --disable-https ...
+gs_dbmind component opengauss_exporter --url postgresql://user:password@ip:port/dbname --web.listen-address 192.168.1.100 --ssl-keyfile server.key --ssl-certfile server.crt --ssl-ca-file server.crt
+```
+opengauss-exporter多节点部署模式示例，URL参数中包含多个节点地址，下面示例使用默认侦听端口号9187，侦听地址为192.168.1.100，URL参数中包含三个节点地址，采用HTTPS协议，则命令可以为：
+```
+gs_dbmind component opengauss_exporter --url postgresql://user:password@ip1:port1,ip2:port2,ip3:port3/dbname --web.listen-address 192.168.1.100 --ssl-keyfile server.key --ssl-certfile server.crt --ssl-ca-file server.crt
 ```
 
 `--url` 表示的是数据库的DSN地址，其格式可以[参考此处](#dsn的格式说明)。
@@ -142,25 +182,51 @@ reprocessing exporter 是一个用于二次加工处理数据的exporter. 由于
 
 由于reprocessing是从Prometheus中获取指标数据，进行二次加工处理后再返回给Prometheus. 因此，它与Prometheus是一一对应的，即如果只有一个Prometheus服务，则只需要一个reprocessing exporter即可。例如，可以通过下述命令启动reprocessing exporter:
 ```
-gs_dbmind component reprocessing_exporter 127.0.0.1 9090 --web.listen-address 0.0.0.0 --web.listen-port 9189
+gs_dbmind component reprocessing_exporter 192.168.1.100 9090 --web.listen-address 192.168.1.101 --ssl-keyfile server.key --ssl-certfile server.crt --ssl-ca-file server.crt
 ```
 如果您的Prometheus使用了`basic authorization`方式进行登录校验，则需要额外指定 `--prometheus-auth-user` 以及 `--prometheus-auth-password` 选项的值。
+
+#### Cmd Exporter
+cmd_exporter是一个用来执行cmd命令并获取返回结果以及采集日志信息的exporter。应当使用数据库用户在每一个实例节点下启动cmd_exporter，例如，可以通过下述命令启动cmd_exporter:
+
+```
+gs_dbmind component cmd_exporter --ssl-keyfile server.key --ssl-certfile server.crt --ssl-ca-file server.crt --pg-log-dir /path/to/pglog
+```
+
+可以通过下述命令检查cmd exporter是否已经启动：
+```
+curl -vv http://localhost:8181/metrics
+```
+
+#### 高可用接口
+为保证DBMind云上使用时高可靠，exporter组件提供了组件状态查询和部分异常修复接口
+
+API | 入参 | 参数介绍 | 请求方法 | 功能描述与预期返回结果
+----|------|---------|---------|----------------------
+/v1/api/check-status | cmd | 组件启动命令，String，必选。| POST | 获取exporter组件的状态信息并返回状态详情。
+/v1/api/repair | cmd | 组件启动命令，String，必选。| POST | 修复exporter组件并返回修复结果。
 
 ### 配置以及启动
 DBMind后台服务是常驻内存的。因此，您需要首先配置一个配置文件目录，在该目录中保存多个DBMind的配置文件。可以通过 `gs_dbmind service` 命令来进行配置文件目录的生成以及服务的启动。该命令的使用说明为：
 
     $ gs_dbmind service --help
-    usage:  service [-h] -c DIRECTORY [--only-run {...}] [--interactive | --initialize] {setup,start,stop}
+    usage:  service [-h] -c DIRECTORY
+                    [--only-run {discard_expired_results,anomaly_detection,cluster_diagnose,agent_update_detect,update_statistics,knob_recommend,slow_query_killer,slow_query_diagnosis,calibrate_security_metrics,check_security_metrics}]
+                    [--dry-run] [-f] [--interactive | --initialize]
+                    {setup,start,stop,restart,reload}
     
     positional arguments:
-      {setup,start,stop}    perform an action for service
+      {setup,start,stop,restart,reload}
+                            perform an action for service
     
     optional arguments:
       -h, --help            show this help message and exit
       -c DIRECTORY, --conf DIRECTORY
                             set the directory of configuration files
-      --only-run {slow_query_diagnosis,forecast}
+      --only-run {discard_expired_results,anomaly_detection,cluster_diagnose,agent_update_detect,update_statistics,knob_recommend,slow_query_killer,slow_query_diagnosis,calibrate_security_metrics,check_security_metrics}
                             explicitly set a certain task running in the backend
+      --dry-run             run the backend task(s) once. the task to run can be specified by the --only-run argument
+      -f, --force           force to stop the process and cancel all in-progress tasks
       --interactive         configure and initialize with interactive mode
       --initialize          initialize and check configurations after configuring.
 
@@ -198,90 +264,91 @@ gs_dbmind service start -c CONF_DIRECTORY
 gs_dbmind service stop -c CONF_DIRECTORY
 ```
 
-### DBMind的组件 
-如前文所述，DBMind基于一种插件化设计，这个组件（component）即为DBMind提供的插件（plugin）。通过插件式设计，DBMind可以任意进行功能扩展。如果想要使用某个组件的功能，则需要执行`component`子命令。例如某个名为`xtuner`的组件可以进行数据的参数调优，那么可以执行下述命令来使用`xtuner`的功能。
+#### 重启DBMind服务
+在DBMind运行过程中，则可以直接通过下述命令重启DBMind后台服务：
+```
+gs_dbmind service restart -c CONF_DIRECTORY
+```
 
+#### 实时加载动态参数
+在DBMind运行过程中，则可以直接通过下述命令实时加载动态参数并使其生效：
+```
+gs_dbmind service reload -c CONF_DIRECTORY
+```
+
+### DBMind的组件 
+如前文所述，DBMind基于一种插件化设计，这个组件（component）即为DBMind提供的插件（plugin）。通过插件式设计，DBMind可以任意进行功能扩展。如果想要使用某个组件的功能，则需要执行`component`子命令:
+```
+usage:  component [-h] COMPONENT_NAME ...
+
+positional arguments:
+  COMPONENT_NAME  choice a component to start. ['anomaly_detection', 'cluster_diagnosis', 'cmd_exporter', 'dkr', 'extract_log', 'index_advisor', 'opengauss_exporter', 'reprocessing_exporter', 'slow_query_diagnosis',
+                  'sql_rewriter', 'sqldiag', 'xtuner']
+  ARGS            arguments for the component to start
+
+optional arguments:
+  -h, --help      show this help message and exit
+```
+
+例如其中`xtuner`的组件可以进行数据的参数调优，那么可以执行下述命令来使用`xtuner`的功能：
 ```
 gs_dbmind component xtuner --help
 ```
 
-### 使用Docker运行DBMind
-DBMind支持Docker, 同时也会在Docker Hub上定期发布openGauss-DBMind的docker镜像，镜像的地址是：
-
-https://hub.docker.com/r/dbmind/opengauss_dbmind
-
-可以通过下述命令拉取该镜像：
-
-```
-docker pull dbmind/opengauss_dbmind
-```
-
-#### 创建Docker镜像
-在某些情况下，您可能希望手动创建DBMind的docker镜像，例如想要创建基于最新代码的镜像时。那么，可以通过DBMind代码根目录下的 Dockerfile 文件创建。例如在DBMind的根目录中执行下述命令，即可创建名为 `opengauss_dbmind` 的镜像：
-
-```
-docker build -t opengauss_dbmind .
-```
-
-#### Docker 镜像的使用
-DBMind的docker镜像的默认执行文件是 `docker_run.py`，该启动脚本可以在容器中启动DBMind所需的大多数依赖服务，包括Prometheus, openGauss exporter, reprocessing exporter. 但是，却无法在该镜像容器内运行node exporter来监控远端服务器上的信息。
-
-用户可以通过下述环境变量，将需要监控的openGauss服务信息传递给DBMind的docker镜像：
-
-    OPENGAUSS_DSNS: 需要监控的openGauss数据库实例的DSN信息，多个DSN信息用逗号(,)隔开
-    NODE_EXPORTERS: openGauss数据库实例所在机器的node exporter地址，多个地址用逗号(,)隔开
-    METADATABASE: 可选，将DBMind的离线计算结果存储起来的位置，用DSN形式标识数据库的连接信息；若为空，则默认使用SQLite进行存储
-    SCRAPE_INTERVAL: 可选，指标信息的采集间隔，单位是秒；默认为15秒
-    MASTER_USER: 可选，具有管理员权限的数据库用户名，可以用来执行某些数据库变更动作或者查询当前数据库的即时状态信息；若为空，则采用 OPENGAUSS_DSNS 中提供的用户
-    MASTER_USER_PWD: 可选，上述 MASTER_USER 对应的用户密码
-
-注：DSN的配置格式可以参考[常见问题](#dsn%E7%9A%84%E6%A0%BC%E5%BC%8F%E8%AF%B4%E6%98%8E)中的说明。
-
-使用`docker run`的`-v`参数可以将路径进行映射，docker容器内的日志统一写到 `/log` 目录中，持久化的数据统一存放在 `/data` 目录中。使用 `-p` 参数可以将容器内的端口号进行映射，Prometheus的容器内端口是9090, DBMind的web服务则使用8080端口。下面是个启动docker服务的例子：
-```
-docker run -it \
-    -e OPENGAUSS_DSNS="dbname=postgres user=dbmind_monitor password=DBMind@123 port=6789 host=192.168.1.100, dbname=postgres user=dbmind_monitor password=DBMind@123 port=6789 host=192.168.1.101, dbname=postgres user=dbmind_monitor password=DBMind@123 port=6789 host=192.168.1.102" \
-    -e NODE_EXPORTERS="http://192.168.1.100:9100,http://192.168.1.101:9100,http://192.168.1.102:9100" \
-    -e METADATABASE='postgresql://dbmind_metadb:DBMind%40123@192.168.1.100:6789/dbmind_metadb' \
-    -e MASTER_USER='dbmind_sys' \
-    -e MASTER_USER_PWD='DBMind@123' \
-    -e SCRAPE_INTERVAL=30 \
-    -p 38080:8080 -p 39090:9090 \
-    -v `pwd`/data:/data -v `pwd`/log:/log \
-    dbmind/opengauss_dbmind 
-```
-
-上面的例子是一主二备节点的部署形态，他们的IP地址分别是`192.168.1.100`、`192.168.1.101`以及`192.168.1.102`，数据库的端口号都是6789. 上面我们使用了三个用户，为了方便演示，它们的密码都设置为`DBMind@123`。其中`dbmind_monitor`负责从openGauss数据库中抓取指标监控，需要具备 `monitor admin`权限；`dbmind_sys` 至少需要具备 `monitor admin`权限，以便可以获取数据库的即时状态，如果具备`sysadmin`权限，则可以完成一些数据库变更动作，如慢SQL查杀；`dbmind_metadb` 只是负责数据保存，具备指定数据库的使用权限即可；同时，这里也进行了端口和目录的映射。
-
-如果希望使用命令行的形式运行DBMind，则可以直接在该docker镜像内调用 `gs_dbmind` 命令即可，Python运行时和第三方依赖等都已经打包在docker镜像中了，无需再次安装。例如，希望使用DBMind的参数调优组件提供的功能，则可以执行下述命令：
-```
-docker run -it dbmind/opengauss_dbmind \
-   gs_dbmind component xtuner recommend \
-   --database tpcds \
-   --db-host 192.168.1.100 \
-   --host-user omm \
-   --db-user tpcds \
-   --db-port 16000
-```
-
-注：在使用`docker run` 命令运行 `gs_dbmind` 时，需要指定 `-it` 参数，以便创建一个tty.
-
 
 ## 常见问题
 ### DSN的格式说明
-DSN是Database Source Name的缩写，这里支持两种格式，一种是K-V格式，如`dbname=postgres user=username password=password_value port=6789 host=127.0.0.1`；另一种是URL形式，例如`postgresql://username:password_value@127.0.0.1:6789/postgres`；对于采用URL格式的DSN，由于`@`等特殊字符用来分割URL串中各个部分的内容，故需要URL编码（URL encode）。例如某个用户`dbmind`的密码为`DBMind@123`，则URL形式的DSN可以是`postgresql://dbmind:DBMind%40123@127.0.0.1:6789`，即将`@`字符编码为`%40`. 类似地，需要编码的字符还包括其他可能引起歧义的字符，如`/`, `\`, `?`, `&`. 
-
-## 相关资料
-- [openGauss 在线手册](https://docs.opengauss.org/zh/docs/latest/docs/Developerguide/AI4DB-%E6%95%B0%E6%8D%AE%E5%BA%93%E8%87%AA%E6%B2%BB%E8%BF%90%E7%BB%B4.html)
-- [DBMind wiki](https://gitee.com/opengauss/openGauss-DBMind/wikis)
-- [openGauss AI-SIG](mailto:ai@opengauss.org)
+DSN是Database Source Name的缩写，这里支持两种格式，一种是K-V格式，如`dbname=postgres user=username password=password_value port=6789 host=127.0.0.1`；另一种是URL形式，例如`postgresql://username:password_value@127.0.0.1:6789/postgres`；对于采用URL格式的DSN，由于`@`等特殊字符用来分割URL串中各个部分的内容，故需要URL编码（URL encode）。例如某个用户`dbmind`的密码为`DBMind@123`，则URL形式的DSN可以是`postgresql://dbmind:DBMind%40123@127.0.0.1:6789`，即将`@`字符编码为`%40`. 类似地，需要编码的字符还包括其他可能引起歧义的字符，如`/`, `\`, `?`, `&`.
 
 ---
 
 # DBMind-Engish
 DBMind is a part of openGauss, which empowers openGauss to carry the autonomous operations and maintenance capabilities. DBMind is leading and open-source. Through DBMind, users can easily discover database problems and the root causes of the problems in seconds.
 
-![DBMind overview](docs/dbmind.png)
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'lineColor': '#00BFFF' }}}%%
+flowchart LR
+    subgraph _[ ]
+        client(client) & Grafana(Grafana)
+    end
+    style _ fill:none, stroke:none
+    style Grafana stroke:#333,stroke-width:3px,stroke-dasharray:5
+
+    DBMind_Service(DBMind<br>Service)
+    style DBMind_Service fill:#0077be,stroke:#000,color:#fff
+
+    client --> |"pull results"| DBMind_Service
+   
+    subgraph __[" "]
+        Prometheus_server[(Prometheus<br>server)] 
+        metadata_storage[(metadata<br>storage)]
+    end
+    style __ fill:none, stroke:none
+    
+    DBMind_Service --> |"pull metrics"| Prometheus_server
+    DBMind_Service --> |"read & write results"|metadata_storage
+    
+    joint[.]
+    style joint width:0, height:0
+
+    Prometheus_server --> |"scrape: pull metrics"| joint
+    
+    subgraph "metrics collector"
+        openGauss[(openGauss)] & opengauss_exporter(opengauss-<br>exporter) & node_exporter(node-exporter) & cmd_exporter(cmd-exporter)
+    end
+    
+    subgraph "secondary operation"
+        reprocessing_exporter(reprocessing<br>exporter)
+    end
+    
+    joint --> reprocessing_exporter
+    joint --> openGauss
+    joint --> opengauss_exporter
+    joint --> node_exporter
+    joint --> cmd_exporter
+    DBMind_Service --> |"control"| openGauss
+    linkStyle 9 stroke-dasharray:5;
+```
 
 ## Getting Started
 
@@ -299,10 +366,16 @@ pip install -r requirements-aarch64.txt | requirements-x86.txt
 ```
 
 #### Prometheus up and Running
-Download and run the [Prometheus](https://prometheus.io/) time-series database.
+Download and run the [Prometheus] time-series database.
+```
+prometheus --config.file=prometheus.yml
+```
 
 #### Node Exporter
-Download and run the [Prometheus node exporter](https://prometheus.io/download/#node_exporter). Node-exporter is to monitor the Linux system. Hence, one Linux environment only needs to deploy one node-exporter.
+Download and run the [Prometheus node exporter]. Node-exporter is to monitor the Linux system. Hence, one Linux environment only needs to deploy one node-exporter.
+```
+node_exporter
+```
 
 ### DBMind Components
 The following DBMind components are required:
@@ -315,7 +388,7 @@ OpenGauss-exporter is to monitor only one database instance. So if your deployme
 It needs database access with a user having the role of at least **monadmin** (monitoring administrator) granted to run it. For example, you can grant monadmin privilege to role dbmind as below:
 ```
 ALTER USER dbmind monadmin;
-```
+``` 
 Use the following command with the parameters below:
 
 ```
@@ -328,7 +401,11 @@ gs_dbmind component opengauss_exporter --help
 
 For example, the following command starts it:
 ```
-gs_dbmind component opengauss_exporter --url postgresql://username:password@host:port/database --web.listen-address 0.0.0.0 --web.listen-port 9187 --log.level warn --disable-https ...
+gs_dbmind component opengauss_exporter --url postgresql://user:password@ip:port/dbname --web.listen-address 192.168.1.100 --ssl-keyfile server.key --ssl-certfile server.crt --ssl-ca-file server.crt
+```
+An example of opengauss-exporter multi-node deployment mode. The URL parameter contains multiple node addresses. The following example uses the default listening port number 9187, the listening address is 192.168.1.100, the URL parameter contains three node addresses, and the HTTPS protocol is used. The command can be:
+```
+gs_dbmind component opengauss_exporter --url postgresql://user:password@ip1:port1,ip2:port2,ip3:port3/dbname --web.listen-address 192.168.1.100 --ssl-keyfile server.key --ssl-certfile server.crt --ssl-ca-file server.crt
 ```
 
 To test that the exporter is up, type the following command on its host (or use change the localhost to the server address):
@@ -353,30 +430,53 @@ Use the following command to check that the service is up:
 curl http://127.0.0.1:9189/metrics
 ```
 
+#### Cmd Exporter
+cmd_exporter is an exporter used to execute cmd commands and obtain returned results and collect log information. The database user should be used to start cmd_exporter on each instance node. For example, you can start cmd_exporter with the following command:
+
+```
+gs_dbmind component cmd_exporter --ssl-keyfile server.key --ssl-certfile server.crt --ssl-ca-file server.crt --pg-log-dir /path/to/pglog
+```
+
+Use the following command to check that the service is up:
+```
+curl -vv http://localhost:8181/metrics
+```
+
+#### High Available Interface
+To ensure High Available when used on DBMind Cloud, the exporter component provides component status query and some exception repair interfaces.
+
+API | parameter | param introduction | method | Description and returned results
+----|------|---------|---------|----------------------
+/v1/api/check-status | cmd | startup command，String，Required| POST | Get the status information of the exporter component and return the status details.
+/v1/api/repair | cmd | startup command，String，Required| POST | Repair the exporter component and return the repair result.
+
+
 ### Configure, Start and Stop the DBMind Service 
 DBMind service is a memory-resident backend service. Therefore, users should configure it first then start or stop the service by using the configuration.
 
 Service usages:
 
     $ gs_dbmind service --help
-    usage:  service [-h] -c DIRECTORY [--only-run {slow_query_diagnosis,forecast,anomaly_detection,alarm_log_diagnosis,index_recommendation,knob_recommendation}] [--dry-run] [-f]
-                    [--interactive | --initialize]
-                    {setup,start,stop,restart}
+    usage:  service [-h] -c DIRECTORY
+                    [--only-run {discard_expired_results,anomaly_detection,cluster_diagnose,agent_update_detect,update_statistics,knob_recommend,slow_query_killer,slow_query_diagnosis,calibrate_security_metrics,check_security_metrics}]
+                    [--dry-run] [-f] [--interactive | --initialize]
+                    {setup,start,stop,restart,reload}
     
     positional arguments:
-      {setup,start,stop,restart}
+      {setup,start,stop,restart,reload}
                             perform an action for service
     
     optional arguments:
       -h, --help            show this help message and exit
       -c DIRECTORY, --conf DIRECTORY
                             set the directory of configuration files
-      --only-run {slow_query_diagnosis,forecast,anomaly_detection,alarm_log_diagnosis,index_recommendation,knob_recommendation}
+      --only-run {discard_expired_results,anomaly_detection,cluster_diagnose,agent_update_detect,update_statistics,knob_recommend,slow_query_killer,slow_query_diagnosis,calibrate_security_metrics,check_security_metrics}
                             explicitly set a certain task running in the backend
       --dry-run             run the backend task(s) once. the task to run can be specified by the --only-run argument
       -f, --force           force to stop the process and cancel all in-progress tasks
       --interactive         configure and initialize with interactive mode
       --initialize          initialize and check configurations after configuring.
+
 
 
 
@@ -404,22 +504,38 @@ After configuring, specify your CONF_DIRECTORY, users can start or stop the serv
 gs_dbmind service start/stop -c CONF_DIRECTORY
 ```
 
+#### Restart the DBMind Service
+While DBMind is running, specify your CONF_DIRECTORY, users can restart the service directly. 
+```
+gs_dbmind service restart -c CONF_DIRECTORY
+```
+
+#### Reload the dynamic params
+While DBMind is running, specify your CONF_DIRECTORY, users can reload the dynamic params. 
+```
+gs_dbmind service reload -c CONF_DIRECTORY
+```
+
 ### Component 
 If users want to use a specific component offline. They can use the sub-command `component`:
 ```
-gs_dbmind component xxx ...
+component usages:
+    $ gs_dbmind component --help
+    
+    usage:  component [-h] COMPONENT_NAME ...
+    
+    positional arguments:
+      COMPONENT_NAME  choice a component to start. ['anomaly_detection', 'cluster_diagnosis', 'cmd_exporter', 'dkr', 'extract_log', 'index_advisor', 'opengauss_exporter', 'reprocessing_exporter', 'slow_query_diagnosis',
+                      'sql_rewriter', 'sqldiag', 'xtuner']
+      ARGS            arguments for the component to start
+    
+    optional arguments:
+      -h, --help      show this help message and exit
 ```
-
-`xxx` is the name of a component. Users can also get the component list by using the `--help` argument.
-
-For example, use the following component to tune the knobs of a database:
+For example, the component `xtuner` can perform data parameter tuning. You can execute the following command to use the function of `xtuner`：
 ```
 gs_dbmind component xtuner --help
 ```
 
 # LICENSE
 Mulan PSL v2
-
-# Reference
-1. https://en.wikipedia.org/wiki/Percent-encoding
-2. https://dba.stackexchange.com/questions/243219/in-postgresql-url-i-cant-use-a-password-containing-special-characters

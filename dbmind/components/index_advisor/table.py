@@ -15,27 +15,50 @@ from dataclasses import dataclass, field
 from typing import List
 from functools import lru_cache
 
-try:
-    from .sql_generator import get_table_info_sql, get_column_info_sql
-    from .executors.common import BaseExecutor
-    from .utils import IndexItemFactory
-except ImportError:
-    from sql_generator import get_table_info_sql, get_column_info_sql
-    from executors.common import BaseExecutor
-    from utils import IndexItemFactory
+from .sql_generator import get_table_info_sql, get_column_info_sql
+from .executors.common import BaseExecutor
+from .utils import is_multi_node, is_m_compat
+from dbmind.common.utils import escape_single_quote, escape_double_quote
+
+
+@lru_cache(maxsize=None)
+def get_table_dist_info(executor, table, schema):
+    sql = ("select p.pcattnum, p.pclocatortype, c.oid from pg_catalog.pgxc_class p, "
+           " pg_catalog.pg_class c, pg_catalog.pg_namespace n "
+           "where p.pcrelid=c.oid and c.relname='%s' "
+           "and c.relnamespace = n.oid and n.nspname='%s';") % (escape_single_quote(table), escape_single_quote(schema))
+    result = executor.execute_sqls([sql])
+    dist_key = ""
+    locator_type = ""
+    oid = ""
+    for cur_tuple in result:
+        if len(cur_tuple) == 3:
+            dist_key, locator_type, oid = cur_tuple
+    dist_key = dist_key.replace(' ', ',')
+    dist_key = "(" + escape_double_quote(dist_key) + ")"
+    sql = "select attnum, attname from pg_catalog.pg_attribute where attrelid=%s and attnum in %s;" % (oid, dist_key)
+    result = executor.execute_sqls([sql])
+    dist_cols = []
+    for cur_tuple in result:
+        if len(cur_tuple) == 2:
+            dist_cols.append(cur_tuple[1])
+    return dist_cols, locator_type
 
 
 @lru_cache(maxsize=None)
 def get_table_context(origin_table, executor: BaseExecutor):
     reltuples, parttype = None, None
+
+    _is_m_compat = is_m_compat(executor)
     if '.' in origin_table:
-        schemas, table = origin_table.split('.')
+        schema, table = origin_table.split('.')
+        schemas = [schema]
     else:
         table = origin_table
-        schemas = executor.get_schema()
-    for _schema in schemas.split(','):
-        table_info_sqls = [get_table_info_sql(table, _schema)]
-        column_info_sqls = [get_column_info_sql(table, _schema)]
+        schemas = executor.get_schemas()
+    for _schema in schemas:
+        table_info_sqls = [get_table_info_sql(table, _schema, _is_m_compat)]
+        column_info_sqls = [get_column_info_sql(table, _schema, _is_m_compat)]
         for _tuple in executor.execute_sqls(table_info_sqls):
             if len(_tuple) == 2:
                 reltuples, parttype = _tuple
@@ -52,7 +75,12 @@ def get_table_context(origin_table, executor: BaseExecutor):
             if column not in columns:
                 columns.append(column)
                 n_distincts.append(float(n_distinct))
-        table_context = TableContext(_schema, table, int(reltuples), columns, n_distincts, is_partitioned_table)
+        if is_multi_node(executor):
+            dist_cols, dist_type = get_table_dist_info(executor, table, _schema)
+            table_context = TableContext(_schema, table, int(reltuples), columns, n_distincts, is_partitioned_table,
+                                         dist_cols, dist_type)
+        else:
+            table_context = TableContext(_schema, table, int(reltuples), columns, n_distincts, is_partitioned_table)
         return table_context
 
 
@@ -64,6 +92,8 @@ class TableContext:
     columns: List = field(default_factory=lambda: [])
     n_distincts: List = field(default_factory=lambda: [])
     is_partitioned_table: bool = field(default=False)
+    dist_cols: List = field(default_factory=lambda: [])
+    dist_type: str = field(default='')
 
     @lru_cache(maxsize=None)
     def has_column(self, column):

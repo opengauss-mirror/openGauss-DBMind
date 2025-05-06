@@ -16,8 +16,11 @@ import logging
 from types import SimpleNamespace
 
 import numpy as np
-from scipy import optimize
-from scipy.signal import lfilter
+try:
+    from scipy import optimize
+    from scipy.signal import lfilter
+except ImportError:
+    pass
 
 from ..adf import adfuller
 from ..forecasting_utils import (

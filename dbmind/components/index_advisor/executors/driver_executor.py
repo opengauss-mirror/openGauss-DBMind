@@ -19,7 +19,7 @@ import psycopg2
 
 sys.path.append('..')
 
-from .common import BaseExecutor
+from .common import BaseExecutor, REMOVE_ANSI_QUOTES_SQL
 
 
 class DriverExecutor(BaseExecutor):
@@ -36,8 +36,17 @@ class DriverExecutor(BaseExecutor):
                                      password=self.password,
                                      host=self.host,
                                      port=self.port,
-                                     application_name='DBMind-index-advisor')
+                                     application_name='DBMind-index-advisor',
+                                     )
         self.cur = self.conn.cursor()
+        try:
+            self.cur.execute('SHOW sql_compatibility;')
+            for _tuple in self.cur.fetchall():
+                if _tuple[0] == 'M':
+                    self.cur.execute(REMOVE_ANSI_QUOTES_SQL)
+                    self.conn.commit()
+        except Exception as e:
+            logging.warning('Found %s while executing SQL statement.', e)
 
     def __execute(self, sql):
         if self.cur.closed:

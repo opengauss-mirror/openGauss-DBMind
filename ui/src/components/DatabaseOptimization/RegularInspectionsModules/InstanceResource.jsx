@@ -68,9 +68,9 @@ export default class InstanceResource extends Component {
       })
     }))
     return (
-      <div>
-        <Card title="Instance Resource"  style={{height:268}}>
-          <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false}  style={{ height: 210, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
+      <div className="mb-20" style={{ textAlign: 'center' }}>
+        <Card title="Instance Resource">
+          <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false}  style={{ height: 264, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>
       </div>
     )

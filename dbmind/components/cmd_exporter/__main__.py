@@ -18,6 +18,6 @@ try:
 except ImportError:
     libpath = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
     sys.path.append(libpath)
-    from cmd_exporter import main
+    from cmd_exporter.cli import main
 
 main(sys.argv[1:])

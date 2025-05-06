@@ -19,6 +19,6 @@ class KnobRecommendationWarnings(ResultDbBase):
     __tablename__ = "tb_knob_recommendation_warnings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    instance = Column(String(24), nullable=False)
+    instance = Column(String(64), nullable=False)
     comment = Column(String(2048), nullable=False)
     level = Column(String(16), nullable=True)

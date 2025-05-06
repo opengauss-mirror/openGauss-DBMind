@@ -15,10 +15,17 @@ import os
 import re
 import sys
 
-from dbmind.common.utils.checking import check_datetime_legality
 
-from .preprocessing import templatize_sql
-from .utils import DBAgent
+try:
+    from dbmind.common.utils.checking import check_datetime_legality
+    from dbmind.components.sqldiag.preprocessing import templatize_sql
+    from dbmind.components.sqldiag.utils import DBAgent
+except ImportError:
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+    from dbmind.common.utils.checking import check_datetime_legality
+    from dbmind.components.sqldiag.preprocessing import templatize_sql
+    from dbmind.components.sqldiag.utils import DBAgent
+
 
 __description__ = "Fetch SQL information based on WDR."
 
@@ -26,9 +33,9 @@ __description__ = "Fetch SQL information based on WDR."
 def parse_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                      description=__description__)
-    parser.add_argument('--port', help="Port of database service.", type=int, required=True)
+    parser.add_argument('--port', '--db-port', help="Port of database service.", type=int, required=True)
     parser.add_argument('--start-time', help="Start time of query", required=True)
-    parser.add_argument('--finish-time', help="Finish time of query", required=True)
+    parser.add_argument('--finish-time', '--end-time', help="Finish time of query", required=True)
     parser.add_argument('--save-path', default='sample_data/data.csv', help="Path to save result")
     return parser.parse_args()
 
@@ -70,11 +77,11 @@ def main(args):
     if start_time and not check_datetime_legality(start_time):
         print("error time format '{time}', using: {date_format}.".format(time=start_time,
                                                                          date_format='%Y-%m-%d %H:%M:%S'))
-        sys.exit(-1)
+        sys.exit(1)
     if finish_time and not check_datetime_legality(finish_time):
         print("error time format '{time}', using: {date_format}.".format(time=finish_time,
                                                                          date_format='%Y-%m-%d %H:%M:%S'))
-        sys.exit(-1)
+        sys.exit(1)
 
     res = wdr_features(start_time, finish_time, port)
     save_csv(res, save_path)

@@ -122,9 +122,9 @@ export default class KnobData extends Component {
       onChange: (current,pageSize) => this.changePage(current,pageSize)
     };
     return (
-      <div>
+      <div className="mb-20">
         <Card title="Knob Recommendation" className="formlabel-160">
-          <Table size="small" bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={knobProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
+          <Table bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={knobProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
         </Card> 
       </div>
     )

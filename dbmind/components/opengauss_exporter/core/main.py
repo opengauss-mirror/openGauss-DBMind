@@ -10,48 +10,70 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import argparse
 import os
 import sys
 
 import yaml
+from psycopg2.extensions import parse_dsn, make_dsn
 
 from dbmind.common.daemon import Daemon
+from dbmind.common.platform import LINUX
 from dbmind.common.utils import write_to_terminal
 from dbmind.common.utils.checking import (
-    warn_ssl_certificate, CheckPort, CheckIP, CheckDSN, path_type,
-    positive_int_type, not_negative_int_type
+    warn_ssl_certificate,
+    CheckPort,
+    CheckIP,
+    CheckDSN,
+    path_type,
+    positive_int_type,
+    not_negative_int_type,
+    prepare_ip,
+    check_ip_valid,
+    check_port_valid
 )
 from dbmind.common.utils.exporter import (
-    KVPairAction, ListPairAction, wipe_off_password_from_proc_title,
-    wipe_off_dsn_password
-)
-from dbmind.common.utils.exporter import (
+    KVPairAction,
+    ListPairAction,
+    wipe_off_sensitive_information_from_proc_title,
+    wipe_off_dsn_password,
     is_exporter_alive,
     set_logger,
     exporter_parse_and_adjust_ssl_args
 )
 from dbmind.constants import __version__
+
 from . import controller
 from . import service
 from .agent import create_agent_rpc_service
 
-ROOT_DIR_PATH = os.path.realpath(
-    os.path.join(os.path.dirname(__file__), '..')
-)
+ROOT_DIR_PATH = os.path.realpath(os.path.join(os.path.dirname(__file__), '..'))
 YAML_DIR_PATH = os.path.join(ROOT_DIR_PATH, 'yamls')
 
 COMING_FROM_EACH_DATABASE = 'coming_from_each_database.yml'
 DEFAULT_YAML = 'default.yml'
 PG_SETTINGS_YAML = 'pg_settings.yml'
 STATEMENTS_YAML = 'statements.yml'
+MAX_NODE_NUMBER = 8
 
 DEFAULT_LOGFILE = 'dbmind_opengauss_exporter.log'
+exporter_info_dict = {
+    'constant_labels_instance': '',
+    'ip': '',
+    'port': '',
+    'logfile': ''
+}
+
+
+def file_exists(file):
+    return file and os.path.exists(file) and os.path.isfile(file)
 
 
 def parse_argv(argv):
     parser = argparse.ArgumentParser(
-        description='openGauss Exporter (DBMind): Monitoring or controlling for openGauss.'
+        description='openGauss Exporter (DBMind): Monitoring or controlling for openGauss.',
+        allow_abbrev=False
     )
     parser.add_argument('--url', '--dsn', required=True,
                         help='openGauss database target url. '
@@ -121,21 +143,58 @@ class ExporterMain(Daemon):
         pass
 
     def __init__(self, args):
+        self.multi_connection = False
+        conn_info = parse_dsn(args.url)
+        if "password" not in conn_info:
+            db_password = args.json.get('db-password')
+            if not (db_password and isinstance(db_password, str)):
+                raise ValueError("You should pass the password of database through the json db-password field, exit...")
+            conn_info["password"] = db_password
+            args.url = make_dsn(**conn_info)
+        conn_info.clear()
+
         self.args = args
-        self.pid_file = None
+        cur_path = os.path.realpath(os.path.dirname(__file__))
+        proj_path = cur_path[:cur_path.rfind('dbmind')]
+        if (
+            args.constant_labels and
+            isinstance(args.constant_labels, dict) and
+            'instance' in args.constant_labels.keys()
+        ):
+            constant_labels_instance = args.constant_labels['instance']
+            self.pid_file = os.path.join(proj_path, 'opengauss_exporter_{}.pid'.format(constant_labels_instance))
+            exporter_info_dict['constant_labels_instance'] = constant_labels_instance
+        else:
+            self.pid_file = os.path.join(proj_path, 'opengauss_exporter.pid')
         super().__init__(self.pid_file)
 
+    def multi_connection_validation(self):
+        # Check whether URL in the multi-node deployment mode are valid
+        parsed_dsn = parse_dsn(self.args.url)
+        host, port = parsed_dsn.get('host', '').split(','), parsed_dsn.get('port', '').split(',')
+        if len(host) != len(port):
+            raise ValueError('You should provide accurate URL information.')
+        for item in host:
+            if not check_ip_valid(item):
+                raise ValueError('You should provide accurate URL information.')
+        for item in port:
+            if not check_port_valid(item):
+                raise ValueError('You should provide accurate URL information.')
+        if len(host) > MAX_NODE_NUMBER:
+            raise ValueError('The number of addresses in the URL exceeds the limit.')
+        if len(host) > 1:
+            self.multi_connection = True
+
     def change_file_permissions(self):
-        if self.args.ssl_keyfile and os.path.exists(self.args.ssl_keyfile) and os.path.isfile(self.args.ssl_keyfile):
+        if file_exists(self.args.ssl_keyfile):
             os.chmod(self.args.ssl_keyfile, 0o400)
-        if self.args.ssl_certfile and os.path.exists(self.args.ssl_certfile) and os.path.isfile(self.args.ssl_certfile):
+        if file_exists(self.args.ssl_certfile):
             os.chmod(self.args.ssl_certfile, 0o400)
-        if self.args.ssl_ca_file and os.path.exists(self.args.ssl_ca_file) and os.path.isfile(self.args.ssl_ca_file):
+        if file_exists(self.args.ssl_ca_file):
             os.chmod(self.args.ssl_ca_file, 0o400)
-        if self.args.__dict__['log.filepath'] and os.path.exists(self.args.__dict__['log.filepath']) and os.path.isfile(
-                self.args.__dict__['log.filepath']):
+        if file_exists(self.args.__dict__['log.filepath']):
             os.chmod(self.args.__dict__['log.filepath'], 0o600)
-        if self.args.config_file and os.path.exists(self.args.config_file) and os.path.isfile(self.args.config_file):
+        if file_exists(self.args.config_file):
             os.chmod(self.args.config_file, 0o600)
         if os.path.exists(self.pid_file):
             os.chmod(self.pid_file, 0o600)
@@ -151,16 +210,31 @@ class ExporterMain(Daemon):
             os.chmod(os.path.join(YAML_DIR_PATH, STATEMENTS_YAML), 0o600)
 
     def run(self):
-        # Wipe off password of url for the process title.
+        # Wipe off password of url for the process title and path of ssl certificate relative path.
         try:
             url = self.args.url
-            wipe_off_password_from_proc_title(url, wipe_off_dsn_password(url))
+            wipe_off_sensitive_information_from_proc_title(url, wipe_off_dsn_password(url))
+            ssl_certfile = self.args.ssl_certfile
+            ssl_keyfile = self.args.ssl_keyfile
+            ssl_ca_file = self.args.ssl_ca_file
+            if ssl_certfile:
+                wipe_off_sensitive_information_from_proc_title('--ssl-certfile', '******', wipe_argument=True)
+            if ssl_keyfile:
+                wipe_off_sensitive_information_from_proc_title('--ssl-keyfile', '******', wipe_argument=True)
+            if ssl_ca_file:
+                wipe_off_sensitive_information_from_proc_title('--ssl-ca-file', '******', wipe_argument=True)
         except FileNotFoundError:
-            # ignore
-            pass
+            write_to_terminal('Failed to wipe off sensitive information, exiting...')
+            if LINUX:
+                sys.exit(1)
+
         set_logger(self.args.__dict__['log.filepath'],
                    self.args.__dict__['log.level'])
         self.change_file_permissions()
+        self.multi_connection_validation()
+        exporter_info_dict['logfile'] = self.args.__dict__['log.filepath']
+        exporter_info_dict['ip'] = self.args.__dict__['web.listen_address']
+        exporter_info_dict['port'] = self.args.__dict__['web.listen_port']
         try:
             service.config_collecting_params(
                 url=self.args.url,
@@ -183,55 +257,51 @@ class ExporterMain(Daemon):
                 color='red'
             )
             raise e
+
         if not self.args.disable_settings_metrics:
             with open(os.path.join(YAML_DIR_PATH, PG_SETTINGS_YAML), errors='ignore') as fp:
                 service.register_metrics(
-                    yaml.load(fp, Loader=yaml.FullLoader),
+                    yaml.safe_load(fp),
                     force_connection_db='postgres'
                 )
+
         if not self.args.disable_statement_history_metrics:
             with open(os.path.join(YAML_DIR_PATH, STATEMENTS_YAML), errors='ignore') as fp:
                 service.register_metrics(
-                    yaml.load(fp, Loader=yaml.FullLoader),
+                    yaml.safe_load(fp),
                     force_connection_db='postgres'
                 )
+
         # Metrics in the following config file need to
         # be scraped from each discovered database.
         with open(os.path.join(YAML_DIR_PATH, COMING_FROM_EACH_DATABASE), errors='ignore') as fp:
-            service.register_metrics(yaml.load(fp, Loader=yaml.FullLoader))
+            service.register_metrics(yaml.safe_load(fp))
+
         # It is enough to connect to the given database and scrape metrics for the following config.
         with open(self.args.config_file, errors='ignore') as fp:
             service.register_metrics(
-                yaml.load(fp, Loader=yaml.FullLoader),
+                yaml.safe_load(fp),
                 force_connection_db=service.driver.main_dbname
             )
 
         # Reuse Http service to serve RPC.
-        if not self.args.disable_agent:
+        disable_agent = self.args.disable_agent or self.multi_connection
+        if not disable_agent:
             rpc = create_agent_rpc_service()
             controller.bind_rpc_service(rpc)
 
-        warn_ssl_certificate(self.args.ssl_certfile, self.args.ssl_keyfile)
+        warn_ssl_certificate(self.args.ssl_certfile, self.args.ssl_keyfile, self.args.ssl_ca_file)
 
         # All startup works are completed, then mark the global
         # exporter fixed information.
         service.register_exporter_fixed_info()
-        service.update_exporter_fixed_info(
-            'url', '%s://%s:%s' % (
-                'http' if self.args.disable_https else 'https',
-                self.args.__dict__['web.listen_address'],
-                self.args.__dict__['web.listen_port']
-            )
-        )
-        service.update_exporter_fixed_info(
-            'rpc', (not self.args.disable_agent)
-        )
-        service.update_exporter_fixed_info(
-            'dbname', service.driver.main_dbname
-        )
-        service.update_exporter_fixed_info(
-            'monitoring', service.driver.address
-        )
+        url = (f"{'http' if self.args.disable_https else 'https'}://"
+               f"{prepare_ip(self.args.__dict__['web.listen_address'])}:"
+               f"{self.args.__dict__['web.listen_port']}")
+        service.update_exporter_fixed_info('url', url)
+        service.update_exporter_fixed_info('rpc', not disable_agent)
+        service.update_exporter_fixed_info('dbname', service.driver.main_dbname)
+        service.update_exporter_fixed_info('monitoring', service.driver.address)
 
         controller.run(
             host=self.args.__dict__['web.listen_address'],
@@ -251,3 +321,5 @@ def main(argv):
         write_to_terminal('Service has been started or the address already in use, exiting...', color='red')
     else:
         ExporterMain(args).start()
+    args.url = ''
+

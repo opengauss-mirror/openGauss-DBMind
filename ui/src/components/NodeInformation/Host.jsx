@@ -1,6 +1,5 @@
 import React, { Component } from 'react';
-import { Tabs, Select, message, DatePicker } from 'antd';
-import moment from 'moment';
+import { Tabs, Select, message } from 'antd';
 import DBServiceCapability from '../NodeInformation/DBServiceCapability';
 import DBPerformanceIndicators from '../NodeInformation/DBPerformanceIndicators';
 import DBLockingAndCaching from '../NodeInformation/DBLockingAndCaching';
@@ -19,8 +18,6 @@ export default class Host extends Component {
       ifShow: false,
       selValue:'',
       selTimeValue:5,
-      startTime: new Date().getTime() - 300000,
-      endTime: new Date().getTime(),
       options:[],
       tabkey:"1",
       minoptions:[{name:'5min',value:5},{name:'10min',value:10},{name:'30min',value:30},{name:'1hour',value:60},{name:'3hours',value:180},
@@ -34,10 +31,7 @@ export default class Host extends Component {
     this.setState({selValue: value})
   }
   changeTimeSelVal (value) {
-    this.setState(() => ({
-      startTime: this.state.endTime ? new Date(this.state.endTime).getTime() - value * 60000 : '',
-      endTime: this.state.endTime ? new Date(this.state.endTime).getTime() : '',
-      selTimeValue: value}))
+    this.setState({selTimeValue: value})
   }
   async getItemList () {
     const { success, data, msg } = await getAgentListInterface()
@@ -60,11 +54,6 @@ export default class Host extends Component {
       message.error(msg)
     }
   }
-  setDates = (dates, dateStrings) => {
-    this.setState(() => ({
-      startTime: dateStrings ? new Date(dateStrings).getTime() - this.state.selTimeValue * 60000 : '',
-      endTime: dateStrings ? new Date(dateStrings).getTime() : '',}))
-  };
   componentDidMount () {
     this.getItemList()
   }
@@ -73,27 +62,27 @@ export default class Host extends Component {
       {
         key: '1',
         label: `DBServiceCapability`,
-        children: <DBServiceCapability ref={(e) => {this.DBServiceCapabilityRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
+        children: <DBServiceCapability ref={(e) => {this.DBServiceCapabilityRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
       },
       {
         key: '2',
         label: `DBPerformanceIndicators`,
-        children: <DBPerformanceIndicators ref={(e) => {this.DBPerformanceIndicatorsRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
+        children: <DBPerformanceIndicators ref={(e) => {this.DBPerformanceIndicatorsRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
       },
       {
         key: '3',
         label: `DBLockingAndCaching`,
-        children: <DBLockingAndCaching ref={(e) => {this.DBLockingAndCachingRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
+        children: <DBLockingAndCaching ref={(e) => {this.DBLockingAndCachingRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
       },
       {
         key: '4',
         label: `DBResourceUsage`,
-        children: <DBResourceUsage ref={(e) => {this.DBResourceUsageRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
+        children: <DBResourceUsage ref={(e) => {this.DBResourceUsageRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
       },
       {
         key: '5',
         label: `Capacity Metric`,
-        children: <CapacityMetric ref={(e) => {this.DBCapacityMetricRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
+        children: <CapacityMetric ref={(e) => {this.DBCapacityMetricRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
       },
       {
         key: '6',
@@ -103,13 +92,13 @@ export default class Host extends Component {
       {
         key: '7',
         label: `Memory`,
-        children: <DBMemory ref={(e) => {this.DBMemoryRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
+        children: <DBMemory ref={(e) => {this.DBMemoryRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
       }
     ]
     return (
       <div className='nodeselect'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} destroyInactiveTabPane={true}
+        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange}
          tabBarExtraContent={
           <div>
           <Select disabled value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
@@ -124,7 +113,7 @@ export default class Host extends Component {
           }
         </Select>
         <Select value={this.state.selTimeValue} onChange={(val) => { this.changeTimeSelVal(val) }}
-           style={{ width: 100,marginRight: 10}} className='mb-10' >
+           style={{ width: 100}} className='mb-10' >
               {
             this.state.minoptions.map((item,index) => {
               return (
@@ -133,13 +122,6 @@ export default class Host extends Component {
             })
           }
         </Select>
-        <DatePicker 
-          defaultValue={moment(new Date(), 'YYYY-MM-DD HH:mm:ss')}
-          placeholder='endTime'
-          format="YYYY-MM-DD HH:mm:ss"
-          onChange={this.setDates}
-          showTime
-        />
           </div>
          } /> : ''}
       </div>

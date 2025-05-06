@@ -165,8 +165,11 @@ class RPCResponse(RPCJSONAble):
         self.result = result
 
     def jsonify(self):
+        request = self.request.json()
+        if 'pwd' in request:
+            request['pwd'] = '******'
         return {
-            'request': self.request.json(),
+            'request': request,
             'success': self.success,
             'exception': self.exception,
             'result': RPCJSONAble.serialize(self.result)

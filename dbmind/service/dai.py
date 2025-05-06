@@ -17,27 +17,41 @@
     - The data obtained from here ensures that the format is clean and uniform;
     - The data has been preprocessed here.
 """
+
+import json
 import logging
-from datetime import timedelta, datetime
+import math
+import re
 import time
+from datetime import timedelta, datetime
 
 from dbmind import global_vars
-from dbmind.app.diagnosis.query.slow_sql import SlowQuery
+from dbmind.app.monitoring.monitoring_constants import LONG_TERM_METRIC_STATS
 from dbmind.common import utils
+from dbmind.common.algorithm.stat_utils import stat_funcs
 from dbmind.common.dispatcher.task_worker import get_mp_sync_manager
 from dbmind.common.platform import LINUX
 from dbmind.common.sequence_buffer import SequenceBufferPool
 from dbmind.common.tsdb import TsdbClientFactory
-from dbmind.common.types import Sequence
+from dbmind.common.types import Sequence, SlowQuery
 from dbmind.common.utils import dbmind_assert, cast_to_int_or_float
+from dbmind.common.utils.checking import (
+    check_name_valid,
+    prepare_ip,
+    split_ip_port,
+    transform_instance,
+    uniform_labels,
+    IPV6_PATTERN,
+    SPLIT_INSTANCES_PATTERN
+)
+from dbmind.constants import (
+    DISTINGUISHING_INSTANCE_LABEL,
+    EXPORTER_INSTANCE_LABEL,
+    PORT_SUFFIX
+)
 from dbmind.metadatabase import dao
-from dbmind.service.utils import SequenceUtils
-from dbmind.constants import (DISTINGUISHING_INSTANCE_LABEL,
-                              EXPORTER_INSTANCE_LABEL)
-from dbmind.common.algorithm.anomaly_detection.gradient_detector import linear_fitting
 from dbmind.service.multicluster import replace_sequence_ip
-
-PORT_SUFFIX = "(:[0-9]{4,5}|)"
+from dbmind.service.utils import SequenceUtils
 
 if LINUX:
     mp_shared_buffer = get_mp_sync_manager().defaultdict(dict)
@@ -70,6 +84,11 @@ class LazyFetcher:
             not self.labels_like.keys() & kwargs.keys(),
             comment="labels and labels_like have duplicated key."
         )
+        if "instance" in kwargs and IPV6_PATTERN.match(split_ip_port(kwargs["instance"])[0]):
+            instance = kwargs.pop("instance")
+            instance_like = transform_instance(instance)
+            self.labels_like["instance"] = instance_like
+
         self.labels.update(kwargs)
         return self
 
@@ -79,7 +98,12 @@ class LazyFetcher:
             label_name not in self.labels_like,
             comment="labels and labels_like have duplicated key."
         )
-        self.labels[label_name] = host
+        if label_name == "instance" and IPV6_PATTERN.match(split_ip_port(host)[0]):
+            host_like = transform_instance(host)
+            self.labels_like[label_name] = host_like
+        else:
+            self.labels[label_name] = host
+
         return self
 
     def filter_like(self, **kwargs):
@@ -87,6 +111,20 @@ class LazyFetcher:
             not self.labels.keys() & kwargs.keys(),
             comment="labels and labels_like have duplicated key."
         )
+        if "instance" in kwargs:
+            instances = SPLIT_INSTANCES_PATTERN.findall(kwargs["instance"])
+            for i, instance in enumerate(instances):
+                instances[i] = transform_instance(instance)
+
+            kwargs["instance"] = "|".join(instances)
+
+        if "from_instance" in kwargs:
+            from_instances = SPLIT_INSTANCES_PATTERN.findall(kwargs["from_instance"])
+            for i, from_instance in enumerate(from_instances):
+                from_instances[i] = transform_instance(from_instance, full_match=False)
+
+            kwargs["from_instance"] = "|".join(from_instances)
+
         self.labels_like.update(kwargs)
         return self
 
@@ -96,6 +134,20 @@ class LazyFetcher:
             label_name not in self.labels,
             comment="labels and labels_like have duplicated key."
         )
+        if label_name == "instance":
+            instances = SPLIT_INSTANCES_PATTERN.findall(host_like)
+            for i, instance in enumerate(instances):
+                instances[i] = transform_instance(instance)
+
+            host_like = "|".join(instances)
+
+        elif label_name == "from_instance":
+            from_instances = SPLIT_INSTANCES_PATTERN.findall(host_like)
+            for i, from_instance in enumerate(from_instances):
+                from_instances[i] = transform_instance(from_instance, full_match=False)
+
+            host_like = "|".join(from_instances)
+
         self.labels_like[label_name] = host_like
         return self
 
@@ -106,7 +158,8 @@ class LazyFetcher:
         # Labels have been passed.
         if start_time == end_time or (end_time - start_time) / 1000 < 1:
             if start_time is not None:
-                params["time"] = start_time
+                params["time"] = start_time // 1000
+
             return TsdbClientFactory.get_tsdb_client().get_current_metric_value(
                 metric_name=self.metric_name,
                 label_config=self.labels,
@@ -131,10 +184,13 @@ class LazyFetcher:
     def _read_buffer(self):
         # Getting current (latest) value is only one sample,
         # don't need to buffer.
-        if (self.start_time is None or self.end_time is None) or self.start_time == self.end_time:
+        if self.start_time is None or self.end_time is None:
             return self._fetch_sequence()
 
         start_time, end_time = datetime_to_timestamp(self.start_time), datetime_to_timestamp(self.end_time)
+        if self.start_time == self.end_time:
+            return self._fetch_sequence(start_time, end_time)
+
         step = self.step
         try:
             buffered = buff.get(
@@ -175,9 +231,7 @@ def _map_metric(metric_name, to_internal_name=True):
     so as to adapt to the different metric names from different collectors.
     """
     if global_vars.metric_map is None:
-        logging.warning(
-            'Cannot map the given metric since global_vars.metric_map is NoneType.'
-        )
+        logging.warning('Cannot map the given metric since global_vars.metric_map is NoneType.')
         return metric_name
     return global_vars.metric_map.get(metric_name, metric_name).strip()
 
@@ -190,15 +244,31 @@ def _get_data_source_flag(metric_name):
     node exporter and this metric uses the label `instance`
     to indicate where the metric comes from and this label name
     is also Prometheus default. But another
-    metric `gaussdb_blks_hit_ratio` uses `from_instance` to
+    metric `opengauss_blks_hit_ratio` uses `from_instance` to
     indicate the same meaning.
 
     Therefore, this function defines some rules to tell
     a caller what label name is suitable to indicate source.
     """
-    if metric_name.strip().startswith('node_'):
+    instance_flag_prefixes = (
+        'node_',  # from node_exporter
+        'opengauss_cluster_',  # from cmd_exporter cmd_module
+        'opengauss_process_',  # from cmd_exporter cmd_module
+        'opengauss_ping_',  # from cmd_exporter cmd_module
+        'opengauss_mount_',  # from cmd_exporter cmd_module
+        'opengauss_xlog_',  # from cmd_exporter cmd_module
+        'opengauss_nic_',  # from cmd_exporter cmd_module
+        'opengauss_log_',  # from cmd_exporter log_module
+    )
+    if metric_name.strip() == 'opengauss_log_errors_rate':
+        return DISTINGUISHING_INSTANCE_LABEL
+    if metric_name.strip().startswith(instance_flag_prefixes):
         return EXPORTER_INSTANCE_LABEL
     return DISTINGUISHING_INSTANCE_LABEL
+
+
+def get_metric_source_flag(metric_name):
+    return _get_data_source_flag(metric_name)
 
 
 def estimate_appropriate_step_ms(start_time, end_time):
@@ -215,19 +285,22 @@ def estimate_appropriate_step_ms(start_time, end_time):
     of data, increase the step according to
     the above proportional relation.
     """
+    max_length = 1000
+
     if None in (start_time, end_time):
         return None
+
     interval_second = TsdbClientFactory.get_tsdb_client().scrape_interval
     if not interval_second:
         # If returns None, it will only depend on TSDB's behavior.
         return None
 
-    ONE_HOUR = 3600  # unit: second
     total_seconds = (end_time - start_time).total_seconds()
-    if total_seconds <= ONE_HOUR:
+    if total_seconds < max_length * interval_second:
         return None
+
     # return unit: microsecond
-    return int(total_seconds * interval_second // ONE_HOUR * 1000) or None
+    return int(total_seconds // max_length) * 1000 or None
 
 
 def get_metric_sequence(metric_name, start_time, end_time, step=None, min_value=None, max_value=None):
@@ -237,10 +310,10 @@ def get_metric_sequence(metric_name, start_time, end_time, step=None, min_value=
     return LazyFetcher(metric_name, start_time, end_time, step, min_value=min_value, max_value=max_value)
 
 
-def get_latest_metric_sequence(metric_name, minutes, step=None, min_value=None, max_value=None):
+def get_latest_metric_sequence(metric_name, minutes, step=None, min_value=None, max_value=None, tz=None):
     """Get the monitoring sequence from time-series database in
      the last #2 minutes."""
-    end_time = datetime.now()
+    end_time = datetime.now(tz=tz)
     start_time = end_time - timedelta(minutes=minutes)
     return get_metric_sequence(metric_name, start_time, end_time, step=step, min_value=min_value, max_value=max_value)
 
@@ -249,63 +322,82 @@ def get_latest_metric_value(metric_name):
     return LazyFetcher(metric_name)
 
 
-def save_history_alarms(history_alarms, detection_interval):
+def delete_metric_sequence(metric_name, from_datetime, to_datetime, labels, regex_labels, flush):
+    """Delete data in TSDB, DBMind timestamp unified 13 digits"""
+    client = TsdbClientFactory.get_tsdb_client()
+    client.delete_metric_data(metric_name, from_datetime, to_datetime, labels, regex_labels, flush)
+
+
+def get_all_metrics():
+    client = TsdbClientFactory.get_tsdb_client()
+    return client.all_metrics
+
+
+def save_anomaly_detectors(record):
+    if not record:
+        return
+
+    dao.anomaly_detectors.insert_anomaly_detectors(
+        cluster_name=record.get('cluster_name'),
+        detector_name=record.get('detector_name'),
+        alarm_cause=record.get('alarm_cause'),
+        alarm_content=record.get('alarm_content'),
+        alarm_level=record.get('alarm_level'),
+        alarm_type=record.get('alarm_type'),
+        extra=record.get('extra'),
+        detector_info=record.get('detector_info'),
+        duration=record.get('duration'),
+        forecasting_seconds=record.get('forecasting_seconds'),
+        running=record.get('running')
+    )
+
+
+def save_history_alarms(history_alarms, detection_interval=-1):
     if not history_alarms:
         return
+
     func = dao.alarms.get_batch_insert_history_alarms_functions()
-    for alarm in history_alarms:
-        if not alarm:
+    for alarm_list in history_alarms:
+        if alarm_list is None:
             continue
-        query = dao.alarms.select_history_alarm(instance=alarm.instance, alarm_type=alarm.alarm_type,
-                                                alarm_content=alarm.alarm_content,
-                                                alarm_level=alarm.alarm_level, limit=1)
-        field_names = ['history_alarm_id', 'end_at']
-        result = []
-        if list(query):
-            result = [getattr(query[0], field) for field in field_names]
-        if result:
-            pre_alarm_id = result[0]
-            pre_alarm_end_at = result[1]
-            cur_alarm_start_at = alarm.start_timestamp
-            cur_alarm_end_at = alarm.end_timestamp
-            delay = (cur_alarm_start_at - pre_alarm_end_at) / 1000
-            # timestamp unit is 'ms'
-            if delay <= detection_interval + 1:  # tolerance in 1 second:
-                dao.alarms.update_history_alarm(alarm_id=pre_alarm_id, end_at=cur_alarm_end_at)
+
+        for alarm in alarm_list:
+            if not alarm:
                 continue
-        func.add(
-            instance=alarm.instance,
-            metric_name=alarm.metric_name,
-            alarm_type=alarm.alarm_type,
-            start_at=alarm.start_timestamp,
-            end_at=alarm.end_timestamp,
-            alarm_level=alarm.alarm_level,
-            alarm_content=alarm.alarm_content,
-            extra_info=alarm.extra,
-            anomaly_type=alarm.anomaly_type
-        )
-        func.commit()
+            alarm_metric_filter = ",".join([f"{k}={alarm.metric_filter.get(k, '')}"
+                                            for k in sorted(alarm.metric_filter.keys())])
+            query = dao.alarms.select_history_alarm(
+                instance=alarm.instance,
+                metric_name=alarm.metric_name,
+                metric_filter=alarm_metric_filter,
+                alarm_type=alarm.alarm_type,
+                alarm_level=alarm.alarm_level,
+                alarm_content=alarm.alarm_content,
+                anomaly_type=alarm.anomaly_type,
+                limit=1
+            )  # limit 1 means the latest
 
+            field_names = ['history_alarm_id', 'start_at', 'end_at']
+            result = []
+            if list(query):
+                result = [getattr(query[0], field) for field in field_names]
 
-def save_future_alarms(future_alarms):
-    if not future_alarms:
-        return
+            if result:
+                previous_alarm_id = result[0]
+                previous_alarm_start_at = result[1]
+                previous_alarm_end_at = result[2]
+                current_alarm_start_at = alarm.start_timestamp
+                current_alarm_end_at = alarm.end_timestamp
+                delay = (current_alarm_start_at - previous_alarm_end_at) / 1000  # timestamp unit is 'ms'
+                if (
+                    previous_alarm_start_at <= current_alarm_end_at and
+                    delay <= detection_interval + 1  # tolerance in 1 second:
+                ):
+                    dao.alarms.update_history_alarm(previous_alarm_id, end_at=current_alarm_end_at)
+                    continue
 
-    func = dao.alarms.get_batch_insert_future_alarms_functions()
+            func.add(alarm)
 
-    for alarm in future_alarms:
-        if not alarm:
-            continue
-        func.add(
-            instance=alarm.instance,
-            metric_name=alarm.metric_name,
-            alarm_type=alarm.alarm_type,
-            alarm_level=str(alarm.alarm_level),
-            start_at=alarm.start_timestamp,
-            end_at=alarm.end_timestamp,
-            alarm_content=alarm.alarm_content,
-            extra_info=alarm.extra
-        )
     func.commit()
 
 
@@ -328,7 +420,7 @@ def save_slow_queries(slow_queries):
             continue
 
         h1, h2 = slow_query.hash_query()
-        instance = '%s:%s' % (slow_query.db_host, slow_query.db_port)
+        instance = f"{prepare_ip(slow_query.db_host)}:{slow_query.db_port}"
 
         def insert():
             dao.slow_queries.insert_slow_query(
@@ -365,6 +457,20 @@ def save_slow_queries(slow_queries):
         )
 
 
+def save_history_cluster_diagnosis(diagnosis_record):
+    if not diagnosis_record:
+        return
+
+    func = dao.cluster_diagnosis_records.get_batch_insert_history_cluster_diagnosis_functions()
+    for record in diagnosis_record:
+        if not record:
+            continue
+
+        func.add(record)
+
+    func.commit()
+
+
 def delete_older_result(current_timestamp, retention_time):
     utils.dbmind_assert(isinstance(current_timestamp, int))
     utils.dbmind_assert(isinstance(retention_time, int))
@@ -374,13 +480,17 @@ def delete_older_result(current_timestamp, retention_time):
         dao.slow_queries.delete_slow_queries,
         dao.slow_queries.delete_killed_slow_queries,
         dao.alarms.delete_timeout_history_alarms,
-        dao.healing_records.delete_timeout_healing_records
+        dao.healing_records.delete_timeout_healing_records,
+        dao.cluster_diagnosis_records.delete_timeout_history_cluster_diagnosis,
+        dao.high_availability_status.delete_timeout_high_availability_status,
     )
     for action in clean_actions:
         try:
             action(before_timestamp)
         except Exception as e:
             logging.exception(e)
+    # The data in inspection function needs to be saved for a long time. in order to support daily inspection,
+    # it is currently stored for 31 days and does not support user modification
     try:
         dao.regular_inspections.delete_old_inspection()
     except Exception as e:
@@ -398,28 +508,27 @@ def get_all_slow_queries(minutes):
     # The following fields should be normalized.
     for sequence in sequences:
         from_instance = SequenceUtils.from_server(sequence)
-        db_host, db_port = from_instance.split(':')
+        db_host, db_port = split_ip_port(from_instance)
         db_name = sequence.labels['datname'].lower()
         schema_name = sequence.labels['schema'].split(',')[-1] \
             if ',' in sequence.labels['schema'] else sequence.labels['schema']
+        if not check_name_valid(db_name) or not check_name_valid(schema_name):
+            continue
         track_parameter = True if 'parameters: $1' in sequence.labels['query'].lower() else False
         query = sequence.labels['query']
         query_plan = sequence.labels['query_plan'] if sequence.labels['query_plan'] != 'None' else None
         # unit: microsecond
         start_time = cast_to_int_or_float(sequence.labels['start_time'])
         finish_time = cast_to_int_or_float(sequence.labels['finish_time'])
-        # unit: microsecond
-        duration_time = cast_to_int_or_float(sequence.labels['finish_time']) - \
-                        cast_to_int_or_float(sequence.labels['start_time'])
-        hit_rate = cast_to_int_or_float(sequence.labels['hit_rate'], precision=4)
-        fetch_rate = cast_to_int_or_float(sequence.labels['fetch_rate'], precision=4)
+        n_blocks_hit = cast_to_int_or_float(sequence.labels['n_blocks_hit'], precision=2)
+        n_blocks_fetched = cast_to_int_or_float(sequence.labels['n_blocks_fetched'], precision=2)
         cpu_time = cast_to_int_or_float(sequence.labels['cpu_time'], precision=4)
         plan_time = cast_to_int_or_float(sequence.labels['plan_time'], precision=4)
         parse_time = cast_to_int_or_float(sequence.labels['parse_time'], precision=4)
         db_time = cast_to_int_or_float(sequence.labels['db_time'], precision=4)
         data_io_time = cast_to_int_or_float(sequence.labels['data_io_time'], precision=4)
         template_id = sequence.labels['unique_query_id']
-        query_id = sequence.labels['debug_query_id']
+        debug_query_id = sequence.labels['debug_query_id']
         n_returned_rows = cast_to_int_or_float(sequence.labels['n_returned_rows'])
         n_tuples_returned = cast_to_int_or_float(sequence.labels['n_tuples_returned'])
         n_tuples_fetched = cast_to_int_or_float(sequence.labels['n_tuples_fetched'])
@@ -430,33 +539,34 @@ def get_all_slow_queries(minutes):
         n_hard_parse = cast_to_int_or_float(sequence.labels['n_hard_parse'])
         hash_spill_count = cast_to_int_or_float(sequence.labels['hash_spill_count'])
         sort_spill_count = cast_to_int_or_float(sequence.labels['sort_spill_count'])
-        slow_sql_info = SlowQuery(
-            db_host=db_host, db_port=db_port, query_plan=query_plan,
-            schema_name=schema_name, db_name=db_name, query=query,
-            start_time=start_time, finish_time=finish_time, duration_time=duration_time,
-            hit_rate=hit_rate, fetch_rate=fetch_rate, track_parameter=track_parameter,
+        n_calls = cast_to_int_or_float(sequence.labels['n_calls'])
+        lock_wait_time = cast_to_int_or_float(sequence.labels['lock_wait_time'])
+        lwlock_wait_time: int = cast_to_int_or_float(sequence.labels['lwlock_wait_time'])
+        slow_query_info = SlowQuery(
+            db_host=db_host, db_port=db_port, query_plan=query_plan, n_calls=n_calls,
+            schema_name=schema_name, db_name=db_name, query=query, n_blocks_fetched=n_blocks_fetched,
+            start_time=start_time, finish_time=finish_time, n_blocks_hit=n_blocks_hit, track_parameter=track_parameter,
             cpu_time=cpu_time, data_io_time=data_io_time, plan_time=plan_time,
             parse_time=parse_time, db_time=db_time, n_hard_parse=n_hard_parse,
-            n_soft_parse=n_soft_parse, template_id=template_id,  n_returned_rows=n_returned_rows,
+            n_soft_parse=n_soft_parse, template_id=template_id, n_returned_rows=n_returned_rows,
             n_tuples_returned=n_tuples_returned, n_tuples_fetched=n_tuples_fetched,
             n_tuples_inserted=n_tuples_inserted, n_tuples_updated=n_tuples_updated,
-            n_tuples_deleted=n_tuples_deleted, query_id=query_id, hash_spill_count=hash_spill_count,
-            sort_spill_count=sort_spill_count
+            n_tuples_deleted=n_tuples_deleted, debug_query_id=debug_query_id, hash_spill_count=hash_spill_count,
+            sort_spill_count=sort_spill_count, lock_wait_time=lock_wait_time, lwlock_wait_time=lwlock_wait_time
         )
 
-        slow_queries.append(slow_sql_info)
+        slow_queries.append(slow_query_info)
     return slow_queries
 
 
 def save_index_recomm(index_infos):
     dao.index_recommendation.clear_data()
-    now = int(time.time() * 1000)
     for index_info in index_infos:
-        index_info['time'] = now
         _save_index_recomm(index_info)
 
 
 def _save_index_recomm(detail_info):
+    now = int(time.time() * 1000)
     db_name = detail_info.get('db_name')
     instance = detail_info.get('instance')
     positive_stmt_count = detail_info.get('positive_stmt_count', 0)
@@ -490,14 +600,13 @@ def _save_index_recomm(detail_info):
             template = sql_detail['sqlTemplate']
             if [template, db_name] not in templates:
                 templates.append([template, db_name])
-                dao.index_recommendation.insert_recommendation_stmt_templates(template, instance, db_name)
+                dao.index_recommendation.insert_recommendation_stmt_templates(template, db_name)
             stmt = sql_detail['sql']
             stmt_count = sql_detail['sqlCount']
             optimized = sql_detail.get('optimized')
             correlation = sql_detail['correlationType']
             dao.index_recommendation.insert_recommendation_stmt_details(
-                template_id=dao.index_recommendation.get_template_id(instance, db_name, template),
-                instance = instance,
+                template_id=templates.index([template, db_name]) + dao.index_recommendation.get_template_start_id(),
                 db_name=db_name, stmt=stmt,
                 optimized=optimized,
                 correlation_type=correlation,
@@ -530,8 +639,8 @@ def _save_index_recomm(detail_info):
                                                         table_count=table_count, rec_index_count=recommend_index_count,
                                                         redundant_index_count=redundant_index_count,
                                                         invalid_index_count=invalid_index_count,
-                                                        stmt_source='statement',
-                                                        time=detail_info['time']
+                                                        stmt_source=detail_info['stmt_source'],
+                                                        time=now
                                                         )
     return None
 
@@ -588,7 +697,7 @@ def check_tsdb_status():
     client = TsdbClientFactory.get_tsdb_client()
     if not client.check_connection():
         return detail
-    detail['listen_address'] = f"{TsdbClientFactory.host}:{TsdbClientFactory.port}"
+    detail['listen_address'] = f"{prepare_ip(TsdbClientFactory.host)}:{TsdbClientFactory.port}"
     detail['instance'] = f"{TsdbClientFactory.host}"
     detail['name'] = client.name
     detail['status'] = "up"
@@ -596,8 +705,8 @@ def check_tsdb_status():
 
 
 def check_exporter_status():
-    # notes: if the scope is not specified, the global_var.agent_proxy.current_cluster_instances() 
-    #        may return 'None' in most scenarios, therefore this method is limited to 
+    # notes: if the scope is not specified, the global_var.agent_proxy.current_cluster_instances()
+    #        may return 'None' in most scenarios, therefore this method is limited to
     #        calling when implementing the API for front-end one agent or we only have one agent
     detail = {'opengauss_exporter': [], 'reprocessing_exporter': [], 'node_exporter': [], 'cmd_exporter': []}
     client = TsdbClientFactory.get_tsdb_client()
@@ -607,31 +716,47 @@ def check_exporter_status():
         detail['node_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
         detail['cmd_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
         return detail
-    self_exporters = {'opengauss_exporter': 'pg_node_info_uptime', 'reprocessing_exporter': 'os_cpu_usage',
-                      'node_exporter': 'node_boot_time_seconds', 'cmd_exporter': 'gaussdb_cluster_state'}
+
+    self_exporters = {
+        'opengauss_exporter': 'pg_node_info_uptime',
+        'reprocessing_exporter': 'os_cpu_user_usage',
+        'node_exporter': 'node_boot_time_seconds',
+        'cmd_exporter': 'opengauss_cluster_state'
+    }
     instance_with_port = global_vars.agent_proxy.current_cluster_instances()
-    instance_with_no_port = [item.split(':')[0] for item in instance_with_port]
+    instance_without_port = [split_ip_port(item)[0] for item in instance_with_port]
     for exporter, metric in self_exporters.items():
         if exporter in ('opengauss_exporter', 'cmd_exporter'):
             instances = instance_with_port
         else:
-            instances = instance_with_no_port
+            instances = instance_without_port
+
         for instance in instances:
             if exporter == 'node_exporter':
-                instance_regex = instance + ':?.*'
-                sequences = get_latest_metric_value(metric).\
-                    from_server_like(instance_regex).fetchall()
+                instance_regex = prepare_ip(instance) + PORT_SUFFIX
+                sequences = get_latest_metric_value(metric).from_server_like(instance_regex).fetchall()
             elif exporter == 'cmd_exporter':
-                instance_regrex = instance.split(':')[0] + ':?.*'
+                instance_regex = prepare_ip(split_ip_port(instance)[0]) + PORT_SUFFIX
                 # since the cluster state may change, it will be matched again
                 # on the 'primary' after the matching fails on the 'standby' to ensure not miss exporter
-                sequences = get_latest_metric_value(metric).\
-                    filter_like(instance=instance_regrex, standby=f".*{instance}.*").fetchall()
+                sequences = get_latest_metric_value(
+                    metric
+                ).filter_like(
+                    instance=instance_regex,
+                    standby=f"(|.*[0-9],|.*[0-9]],){instance}(,\\[[0-9].*|,[0-9].*|)"
+                ).fetchall()
+
                 if not is_sequence_valid(sequences):
-                    sequences = get_latest_metric_value(metric).\
-                        filter_like(instance=instance_regrex).filter(primary=instance).fetchall()
+                    sequences = get_latest_metric_value(
+                        metric
+                    ).filter_like(
+                        instance=instance_regex,
+                        primary=prepare_ip(instance) + PORT_SUFFIX
+                    ).fetchall()
+
             else:
                 sequences = get_latest_metric_value(metric).from_server(instance).fetchall()
+
             if is_sequence_valid(sequences):
                 for sequence in sequences:
                     listen_address = sequence.labels.get('instance')
@@ -653,7 +778,7 @@ def diagnosis_exporter_status(exporter_status):
     # and give suggestions for the current exporter deployment
     suggestions = []
     instance_with_port = global_vars.agent_proxy.current_cluster_instances()
-    instance_with_no_port = [item.split(':')[0] for item in instance_with_port]
+    instance_without_port = [split_ip_port(item)[0] for item in instance_with_port]
     agent_address = global_vars.agent_proxy.current_agent_addr()
     # 1) check whether opengauss_exporter is deployed or whether the number of deployed instances is optimal
     number_of_opengauss_exporter = len(set((item['listen_address'] for item in
@@ -676,17 +801,24 @@ def diagnosis_exporter_status(exporter_status):
     if number_of_reprocessing_number > 1:
         suggestions.append("Only need to start one reprocessing exporter component.")
     if number_of_reprocessing_number < 1:
-        suggestions.append("Is is found that the instance has not deployed reprocessing_exporter or some exception occurs.")
+        suggestions.append(
+            "It is found that the instance has not deployed reprocessing_exporter or some exception occurs.")
     # 5) check whether too many node_exporters are deployed
     number_of_alive_node_exporter = len(set([item['instance'] for item in
-                                        exporter_status['node_exporter'] if item['status'] == 'up']))
-    if number_of_alive_node_exporter > len(instance_with_no_port):
+                                             exporter_status['node_exporter'] if item['status'] == 'up']))
+    if number_of_alive_node_exporter > len(instance_without_port):
         suggestions.append("Too many node_exporter on instance, "
                            "it is recommended to deploy one node_exporter on each instance.")
     # 6) check if some nodes do not deploy exporter
-    if number_of_alive_node_exporter < len(instance_with_no_port):
-        suggestions.append("Is it found that some node has not deployed node_exporter, "
+    if number_of_alive_node_exporter < len(instance_without_port):
+        suggestions.append("It is found that some node has not deployed node_exporter, "
                            "it is recommended to deploy one node_exporter on each instance.")
+    # 7) check whether the cmd_exporter is deployed or not
+    cluster = global_vars.agent_proxy.current_cluster_instances()
+    number_of_cmd_exproter = len(set((item['listen_address'] for item in
+                                      exporter_status['cmd_exporter'])))
+    if len(cluster) > 1 and number_of_cmd_exproter == 0:
+        suggestions.append("It is found that cmd_exporter is not deployed on each instance.")
     return suggestions
 
 
@@ -708,12 +840,14 @@ def get_data_directory_mountpoint_info(instance):
     data_directory_sequence = get_latest_metric_value('pg_node_info_uptime').from_server(instance).fetchone()
     if not is_sequence_valid(data_directory_sequence):
         return
+
     data_directory = data_directory_sequence.labels['datapath']
-    instance_without_port = instance.split(':')[0]
-    instance_regex = instance_without_port + PORT_SUFFIX
-    filesystem_total_size_sequences = get_latest_metric_value('node_filesystem_size_bytes') \
-        .filter_like(instance=instance_regex) \
-        .fetchall()
+    instance_without_port = split_ip_port(instance)[0]
+    instance_regex = prepare_ip(instance_without_port) + PORT_SUFFIX
+    filesystem_total_size_sequences = get_latest_metric_value(
+        'node_filesystem_size_bytes'
+    ).filter_like(instance=instance_regex).fetchall()
+
     if not is_sequence_valid(filesystem_total_size_sequences):
         return
     filesystem_total_size_sequences.sort(key=lambda item: len(item.labels['mountpoint']), reverse=True)
@@ -722,26 +856,13 @@ def get_data_directory_mountpoint_info(instance):
             return sequence.labels['mountpoint'], \
                    sequence.labels['device'], round(sequence.values[-1] / 1024 / 1024 / 1024, 2)
 
-def get_iops(instance):
-    iops = ''
-    instance_without_port = instance.split(':')[0]
-    instance_regex = instance_without_port + PORT_SUFFIX
-    iops_sequence = get_latest_metric_value('os_disk_iops') \
-        .filter_like(instance=instance_regex) \
-        .fetchall()
-    logging.info('iops: %s, %s', len(iops_sequence), str(iops_sequence))
-    if is_sequence_valid(iops_sequence):
-        iops = round(max(sequence.values[-1] for sequence in iops_sequence), 1)
-
-    return iops
-
 
 def get_database_data_directory_status(instance, latest_minutes):
     # return the data-directory information of current cluster
     # note: now the node of instance should be deployed opengauss_exporter
     mountpoint, total_space = '', 0.0
-    detail = {'total_space': '', 'usage_rate': '', 'used_space': '', 'free_space': '', 'iops':''}
-    instance_without_port = instance.split(':')[0]
+    detail = {'total_space': '', 'usage_rate': '', 'used_space': '', 'free_space': ''}
+    instance_without_port = split_ip_port(instance)[0]
     # get data_directory of any node in cluster, because all the node have the same data-directory.
     mountpoint_info = get_data_directory_mountpoint_info(instance)
     if mountpoint_info is None:
@@ -757,16 +878,15 @@ def get_database_data_directory_status(instance, latest_minutes):
     detail['usage_rate'] = round(disk_usage_sequence.values[-1], 4)
     detail['used_space'] = round(detail['total_space'] * detail['usage_rate'], 2)
     detail['free_space'] = round(detail['total_space'] - detail['used_space'], 2)
-    detail['iops'] = get_iops(instance)
     return detail
 
 
 def check_instance_status():
-    # there are two scenarios, which are 'centralized' and 'single', the judgment method is as follows:
-    #   1) centralized: judging by 'gaussdb_cluster_state which is fetched by 'cmd_exporter'
+    # there are two scenarios, which are 'distributed', 'centralized' and 'single', the judgment method is as follows:
+    #   1) centralized, distributed: judging by 'opengauss_cluster_state which is fetched by 'cmd_exporter'
     #   2) single: judging by 'pg_node_info_uptime' which is fetched by 'opengauss_exporter'
-    # notes: if the scope is not specified, the global_var.agent_proxy.current_cluster_instances() 
-    #        may return 'None' in most scenarios, therefore this method is limited to 
+    # notes: if the scope is not specified, the global_var.agent_proxy.current_cluster_instances()
+    #        may return 'None' in most scenarios, therefore this method is limited to
     #        calling when implementing the API for front-end or we only have one agent
     detail = {'status': 'unknown', 'deployment_mode': 'unknown', 'primary': '',
               'standby': [], 'abnormal': [], 'normal': []}
@@ -775,46 +895,303 @@ def check_instance_status():
         detail['deployment_mode'] = 'single'
         detail['primary'] = cluster[0]
         sequence = get_latest_metric_value('pg_node_info_uptime').from_server(cluster[0]).fetchone()
-        if is_sequence_valid(sequence):
-            detail['status'] = 'normal'
-        else:
-            detail['status'] = 'abnormal'
+        detail['status'] = 'normal' if is_sequence_valid(sequence) else 'abnormal'
     elif len(cluster) > 1:
-        detail['deployment_mode'] = 'centralized'
-        # since the state of cluster may change and we do not know the latest situation of instance, 
-        # therefore we try all nodes in turn to ensure not miss key information
-        for instance in cluster:
-            ip, port = instance.split(':')
-            cluster_sequence = None
-            for cluster_sequence in get_latest_metric_value('gaussdb_cluster_state').\
-                filter_like(instance=f'.*{ip}.*').fetchall():
-                replace_sequence_ip(cluster_sequence)
-                if instance in cluster_sequence.labels['standby'] or instance in cluster_sequence.labels['primary']:
-                    break
-            if is_sequence_valid(cluster_sequence):
-                labels = cluster_sequence.labels
-                detail['status'] = 'normal' if cluster_sequence.values[-1] == 1 else 'abnormal'
-                detail['primary'] = labels.get('primary', '').strip(',')
-                detail['standby'] = labels.get('standby').strip(',').split(',') if labels else []
-                detail['normal'] = labels.get('normal').strip(',').split(',') if labels else []
-                detail['abnormal'] = list(set([detail['primary']] + detail['standby']) - set(detail['normal']))
-                break
+        get_distributed_instance_state(cluster, detail)
+        if not detail.get('cn'):
+            get_centralized_instance_state(cluster, detail)
     return detail
 
 
+def get_centralized_instance_state(cluster, detail):
+    """
+    get instance status in centralized deploy mode
+
+    Args:
+        cluster: current_cluster_instances
+        detail: instances detail
+
+    Returns:
+        instance status in centralized deploy mode
+
+    """
+    for instance in cluster:
+        ip, port = split_ip_port(instance)
+        cluster_sequence = None
+        for cluster_sequence in get_latest_metric_sequence('opengauss_cluster_state', 3). \
+                filter_like(instance=prepare_ip(ip)+PORT_SUFFIX).fetchall():
+            replace_sequence_ip(cluster_sequence)
+            if instance in cluster_sequence.labels.get('standby', '') or \
+                    instance in cluster_sequence.labels.get('primary', ''):
+                break
+        if is_sequence_valid(cluster_sequence):
+            detail['deployment_mode'] = 'centralized'
+            labels = cluster_sequence.labels
+            primary = labels.get('primary', '')
+            standby = labels.get('standby', '')
+            normal = labels.get('normal', '')
+            abnormal = labels.get('abnormal', '')
+            detail['status'] = 'normal' if cluster_sequence.values[-1] == 1 else 'abnormal'
+            detail['primary'] = primary.split(",")[0] if primary else ""
+            detail['standby'] = standby.split(",") if standby else []
+            detail['normal'] = normal.split(",") if normal else []
+            detail['abnormal'] = abnormal.split(",") if abnormal else []
+            break
+
+
+def get_distributed_instance_state(cluster, detail):
+    """
+    get instance status in distributed deploy mode
+
+    Args:
+        cluster: current_cluster_instances
+        detail: instances detail
+
+    Returns:
+        instance status in distributed deploy mode
+    """
+    for instance in cluster:
+        host, port = split_ip_port(instance)
+        cluster_sequence = get_latest_metric_value('opengauss_cluster_state') \
+            .filter_like(cn_state=f'.*{host}.*port.*{port}.*').fetchone()
+        replace_sequence_ip(cluster_sequence)
+        if is_sequence_valid(cluster_sequence):
+            detail['deployment_mode'] = 'distributed'
+            labels = cluster_sequence.labels
+            cn_state = labels.get('cn_state', '')
+            primary = labels.get('primary', '')
+            standby = labels.get('standby', '')
+            normal = labels.get('normal', '')
+            abnormal = labels.get('abnormal', '')
+            detail['cn'] = [f"{prepare_ip(cn.get('ip'))}:{cn.get('port')}" for cn in json.loads(cn_state)]
+            detail['status'] = 'normal' if cluster_sequence.values[-1] == 1 else 'abnormal'
+            detail['primary'] = primary.split(",") if primary else ""
+            detail['standby'] = standby.split(",") if standby else []
+            detail['normal'] = normal.split(",") if normal else []
+            detail['abnormal'] = abnormal.split(",") if abnormal else []
+            break
+
+
 def check_agent_status():
-    # we judge the status of agent by executing statement, if the result is correct then 
+    # we judge the status of agent by executing statement, if the result is correct then
     # it prove the status of agent is normal, otherwise it is abnormal
-    # notes: if the scope is not specified, the global_var.agent_proxy.current_agent_addr() 
-    #        may return 'None' in most scenarios, therefore this method is limited to 
-    #        calling when implementing the API for front-end or we only have one agent 
-    detail = {'status': 'unknown'}
-    detail['agent_address'] = global_vars.agent_proxy.current_agent_addr()
+    # notes: if the scope is not specified, the global_var.agent_proxy.current_agent_addr()
+    #        may return 'None' in most scenarios, therefore this method is limited to
+    #        calling when implementing the API for front-end or we only have one agent
+    detail = {'status': 'unknown', 'agent_address': global_vars.agent_proxy.current_agent_addr()}
     try:
         res = global_vars.agent_proxy.call('query_in_database', 'select 1', None, return_tuples=True)
         if res and res[0] and res[0][0] == 1:
             detail['status'] = 'up'
     except Exception:
         detail['status'] = 'down'
+
     return detail
 
+
+def calculate_default_step(minutes_back):
+    if minutes_back <= 0:
+        raise ValueError("minutes_back for step must be positive number")
+    MAX_DATA_POINTS = 10000
+    MIN_STEP = 15000  # 15 seconds is the lower resolution we use
+    step = MIN_STEP
+    data_points = minutes_back * 60 * 1000 / MIN_STEP
+    if data_points > MAX_DATA_POINTS:
+        step = minutes_back * 60 * 1000 // MAX_DATA_POINTS
+    return step
+
+
+def update_metric_stats(now, metric_name, length, step):
+    """The timed app function for metric statistics"""
+
+    def single_update():
+        if metric_filter in update_tuples:
+            tup = update_tuples[metric_filter]
+            end = tup["start"] + len(tup["value_list"]) * step
+            if not tup["value_list"]:
+                update_tuples[metric_filter]["value_list"].append(value)
+                update_tuples[metric_filter]["start"] = ts
+            elif ts + step > end:
+                update_tuples[metric_filter]["value_list"].append(value)
+            elif end - step < ts + step <= end:
+                update_tuples[metric_filter]["value_list"][-1] = value
+
+        elif metric_filter in insert_tuples:
+            insert_tuples[metric_filter]["value_list"].append(value)
+        else:
+            insert_tuples[metric_filter] = {
+                "metric_name": metric_name,
+                "method": method,
+                "length": length,
+                "step": step,
+                "start": ts,
+                "metric_filter": metric_filter,
+                "value_list": [value]
+            }
+
+    metric, method = metric_name.rsplit("_", 1)
+    func = stat_funcs[method]
+
+    query = dao.metric_statistics.select_metric_statistics(
+        metric_name=metric_name,
+        method=method,
+        length=length,
+        step=step,
+    )
+
+    if not list(query):  # first insertion
+        start_time = datetime.fromtimestamp(now - step)
+        end_time = datetime.fromtimestamp(now)
+        sequences = get_metric_sequence(metric, start_time, end_time).fetchall()
+        for sequence in sequences:
+            value = round(func(sequence.values), 5) if sequence.values else None
+            labels = sequence.labels
+            metric_filter = {k: labels[k] for k in sorted(labels.keys())}
+            dao.metric_statistics.insert_metric_statistics(
+                metric_name=metric_name,
+                method=method,
+                length=length,
+                step=step,
+                start=now - step,
+                metric_filter=json.dumps(metric_filter),
+                value_list=json.dumps([value])
+            )
+
+        return
+
+    earliest_start = min(tup.start for tup in list(query))
+    grid_now = earliest_start + (now - earliest_start) // step * step
+    grid_min_ts = max(earliest_start, grid_now - length * step)
+
+    earliest_end = grid_now
+    update_tuples = dict()
+    for tup in list(query):
+        stat_id = tup.stat_id
+        start = tup.start
+        metric_filter = tup.metric_filter
+        value_list = json.loads(tup.value_list)
+        len_values = len(value_list)
+
+        grid_start = earliest_start + round((start - earliest_start) / step) * step
+        grid_end = grid_start + len_values * step
+        length_remained = max(0, grid_end - grid_min_ts) // step
+        divided_values = value_list[::-1][:length_remained][::-1]
+        new_grid_start = max(grid_min_ts, grid_end - len(divided_values) * step)
+        earliest_end = min(earliest_end, new_grid_start + len(divided_values) * step)
+
+        update_tuples[metric_filter] = {
+            "stat_id": stat_id,
+            "metric_name": metric_name,
+            "method": method,
+            "length": length,
+            "step": step,
+            "start": new_grid_start,
+            "metric_filter": metric_filter,
+            "value_list": divided_values
+        }
+
+    insert_tuples = dict()
+    for ts in range(earliest_end, grid_now, step):
+        start_time = datetime.fromtimestamp(ts)
+        end_time = datetime.fromtimestamp(ts + step)
+
+        scraped_metric_filter = set()
+        sequences = get_metric_sequence(metric, start_time, end_time).fetchall()
+        for sequence in sequences:
+            value = round(func(sequence.values), 5) if sequence.values else None
+            labels = sequence.labels
+            metric_filter = json.dumps({k: labels[k] for k in sorted(labels.keys())})
+            scraped_metric_filter.add(metric_filter)
+            single_update()
+
+        for metric_filter in insert_tuples.keys() - scraped_metric_filter:
+            insert_tuples[metric_filter]["value_list"].append(None)
+
+        for metric_filter in update_tuples.keys() - scraped_metric_filter:
+            tup = update_tuples[metric_filter]
+            end_time = tup["start"] + len(tup["value_list"]) * step
+            if not tup["value_list"]:
+                update_tuples[metric_filter]["value_list"].append(None)
+                update_tuples[metric_filter]["start"] = ts
+            elif ts + step > end_time:
+                update_tuples[metric_filter]["value_list"].append(None)
+
+    for update_tuple in update_tuples.values():
+        metric_statistics_args = update_tuple.copy()
+        stat_id = metric_statistics_args.pop("stat_id")
+        if all([i is None for i in metric_statistics_args["value_list"]]):
+            dao.metric_statistics.delete_metric_statistics(stat_id)
+        else:
+            dao.metric_statistics.update_metric_statistics(stat_id, **metric_statistics_args)
+
+    for insert_tuple in insert_tuples.values():
+        dao.metric_statistics.insert_metric_statistics(
+            metric_name=insert_tuple["metric_name"],
+            method=insert_tuple["method"],
+            length=insert_tuple["length"],
+            step=insert_tuple["step"],
+            start=insert_tuple["start"],
+            metric_filter=insert_tuple["metric_filter"],
+            value_list=json.dumps(insert_tuple["value_list"])
+        )
+
+
+def labels_matched(full_labels, label, label_like):
+    for name, val in label.items():
+        if val != full_labels.get(name):
+            return False
+
+    for name, pattern in label_like.items():
+        if pattern == full_labels.get(name):
+            continue
+        if not re.match(pattern, full_labels.get(name)):
+            return False
+
+    return True
+
+
+def get_meta_metric_sequence(metric_name, metric_filter, metric_filter_like):
+    """To get sequence from meta-database"""
+    result = []
+    if isinstance(metric_name, str) and metric_name not in LONG_TERM_METRIC_STATS:
+        return result
+
+    if isinstance(metric_name, str):
+        method = metric_name.rsplit("_", 1)[1]
+    else:
+        method = None
+
+    query = dao.metric_statistics.select_metric_statistics(
+        metric_name=metric_name,
+        method=method,
+    )
+
+    for tup in list(query):
+        name = tup.metric_name
+        step = tup.step
+        start = tup.start
+        labels = uniform_labels(json.loads(tup.metric_filter))
+        value_list = json.loads(tup.value_list)
+
+        if not labels_matched(labels, metric_filter, metric_filter_like):
+            continue
+
+        timestamps = list()
+        seq_values = list()
+        for i, value in enumerate(value_list):
+            if value is None or math.isnan(value):
+                continue
+
+            timestamps.append(int((start + i * step) * 1000))
+            seq_values.append(value)
+
+        sequence = Sequence(
+            timestamps=timestamps,
+            values=seq_values,
+            name=name,
+            labels=labels,
+            step=step * 1000
+        )
+        result.append(sequence)
+
+    return result

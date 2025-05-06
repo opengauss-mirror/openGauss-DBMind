@@ -19,17 +19,14 @@ def binary_search(L, target, tolerance=0):
     """
     if len(L) == 0:
         return -1
-    # [0, length)
     lo, hi = 0, len(L)
     while lo < hi:  # equals to lo == hi
         mid = lo + (hi - lo) // 2
         if abs(L[mid] - target) <= tolerance:
             return mid
         elif L[mid] < target:
-            # [mid + 1, hi)
             lo = mid + 1
         elif L[mid] > target:
-            # [lo, mid)
             hi = mid
     return -1
 
@@ -46,24 +43,17 @@ def binary_search_leftmost(L, target):
         The number of elements less than the target target is returned by the procedure.
 
         -- Wikipedia: binary search algorithm
-
-
-    The pseudocode for finding the leftmost element:
-    https://en.wikipedia.org/wiki/Binary_search_algorithm#Procedure_for_finding_the_leftmost_element
     """
     if len(L) == 0:
         return -1
-    # [0, length - 1]
     lo, hi = 0, len(L) - 1
     while lo <= hi:  # equals to lo == hi + 1
         mid = lo + (hi - lo) // 2
         if L[mid] == target:
             hi = mid - 1  # shrink right bound
         elif L[mid] < target:
-            # [mid + 1, hi]
             lo = mid + 1
         elif L[mid] > target:
-            # [lo, mid - 1]
             hi = mid - 1
     return lo
 
@@ -82,17 +72,14 @@ def binary_search_rightmost(L, target):
     """Similar to above function."""
     if len(L) == 0:
         return -1
-    # [0, length - 1]
     lo, hi = 0, len(L) - 1
     while lo <= hi:  # equals to lo == hi + 1
         mid = lo + (hi - lo) // 2
         if L[mid] == target:
             lo = mid + 1  # shrink left bound
         elif L[mid] < target:
-            # [mid + 1, hi]
             lo = mid + 1
         elif L[mid] > target:
-            # [lo, mid - 1]
             hi = mid - 1
     return hi
 

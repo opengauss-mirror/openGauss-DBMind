@@ -22,13 +22,32 @@ from dbmind.cmd.configs.config_utils import (
     config_set_value_encrypted_flag,
     config_is_encrypted_value,
     config_standardize_null_value,
-    get_config_security_keys,
-    set_config_encryption_iv,
-    create_dynamic_configs)
-from dbmind.cmd.configs.configurators import UpdateConfig, DynamicConfig, GenerationConfig
+    set_config_encryption_iv)
+from dbmind.cmd.configs.configurators import UpdateConfig, DynamicConfig, GenerationConfig, create_dynamic_configs, \
+    get_config_security_keys
+from dbmind.cmd.configs.config_constants import ENCRYPTED_SIGNAL
 from dbmind.common import utils, security
 from dbmind.common.exceptions import SetupError, SQLExecutionError, DuplicateTableError
+from dbmind.common.security import check_password_strength, is_private_key_encrypted, CertCheckerHandler
+from dbmind.metadatabase.dao.dynamic_config import dynamic_config_get, dynamic_config_set
 from dbmind.metadatabase.ddl import create_metadatabase_schema, destroy_metadatabase
+from dbmind.metadatabase.schema.config_dynamic_params import IV_TABLE
+
+
+def check_ssl_keyfile_password(section):
+    ssl_keyfile = global_vars.configs.get(section, 'ssl_keyfile')
+    ssl_keyfile_password = global_vars.configs.get(section, 'ssl_keyfile_password')
+    if ssl_keyfile:
+        if not ssl_keyfile_password or not is_private_key_encrypted(ssl_keyfile):
+            raise SetupError(f'{section}-ssl_keyfile_password in the file dbmind.conf should not be null. '
+                             f'Please revise it.')
+
+
+def check_ssl_algorithm(section):
+    ssl_cert_file = global_vars.configs.get(section, 'ssl_certfile')
+    ssl_ca_file = global_vars.configs.get(section, 'ssl_ca_file')
+    if not CertCheckerHandler.is_valid_cert(ca_name=ssl_ca_file, crt_name=ssl_cert_file):
+        raise SetupError(f'{section} ca is invalid.')
 
 
 def initialize_and_check_config(confpath, interactive=False, quiet=False):
@@ -43,25 +62,30 @@ def initialize_and_check_config(confpath, interactive=False, quiet=False):
 
     if not os.path.exists(dynamic_config_path):
         # If dynamic config file does not exist, create a new one.
-        s1, s2 = create_dynamic_configs()
+        s1, s2 = create_dynamic_configs(os.path.join(confpath, constants.CIPHER_S1))
     else:
         # If exists, need not create a new dynamic config file
         # and directly load hash key s1 and s2 from it.
-        s1, s2 = get_config_security_keys()
+        s1, s2 = get_config_security_keys(os.path.join(confpath, constants.CIPHER_S1))
         if not (s1 and s2):
-            # If s1 or s2 is invalid, it indicates that an broken event may occurred while generating
-            # the dynamic config file. Hence, the whole process of generation is unreliable and we have to
+            # If s1 or s2 is invalid, it indicates that a broken event may occurred while generating
+            # the dynamic config file. Hence, the whole process of generation is unreliable, and we have to
             # generate a new dynamic config file.
             os.unlink(dynamic_config_path)
-            s1, s2 = create_dynamic_configs()
+            s1, s2 = create_dynamic_configs(os.path.join(confpath, constants.CIPHER_S1))
 
     # Check some configurations and encrypt passwords.
     with UpdateConfig(dbmind_conf_path) as config:
+        microservice, ignore_tsdb = False, False
         if not interactive:
             for section, section_comment in config.sections():
                 for option, value, inline_comment in config.items(section):
+                    if section == 'TSDB' and option == 'name' and value == 'ignore':
+                        ignore_tsdb = True
+                    if section == 'AGENT' and option == 'distribute_mode' and value == 'true':
+                        microservice = True
                     valid, invalid_reason = check_config_validity(
-                        section, option, value
+                        section, option, value, microservice=microservice, ignore_tsdb=ignore_tsdb
                     )
                     if not valid:
                         raise SetupError(
@@ -78,6 +102,13 @@ def initialize_and_check_config(confpath, interactive=False, quiet=False):
                     # Skip when the password has encrypted.
                     if config_is_encrypted_value(value):
                         continue
+                    # Check the password strength.
+                    username = None
+                    if option == 'password':
+                        username, _ = config.get(section, 'username')
+                    if not check_password_strength(value, username):
+                        raise SetupError('The %s-%s in the file dbmind.conf is not strong enough,'
+                                         ' please reset the password.' % (section, option))
                     # Every time a new password is generated, update the IV.
                     iv = security.generate_an_iv()
                     set_config_encryption_iv(iv, section, option)
@@ -92,6 +123,10 @@ def initialize_and_check_config(confpath, interactive=False, quiet=False):
     global_vars.configs = load_sys_configs(
         constants.CONFILE_NAME
     )
+
+    for section in ('TSDB', 'AGENT', 'WEB-SERVICE'):
+        check_ssl_keyfile_password(section)
+        check_ssl_algorithm(section)
     utils.cli.write_to_terminal('Starting to connect to meta-database and create tables...',
                                 color='green')
     try:
@@ -151,16 +186,27 @@ def setup_directory_interactive(confpath):
     )
     utils.base.chmod_r(confpath, 0o700, 0o600)
 
+    os.chdir(confpath)
+    dynamic_config_path = os.path.join(confpath, constants.DYNAMIC_CONFIG)
+    if not os.path.exists(dynamic_config_path):
+        create_dynamic_configs(os.path.join(confpath, constants.CIPHER_S1))
+    else:
+        s1, s2 = get_config_security_keys(os.path.join(confpath, constants.CIPHER_S1))
+        if not (s1 and s2):
+            os.unlink(dynamic_config_path)
+            create_dynamic_configs(os.path.join(confpath, constants.CIPHER_S1))
+
     utils.cli.write_to_terminal('Starting to configure...', color='green')
     # Generate an initial configuration file.
     with GenerationConfig(
-        filepath_src=os.path.join(
-            constants.MISC_PATH, constants.CONFILE_NAME),
-        filepath_dst=os.path.join(
-            confpath, constants.CONFILE_NAME)
+            filepath_src=os.path.join(
+                constants.MISC_PATH, constants.CONFILE_NAME),
+            filepath_dst=os.path.join(
+                confpath, constants.CONFILE_NAME)
     ) as config:
         try:
             # Modify configuration items by user's typing.
+            microservice, ignore_tsdb = False, False
             for section in config.sections():
                 section_comment = config.get('COMMENT', section, fallback='')
                 utils.cli.write_to_terminal('[%s]' % section, color='white')
@@ -192,8 +238,14 @@ def setup_directory_interactive(confpath):
                         if input_value.strip() == '':
                             input_value = default_value
 
+                        if section == 'TSDB' and option == 'name' and input_value == 'ignore':
+                            ignore_tsdb = True
+
+                        if section == 'AGENT' and option == 'distribute_mode' and input_value == 'true':
+                            microservice = True
+
                         valid, invalid_reason = check_config_validity(
-                            section, option, input_value
+                            section, option, input_value, microservice=microservice, ignore_tsdb=ignore_tsdb
                         )
                         if not valid:
                             utils.cli.write_to_terminal(
@@ -202,6 +254,17 @@ def setup_directory_interactive(confpath):
                                 color='red'
                             )
                             input_value = ''
+
+                    if 'password' in option and input_value != default_value:
+                        # dynamic_config_xxx searches file from current working directory.
+                        os.chdir(confpath)
+                        s1, s2 = get_config_security_keys(os.path.join(confpath, constants.CIPHER_S1))
+                        # Every time a new password is generated, update the IV.
+                        iv = security.generate_an_iv()
+                        dynamic_config_set(IV_TABLE, '%s-%s' % (section, option), iv)
+                        cipher = security.encrypt(s1, s2, iv, input_value)
+                        input_value = ENCRYPTED_SIGNAL + cipher
+
                     config.set(section, option, '%s  # %s' % (
                         input_value, inline_comment))
         except (KeyboardInterrupt, EOFError, ValueError):
@@ -239,8 +302,8 @@ def setup_directory(confpath):
     )
     utils.base.chmod_r(confpath, 0o700, 0o600)
     with GenerationConfig(
-        filepath_src=os.path.join(confpath, constants.CONFILE_NAME),
-        filepath_dst=os.path.join(confpath, constants.CONFILE_NAME),
+            filepath_src=os.path.join(confpath, constants.CONFILE_NAME),
+            filepath_dst=os.path.join(confpath, constants.CONFILE_NAME),
     ):
         pass
 

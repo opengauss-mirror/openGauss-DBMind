@@ -1,7 +1,6 @@
 import React, { Component } from 'react';
-import {Empty} from 'antd';
+import {Empty, message} from 'antd';
 import ReactEcharts from 'echarts-for-react';
-import { commonMetricMethod } from '../../utils/function';
 import { getDistribution } from '../../api/overview';
 import db from '../../utils/storage';
 
@@ -11,11 +10,7 @@ export default class SqlDistributionChart extends Component {
     this.state = {
       chartData: [],
       showFlag: 0,
-      total:0,
-      param: {
-        instance:db.ss.get('Instance_value')
-      },
-      metricData:['pg_sql_count_select','pg_sql_count_update','pg_sql_count_delete','pg_sql_count_insert','pg_sql_count_dcl','pg_sql_count_ddl']
+      total:0
     }
   }
   getOption = () => {
@@ -116,14 +111,84 @@ export default class SqlDistributionChart extends Component {
       ]
     };
   }
+  async getDistribution1 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_sql_count_select'
+    }
+    const { success, data, msg }= await getDistribution(param)
+    if (success) {
+      return data
+    }
+  }
+  async getDistribution2 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_sql_count_update'
+    }
+    const { success, data, msg }= await getDistribution(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getDistribution3 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_sql_count_delete'
+    }
+    const { success, data, msg }= await getDistribution(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getDistribution4 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_sql_count_insert'
+    }
+    const { success, data, msg }= await getDistribution(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getDistribution5 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_sql_count_dcl'
+    }
+    const { success, data, msg }= await getDistribution(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
+  async getDistribution6 () {
+    let param = {
+      instance:db.ss.get('Instance_value'),
+      label:'pg_sql_count_ddl'
+    }
+    const { success, data, msg }= await getDistribution(param)
+    if (success) {
+      return data
+    } else {
+      message.error(msg)
+    }
+  }
   getDistributionAll(){
     Promise.all([
-      commonMetricMethod(this.state.param,{label:this.state.metricData[0]},getDistribution),
-      commonMetricMethod(this.state.param,{label:this.state.metricData[1]},getDistribution),
-      commonMetricMethod(this.state.param,{label:this.state.metricData[2]},getDistribution),
-      commonMetricMethod(this.state.param,{label:this.state.metricData[3]},getDistribution),
-      commonMetricMethod(this.state.param,{label:this.state.metricData[4]},getDistribution),
-      commonMetricMethod(this.state.param,{label:this.state.metricData[5]},getDistribution)
+      this.getDistribution1(),
+      this.getDistribution2(),
+      this.getDistribution3(),
+      this.getDistribution4(),
+      this.getDistribution5(),
+      this.getDistribution6(),
     ]).then((result)=>{
       if(result[0]){
         let dataObj = [

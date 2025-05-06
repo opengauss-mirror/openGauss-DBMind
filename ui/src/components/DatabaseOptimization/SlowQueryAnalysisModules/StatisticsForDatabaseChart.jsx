@@ -10,78 +10,74 @@ export default class StatisticsForDatabaseChart extends Component {
   constructor(props) {
     super(props)
     this.state = {
-      xdata: [],
-      ydata: []
+      chartData: []
     }
   }
   getOption = () => {
     return {
-      tooltip: { show: true },
-      xAxis: {
-        type: 'category',
-        axisLabel: {
-          interval: 0,
-          overflow: "truncate",
-          width: 35,
-          textStyle: {
-            color: '#4D5964',
-            fontSize: '12'
-          },
-          formatter: function (name) {
-            if (name.length > 5) {
-              name = name.slice(0, 5) + "...";
-            }
-            return name;
-          },
-        },
-        data: this.state.xdata
+      tooltip: {
+        trigger: 'item'
       },
-      yAxis: {
-        type: 'value',
-       
-        axisLabel: {
-          textStyle: {
-            color: '#4D5964',
-            fontSize: '10'
-          }
-        }
+      legend: {
+        top: '0%',
+        left: '0%',
+        width: '10%',
+        show: true
       },
-      grid: {
-        height:'80%',
-        top: '5%'
+      label: {
+        show: true
+      },
+      title: {
+        show: true
       },
       series: [
         {
-          data: this.state.ydata,
-          type: 'bar',
-
+          name: 'Transaction State',
+          type: 'pie',
+          radius: ['40%', '80%'],
+          avoidLabelOverlap: false,
           itemStyle: {
-            color: "#9185F0",
+            borderColor: '#fff',
+            borderWidth: 0
           },
+          left: '20%',
+          label: {
+            show: false,
+            position: 'bottom',
+            fontSize: '16px',
+            color: 'auto'
+          },
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 10,
+              shadowOffsetX: 0,
+              shadowColor: 'rgba(0, 0, 0,0.5)'
+            }
+          },
+          labelLine: {
+            show: false
+          },
+          color: ['#9fe080', '#5470c6', '#ffbe54', '#fc950c'],
+          data: this.state.chartData
         }
       ]
     };
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
-
-    let xdataArr = []
-    let ydataArr = []
-
-    Object.keys(nextProps?.statisticsForDatabase).forEach(function (key, i, v) {
-      ydataArr.push(nextProps.statisticsForDatabase[key])
-      xdataArr = v
+    let dataArr = []
+    Object.keys(nextProps.statisticsForDatabase).forEach(function (key) {
+      let obj = {
+        name: key,
+        value: nextProps.statisticsForDatabase[key]
+      }
+      dataArr.push(obj)
     })
-     
-      this.setState({
-        xdata: xdataArr,
-        ydata: ydataArr
-      })
-   
+    this.setState({chartData: dataArr})
   }
   render () {
     return (
       <div>
-        <Card title="Statistics For Database" style={{ height: '278px' }}>
+        <Card title="Statistics For Database" style={{ height: 280 }}>
           <ReactEcharts
             ref={(e) => {
               this.echartsElement = e

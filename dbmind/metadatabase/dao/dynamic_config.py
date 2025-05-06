@@ -29,16 +29,18 @@ If you want to add more dynamic configurations, you should follow the underlying
 functions to modify and read them.
 """
 import logging
+import re
 from collections import defaultdict
 
 from sqlalchemy import update, insert
 from sqlalchemy.exc import DBAPIError
 
-from dbmind.cmd.configs.config_constants import IV_TABLE
+from dbmind.metadatabase.schema.config_dynamic_params import IV_TABLE
 
 # Register dynamic config table here.
 from ..dynamic_config_db_session import get_session
 from ..schema.config_dynamic_params import DynamicParams as Table
+from ...common.exceptions import ConfigSettingError
 
 
 def dynamic_config_set(category, name, value):
@@ -50,6 +52,7 @@ def dynamic_config_set(category, name, value):
         # Otherwise, insert a new row into the table.
         if session.query(Table).filter(Table.category == category,
                                        Table.name == name).count() > 0:
+            value = None if value == "None" else check_type(category, name, value)
             session.execute(
                 update(Table).where(
                     Table.name == name
@@ -60,12 +63,59 @@ def dynamic_config_set(category, name, value):
                 )
             )
         else:
+            check_config_and_name(category, name)
             session.execute(
-                insert(Table).values(category=category, name=name, value=value)
+                insert(Table).values(category=category, name=name, tag='str', value=value)
             )
 
 
+def check_config_and_name(category, name):
+    default_config = {}
+    for item in Table.default_values():
+        if not default_config.get(item.category):
+            default_config[item.category] = []
+        default_config.get(item.category).append(item.name)
+    if not default_config.get(category):
+        raise ConfigSettingError(f'The config {category} parameter is not correct.')
+    if category != 'iv_table' and default_config.get(category) and (name not in default_config.get(category)):
+        raise ConfigSettingError(f'The name {name} parameter is not correct.')
+
+
+def check_type(category, name, value):
+    if 'iv_table' == category:
+        return value
+    tag = ''
+    for item in Table.default_values():
+        if item.category == category and item.name == name:
+            tag = item.tag
+            break
+    if not tag:
+        raise ConfigSettingError(f'Could not find type of {name}.')
+    if tag == 'int':
+        if value.isdigit():
+            try:
+                value = int(value)
+            except ConfigSettingError:
+                raise ConfigSettingError(f'Please check the type of value parameter, '
+                                         f'which should be positive int.')
+        else:
+            raise ConfigSettingError(f'Please check the type of value parameter, '
+                                     f'which should be positive int.')
+    if tag == 'float':
+        if re.match(r'^\d+\.\d+$', value) or 'inf' in value:
+            try:
+                value = float(value)
+            except ConfigSettingError:
+                raise ConfigSettingError(f'Please check the type of value parameter, '
+                                         f'which should be positive float.')
+        else:
+            raise ConfigSettingError(f'Please check the type of value parameter, '
+                                     f'which should be positive float.')
+    return value
+
+
 def dynamic_config_get(category, name, fallback=None):
+    check_config_and_name(category, name)
     with get_session() as session:
         try:
             result = tuple(session.query(Table).filter(Table.category == category, Table.name == name))
@@ -103,5 +153,5 @@ def dynamic_configs_list():
             if tuple_item.category in __no_need_for_showing__:
                 continue
 
-            rv[tuple_item.category].append((tuple_item.name, tuple_item.value, tuple_item.annotation))
+            rv[tuple_item.category].append((tuple_item.name, tuple_item.value, tuple_item.annotation, tuple_item.tag))
     return rv

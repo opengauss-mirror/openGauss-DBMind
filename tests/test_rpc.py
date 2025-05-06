@@ -47,7 +47,11 @@ def test_rpc_request_and_response():
     assert request.__dict__ == RPCRequest.from_json(request.json()).__dict__
     res_exp = response.__dict__
     res_rst = RPCResponse.from_json(response.json()).__dict__
-    assert res_exp.pop('request').__dict__ == res_rst.pop('request').__dict__
+    res_exp_request = res_exp.pop('request').__dict__
+    res_rst_request = res_rst.pop('request').__dict__
+    res_exp_request.pop("pwd")
+    res_rst_request.pop("pwd")
+    assert res_exp_request == res_rst_request
     assert res_exp == res_rst
 
 
@@ -107,7 +111,7 @@ def rpc_client_testing():
         t.start()
 
     for i in range(10):
-        assert not client.handshake('faked', 'faked')
+        assert not client.handshake('faked', 'faked')[0]
 
     results = set()
     exceptions = []
@@ -132,7 +136,7 @@ def rpc_client_testing():
     # test for bad username or pwd.
     try:
         client2 = RPCClient('http://127.0.0.1:5454/rpc', 'badusername', 'wrongpwd')
-        assert not client2.handshake()
+        assert not client2.handshake()[0]
         client2.call('func', 1, 2)
     except RPCExecutionError as e:
         assert 'authorization' in str(e)

@@ -67,7 +67,7 @@ export default class RiskAnalysis extends Component {
       })
     }))
     return (
-      <div>
+      <div style={{ textAlign: 'center' }}>
         <Card title="Risk Analysis">
           <Table bordered components={this.components} columns={columns} dataSource={this.state.dataSource} size="small" rowKey={record => record.key} pagination={false} style={{ height: 250, overflowY: 'auto' }} scroll={{ x: '100%'}}/>
         </Card>

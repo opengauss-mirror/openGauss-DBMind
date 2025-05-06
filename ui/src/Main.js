@@ -8,9 +8,7 @@ import Overview from './pages/Overview';
 import NodeInformation from './pages/NodeInformation.jsx';
 import Alarms from './components/AutonomousManagement/Alarms';
 import SecurityManagement from './components/AutonomousManagement/SecurityManagement';
-import IntelligentInspection from './components/AutonomousManagement/IntelligentInspection';
-import IndexTuning from './components/DatabaseOptimization/IndexTuning';
-import DatabaseTuning from './components/DatabaseOptimization/DatabaseTuning';
+import Metric from './components/DatabaseOptimization/DatabaseTuningModules/Metric';
 import SlowQueryAnalysis from './components/DatabaseOptimization/SlowQueryAnalysis';
 import RegularInspections from './components/DatabaseOptimization/RegularInspections';
 import IndexAdvisor from './components/AiToolkit/IndexAdvisor';
@@ -46,9 +44,7 @@ class Main extends React.Component {
                 <Route path="/AutonomouseManagement/nodeinfor" component={NodeInformation}></Route>
                 <Route path="/AutonomouseManagement/alarms" component={Alarms}></Route>
                 <Route path="/AutonomouseManagement/securitymanagement" component={SecurityManagement}></Route>
-                <Route path="/AutonomouseManagement/intelligentInspection" component={IntelligentInspection}></Route>
-                <Route path="/DatabaseOptimization/indexTuning" component={IndexTuning}></Route>
-                <Route path="/DatabaseOptimization/databaseTuning" component={DatabaseTuning}></Route>
+                <Route path="/DatabaseOptimization/metric" component={Metric}></Route>
                 <Route path="/DatabaseOptimization/slowqueryanalysis" component={SlowQueryAnalysis}></Route>
                 <Route path="/DatabaseOptimization/regularinspections" component={RegularInspections}></Route>
                 <Route path="/DatabaseOptimization/intelligentsqlcondition" component={IntelligentSqlCondition}></Route>

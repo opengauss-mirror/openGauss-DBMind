@@ -24,6 +24,6 @@ class SlowQueriesJournal(ResultDbBase):
     start_at = Column(BigInteger, nullable=False)
     round_start_at = Column(BigInteger, nullable=False)
     duration_time = Column(Float, nullable=False)
-    instance = Column(String, nullable=False)
+    instance = Column(String(64), nullable=False)
 
     idx_faked_foreign_key = Index("idx_slow_queries_journal_slow_query_id", slow_query_id)

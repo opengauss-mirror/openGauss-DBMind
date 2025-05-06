@@ -15,6 +15,7 @@ from typing import Optional
 from dbmind.common.algorithm.basic import binary_search, binary_search_leftmost, binary_search_rightmost
 from dbmind.common.algorithm.basic import how_many_lesser_elements
 from dbmind.common.utils import dbmind_assert
+from dbmind.common.utils.checking import uniform_labels
 from ..either import OptionalContainer, OptionalValue
 from ..rpc import RPCJSONAble
 from ..utils import cached_property
@@ -87,6 +88,9 @@ class Sequence(RPCJSONAble):
         success, message = Sequence._check_validity(self._timestamps, self._values)
         if not success:
             raise ValueError(message)
+
+    def set_name(self, name: str):
+        self.name = name
 
     @staticmethod
     def _check_validity(timestamps, values):
@@ -211,7 +215,7 @@ class Sequence(RPCJSONAble):
 
     @cached_property
     def labels(self):
-        return self._labels
+        return uniform_labels(self._labels)
 
     def copy(self):
         return Sequence(
