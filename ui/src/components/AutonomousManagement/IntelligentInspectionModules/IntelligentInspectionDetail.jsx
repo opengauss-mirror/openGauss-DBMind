@@ -31,13 +31,15 @@ export default class IntelligentInspectionDetail extends Component {
       this.props.inspectionMode.id
     );
     if (success) {
+      const safeRows = (data && data.rows && data.rows[0]) ? data.rows[0] : [];
+      const payload = (Array.isArray(safeRows) && safeRows.length > 1 && typeof safeRows[1] === 'object') ? safeRows[1] : {};
       this.setState(
         {
-          realtimeInspections: data.rows[0][1],
+          realtimeInspections: payload,
           isShowRealtime: true,
         },
         () => {
-          if (!Object.keys(this.state.realtimeInspections).includes("system")) {
+          if (!Object.keys(this.state.realtimeInspections || {}).includes("system")) {
             this.changeTypeVal("2");
           }
         }

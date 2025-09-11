@@ -40,7 +40,7 @@ CIPHER_S1 = 'encryption_part_a.bin'
 with open(os.path.join(MISC_PATH, VERFILE_NAME)) as fp:
     __version__ = fp.readline().strip()
 
-DBMIND_UI_DIRECTORY = None
+DBMIND_UI_DIRECTORY = os.path.join(DBMIND_PATH, '../ui/build')
 
 # The default timed-task when the service is not started with only-run.
 # User should not stop the 'DISCARD_EXPIRED_RESULTS' to avoid excessive disk usage.

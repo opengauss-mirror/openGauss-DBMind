@@ -18,6 +18,11 @@ import sys
 
 
 def replace_cmdline(new_cmdline):
+    # 只在Linux系统上执行进程标题屏蔽
+    if not sys.platform == 'linux':
+        logging.debug('Process title masking is only supported on Linux systems.')
+        return
+        
     try:
         libc = ctypes.CDLL('libc.so.6')
         progname = ctypes.c_char_p.in_dll(libc, '__progname_full')
@@ -35,7 +40,6 @@ def replace_cmdline(new_cmdline):
     except Exception as e:
         logging.warning('Cannot mask the process title due to %s. There may be a security risk, '
                         'please take notice of it.', e)
-        sys.exit(1)
 
 
 def check_ssl_valid_and_ssl_encrypt_status():

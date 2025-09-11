@@ -17,6 +17,7 @@ import os
 import re
 import shlex
 import socket
+import sys
 from logging.handlers import RotatingFileHandler
 
 import requests
@@ -275,16 +276,24 @@ def wipe_off_sensitive_information_from_proc_title(old, new, wipe_argument=False
     :param wipe_argument: specifies whether to wipe off argument value.
     :return None
     """
-    with open('/proc/self/cmdline') as fp:
-        cmdline = fp.readline().replace('\x00', ' ')
-    wiped_cmdline = cmdline
-    if wipe_argument:
-        for index, word in enumerate(shlex.split(cmdline)):
-            if word == old:
-                wiped_cmdline = cmdline.replace(shlex.split(cmdline)[index + 1], new)
-    else:
-        wiped_cmdline = cmdline.replace(old, new)
-    set_proc_title(wiped_cmdline)
+    # 只在Linux系统上执行进程标题处理
+    if sys.platform != 'linux':
+        logging.debug('Process title masking is only supported on Linux systems.')
+        return
+        
+    try:
+        with open('/proc/self/cmdline') as fp:
+            cmdline = fp.readline().replace('\x00', ' ')
+        wiped_cmdline = cmdline
+        if wipe_argument:
+            for index, word in enumerate(shlex.split(cmdline)):
+                if word == old:
+                    wiped_cmdline = cmdline.replace(shlex.split(cmdline)[index + 1], new)
+        else:
+            wiped_cmdline = cmdline.replace(old, new)
+        set_proc_title(wiped_cmdline)
+    except Exception as e:
+        logging.debug('Failed to wipe sensitive information from process title: %s', e)
 
 
 def wipe_off_dsn_password(db_connection_string):

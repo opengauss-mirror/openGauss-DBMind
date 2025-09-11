@@ -152,7 +152,11 @@ class Driver:
                     "SELECT setting FROM pg_catalog.pg_settings where name = 'local_bind_address';",
                     return_tuples=True
                 )[0][0]
-                self.parsed_dsn['host'] = real_host
+                # Don't replace with 0.0.0.0 as it's not a connectable address
+                if real_host not in ['0.0.0.0', '::', '']:
+                    self.parsed_dsn['host'] = real_host
+                else:
+                    logging.debug("Keeping original host %s instead of %s", self.parsed_dsn['host'], real_host)
             except IndexError:
                 logging.warning("No local bind address found in settings. Use dsn host instead.")
             except psycopg2.Error as e:

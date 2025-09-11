@@ -43,13 +43,14 @@ export default class QueryTuning extends Component {
   async getItemList () {
     const { success, data, msg } = await getItemListInterface()
     if (success) {
-      this.setState({options: data})
+      const defaultVal = this.state.selValue || (Array.isArray(data) && data.length > 0 ? data[0] : '')
+      this.setState({ options: data, selValue: defaultVal })
     } else {
       message.error(msg)
     }
   }
   async getQueryTuning () {
-    let params = {
+    const params = {
       database: this.state.selValue,
       sql: encodeURIComponent(this.state.sqlstatement_treaVal),
       use_rewrite: this.state.use_rewrite,
@@ -66,9 +67,9 @@ export default class QueryTuning extends Component {
   }
   handleDownload () {
     const type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=utf-8'
-    let blob = new window.Blob([this.state.result_treaVal], { type: type })
-    let requestUrl = window.URL.createObjectURL(blob)
-    let link = document.createElement('a')
+    const blob = new window.Blob([this.state.result_treaVal], { type: type })
+    const requestUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
     link.style.display = 'none'
     link.href = requestUrl
     link.setAttribute('download', 'result.txt')
@@ -81,7 +82,7 @@ export default class QueryTuning extends Component {
   }
   render () {
     return (
-      <div className="contentWrap">
+      <div className="contentWrap querytuning">
         <Card title="Query Tuning" bordered={false} style={{ width: '100%', minHeight: 800, position: 'relative' }}>
           <Row style={{ width: '100%', marginBottom: 20 }} >
               <Col span={3}>

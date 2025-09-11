@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
-import { message, Table, Row, Col } from 'antd';
+import { message, Table, Row, Col, Modal, Button } from 'antd';
 import ResizeableTitle from '../common/ResizeableTitle';
+import VisualDeadlock from '../NodeInformation/VisualDeadlock';
 import { getLockingQueryInterface } from '../../api/autonomousManagement';
 import { formatTableTitle } from '../../utils/function';
 
@@ -19,6 +20,8 @@ export default class LockInformation extends Component {
       dataTableLevelLocks:0,
       dataRowLevelLocks:0,
       dataOtherLocks:0,
+      isModalVisible: false,
+      DetailsParam: {}
     }
   }
   components = {
@@ -33,12 +36,22 @@ export default class LockInformation extends Component {
       if (data.header && data.header.length > 0) {
         let historyColumObj = {}
         let tableHeader = []
+        data.header.push('operation')
         data.header.forEach((item) => {
           historyColumObj = {
             title: formatTableTitle(item),
             dataIndex: item,
             ellipsis: true,
-            width: 180
+            width: 180,
+            align:item === 'operation' ? 'center' : 'left',
+            fixed:item === 'operation' ? 'right' : 'false',
+            render: (row, record) => {
+              if(item === 'operation'){
+                return <Button type="primary"  onClick={() => this.isModal(row, record)}>Details</Button>
+              } else {
+                return row
+              }
+            },
           }
           tableHeader.push(historyColumObj)
         })
@@ -97,6 +110,18 @@ export default class LockInformation extends Component {
       return { columns: nextColumns };
     });
   };
+  isModal(row, record) {
+    this.setState({
+      isModalVisible: true,
+      DetailsParam:record
+    })
+  }
+  handleCancel = () => {
+    this.setState({
+      isModalVisible: false,
+      DetailsParam:{}
+    })
+  }
   componentDidUpdate(prevProps) {
     if( prevProps.tabkey !== this.props.tabkey || prevProps.tabChildkey !== this.props.tabChildkey) {
       if(this.props.tabkey === "3" && this.props.tabChildkey === "1" ){
@@ -132,6 +157,10 @@ export default class LockInformation extends Component {
           </Col>
         </Row>
           <Table bordered showSorterTooltip={false} components={this.components} columns={columns} dataSource={this.state.lockDataSource} rowKey={record => record.key} pagination={this.state.lockPagination} loading={this.state.loadingLock} scroll={{ x: '100%'}}/>
+          <Modal title="Abnormal Root Cause Analysis" style={{maxWidth: "80vw"}} bodyStyle={{overflowY: "auto",height: "80vh", background: '#f1f1f1'}} width="80vw" okButtonProps={{ style: { display: 'none' } }} 
+         destroyOnClose={true} visible={this.state.isModalVisible} maskClosable = {false} centered='true' onCancel={() => this.handleCancel()}>
+           <VisualDeadlock detailsParam = {this.state.DetailsParam} />
+        </Modal>
       </div>
     )
   }

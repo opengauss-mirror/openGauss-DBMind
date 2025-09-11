@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
-import 'antd/dist/antd.css';
-import '../assets/css/main/index.css';
+// 全局样式已在入口统一导入
 import { Layout, Menu } from 'antd';
+import db from '../utils/storage';
 import { withRouter } from 'react-router-dom';
 import menuList from '../router/menu.js';
 
@@ -24,19 +24,30 @@ class MenuLeft extends Component {
     this.openHierarchy()
   }
   openHierarchy(){
-    const {pathname} = this.props.location;
+    // 优先读取会话内记忆的 openKey
+    const remembered = db.ss.get('menu.openKey');
+    if (remembered) {
+      this.setState({ openKey: remembered });
+      return;
+    }
+    // 回退：根据 URL 推断上层路径作为 openKey
+    const { pathname } = this.props.location;
     let path = pathname.split('/');
-    if(pathname.split('/').length>2){
-      path = path[path.length-2];
-      this.setState(()=>({openKey:'/'+path}))
+    if (pathname.split('/').length > 2) {
+      path = path[path.length - 2];
+      this.setState(() => ({ openKey: '/' + path }));
     }
   }
   onOpenChange = (k) => {
-    if(k.length>1){
-      this.setState({openKey:k[k.length-1],})
-    } else{
-      this.setState({openKey:'',})
-    }}
+    if (k.length > 1) {
+      const key = k[k.length - 1];
+      this.setState({ openKey: key });
+      db.ss.set('menu.openKey', key);
+    } else {
+      this.setState({ openKey: '' });
+      db.ss.remove('menu.openKey');
+    }
+  }
   componentDidUpdate(prevProps) {
     if (prevProps.location.pathname !== this.props.location.pathname) {
       this.openHierarchy()

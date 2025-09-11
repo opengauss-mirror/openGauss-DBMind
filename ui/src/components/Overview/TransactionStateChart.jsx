@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
-import { Card, Empty, Modal, message } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import { Empty, Modal } from 'antd';
+import EChart from '../common/EChart';
+import { commonMetricMethod } from '../../utils/function';
 import { getTransaction } from '../../api/overview';
 import db from '../../utils/storage';
 
@@ -14,6 +15,10 @@ export default class TransactionStateChart extends Component {
       yallData: [],
       ifShow: true,
       isModalVisible:false,
+      param: {
+        instance:db.ss.get('Instance_value')
+      },
+      metricData:['pg_db_xact_commit','pg_db_xact_rollback']
     }
   }
   getOption (flg) {
@@ -34,7 +39,7 @@ export default class TransactionStateChart extends Component {
       },
       grid: {
         x:60,
-        y: '12%',
+        y: '10%',
       },
       xAxis: [
         {
@@ -50,10 +55,18 @@ export default class TransactionStateChart extends Component {
       ],
       yAxis: [
         {
-          type: 'value',
-        },
-        {
-          type: 'value',
+          axisLabel: {
+            margin: 2,
+            formatter: (value, index) => {
+              if (value >= 10000 && value < 10000000) {
+                value = value / 10000 + "万";
+              } else if (value >= 10000000) {
+                value = value / 10000000 + "千万";
+              }
+              return value;
+            }
+          },
+          type: 'value'
         }
       ],
       color:['#5990fdff','#fecd03ff'],
@@ -68,41 +81,16 @@ export default class TransactionStateChart extends Component {
         {
           name: 'abort',
           type: 'bar',
-          yAxisIndex: 1,
           barWidth:flg ? 18 : 36,
           data: flg ? this.state.ypartData[0] : this.state.yallData[0],
         },
       ]
     };
   }
-  async getTransaction1 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_db_xact_commit'
-    }
-    const { success, data, msg }= await getTransaction(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getTransaction2 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_db_xact_rollback'
-    }
-    const { success, data, msg }= await getTransaction(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
   getTransactionAll(flg){
     Promise.all([
-      this.getTransaction1(),
-      this.getTransaction2()
+      commonMetricMethod(this.state.param,{label:this.state.metricData[0]},getTransaction),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[1]},getTransaction)
     ]).then((result)=>{
       if(result[0].length){
         let xData = [],commitData = [],abortData = []
@@ -134,9 +122,7 @@ export default class TransactionStateChart extends Component {
       } else {
         this.setState({ifShow: false})
       }
-    }).catch((error) => {
-      console.log('error', error)
-    })
+    }).catch(() => {})
   }
   isMore() {
     this.setState({
@@ -156,26 +142,22 @@ export default class TransactionStateChart extends Component {
   render () {
     return (
       <div>
-        {this.state.ifShow ? <ReactEcharts
+        {this.state.ifShow ? <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption(true)}
-            style={{ width: '100%', height: '258px' }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts> : <Empty description={this.state.ifShow} style={{ height: 200, paddingTop: 50 }} />}
+            style={{ height: '258px' }}
+          /> : <Empty description={this.state.ifShow} style={{ height: 200, paddingTop: 50 }} />}
           <Modal title="Transaction State" style={{maxWidth: "70vw"}} bodyStyle={{overflowY: "auto",height: "60vh",}} width="70vw" okButtonProps={{ style: { display: 'none' } }} 
          destroyOnClose='true' visible={this.state.isModalVisible} maskClosable = {false} centered='true' onCancel={() => this.handleCancel()}>
-          <ReactEcharts
+          <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption(false)}
             style={{ width: 1296, height: 500 }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts>
+          />
         </Modal>
       </div>
     )

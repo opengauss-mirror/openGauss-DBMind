@@ -1,3 +1,4 @@
+/* 基础 */
 *{
   margin: 0;
   padding: 0;
@@ -11,4 +12,79 @@
 }
 ul li{
   list-style: none;
+}
+
+/* 主题变量（Scheme A：主色沿用现状，强调色为华为红系） */
+:root {
+  --brand-primary: #2F49D1; /* 保留蓝紫主色（与错误态红区分） */
+  --brand-primary-hover: #2439A8;
+  --brand-primary-active: #1C2D85;
+
+  --brand-accent-red: #CF0A2C; /* Huawei Red 近似 */
+  --brand-accent-red-hover: #C41127;
+  --brand-accent-red-active: #A10D20;
+
+  --brand-header-bg-from: #0B1120;
+  --brand-header-bg-to: #1B2A4B;
+  --brand-menu-bg: #0F172A;
+  --brand-menu-selected-bg: rgba(207,10,44,0.12);
+  --brand-menu-selected-bar: #CF0A2C;
+  --brand-focus: rgba(47,73,209,0.35);
+}
+
+/* 链接与轻量强调：使用红色强调，不改变主按钮色 */
+a, .ant-typography a {
+  color: var(--brand-accent-red);
+}
+a:hover, .ant-typography a:hover {
+  color: var(--brand-accent-red-hover);
+}
+
+/* Tabs/分页等关键可视元素：强调红用于高亮条或激活态 */
+.ant-tabs-ink-bar {
+  background: var(--brand-accent-red);
+}
+.ant-pagination-item-active a {
+  color: #fff;
+  background-color: var(--brand-accent-red);
+  border-color: var(--brand-accent-red);
+}
+.ant-pagination-item-active:hover a {
+  background-color: var(--brand-accent-red-hover);
+  border-color: var(--brand-accent-red-hover);
+}
+
+/* 表单焦点可视化：保留主色为蓝紫，避免与错误态混淆 */
+.ant-input:focus, .ant-input-focused,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused .ant-picker-input > input {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px var(--brand-focus);
+}
+
+/* 开关、单选、复选仍保留主色，降低误判为错误态 */
+.ant-switch-checked { background: var(--brand-primary); }
+.ant-radio-checked .ant-radio-inner { border-color: var(--brand-primary); }
+.ant-radio-inner::after { background-color: var(--brand-primary); }
+.ant-checkbox-checked .ant-checkbox-inner { background-color: var(--brand-primary); border-color: var(--brand-primary); }
+
+/* 侧栏菜单（深色）选中强调：红色条与浅红背景，仅针对 dark 主题 */
+.ant-menu-dark, .ant-menu-dark .ant-menu-inline.ant-menu-root .ant-menu-item, .ant-menu-dark .ant-menu-submenu-title {
+  background: var(--brand-menu-bg);
+}
+.ant-menu-dark .ant-menu-item-selected {
+  background: var(--brand-menu-selected-bg) !important;
+  position: relative;
+}
+.ant-menu-dark .ant-menu-item-selected::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--brand-menu-selected-bar);
+}
+.ant-menu-dark .ant-menu-item:hover, .ant-menu-dark .ant-menu-submenu-title:hover {
+  color: #fff;
+}
+.ant-menu-dark .ant-menu-item-selected > a, .ant-menu-dark .ant-menu-item-selected > span {
+  color: #fff;
 }

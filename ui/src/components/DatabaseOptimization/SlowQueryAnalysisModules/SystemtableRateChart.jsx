@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Card } from 'antd';
 import PropTypes from 'prop-types';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../../common/EChart';
 
 export default class SystemtableRateChart extends Component {
   static propTypes={
@@ -19,10 +19,9 @@ export default class SystemtableRateChart extends Component {
         trigger: 'item'
       },
       legend: {
-        top: '0%',
-        left: '0%',
-        width: '10%',
-        show: true
+        left: 'center',
+        show: true,
+        orient: 'horizontal'
       },
       label: {
         show: true
@@ -34,13 +33,13 @@ export default class SystemtableRateChart extends Component {
         {
           name: 'Transaction State',
           type: 'pie',
-          radius: ['40%', '80%'],
+          radius: ['60%', '75%'],
           avoidLabelOverlap: false,
           itemStyle: {
             borderColor: '#fff',
             borderWidth: 0
           },
-          left: '20%',
+          top:'10%',
           label: {
             show: false,
             position: 'bottom',
@@ -59,34 +58,62 @@ export default class SystemtableRateChart extends Component {
           },
           color: ['#9fe080', '#5470c6'],
           data: this.state.chartData
-        }
+        },
+        
+        {
+          type: 'pie',
+          clockWise: false, //顺时加载
+          hoverAnimation: false, //鼠标移入变大
+          radius: ['87%', '87%'],
+          top:'10%',
+          label: {
+              normal: {
+                  show: false
+              }
+          },
+          data: [{
+              tooltip: {
+                trigger: 'none'
+              },
+              value: 1,
+              name: '',
+              itemStyle: {
+                  normal: {
+                      borderWidth: 1,
+                      borderColor: '#5990fdff ',
+                      opacity: 0.3
+                  }
+              }
+          }]
+      },
       ]
     };
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
     let dataArr = []
-    Object.keys(nextProps.sysInSlowQuery).forEach(function (key) {
-      let obj = {
-        name: key,
-        value: nextProps.sysInSlowQuery[key]
-      }
-      dataArr.push(obj)
-    })
+    if(nextProps.sysInSlowQuery){
+      Object.keys(nextProps.sysInSlowQuery).forEach(function (key) {
+        let obj = {
+          name: key,
+          value: nextProps.sysInSlowQuery[key]
+        }
+        dataArr.push(obj)
+      })
+    }
+    
     this.setState({chartData: dataArr})
   }
   render () {
     return (
-      <div className="mb-20" >
-        <Card title="System table Rate In Slow Query">
-          <ReactEcharts
+      <div className="mb-10" >
+        <Card title="System table Rate In Slow Query" style={{height:'278px'}}>
+          <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption()}
-            style={{ width: '100%', height: 200 }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts>
+            style={{ height: 200 }}
+          />
         </Card>
       </div>
     )

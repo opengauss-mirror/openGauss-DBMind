@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import PropTypes from 'prop-types';
 import { Card, Table } from 'antd';
 import { UpOutlined, DownOutlined } from '@ant-design/icons';
 import NodeEchartFormWork from '../../../NodeInformation/NodeModules/NodeEchartFormWork';

@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import 'antd/dist/antd.css';
+// antd 样式已在入口统一导入
 import '../assets/css/main/header.css';
 import { DownOutlined, ExportOutlined, UserOutlined, UnlockOutlined } from '@ant-design/icons';
 import { Dropdown, Menu, Select, Modal, Form, Input, message } from 'antd';
@@ -51,7 +51,7 @@ class HeaderTop extends Component {
     this.changeAgent(fieldsValue)
   };
   async changeAgent (value) {
-    let params = {
+    const params = {
       grant_type: '',
       username: value.username,
       password: value.password,
@@ -59,20 +59,21 @@ class HeaderTop extends Component {
       client_id: '',
       client_secret: ''
     }
-    await loginInterface(params).then((res) =>{
-      if (Object.prototype.hasOwnProperty.call(res,'success')) {
-        message.error(res.msg)
-      } else {
-        db.ss.set('access_token', res.access_token)
-        db.ss.set('token_type', res.token_type)
-        db.ss.set('user_name', value.username)
-        db.ss.set('expires_in', res.expires_in)
-        db.ss.set('Instance_value', this.state.selNewValue)
-        this.setState({isModalVisible: false,selOldValue:this.state.selNewValue})
-        window.location.reload()
+    try {
+      const res = await loginInterface(params)
+      const payload = res && res.access_token ? res : (res && res.data ? res.data : null)
+      if (!payload || !payload.access_token) {
+        message.error(res?.msg || 'Login failed')
+        return
       }
-    }).catch(()=>{
-    })
+      db.ss.set('access_token', payload.access_token)
+      db.ss.set('token_type', payload.token_type || 'Bearer')
+      db.ss.set('user_name', value.username)
+      db.ss.set('expires_in', payload.expires_in)
+      db.ss.set('Instance_value', this.state.selNewValue)
+      this.setState({isModalVisible: false,selOldValue:this.state.selNewValue})
+      window.location.reload()
+    } catch (e) {}
   }
   handleCancel = () => {
     this.setState({isModalVisible: false})

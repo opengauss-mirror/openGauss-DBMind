@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import { Tabs, Select, message, Input } from 'antd';
 import TopQuery from '../NodeInformation/TopQuery';
 import Session from '../NodeInformation/Session';
+import Refresh from '../../assets/imgs/Refresh.png';
 
 export default class SessionTopQuery extends Component {
   constructor(props) {
@@ -13,9 +14,23 @@ export default class SessionTopQuery extends Component {
   }
   onChange = (key) => {
     this.setState(() => ({tabSessionkey: key}))
+    try { sessionStorage.setItem('session.tabs', JSON.stringify(key)) } catch(e) {}
   };
+  handleRefresh(){
+    if(this.state.tabSessionkey === "1"){
+      this.SessionRef.getSessionData()
+    } else {
+      this.TopQueryRef.getTopQueryData()
+    }
+  }
   componentDidMount () {
-
+    // 恢复上次选中的 Session/Top Query 子Tab
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('session.tabs'))
+      if (saved) {
+        this.setState({ tabSessionkey: saved })
+      }
+    } catch(e) {}
   }
   render() {
     let items = [
@@ -31,9 +46,16 @@ export default class SessionTopQuery extends Component {
       }
     ]
     return (
-      <div className='nodeselect'>
+      <div className='thirdTabClass'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} /> : ''}
+        <Tabs tabBarGutter={30}  className='childstyle' type="card " activeKey={this.state.tabSessionkey} items={items} onChange={this.onChange} tabBarExtraContent={
+          <img
+          src={Refresh}
+          title='Refresh'
+          alt=""
+          onClick={() => this.handleRefresh()}
+        ></img>
+        } /> : ''}
       </div>
     )
   }

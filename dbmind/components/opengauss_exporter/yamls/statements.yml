@@ -196,7 +196,7 @@ pg_sql_statement_history:
       description: count how many same queries we research
       usage: LABEL
   dbRole: primary
-  status: disable
+  status: enable
   ttl: 0
   timeout: 9
 

@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
-import {Empty, message} from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import {Empty} from 'antd';
+import EChart from '../common/EChart';
+import { commonMetricMethod } from '../../utils/function';
 import { getDistribution } from '../../api/overview';
 import db from '../../utils/storage';
 
@@ -10,7 +11,11 @@ export default class SqlDistributionChart extends Component {
     this.state = {
       chartData: [],
       showFlag: 0,
-      total:0
+      total:0,
+      param: {
+        instance:db.ss.get('Instance_value')
+      },
+      metricData:['pg_sql_count_select','pg_sql_count_update','pg_sql_count_delete','pg_sql_count_insert','pg_sql_count_dcl','pg_sql_count_ddl']
     }
   }
   getOption = () => {
@@ -29,16 +34,14 @@ export default class SqlDistributionChart extends Component {
         itemWidth: 6,
               // 添加
               formatter: (name) => {// 添加
-                let total = 0
                 let target
-                let data = this.state.chartData
+                const data = this.state.chartData
                 for (let i = 0; i < data.length; i++) {
-                  total += data[i].value
                   if (data[i].name === name) {
                     target = data[i].value
                   }
                 }
-                var arr = [
+                const arr = [
                   '{a|' + name + '}',
                   '{b|' + target + '}'
                 ]
@@ -76,7 +79,7 @@ export default class SqlDistributionChart extends Component {
             position: 'center',
             show: true,
             formatter:() => {
-                let str = [                         
+                const str = [                         
                   `{value|${this.state.total}}`,
                 `{name|Total}`].join('\n')
                 return str
@@ -111,87 +114,17 @@ export default class SqlDistributionChart extends Component {
       ]
     };
   }
-  async getDistribution1 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_sql_count_select'
-    }
-    const { success, data, msg }= await getDistribution(param)
-    if (success) {
-      return data
-    }
-  }
-  async getDistribution2 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_sql_count_update'
-    }
-    const { success, data, msg }= await getDistribution(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDistribution3 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_sql_count_delete'
-    }
-    const { success, data, msg }= await getDistribution(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDistribution4 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_sql_count_insert'
-    }
-    const { success, data, msg }= await getDistribution(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDistribution5 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_sql_count_dcl'
-    }
-    const { success, data, msg }= await getDistribution(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getDistribution6 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'pg_sql_count_ddl'
-    }
-    const { success, data, msg }= await getDistribution(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
   getDistributionAll(){
     Promise.all([
-      this.getDistribution1(),
-      this.getDistribution2(),
-      this.getDistribution3(),
-      this.getDistribution4(),
-      this.getDistribution5(),
-      this.getDistribution6(),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[0]},getDistribution),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[1]},getDistribution),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[2]},getDistribution),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[3]},getDistribution),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[4]},getDistribution),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[5]},getDistribution)
     ]).then((result)=>{
       if(result[0]){
-        let dataObj = [
+        const dataObj = [
           { value: result[0][0].values.length ? result[0][0].values[0] : 0, name: 'Select' },
           { value: result[1][0].values.length ? result[1][0].values[0] : 0, name: 'Update' },
           { value: result[2][0].values.length ? result[2][0].values[0] : 0, name: 'Delete' },
@@ -207,9 +140,7 @@ export default class SqlDistributionChart extends Component {
       } else {
         this.setState({showFlag: 0})
       }
-    }).catch((error) => {
-      console.log('error', error)
-    })
+    }).catch(() => {})
   }
   componentDidMount () {
     this.getDistributionAll()
@@ -218,15 +149,13 @@ export default class SqlDistributionChart extends Component {
     return (
       <div>
         {this.state.showFlag ?
-              <ReactEcharts
-              ref={(e) => {
-                this.echartsElement = e
-              }}
-              option={this.getOption()}
-              style={{ width: '100%', height: 221 }}
-              lazyUpdate={true}
-            >
-            </ReactEcharts>
+              <EChart
+                ref={(e) => {
+                  this.echartsElement = e
+                }}
+                option={this.getOption()}
+                style={{ height: 221 }}
+              />
           : <Empty description={false} style={{paddingTop:50}}/>}
       </div>
     )

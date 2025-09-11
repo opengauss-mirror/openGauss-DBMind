@@ -4,9 +4,13 @@ import { CloseOutlined, ReloadOutlined } from '@ant-design/icons';
 import '../../../assets/css/main/alarm.css';
 import Details from '../../../assets/imgs/Details.png';
 import Setup from '../../../assets/imgs/Setup.png';
-import { getSelfhealingface, getSelfhealingSetting, getSelfhealingSubmit, getSelfhealingDelete } from '../../../api/autonomousManagement';
+import { getSelfhealingface, getSelfhealingSetting, getSelfhealingSubmit, getSelfhealingDelete, getSelfhealingPause, getSelfhealingResumption } from '../../../api/autonomousManagement';
 
 const { Option } = Select;
+const formItemLayout = {
+  labelCol:{ span: 7,offset: 4},
+  wrapperCol:{ span: 12 }
+}
 export default class SelfhealingRecordsTable extends Component {
   constructor() {
     super()
@@ -42,7 +46,8 @@ export default class SelfhealingRecordsTable extends Component {
       alarmlevelOptions:[],
       detectors:[],
       detectorParams:{},
-      formData:{}
+      formData:{},
+      isDisabled:false
     }
   }
   async getSelfhealingData () {
@@ -82,65 +87,19 @@ export default class SelfhealingRecordsTable extends Component {
   // 处理下拉框默认值
    getChildrenDefault(item){
         let detectorChildren=this.state.detectorParams[item];
+        let optionsMap = new Map([["side",["sideValue","sideOption"]],["agg",["aggValue","aggOption"]],["max_coef","maxCoefValue"],["alpha","alphaValue"],["window","windowValue"]
+        ,["high","highValue"],["low","lowValue"],["period","periodValue"],["high_ac_threshold","thresholdValue"],["min_seasonal_freq","freqValue"],["outliers",["upperOutlier","lowerOutlier"]]])
         Object.keys(detectorChildren).forEach(key=>{
-      if(key==='side'){
-        this.setState(()=>({
-          sideValue:detectorChildren[key][0],
-          sideOption: detectorChildren[key][1]
-        })
-       )
-      }else if(key==='agg'){
-        this.setState(()=>({
-          aggOption: detectorChildren[key][1],
-          aggValue:detectorChildren[key][0]
-          }))
-          console.log(222,this.state.aggOption,this.state.aggValue);
-      }else if(key==='max_coef'){
-        this.setState(()=>({
-        maxCoefValue:detectorChildren[key]
-        }))
-      }else if(key==='alpha'){
-        this.setState(()=>({
-          alphaValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='window'){
-        this.setState(()=>({
-          windowValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='high'){
-        this.setState(()=>({
-          highValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='low'){
-        this.setState(()=>({
-         lowValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='period'){
-        this.setState(()=>({
-          periodValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='high_ac_threshold'){
-        this.setState(()=>({
-          thresholdValue:detectorChildren[key]
-          }))
-      }
-      else if(key==='min_seasonal_freq'){
-        this.setState(()=>({
-          freqValue:detectorChildren[key]
-          }))
-      }
-    
-      else if(key==='outliers'){
-        this.setState(()=>({
-          upperOutlier:detectorChildren[key][0],
-          lowerOutlier:detectorChildren[key][1],
-          }))
-      }
+          if((optionsMap.get(key)) instanceof Array){
+            this.setState(()=>({
+              [optionsMap.get(key)[0]]: detectorChildren[key][0],
+              [optionsMap.get(key)[1]]: detectorChildren[key][1]
+            }))
+          } else {
+            this.setState(()=>({
+              [optionsMap.get(key)]: detectorChildren[key]
+            }))
+          }
         })
   }
   changeAlarmtypeVal (value) {
@@ -148,6 +107,21 @@ export default class SelfhealingRecordsTable extends Component {
   }
   changeAlarmlevelVal (value) {
     this.setState({alarmlevelValue: value})
+  }
+  changeChecked (value,name) {
+    if(value){
+      this.usableOrNot(getSelfhealingResumption(name))
+    } else {
+      this.usableOrNot(getSelfhealingPause(name))
+    }
+  }
+  async usableOrNot (url){
+    const { success, data, msg } = await url
+    if (success) {
+      this.getSelfhealingData()
+    } else {
+      message.error(msg)
+    }
   }
   changeDetectorVal (value,index) {
       this.setState(()=>({detectorNameValue: value}),()=>{
@@ -168,11 +142,14 @@ export default class SelfhealingRecordsTable extends Component {
       this.FormRef.setFieldValue('detectors',data)
   }
   validateFieldValue(){
-    // this.FormRef.validateFields()
     this.FormRef.validateFields()
     .then((values)=>{
       let fieldsValue = this.FormRef.getFieldsValue()
-      fieldsValue.detectors.map((item,index)=>{
+      let detectorNameMap = new Map([["GradientDetector",["side","max_coef","percentage"]],["IncreaseDetector",["side","alpha"]],["InterQuartileRangeDetector","outliers"],
+      ["LevelShiftDetector",["side","outliers","window","agg"]],["SeasonalDetector",["side","outliers","window","period","high_ac_threshold","min_seasonal_freq"]]
+        ,["SpikeDetector",["side","outliers","window","agg"]],["ThresholdDetector",["high","low","percentage"]],["VolatilityShiftDetector",["side","outliers","window","agg"]],
+        ["QuantileDetector",["high","low"]],["EsdTestDetector","alpha"]])
+      fieldsValue.detectors.forEach((item,index)=>{
         item['metric_filter'] = {}
         item['detector_kwargs'] = {}
         item['metric_filter']['from_instance'] = item['from_instance']
@@ -186,68 +163,12 @@ export default class SelfhealingRecordsTable extends Component {
             delete item[key]
           }
         }
-        if(item.detector_name === 'GradientDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'max_coef' && key !== 'percentage'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'IncreaseDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'alpha'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'InterQuartileRangeDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'outliers' ){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'LevelShiftDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if(key !== 'side' && key !== 'outliers' && key !== 'window'&& key !== 'agg'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'SeasonalDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'outliers' && key !== 'window'&& key !== 'period'&& key !== 'high_ac_threshold'&& key !== 'min_seasonal_freq'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'SpikeDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'outliers' && key !== 'window'&& key !== 'agg'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'ThresholdDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'high' && key !== 'low' && key !== 'percentage'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'VolatilityShiftDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'side' && key !== 'outliers' && key !== 'window' && key !== 'agg'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'QuantileDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'high' && key !== 'low'){
-              delete item['detector_kwargs'][key]
-            }
-          })
-        } else if(item.detector_name === 'EsdTestDetector'){
-          Object.keys(item['detector_kwargs']).forEach(key=>{
-            if( key !== 'alpha'){
-              delete item['detector_kwargs'][key]
-            }
-          })}
+        Object.keys(item['detector_kwargs']).forEach(key=>{
+          if(!detectorNameMap.get(item.detector_name).includes(key)){
+            delete item['detector_kwargs'][key]
+          }
+        })
       })
-      console.log(fieldsValue)
       let param = {
         name : fieldsValue.name,
         detectors_info:{
@@ -264,7 +185,6 @@ export default class SelfhealingRecordsTable extends Component {
           detector_info:fieldsValue.detectors
         }
       }
-      console.log(param)
       this.handleOk(param)
     })
     .catch((errInfo)=>{return false})
@@ -281,16 +201,19 @@ export default class SelfhealingRecordsTable extends Component {
       isModalVisible: false
     })
   }
-  create(item) {
-    let data = ['Create','Update'],title = ''
-    if(item){
+  create(item,index) {
+    let data = ['Create','Update','Details'],title = ''
+    if(item && index === 1){
       title = data[1]
+    }  else if(item && index === 2){
+      title = data[2]
     } else {
       title = data[0]
     }
     this.setState({
       isModalVisible: true,
-      modelTitle:title
+      modelTitle:title,
+      isDisabled:index === 2 ? true : false
     },()=>{
       this.getSelfhealingSetting(item)
     })
@@ -334,16 +257,16 @@ export default class SelfhealingRecordsTable extends Component {
   render () {
     return (
       <div className='selfhealing'>
-        <Card title="Self-healing Records"  className="mb-10">
+        <Card title="Anomaly detections"  className="mb-10">
           <Row gutter={[10,10]} className='childstyle'>
           {this.state.showFlag === 0 ? this.state.allDataRegular.map((item) => {
                 return (
                   <Col className="gutter-row antclopercent_20" >
-                  <Card title={<Switch defaultChecked={false} disabled={true}  onChange={() => {}} />} style={{ height: 90}} extra={<Popconfirm
+                  <Card title={<Switch defaultChecked={this.state.allData[item]['running']}  onChange={(val) => { this.changeChecked(val,item) }} />} style={{ height: 90}} extra={<Popconfirm
                     title="Delete the Card" description="Are you sure to delete this Card?" onConfirm={() => {this.deleteDetector(item)}}
                     onCancel={this.cancel()} okText="Yes" cancelText="No" > <CloseOutlined style={{fontSize:10,color:'#CCCCCC',cursor:'pointer'}} />
                   </Popconfirm>}>
-                    <div className='lockstyle'><span className='spanleft'>{item}</span><span className='spanright'><img src={Details} alt="" disabled style={{marginRight:12}} onClick={() => {}} ></img><img src={Setup} disabled onClick={() => {}} ></img></span></div>
+                    <div className='lockstyle'><span className='spanleft'>{item}</span><span className='spanright'><img src={Details} title='Details' alt="" disabled style={{marginRight:12}} onClick={() => {}} ></img><img src={Setup} title='Setup' alt="" disabled onClick={() => {}} ></img></span></div>
                   </Card>
                 </Col>
                 )
@@ -351,30 +274,29 @@ export default class SelfhealingRecordsTable extends Component {
             : <div style={{ textAlign: 'center' }}><Spin style={{ margin: '100px auto' }} /> </div>}
             <Col className="gutter-row antclopercent_20" >
               <Card title={<Switch defaultChecked={false} disabled={true}  onChange={() => {}} />} style={{ height: 90}}>
-                <p style={{textAlign:'center'}}><Button style={{borderRadius:'11px'}} type="primary" size='small' ghost onClick={() => {this.create('')}}>Additions</Button></p>
+                <p style={{textAlign:'center'}}><Button style={{borderRadius:'11px'}} type="primary" size='small' ghost onClick={() => {this.create('',0)}}>Additions</Button></p>
               </Card>
             </Col>
           </Row>
         </Card>
         {!this.state.isModalVisible ? null :<Modal title={this.state.modelTitle}  width="40vw" destroyOnClose={true} bodyStyle={{overflowY: "auto",overflowX:"none",height: "60vh"}} visible={this.state.isModalVisible} maskClosable = {false} centered='true' 
-        onOk={() => this.validateFieldValue()} onCancel={() => this.handleCancel()} className='formlistclass'>
+        onOk={() => this.validateFieldValue()} onCancel={() => this.handleCancel()} okButtonProps={{disabled: this.state.isDisabled}} className='formlistclass'>
               <Form
-                labelCol={{ span: 7,offset: 4}}
-                wrapperCol={{ span: 12 }}
                 layout='horizontal'
+                disabled={this.state.isDisabled}
                 style={{ maxWidth: 520 }}
                 ref={(e) => {
                   this.FormRef = e
                 }}
                 autoComplete="off"
               >
-                <Form.Item name="name" label="name" rules={[{required: true, message: 'Missing name'}]}>
+                <Form.Item {...formItemLayout} name="name" label="name" rules={[{required: true, message: 'Missing name'}]}>
                   <Input placeholder="" allowClear={true} />
                 </Form.Item>
-                <Form.Item name="duration" label="duration(second)" rules={[{required: true, message: 'Missing duration'}]}>
+                <Form.Item {...formItemLayout} name="duration" label="duration(second)" rules={[{required: true, message: 'Missing duration'}]}>
                   <InputNumber min={1} style={{ width: 260 }} />
                 </Form.Item>
-                <Form.Item name="alarm_type" label="alarm type"  rules={[{required: true, message: 'Missing alarm type'}]}>
+                <Form.Item {...formItemLayout} name="alarm_type" label="alarm type"  rules={[{required: true, message: 'Missing alarm type'}]}>
                   <Select value={this.state.alarmtypeValue} onChange={(val) => { this.changeAlarmtypeVal(val) }} showSearch
                       optionFilterProp="children" filterOption={(input, option) =>
                         option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 260 }}>
@@ -387,7 +309,7 @@ export default class SelfhealingRecordsTable extends Component {
                       }
                   </Select>
                 </Form.Item>
-                <Form.Item name="alarm_level" label="alarm level" rules={[{required: true, message: 'Missing alarm level'}]}>
+                <Form.Item {...formItemLayout} name="alarm_level" label="alarm level" rules={[{required: true, message: 'Missing alarm level'}]}>
                   <Select value={this.state.alarmlevelValue} onChange={(val) => { this.changeAlarmlevelVal(val) }} showSearch
                       optionFilterProp="children" filterOption={(input, option) =>
                         option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 260 }}>
@@ -400,13 +322,13 @@ export default class SelfhealingRecordsTable extends Component {
                       }
                   </Select>
                 </Form.Item>
-                <Form.Item name="alarm_content" label="alarm content">
+                <Form.Item {...formItemLayout} name="alarm_content" label="alarm content">
                   <Input placeholder="" allowClear={true} />
                 </Form.Item>
-                <Form.Item name="alarm_cause" label="alarm cause">
+                <Form.Item {...formItemLayout} name="alarm_cause" label="alarm cause">
                   <Input placeholder="" allowClear={true} />
                 </Form.Item>
-                <Form.Item name="extra" label="extra">
+                <Form.Item {...formItemLayout} name="extra" label="extra">
                   <Input placeholder="" allowClear={true} />
                 </Form.Item>
                 <Form.Item shouldUpdate >
@@ -416,9 +338,10 @@ export default class SelfhealingRecordsTable extends Component {
                         <>
                           {fields.map((field,index) => (
                             <Space key={field.key} align="baseline" className="selfthealing">
-                              <CloseOutlined onClick={() => remove(field.name)} style={{display:'block',textAlign:'end',marginBottom:24}} />
+                              <CloseOutlined onClick={() => remove(field.name)} style={{display:this.state.isDisabled ? 'none' :'block',textAlign:'end',marginBottom:24}} />
                                   <Form.Item
                                     {...field}
+                                    {...formItemLayout}
                                     style={{ width: 520 }}
                                     label="detectorName"
                                     name={[field.name, 'detector_name']}
@@ -443,7 +366,8 @@ export default class SelfhealingRecordsTable extends Component {
                                   </Form.Item>
                               <Form.Item
                                 {...field}
-                                style={{ width: 380 }}
+                                {...formItemLayout}
+                                style={{ width: 520 }}
                                 label="metricName"
                                 name={[field.name, 'metric_name']}
                                 key={[field.key, 'metric_name']}
@@ -458,7 +382,8 @@ export default class SelfhealingRecordsTable extends Component {
                               </Form.Item>
                               <Form.Item
                                 {...field}
-                                style={{ width: 380 }}
+                                {...formItemLayout}
+                                style={{ width: 520 }}
                                 label="Host"
                                 name={[field.name, 'from_instance']}
                                 key={[field.key, "from_instance"]}
@@ -475,14 +400,10 @@ export default class SelfhealingRecordsTable extends Component {
                                         this.FormRef !== undefined && this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) && 
                                         (
                                           <>
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'GradientDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'IncreaseDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SpikeDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'VolatilityShiftDetector' ?<Form.Item
+                                          {['GradientDetector','IncreaseDetector','LevelShiftDetector','SeasonalDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ?<Form.Item
                                             {...field}
                                             label='side'
+                                            {...formItemLayout}
                                             name={[field.name, 'side']}
                                             key={[field.key, 'side']}
                                             rules={[
@@ -502,6 +423,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item>:null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'GradientDetector' ?<Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='max_coef'
                                             name={[field.name, 'max_coef']}
                                             key={[field.key, 'max_coef']}
@@ -514,9 +436,9 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input  key={this.state.maxCoefValue} style={{width:260}}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'EsdTestDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'IncreaseDetector' ? <Form.Item
+                                          {['EsdTestDetector','IncreaseDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='alpha'
                                             name={[field.name, 'alpha']}
                                             key={[field.key, 'alpha']}
@@ -530,11 +452,9 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input key={this.state.alphaValue} style={{width:260}} />
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'InterQuartileRangeDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector'|| 
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SeasonalDetector'|| 
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SpikeDetector'?<Form.Item
+                                          {['InterQuartileRangeDetector','LevelShiftDetector','SeasonalDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ?<Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='upperOutlier'
                                             name={[field.name, 'upperOutlier']}
                                             key={[field.key, 'upperOutlier']}
@@ -547,11 +467,9 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <InputNumber style={{width:260}}  key={this.state.upperOutlier}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'InterQuartileRangeDetector' ||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector'|| 
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SeasonalDetector'|| 
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) ==='SpikeDetector'?<Form.Item
+                                          {['InterQuartileRangeDetector','LevelShiftDetector','SeasonalDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ?<Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='lowerOutlier'
                                             name={[field.name, 'lowerOutlier']}
                                             key={[field.key, 'lowerOutlier']}
@@ -564,11 +482,9 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <InputNumber style={{width:260}}  key={this.state.lowerOutlier}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SpikeDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'VolatilityShiftDetector' ? <Form.Item
+                                          {['LevelShiftDetector','SeasonalDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='window'
                                             name={[field.name, 'window']}
                                             key={[field.key, 'window']}
@@ -581,9 +497,9 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input  key={this.state.windowValue} style={{width:260}}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'QuantileDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'ThresholdDetector' ? <Form.Item
+                                          {['QuantileDetector','ThresholdDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='high'
                                             name={[field.name, 'high']}
                                             key={[field.key, 'high']}
@@ -596,9 +512,9 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input  key={this.state.highValue} style={{width:260}}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'QuantileDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'ThresholdDetector' ? <Form.Item
+                                          {['QuantileDetector','ThresholdDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='low'
                                             name={[field.name, 'low']}
                                             key={[field.key, 'low']}
@@ -613,6 +529,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item>:null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='high_ac_threshold'
                                             name={[field.name, 'high_ac_threshold']}
                                             key={[field.key, 'high_ac_threshold']}
@@ -627,6 +544,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item>:null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='min_seasonal_freq'
                                             name={[field.name, 'min_seasonal_freq']}
                                             key={[field.key, 'min_seasonal_freq']}
@@ -641,6 +559,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item> : null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SeasonalDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='period'
                                             name={[field.name, 'period']}
                                             key={[field.key, 'period']}
@@ -653,10 +572,9 @@ export default class SelfhealingRecordsTable extends Component {
                                           >
                                             <Input key={this.state.periodValue} style={{width:260}}/>
                                           </Form.Item>:null}
-                                          {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'LevelShiftDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'SpikeDetector'||
-                                            this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'VolatilityShiftDetector' ? <Form.Item
+                                          {['LevelShiftDetector','SpikeDetector','VolatilityShiftDetector'].includes(this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ])) ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='agg'
                                             name={[field.name, 'agg']}
                                             key={[field.key, 'agg']}
@@ -677,6 +595,7 @@ export default class SelfhealingRecordsTable extends Component {
                                           </Form.Item>:null}
                                           {this.FormRef.getFieldValue(['detectors', field.name, 'detector_name' ]) === 'ThresholdDetector' ? <Form.Item
                                             {...field}
+                                            {...formItemLayout}
                                             label='percentage'
                                             name={[field.name, 'percentage']}
                                             key={[field.key, 'percentage']}

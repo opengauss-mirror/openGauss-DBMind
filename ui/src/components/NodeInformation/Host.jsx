@@ -1,5 +1,6 @@
 import React, { Component } from 'react';
-import { Tabs, Select, message } from 'antd';
+import { Tabs, Select, message, DatePicker } from 'antd';
+import moment from 'moment';
 import DBServiceCapability from '../NodeInformation/DBServiceCapability';
 import DBPerformanceIndicators from '../NodeInformation/DBPerformanceIndicators';
 import DBLockingAndCaching from '../NodeInformation/DBLockingAndCaching';
@@ -18,6 +19,8 @@ export default class Host extends Component {
       ifShow: false,
       selValue:'',
       selTimeValue:5,
+      startTime: new Date().getTime() - 300000,
+      endTime: new Date().getTime(),
       options:[],
       tabkey:"1",
       minoptions:[{name:'5min',value:5},{name:'10min',value:10},{name:'30min',value:30},{name:'1hour',value:60},{name:'3hours',value:180},
@@ -26,12 +29,16 @@ export default class Host extends Component {
   }
   onChange = (key) => {
     this.setState(() => ({tabkey: key}))
+    try { sessionStorage.setItem('host.tabs', JSON.stringify(key)) } catch(e) {}
   };
   changeSelVal (value) {
     this.setState({selValue: value})
   }
   changeTimeSelVal (value) {
-    this.setState({selTimeValue: value})
+    this.setState(() => ({
+      startTime: this.state.endTime ? new Date(this.state.endTime).getTime() - value * 60000 : '',
+      endTime: this.state.endTime ? new Date(this.state.endTime).getTime() : '',
+      selTimeValue: value}))
   }
   async getItemList () {
     const { success, data, msg } = await getAgentListInterface()
@@ -54,7 +61,19 @@ export default class Host extends Component {
       message.error(msg)
     }
   }
+  setDates = (dates, dateStrings) => {
+    this.setState(() => ({
+      startTime: dateStrings ? new Date(dateStrings).getTime() - this.state.selTimeValue * 60000 : '',
+      endTime: dateStrings ? new Date(dateStrings).getTime() : '',}))
+  };
   componentDidMount () {
+    // 恢复上次选中的 Host 子Tab
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('host.tabs'))
+      if (saved) {
+        this.setState({ tabkey: saved })
+      }
+    } catch(e) {}
     this.getItemList()
   }
   render() {
@@ -62,27 +81,27 @@ export default class Host extends Component {
       {
         key: '1',
         label: `DBServiceCapability`,
-        children: <DBServiceCapability ref={(e) => {this.DBServiceCapabilityRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+        children: <DBServiceCapability ref={(e) => {this.DBServiceCapabilityRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
       },
       {
         key: '2',
         label: `DBPerformanceIndicators`,
-        children: <DBPerformanceIndicators ref={(e) => {this.DBPerformanceIndicatorsRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+        children: <DBPerformanceIndicators ref={(e) => {this.DBPerformanceIndicatorsRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
       },
       {
         key: '3',
         label: `DBLockingAndCaching`,
-        children: <DBLockingAndCaching ref={(e) => {this.DBLockingAndCachingRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+        children: <DBLockingAndCaching ref={(e) => {this.DBLockingAndCachingRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
       },
       {
         key: '4',
         label: `DBResourceUsage`,
-        children: <DBResourceUsage ref={(e) => {this.DBResourceUsageRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+        children: <DBResourceUsage ref={(e) => {this.DBResourceUsageRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
       },
       {
         key: '5',
         label: `Capacity Metric`,
-        children: <CapacityMetric ref={(e) => {this.DBCapacityMetricRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+        children: <CapacityMetric ref={(e) => {this.DBCapacityMetricRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
       },
       {
         key: '6',
@@ -92,16 +111,16 @@ export default class Host extends Component {
       {
         key: '7',
         label: `Memory`,
-        children: <DBMemory ref={(e) => {this.DBMemoryRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.selTimeValue} />,
+        children: <DBMemory ref={(e) => {this.DBMemoryRef = e}} tabkey={this.state.tabkey} selValue={this.state.selValue} selTimeValue={this.state.endTime ? '' : this.state.selTimeValue} startTime={this.state.startTime} endTime={this.state.endTime} />,
       }
     ]
     return (
       <div className='nodeselect'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange}
+        <Tabs tabBarGutter={30}  className='childstyle' type="card " activeKey={this.state.tabkey} items={items} onChange={this.onChange} destroyInactiveTabPane={true}
          tabBarExtraContent={
           <div>
-          <Select disabled value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
+          <Select value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
           optionFilterProp="children"  filterOption={(input, option) =>
             option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 124, marginRight: 10 }} className='mb-10' >
           {
@@ -113,7 +132,7 @@ export default class Host extends Component {
           }
         </Select>
         <Select value={this.state.selTimeValue} onChange={(val) => { this.changeTimeSelVal(val) }}
-           style={{ width: 100}} className='mb-10' >
+           style={{ width: 100,marginRight: 10}} className='mb-10' >
               {
             this.state.minoptions.map((item,index) => {
               return (
@@ -122,6 +141,13 @@ export default class Host extends Component {
             })
           }
         </Select>
+        <DatePicker 
+          defaultValue={moment(new Date(), 'YYYY-MM-DD HH:mm:ss')}
+          placeholder='endTime'
+          format="YYYY-MM-DD HH:mm:ss"
+          onChange={this.setDates}
+          showTime
+        />
           </div>
          } /> : ''}
       </div>

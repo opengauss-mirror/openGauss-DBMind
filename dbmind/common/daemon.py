@@ -229,17 +229,23 @@ def clean_dbmind_process(filepath, only_residual=False):
 
 
 def check_parent_child_process(pid, parent_pid):
-    try:
-        with open('/proc/{}/stat'.format(pid), "r") as f:
-            data = f.readline().split()
-        if len(data) < STAT_TOTAL_NUM:
+    from .platform import MACOS
+    if MACOS:
+        from .platform import macos_check_parent_child_process
+        return macos_check_parent_child_process(pid, parent_pid)
+    else:
+        # Linux implementation
+        try:
+            with open('/proc/{}/stat'.format(pid), "r") as f:
+                data = f.readline().split()
+            if len(data) < STAT_TOTAL_NUM:
+                return False
+            # the process name may contain space
+            index_offset = len(data) - STAT_TOTAL_NUM
+            if not data[PARENET_PROCESS_INDEX + index_offset].isdigit():
+                return False
+            if int(data[PARENET_PROCESS_INDEX + index_offset]) == parent_pid:
+                return True
             return False
-        # the process name may contain space
-        index_offset = len(data) - STAT_TOTAL_NUM
-        if not data[PARENET_PROCESS_INDEX + index_offset].isdigit():
+        except (FileNotFoundError, PermissionError):
             return False
-        if int(data[PARENET_PROCESS_INDEX + index_offset]) == parent_pid:
-            return True
-        return False
-    except (FileNotFoundError, PermissionError):
-        return False

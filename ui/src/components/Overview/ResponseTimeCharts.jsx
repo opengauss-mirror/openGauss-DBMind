@@ -1,9 +1,9 @@
 import React, { Component } from 'react';
-import {Row, Col, Empty, message } from 'antd';
-import ReactEcharts from 'echarts-for-react';
-import { formatTimestamp } from '../../utils/function';
+import {Row, Col, Empty } from 'antd';
+import EChart from '../common/EChart';
 import { getResponseTime } from '../../api/overview';
 import db from '../../utils/storage';
+import { commonMetricMethod } from '../../utils/function';
 
 export default class ResponseTimeCharts extends Component {
   constructor() {
@@ -13,6 +13,10 @@ export default class ResponseTimeCharts extends Component {
       showFlag: 0,
       maxData:0,
       minData:0,
+      param: {
+        instance:db.ss.get('Instance_value')
+      },
+      metricData:['statement_responsetime_percentile_p95','statement_responsetime_percentile_p80']
     }
   }
 
@@ -27,7 +31,7 @@ export default class ResponseTimeCharts extends Component {
       title: {
         show: true,
         text: flg === 'one' ? 'p95' : 'p80',
-        subtext: (flg === 'one' ? this.state.maxData : this.state.minData === 0 ? "0" : this.state.minData) + 'ms',
+        subtext: (flg === 'one' ? (this.state.maxData === 0 ? "0" : this.state.maxData) : this.state.minData === 0 ? "0" : this.state.minData) + 'ms',
         textStyle: {    // 标题样式
         color: '#737a80',    //字体颜色
         fontSize: 14,    //字体大小
@@ -66,7 +70,7 @@ export default class ResponseTimeCharts extends Component {
         },
         markPoint: {
         data: [{
-          yAxis: 1330, 
+          yAxis:  flg === 'one' ? this.state.maxData : this.state.minData, 
           x: '98.5%' 
         }],
         symbol: 'circle',
@@ -79,40 +83,15 @@ export default class ResponseTimeCharts extends Component {
       ],
     }
   }
-  
-  async getResponseTime1 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'statement_responsetime_percentile_p95'
-    }
-    const { success, data, msg }= await getResponseTime(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
-  async getResponseTime2 () {
-    let param = {
-      instance:db.ss.get('Instance_value'),
-      label:'statement_responsetime_percentile_p80'
-    }
-    const { success, data, msg }= await getResponseTime(param)
-    if (success) {
-      return data
-    } else {
-      message.error(msg)
-    }
-  }
   getResponseTimeAll(){
     Promise.all([
-      this.getResponseTime1(),
-      this.getResponseTime2()
+      commonMetricMethod(this.state.param,{label:this.state.metricData[0]},getResponseTime),
+      commonMetricMethod(this.state.param,{label:this.state.metricData[1]},getResponseTime)
     ]).then((result)=>{
       if(result[0]){
-        let data = [result[0],result[1]]
-        let max = result[0][0].values.length ? result[0][0].values[result[0][0].values.length-1] : "0"
-        let min = result[1][0].values.length ? result[1][0].values[result[1][0].values.length-1] : "0"
+        const data = [result[0],result[1]]
+        const max = result[0][0].values.length ? result[0][0].values[result[0][0].values.length-1] : "0"
+        const min = result[1][0].values.length ? result[1][0].values[result[1][0].values.length-1] : "0"
         this.setState(() => ({
           showFlag: 1,
           chartData: data,
@@ -122,9 +101,7 @@ export default class ResponseTimeCharts extends Component {
       } else {
         this.setState({showFlag: 0})
       }
-    }).catch((error) => {
-      console.log('error', error)
-    })
+    }).catch(() => {})
   }
   componentDidMount () {
     this.getResponseTimeAll()
@@ -134,28 +111,20 @@ export default class ResponseTimeCharts extends Component {
       <div>
           {this.state.showFlag ?
           <Row>
-          <Col className="gutter-row" span={12}>
-            <ReactEcharts
-              ref={(e) => {
-                this.echartsElement = e
-              }}
-              option={this.getOption('one')}
-              style={{ width: '100%', height: 90 }}
-              lazyUpdate={true}
-            >
-            </ReactEcharts>
-          </Col>
-          <Col className="gutter-row" span={12}>
-            <ReactEcharts
-              ref={(e) => {
-                this.echartsElement = e
-              }}
-              option={this.getOption('two')}
-              style={{ width: '100%', height: 90 }}
-              lazyUpdate={true}
-            >
-            </ReactEcharts>
-          </Col>
+            {this.state.metricData.map((item,index) => {
+                return (
+                  <Col className="gutter-row" span={12}>
+                    <EChart
+                      ref={(e) => {
+                        this.echartsElement = e;
+                      }}
+                      option={this.getOption(index ? 'two' : 'one')}
+                      style={{ height: 90 }}
+                    />
+                  </Col>
+                )
+              })
+            }
         </Row>
           : <Empty description={false} />}
       </div>

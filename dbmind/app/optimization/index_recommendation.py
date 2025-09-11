@@ -16,12 +16,14 @@ import time
 from collections import defaultdict, Counter
 from datetime import datetime, timedelta
 
+import sqlparse
+
 import dbmind.components.index_advisor.workload
 from dbmind import global_vars
 from dbmind.common.parser.sql_parsing import fill_value, standardize_sql
 from dbmind.components.extract_log import get_workload_template
 from dbmind.components.fetch_statement import collect_workloads
-from dbmind.components.index_advisor import index_advisor_workload, process_bar
+from dbmind.components.index_advisor import index_advisor_workload, process_bar, executors
 from ...components.index_advisor.workload import is_valid_statement
 from dbmind.service import dai
 from dbmind.service.multicluster import RPCAddressError
@@ -139,6 +141,65 @@ def rpc_index_advise(executor,
                                                                       use_all_columns=True, improved_rate=0.05,
                                                                       max_candidate_columns=40)
     return detail_info
+
+
+def index_advise_final_result(detail_info):
+    final_result = dict()
+    recommend_indexes = detail_info['recommendIndexes']
+    useless_indexes = detail_info['uselessIndexes']
+    useless_list = []
+    redundant_list = []
+    recommend_list = []
+    for element in useless_indexes:
+        if element['type'] == 3:
+            useless_list.append(element)
+        if element['type'] == 2:
+            redundant_list.append(element)
+    final_result['redundant_indexes'] = redundant_list
+    final_result['useless_indexes'] = useless_list
+    for item in recommend_indexes:
+        advise_index = dict()
+        advise_index['index'] = item['statement']
+        advise_index['improve_rate'] = item['workloadOptimized'] + '%'
+        advise_index['index_size'] = str('%.2f' % float(item['storage'])) + "MB"
+        advise_index['select'] = '%.2f' % item['selectRatio']
+        advise_index['delete'] = '%.2f' % item['deleteRatio']
+        advise_index['update'] = '%.2f' % item['updateRatio']
+        advise_index['insert'] = '%.2f' % item['insertRatio']
+        detail_list = []
+        for detail in item['sqlDetails']:
+            detail_dict = dict()
+            if detail['correlationType'] == 1:
+                detail_dict['template'] = detail['sqlTemplate']
+                detail_dict['count'] = detail['sqlCount']
+                detail_dict['improve'] = detail['optimized'] + '%'
+                detail_list.append(detail_dict)
+        advise_index['templates'] = detail_list
+        recommend_list.append(advise_index)
+    final_result['advise_indexes'] = recommend_list
+    final_result['total'] = len(recommend_list)
+    return final_result
+
+
+def index_advise(db_config, sqls):
+    executor = executors.driver_executor.DriverExecutor(db_config['database'], db_config['user'], db_config['user'],
+                                                        db_config['port'], db_config['host'], db_config['schema'])
+    result = sqlparse.split(sqls)
+    database_templates = dict()
+    get_workload_template(database_templates, result, TemplateArgs(10, 5000))
+    # only single threads can be used
+    index_advisor_workload.MAX_INDEX_NUM = 100000
+    index_advisor_workload.MAX_INDEX_STORAGE = 100000000000000
+    dbmind.components.index_advisor.workload.GLOBAL_PROCESS_BAR = ProcessBar()
+
+    index_advisor_workload.get_workload_costs = index_advisor_workload.get_plan_cost
+    detail_info, _, _ = index_advisor_workload.index_advisor_workload({'historyIndexes': {}},
+                                                                      executor, database_templates,
+                                                                      multi_iter_mode=True, show_detail=True,
+                                                                      n_distinct=1, reltuples=10,
+                                                                      use_all_columns=True, improved_rate=0.05,
+                                                                      max_candidate_columns=40)
+    return index_advise_final_result(detail_info)
 
 
 def is_dml(query):

@@ -42,8 +42,16 @@ class Process:
             self._path = platform.win32_get_process_path(self._pid)
             self._cwd = platform.win32_get_process_cwd(self._pid)
             return True
+        elif platform.MACOS:
+            if not platform.macos_is_process_running(self._pid):
+                return False
+
+            self._cmdline = platform.macos_get_process_cmdline(self._pid)
+            self._path = platform.macos_get_process_path(self._pid)
+            self._cwd = platform.macos_get_process_cwd(self._pid)
+            return True
         else:
-            # unix-like operation systems are ok.
+            # Linux and other unix-like operation systems
             if not os.path.exists('/proc/%d' % self._pid):
                 return False
 
