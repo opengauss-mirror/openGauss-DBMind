@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Card, Table } from 'antd';
+import {Card, Table, message} from 'antd';
 
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTimestamp,formatTableTitle } from '../../../utils/function';

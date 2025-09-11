@@ -5,6 +5,7 @@ import DBCacheInformation from "./RealtimeInspectionModule/DBCacheInformation";
 import DBUsage from "./RealtimeInspectionModule/DBUsage";
 import DBCapacityMetric from "./RealtimeInspectionModule/DBCapacityMetric";
 import DBMemory from "./RealtimeInspectionModule/DBMemory";
+import PropTypes from "prop-types";
 import "../../../assets/css/main/IntelligentInspection.css";
 
 export default class RealtimeDatabase extends Component {
@@ -22,15 +23,23 @@ export default class RealtimeDatabase extends Component {
       dbMemory: {},
       isShow: false,
     };
+    // 绑定方法以避免this指向问题
+    this.getRealtimeInspectionsDatabase = this.getRealtimeInspectionsDatabase.bind(this);
   }
   getRealtimeInspectionsDatabase(data) {
+    // 添加数据验证，防止undefined错误
+    if (!data || typeof data !== 'object') {
+      console.warn('RealtimeDatabase: 无效的数据格式', data);
+      return;
+    }
+
     this.setState({
-      dbCapability: data.service,
-      dbPerformance: data.perform,
-      dbCacheInformation: data.cache,
-      dbUsage: data.resource,
-      dbCapacityMetric: data.capacity,
-      dbMemory: data.memory,
+      dbCapability: data.service || {},
+      dbPerformance: data.perform || {},
+      dbCacheInformation: data.cache || {},
+      dbUsage: data.resource || {},
+      dbCapacityMetric: data.capacity || {},
+      dbMemory: data.memory || {},
     });
   }
 

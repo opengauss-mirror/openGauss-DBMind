@@ -9,12 +9,30 @@ const { TabPane } = Tabs;
 export default class Cluster extends Component {
   constructor() {
     super()
-    this.state = {}
+    this.state = {
+      activeKey: '1'
+    }
+  }
+  componentDidMount() {
+    // 恢复上次选中的顶层Tab（System resource/DB）
+    const saved = sessionStorage.getItem('nodeinfo.active')
+    if (saved) {
+      try {
+        const val = JSON.parse(saved)
+        if (val === '1' || val === '2') {
+          this.setState({ activeKey: val })
+        }
+      } catch (e) {}
+    }
+  }
+  onTopTabChange = (key) => {
+    this.setState({ activeKey: key })
+    sessionStorage.setItem('nodeinfo.active', JSON.stringify(key))
   }
   render () {
     return (
       <div className="contentWrap nodestyle">
-        <Tabs   size={'large'}>
+        <Tabs size={'large'} activeKey={this.state.activeKey} onChange={this.onTopTabChange}>
           <TabPane
             tab={
               <span>

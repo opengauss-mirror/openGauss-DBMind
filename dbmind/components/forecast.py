@@ -242,6 +242,74 @@ def early_warning(metric, instance, retroactive_period, warning_hours, upper, lo
     return warnings
 
 
+#>>>>>>>>>>>>>>>>>>>>>>> old risk_analysis
+def risk_analysis(sequence, upper, lower, warning_minutes):
+    current_timestamp = int(time.time() * 1000)
+    upper = inf if upper is None else upper
+    lower = -inf if lower is None else lower
+    if sequence.values[-1] >= upper:
+        return {'timestamps': None, 'values': None, 'risk': 'upper'}
+    if sequence.values[-1] <= lower:
+        return {'timestamps': None, 'values': None, 'risk': 'lower'}
+    forecast_sequence = quickly_forecast(sequence, warning_minutes)
+    if is_sequence_valid(forecast_sequence):
+        for timestamp, value in zip(forecast_sequence.timestamps, forecast_sequence.values):
+            if value >= upper or value <= lower:
+                flag = 'future upper' if value >= upper else 'future lower'
+                remaining_hours = round((timestamp - current_timestamp) / 1000 / 60 / 60, 4)
+                occur_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(int(timestamp / 1000)))
+                return {'timestamps': forecast_sequence.timestamps,
+                        'values': forecast_sequence.values,
+                        'remaining_hours': remaining_hours,
+                        'occur_time': occur_time,
+                        'risk': flag}
+    else:
+        # unable to get valid data
+        return {'timestamps': None, 'values': None, 'risk': 'unknown'}
+    return {'timestamps': None, 'values': None, 'risk': 'normal'}
+
+
+def early_warning(metric, instance, retroactive_period, warning_hours, upper=None, lower=None, labels=None):
+    # convert hours to minutes
+    warnings = defaultdict(list)
+    end_time = int(time.time()) * 1000
+    warning_minutes = warning_hours * 60
+    if retroactive_period is None:
+        start_time = end_time - warning_hours * 60 * 60 * 1000 * 3
+    else:
+        start_time = end_time - retroactive_period * 60 * 60 * 1000 * 3
+    start_datetime = datetime.fromtimestamp(start_time / 1000)
+    end_datetime = datetime.fromtimestamp(end_time / 1000)
+    sequences = _get_sequences(metric, instance, labels, start_datetime, end_datetime)
+    for sequence in sequences:
+        risk_analysis_result = risk_analysis(sequence, upper, lower, warning_minutes)
+        if risk_analysis_result['risk'] == 'future upper':
+            abnormal_detail = "exceed the warning value %s at %s(remaining %s hours)." % \
+                              (upper, risk_analysis_result['occur_time'], risk_analysis_result['remaining_hours'])
+        elif risk_analysis_result['risk'] == 'lower upper':
+            abnormal_detail = "lower than the warning value %s at %s(remaining %s hours)." % \
+                              (upper, risk_analysis_result['occur_time'], risk_analysis_result['remaining_hours'])
+        elif risk_analysis_result['risk'] == 'normal':
+            abnormal_detail = 'No risk find.'
+
+        elif risk_analysis_result['risk'] == 'upper':
+            abnormal_detail = 'metric has exceeded the warning value'
+        elif risk_analysis_result['risk'] == 'lower':
+            abnormal_detail = 'metric has been less than the warning value.'
+        else:
+            abnormal_detail = 'Trend prediction failed, risk unknown.'
+        warnings[sequence.name].append({'labels': sequence.labels,
+                                        'abnormal_detail': abnormal_detail,
+                                        'values': sequence.values,
+                                        'timestamps': sequence.timestamps,
+                                        'forecast_values': risk_analysis_result['values'],
+                                        'forecast_timestamps': risk_analysis_result['timestamps']
+                                        })
+    return warnings
+
+#<<<<<<<<<<<<<<<<<<<<<<<<<< old risk_analysis
+
+
 def display_warnings(warnings):
     output_table = PrettyTable()
     output_table.field_names = ('name', 'label', 'warning information')

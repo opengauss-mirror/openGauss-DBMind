@@ -35,7 +35,9 @@ from dbmind.common.utils.checking import uniform_ip, uniform_instance
 from dbmind.metadatabase.dao.dynamic_config import (
     dynamic_config_get,
     dynamic_config_set,
-    dynamic_configs_list
+    dynamic_configs_list,
+    dynamic_category_configs_get,
+
 )
 from dbmind.metadatabase.schema.config_dynamic_params import IV_TABLE
 
@@ -257,6 +259,10 @@ class DynamicConfig:
     @staticmethod
     def list():
         return dynamic_configs_list()
+
+    @staticmethod
+    def get_category_values(category):
+        return dynamic_category_configs_get(category)
 
 
 def create_dynamic_configs(s1_file):

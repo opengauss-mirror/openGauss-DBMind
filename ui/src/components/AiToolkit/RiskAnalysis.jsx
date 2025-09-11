@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Button, Card, Col, Empty, InputNumber, message, Row, Select, Spin, Input} from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../common/EChart';
 import { getForecastInterface, getSearchMetricInterface } from '../../api/autonomousManagement'
 import { getAgentListInterface } from '../../api/common';
 import { formatTimestamp } from '../../utils/function';
@@ -10,7 +10,7 @@ import '../../assets/css/common.css'
 import '../../assets/css/main/aiToolkit.css';
 
 const { Option } = Select;
-const { TextArea } = Input;
+// TextArea 未使用，避免 no-unused-vars 警告
 
 export default class RiskAnalysis extends Component {
   constructor() {
@@ -51,7 +51,10 @@ export default class RiskAnalysis extends Component {
     let optionArr = ''
     Object.keys(data).forEach(function (key) {
       if(key === db.ss.get('Instance_value')){
-        optionArr = (data[key])
+        data[key].forEach(item => {
+          data[key].push(item.split(":")[0])
+        })
+        optionArr = ([...new Set(data[key])])
       }
     })
     if (success) {
@@ -64,37 +67,51 @@ export default class RiskAnalysis extends Component {
   }
   // 查询图表
   async getWorkloadForecast () {
-    let params = {
-      instance_name: this.state.instanceName ? this.state.instanceName : null,
-      metric_name: this.state.metricName ? this.state.metricName : null,
-      labels: this.state.labels ? this.state.labels : null,
-      warning_hours: this.state.warningHours ? this.state.warningHours : null,
-      upper: this.state.upper ? this.state.upper : null,
-      lower: this.state.lower ? this.state.lower : null,
+    // 添加参数验证
+    if (!this.state.metricName) {
+      message.warning('Metric name is required');
+      this.setState({ showType: 2 });
+      return;
     }
+    const params = {
+      instance_name: this.state.instanceName || '',
+      metric_name: this.state.metricName,
+      labels: this.state.labels || '',
+      warning_hours: this.state.warningHours || 1,
+      upper: this.state.upper || '',
+      lower: this.state.lower || '',
+    };
     this.setState({
       showType: 0
     })
     const { success, data, msg } = await getForecastInterface(params)
     if (success) {
-      if (Object.keys(data).length > 0) {
-        let instanceAllData = []
+      if (data && Object.keys(data).length > 0) {
+        const instanceAllData = []
         Object.keys(data).forEach(function (key, i, v) {
           // 处理X轴
-          let formatTimeData = [],forecastFormatTimeData = []
+          let formatTimeData = []
+          const forecastFormatTimeData = []
           data[key][i].timestamps.forEach(ele => {
             formatTimeData.push(formatTimestamp(ele))
           });
-          if(data[key][i].forecast_timestmaps){
-            data[key][i].forecast_timestmaps.forEach(ele => {
+          if(data[key][i].forecast_timestamps){
+            data[key][i].forecast_timestamps.forEach(ele => {
               forecastFormatTimeData.push(formatTimestamp(ele))
             });
             formatTimeData = formatTimeData.concat(forecastFormatTimeData)
           }
           // 处理Y轴数据
-          let colors = ['#5c7bd9', '#91cc75', '#fac858', '#007acc', '#fb542f', '#c586c0', '#1890ff', '#d69439', '#b03a5b', '#eb8f53', '#c5c63e', '#1e1e1e', '#5470c6', '#91cc75', '#fac858', '#007acc', '#fb542f', '#34a853', '#d69439', '#b03a5b', '#eb8f53', '#c5c63e', '#1e1e1e', '#5470c6', '#91cc75', '#fac858', '#007acc', '#fb542f', '34a853', '#d69439', '#b03a5b', '#eb8f53', '#c5c63e']
+          const colors = ['#5c7bd9', '#91cc75', '#fac858', '#007acc', '#fb542f', '#c586c0', '#1890ff', '#d69439', '#b03a5b', '#eb8f53', '#c5c63e', '#1e1e1e', '#5470c6', '#91cc75', '#fac858', '#007acc', '#fb542f', '#34a853', '#d69439', '#b03a5b', '#eb8f53', '#c5c63e', '#1e1e1e', '#5470c6', '#91cc75', '#fac858', '#007acc', '#fb542f', '34a853', '#d69439', '#b03a5b', '#eb8f53', '#c5c63e']
           data[key].forEach((item, index) => {
-            let  ydata = [], nametooltip = '', legendDataFlag = [], timeTotal = '', solidLine = [], dataArray = [], dashedLine = [], forecastSeriesItem = {}
+            const  ydata = []
+            let nametooltip = ''
+            const legendDataFlag = []
+            let timeTotal = ''
+            let solidLine = []
+            let dataArray = []
+            let dashedLine = []
+            let forecastSeriesItem = {}
             Object.keys(item.labels).forEach(function (key) {
               nametooltip += `${key}:${item.labels[key] ? item.labels[key] : '-'}  `
             })
@@ -115,7 +132,7 @@ export default class RiskAnalysis extends Component {
                 }
               }
             }
-            let seriesItem = {
+            const seriesItem = {
               data: item.forecast_values ? solidLine : item.values,
               type: 'line',
               smooth: true,
@@ -128,7 +145,7 @@ export default class RiskAnalysis extends Component {
             if(item.forecast_values){
               ydata.push(forecastSeriesItem)
             }
-            let param = {
+            const param = {
               xdata:formatTimeData,
               seriesData:ydata,
               legendData:legendDataFlag,
@@ -184,9 +201,9 @@ export default class RiskAnalysis extends Component {
         formatter: function (params) {
           let tip1 = '';
           let tip = '';
-          let le = params.length
+          const le = params.length
           if (le > 240) {
-            let l = Math.ceil(le / 240)
+            const l = Math.ceil(le / 240)
             for (let i = 1; i <= l; i++) {
               if (i < l) {
                 tip1 += params.slice(i * 240 - 240, i * 240) + '\n'
@@ -242,7 +259,7 @@ export default class RiskAnalysis extends Component {
         extraCssText: 'position:fixed',
         formatter: function (params) {
           let res = ''
-          if (params[0].value) {
+          if (params[0].value || params[0].value === 0) {
             res = `${params[0].name} <br/><span style="background: ${params[0].color}; height:10px; width: 10px; border-radius: 50%;display: inline-block;margin-right:10px;"></span> ${params[0].seriesName} ：${params[0].value}<br/>`
           } else {
             res = `${params[1].name} <br/><span style="background: ${params[1].color}; height:10px; width: 10px; border-radius: 50%;display: inline-block;margin-right:10px;"></span> ${params[1].seriesName} ：${params[1].value}<br/>`
@@ -340,7 +357,7 @@ export default class RiskAnalysis extends Component {
   }
   render () {
     return (
-      <div className="contentWrap">
+      <div className="contentWrap riskanalysis">
         <Card title="Risk Analysis" extra={<ReloadOutlined className="more_link " onClick={() => { this.handleRefresh() }}  style={{height: "100%"}} />}>
           <Row className="analysis" style={{ width: '90%'}} justify="space-between">
             <Col>
@@ -394,15 +411,13 @@ export default class RiskAnalysis extends Component {
               this.state.allDataRegular.map((item,index) => {
                 return (
                   <>
-                    <ReactEcharts
+                    <EChart
                       ref={(e) => {
                         this.echartsElement = e
                       }}
                       option={this.getOption(item)}
                       style={{ minHeight: '100%' }}
-                      lazyUpdate={true}
-                    >
-                    </ReactEcharts>
+                    />
                     <div style={{color:'#272727',textAlign:'left',fontWeight:500}}><span>Conclusion Description: </span><span>{item.warning}</span></div>
                   </>
                 )

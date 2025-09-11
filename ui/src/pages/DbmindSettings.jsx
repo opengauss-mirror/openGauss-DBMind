@@ -6,7 +6,7 @@ let saveArr = []
 let timer = null
 let ifChanged = 0
 const { Panel } = Collapse;
-export default class EditableTable extends React.Component {
+export default class DbmindSettings extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -45,7 +45,7 @@ export default class EditableTable extends React.Component {
     this.setState({ editArr });
   };
   onBlurChange = (e, record, index, field) => {
-    let obj = {
+    const obj = {
       key: record.key,
       value: record[field],
       name: record.name
@@ -55,11 +55,11 @@ export default class EditableTable extends React.Component {
   async getSettingList () {
     const { success, data, msg } = await getSettingListInterface()
     if (success) {
-      let tableAll = []
+      const tableAll = []
       Object.keys(data.dynamic).forEach(function (key, i) {
-        let tableKeyData = []
+        const tableKeyData = []
         data.dynamic[key].forEach((it, index) => {
-          let obj = {
+          const obj = {
             key: index + '@' + key,
             name: it[0],
             value: it[1],
@@ -67,7 +67,7 @@ export default class EditableTable extends React.Component {
           }
           tableKeyData.push(obj)
         })
-        let tableobj = {
+        const tableobj = {
           tableName: key,
           tableSource: [...tableKeyData],
           key: i
@@ -84,7 +84,7 @@ export default class EditableTable extends React.Component {
     }
   }
   async putSettingDetails (params) {
-    let paramData = {
+    const paramData = {
       ...params
     }
     const { success, msg } = await putSettingDetailInterface(paramData)
@@ -92,7 +92,10 @@ export default class EditableTable extends React.Component {
       ifChanged = 2
       timer = setTimeout(() => {
         ifChanged = 0
-        this.setState({ isModalVisible: false })
+        if(this.state.isModalVisible){
+          this.setState({ isModalVisible: false })
+          this.getSettingList()
+        }
       }, 2000);
     } else {
       message.error(msg)
@@ -117,10 +120,14 @@ export default class EditableTable extends React.Component {
   }
   handleSave () {
     if (this.state.editTableData.length > 0) {
-      let flag = 0
       this.state.editTableData.forEach((item) => {
         if (item.value === '') {
-          flag = -1
+          message.warning('The data cannot be empty.')
+          this.getSettingList()
+          this.setState({
+            isModalVisible: false
+          })
+          ifChanged = 0
           return
         } else {
           let configFlag = item.key.split('@')
@@ -133,16 +140,6 @@ export default class EditableTable extends React.Component {
           this.putSettingDetails(params)
         }
       })
-      if (flag === -1) {
-        message.warning('The data cannot be empty.')
-        this.getSettingList()
-        this.setState({
-          isModalVisible: false
-        })
-        ifChanged = 0
-      } else {
-        this.getSettingList()
-      }
     } else {
       this.setState({
         isModalVisible: false

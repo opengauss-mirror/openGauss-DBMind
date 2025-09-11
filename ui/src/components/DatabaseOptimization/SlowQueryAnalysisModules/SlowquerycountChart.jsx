@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Card, Empty } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../../common/EChart';
 import PropTypes from 'prop-types';
 import { ReloadOutlined } from '@ant-design/icons';
 import { formatTimestamp } from '../../../utils/function';
@@ -114,21 +114,22 @@ export default class SlowquerycountChart extends Component {
     }
   }
   UNSAFE_componentWillReceiveProps (nextProps) {
-    this.getChartData(nextProps.slowQueryCount)
+    if(nextProps.slowQueryCount){
+      this.getChartData(nextProps.slowQueryCount)
+    }
+   
   }
   render () {
     return (
-      <div className="mb-20" >
-        <Card title="Slow Query Count">
-          {this.state.ifShow ? <ReactEcharts
+      <div className="mb-10" >
+        <Card title="Slow Query Count" style={{height:'278px'}}>
+          {this.state.ifShow ? <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption()}
-            style={{ width: '100%', height: '200px' }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts> : <Empty description={this.state.ifShow} style={{ height: 200, paddingTop: 50 }} />}
+            style={{ height: '200px' }}
+          /> : <Empty description={this.state.ifShow} style={{ height: 200, paddingTop: 50 }} />}
         </Card>
       </div>
     )

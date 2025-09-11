@@ -20,7 +20,7 @@ import dbmind.app.diagnosis.security.security_diagnosis as security_diagnosis_mo
 from dbmind import global_vars, constants
 from dbmind.app.diagnosis.query.entry import diagnose_query
 from dbmind.app.diagnosis.security.security_metrics_settings import get_security_metrics_settings
-from dbmind.app.monitoring import ad_pool_manager
+from dbmind.app.monitoring import ad_pool_manager, regular_inspection
 from dbmind.app.monitoring.monitoring_constants import LONG_TERM_METRIC_STATS
 from dbmind.app.optimization import recommend_knobs, TemplateArgs
 from dbmind.app.timed_task_utils import detect_anomaly, diagnose_cluster_state
@@ -85,6 +85,9 @@ security_scenarios_list = []
 
 _is_calibration_on_now = False  # flag that indicates that metric calibration in in progress
 
+one_day = 24 * 60 * 60  # unit is second
+one_week = 7 * one_day  # unit is second
+one_month = 30 * one_day  # unit is second
 
 @customized_timer(CALIBRATE_SECURITY_METRICS_INTERVAL)
 def calibrate_security_metrics():
@@ -201,7 +204,6 @@ def slow_query_diagnosis():
     dai.save_slow_queries(diagnosed_slow_queries)
 
 
-@customized_timer(knob_recommend_interval)
 def knob_recommend():
     recommend_knobs_result = recommend_knobs()
     dai.save_knob_recomm(recommend_knobs_result)
@@ -341,3 +343,94 @@ def update_statistics():
         step = metric_stat["step"]
         dai.update_metric_stats(now, metric_name, length, step)
     logging.info('Metric statistics have updated.')
+
+
+@customized_timer(seconds=one_day)
+def daily_inspection():
+    results = []
+    end = datetime.now()
+    start = end - timedelta(seconds=one_day)
+    for instance, rpc in global_vars.agent_proxy:
+        start_record = datetime.now()
+        try:
+            inspector = regular_inspection.DailyInspection(instance, start, end)
+            report = inspector()
+            inspect_state = 'success'
+        except Exception as exception:
+            inspect_state = 'fail'
+            report = {}
+            logging.error('exec daily inspection failed, because: {}'.format(exception))
+        end_record = datetime.now()
+        cost_time = end_record - start_record
+        results.append({'instance': instance,
+                        'inspection_type': 'daily_check',
+                        'start': int(start.timestamp() * 1000),
+                        'end': int(end.timestamp()) * 1000,
+                        'report': report,
+                        'state': inspect_state,
+                        'cost_time': cost_time.total_seconds(),
+                        'conclusion': ''})
+    dai.save_regular_inspection_results(results)
+    _self_driving_records.put(
+        {
+            'catalog': 'diagnosis',
+            'msg': 'Updated daily inspection report.',
+            'time': int(time.time() * 1000)
+        }
+    )
+
+
+@customized_timer(seconds=one_week)
+def weekly_inspection():
+    results = []
+    end = datetime.now()
+    start = end - timedelta(seconds=one_week)
+    for instance, rpc in global_vars.agent_proxy:
+        start_record = datetime.now()
+        try:
+            inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=7)
+            report = inspector()
+            inspect_state = 'success'
+        except Exception as exception:
+            inspect_state = 'fail'
+            report = {}
+            logging.error('exec weekly inspection failed, because: {}'.format(exception))
+        end_record = datetime.now()
+        cost_time = end_record - start_record
+        results.append({'instance': instance,
+                        'inspection_type': 'weekly_check',
+                        'start': int(start.timestamp() * 1000),
+                        'end': int(end.timestamp()) * 1000,
+                        'report': report,
+                        'state': inspect_state,
+                        'cost_time': cost_time.total_seconds(),
+                        'conclusion': ''})
+    dai.save_regular_inspection_results(results)
+
+
+@customized_timer(seconds=one_month)
+def monthly_inspection():
+    results = []
+    end = datetime.now()
+    start = end - timedelta(seconds=one_month)
+    for instance, rpc in global_vars.agent_proxy:
+        start_record = datetime.now()
+        try:
+            inspector = regular_inspection.MultipleDaysInspection(instance, start, end, history_inspection_limit=30)
+            report = inspector()
+            inspect_state = 'success'
+        except Exception as exception:
+            inspect_state = 'fail'
+            report = {}
+            logging.error('exec monthly inspection failed, because: {}'.format(exception))
+        end_record = datetime.now()
+        cost_time = end_record - start_record
+        results.append({'instance': instance,
+                        'inspection_type': 'monthly_check',
+                        'start': int(start.timestamp() * 1000),
+                        'end': int(end.timestamp()) * 1000,
+                        'report': report,
+                        'state': inspect_state,
+                        'cost_time': cost_time.total_seconds(),
+                        'conclusion': ''})
+    dai.save_regular_inspection_results(results)

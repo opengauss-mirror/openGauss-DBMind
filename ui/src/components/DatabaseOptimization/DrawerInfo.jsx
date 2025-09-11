@@ -1,11 +1,11 @@
 import React, { Component } from 'react';
-import { message, Select, Table, DatePicker, Tabs } from 'antd';
+import { message, Table, Tabs } from 'antd';
 import Analyze from '../../assets/imgs/Analyze.png';
-import { CloseOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CloseOutlined } from '@ant-design/icons';
 import { getIntelligentSqlCondition } from '../../api/databaseOptimization';
 import '../../assets/css/common.css'
 import '../../assets/css/main/databaseOptimization.css'
-import { formatTableTitle, formatTimestamp } from '../../utils/function';
+import { formatTableTitle } from '../../utils/function';
 import DrawerStatistics from '../DatabaseOptimization/DrawerStatistics';
 
 const { TabPane } = Tabs;
@@ -24,7 +24,7 @@ export default class DrawerInfo extends Component {
     if (success) {
       if (data.rows.length > 0) {
         let historyColumObj = {}
-        let tableHeader = []
+        const tableHeader = []
         data.header.push('operation')
         data.header.forEach(item => {
           historyColumObj = {
@@ -45,9 +45,9 @@ export default class DrawerInfo extends Component {
           }
           tableHeader.push(historyColumObj)
         })
-        let res = []
+        const res = []
         data.rows.forEach((item, index) => {
-          let tabledata = {}
+          const tabledata = {}
           for (let i = 0; i < data.header.length; i++) {
             tabledata[data.header[i]] = item[i]
             tabledata['key'] = index
@@ -76,7 +76,7 @@ export default class DrawerInfo extends Component {
     }
   }
   componentDidMount () {
-    let params = {
+    const params = {
       template_id:this.props.uniqueSqlId,
       start_time:this.props.startTime,
       end_time:this.props.endTime,

@@ -21,6 +21,8 @@ from concurrent.futures.process import ProcessPoolExecutor
 
 from dbmind.common import utils
 from dbmind.common.platform import WIN32
+from multiprocessing.managers import DictProxy, SyncManager
+from collections import defaultdict
 
 IN_PROCESS = 'DBMind [Worker Process] [IN PROCESS]'
 PENDING = 'DBMind [Worker Process] [IDLE]'
@@ -28,10 +30,72 @@ PENDING = 'DBMind [Worker Process] [IDLE]'
 _mp_sync_mgr_instance = None
 
 
+class MPSyncManager(SyncManager):
+    __proc_title__ = 'DBMind [SyncManager Process]'
+
+    @staticmethod
+    def _initializer():
+        utils.cli.set_proc_title(MPSyncManager.__proc_title__)
+
+    def start(self, **kwargs):
+        super().start(initializer=MPSyncManager._initializer, **kwargs)
+
+
 def _initializer():
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
     signal.signal(signal.SIGQUIT, signal.SIG_IGN)
     utils.cli.set_proc_title(PENDING)
+
+    # 在子进程中重新初始化 TsdbClientFactory
+    # 这是必要的，因为子进程不会继承父进程中的类变量状态
+    try:
+        import os
+        from dbmind import global_vars
+        from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
+        from dbmind.cmd.configs.config_utils import load_sys_configs
+        from dbmind import constants
+
+        # 尝试从环境变量获取配置路径
+        confpath = os.environ.get('DBMIND_CONFPATH')
+        if confpath and os.path.exists(os.path.join(confpath, constants.CONFILE_NAME)):
+            # 切换到配置目录并重新加载配置
+            old_cwd = os.getcwd()
+            os.chdir(confpath)
+            try:
+                configs = load_sys_configs(constants.CONFILE_NAME)
+                # 重新设置 TSDB 客户端信息
+                TsdbClientFactory.set_client_info(
+                    configs.get('TSDB', 'name'),
+                    configs.get('TSDB', 'host'),
+                    configs.get('TSDB', 'port'),
+                    configs.get('TSDB', 'username'),
+                    configs.get('TSDB', 'password'),
+                    configs.get('TSDB', 'ssl_certfile'),
+                    configs.get('TSDB', 'ssl_keyfile'),
+                    configs.get('TSDB', 'ssl_keyfile_password'),
+                    configs.get('TSDB', 'ssl_ca_file'),
+                    configs.get('TSDB', 'dbname')
+                )
+            finally:
+                os.chdir(old_cwd)
+        elif hasattr(global_vars, 'configs') and global_vars.configs is not None:
+            # 备用方案：使用 global_vars.configs
+            TsdbClientFactory.set_client_info(
+                global_vars.configs.get('TSDB', 'name'),
+                global_vars.configs.get('TSDB', 'host'),
+                global_vars.configs.get('TSDB', 'port'),
+                global_vars.configs.get('TSDB', 'username'),
+                global_vars.configs.get('TSDB', 'password'),
+                global_vars.configs.get('TSDB', 'ssl_certfile'),
+                global_vars.configs.get('TSDB', 'ssl_keyfile'),
+                global_vars.configs.get('TSDB', 'ssl_keyfile_password'),
+                global_vars.configs.get('TSDB', 'ssl_ca_file'),
+                global_vars.configs.get('TSDB', 'dbname')
+            )
+    except Exception:
+        # 如果初始化失败，不要影响子进程的启动
+        # 错误会在实际使用 TSDB 客户端时被捕获
+        pass
 
 
 def function_starter(func, *args, **kwargs):
@@ -80,19 +144,6 @@ class AbstractWorker(ABC):
 
 def get_mp_sync_manager():
     global _mp_sync_mgr_instance
-
-    from multiprocessing.managers import DictProxy, SyncManager
-    from collections import defaultdict
-
-    class MPSyncManager(SyncManager):
-        __proc_title__ = 'DBMind [SyncManager Process]'
-
-        @staticmethod
-        def _initializer():
-            utils.cli.set_proc_title(MPSyncManager.__proc_title__)
-
-        def start(self, **kwargs):
-            super().start(initializer=MPSyncManager._initializer, **kwargs)
 
     MPSyncManager.register('defaultdict', defaultdict, DictProxy)
     if not _mp_sync_mgr_instance:

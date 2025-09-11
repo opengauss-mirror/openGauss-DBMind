@@ -17,6 +17,7 @@ import os
 _PLATFORM = os.sys.platform
 LINUX = _PLATFORM == 'linux'
 WIN32 = _PLATFORM == 'win32'
+MACOS = _PLATFORM == 'darwin'  # 添加macOS平台检测
 
 # declaration
 if WIN32:
@@ -24,3 +25,16 @@ if WIN32:
     from ._win32 import win32_get_process_cmdline
     from ._win32 import win32_get_process_path
     from ._win32 import win32_is_process_running
+elif MACOS:
+    from ._macos import macos_get_process_cwd
+    from ._macos import macos_get_process_cmdline
+    from ._macos import macos_get_process_path
+    from ._macos import macos_is_process_running
+    from ._macos import macos_set_proc_title
+    from ._macos import macos_check_parent_child_process
+    from ._macos import macos_get_child_processes
+    from ._macos import macos_get_network_connections_cmd
+    from ._macos import macos_get_ps_cmd
+    from ._macos import macos_get_local_ips_cmd
+    from ._macos import macos_get_process_cwd_cmd
+    from ._macos import macos_get_process_fds_cmd

@@ -1,0 +1,39 @@
+# 前端项目特定的忽略文件
+
+# 构建产物
+/build
+/dist
+
+# 开发环境文件
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE配置
+.vscode/settings.json
+.idea/
+
+# 测试覆盖率报告
+/coverage
+
+# 生产环境调试文件
+*.map
+
+# 临时文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 包管理器锁文件冲突解决
+package-lock.json.orig
+yarn.lock.orig
+
+# Prettier和ESLint缓存
+.eslintcache
+.prettier-cache 

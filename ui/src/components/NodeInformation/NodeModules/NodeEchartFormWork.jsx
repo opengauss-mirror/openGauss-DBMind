@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Col, Row } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../../common/EChart';
 import PropTypes from 'prop-types';
 import { Empty, message } from 'antd';
 import { formatTimestamp } from '../../../utils/function';
@@ -13,7 +13,14 @@ let legendObj =   {
       fontWeight: 'bold',
       right:20
     }
-
+let toolBoxObj = {
+  feature: {
+    dataZoom: {
+      yAxisIndex: 'none'
+    },
+    restore: {},
+  }
+}
 export default class NodeEchartFormWork extends Component {
   static propTypes={
     echartData:PropTypes.object.isRequired
@@ -30,10 +37,12 @@ export default class NodeEchartFormWork extends Component {
       legendFlg:1,
       ifShow: true,
       unit:'',
+      toolBox:'',
     }
   }
   getOption = () => {
     legendObj["data"] = this.state.legendData
+    toolBoxObj["top"] = this.state.legendFlg === 2 ? "6%" : ''
     return {
       title: [{
         left:this.state.legendFlg === 2 ? '1%' : 0,
@@ -57,7 +66,7 @@ export default class NodeEchartFormWork extends Component {
         formatter:(param)=>{
           let res = param[0].axisValue.split('\n').join(' ') + '<br>'
           param.forEach((item,index)=>{
-            res += item.marker + item.seriesName +'&nbsp;&nbsp;&nbsp;&nbsp;'+'<span style="font-weight: bold;text-align: right;float:right">' + item.value + this.state.unit +'</span><br>'
+            res += `${item.marker}${item.seriesName}&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-weight: bold;text-align: right;float:right">${item.value}${this.state.unit}</span><br>`
           })
           return res
         },
@@ -69,8 +78,17 @@ export default class NodeEchartFormWork extends Component {
         }
       },
       legend: this.state.legendFlg === 2 ? {...legendObj} : '',
+      toolbox: this.state.toolBox ? {...toolBoxObj} : '',
+      dataZoom: [
+        {
+          type: 'inside',
+        },
+        {
+          type: 'inside',
+        }
+      ],
       grid: {
-        top: this.state.legendFlg === 2 ? '12%' : '3%',
+        top: this.state.legendFlg === 2 ? '18%' : '11%',
         left: '3%',
         right: '4%',
         bottom: '6%',
@@ -167,7 +185,7 @@ export default class NodeEchartFormWork extends Component {
         titleItem = {
           icon: data.image,
           description: data.description,
-          titleData: nextProps.echartData.fixedflg ? (titleitem*100).toFixed(2) : titleitem
+          titleData: nextProps.echartData.unit === '%' ? (titleitem*100).toFixed(2) : nextProps.echartData.fixedflg ? titleitem.toFixed(nextProps.echartData.fixedflg) : titleitem
         }
         legendData.push(legendItem)
         titleData.push(titleItem)
@@ -177,16 +195,17 @@ export default class NodeEchartFormWork extends Component {
       })
       nextProps.echartData.seriesData.forEach(function (item, i, v) {
         let itemData = []
-        if(nextProps.echartData.fixedflg){
-          item.data.forEach((item) => {
+        item.data.forEach((item) => {
+          if(nextProps.echartData.unit === '%'){
             itemData.push((item*100).toFixed(2))
-          });
-        }
+          } else if(nextProps.echartData.fixedflg){
+            itemData.push(item.toFixed(nextProps.echartData.fixedflg))
+          }
+        });
         seriesItem = {
-          data: nextProps.echartData.fixedflg ? itemData : item.data,
+          data: nextProps.echartData.fixedflg || nextProps.echartData.unit === '%' ? itemData : item.data,
           name: item.description,
           type: 'line',
-          stack: 'Total',
           smooth: true,
           symbol: 'circle',
           symbolSize: 3,
@@ -198,18 +217,21 @@ export default class NodeEchartFormWork extends Component {
               }
             }
           },
-          areaStyle: {
-            color: {
-              x: 0,
-              y: 0,
-              x2: 0,
-              y2: 1,
-              colorStops: [{
-                offset: 0, color: item.colors+'ff'
-              }, {
-                offset: 1, color: item.colors+'00'
-              } ],
-              global: false
+          ...nextProps.echartData.isStack && {
+            stack: 'Total',
+            areaStyle: {
+              color: {
+                x: 0,
+                y: 0,
+                x2: 0,
+                y2: 1,
+                colorStops: [{
+                  offset: 0, color: item.colors+'ff'
+                }, {
+                  offset: 1, color: item.colors+'00'
+                } ],
+                global: false
+              }
             }
           },
           emphasis: {
@@ -226,13 +248,17 @@ export default class NodeEchartFormWork extends Component {
         flg:nextProps.echartData.flg,
         title:nextProps.echartData.title,
         legendFlg:nextProps.echartData.legendFlg,
-        unit:nextProps.echartData.unit
+        unit:nextProps.echartData.unit,
+        toolBox:nextProps.echartData.toolBox ? true : false
       })
     } else {
       this.setState({
         ifShow: false
       })
     }
+  }
+  componentDidMount() {
+    this.echartsElement.resize()
   }
   render() {
     return (
@@ -247,15 +273,13 @@ export default class NodeEchartFormWork extends Component {
               })}
         </>
       </p>
-      <ReactEcharts
+      <EChart
         ref={(e) => {
           this.echartsElement = e
         }}
         option={this.getOption()}
-        style={{ width: '100%', height: 240 }}
-        lazyUpdate={true}
-      >
-      </ReactEcharts>
+        style={{ height: 240 }}
+      />
       </div>
       : <Empty description={false} style={{ paddingTop: 50 }} />
     )

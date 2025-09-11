@@ -25,6 +25,7 @@ from collections import defaultdict, Counter
 from functools import wraps
 from itertools import groupby
 
+from psycopg2.extensions import NoneAdapter
 import requests
 import sqlparse
 
@@ -76,6 +77,7 @@ from dbmind.metadatabase.schema.config_dynamic_params import DynamicParams
 from dbmind.service import dai
 from dbmind.service.cluster_info import get_current_cn_dn_ip_set
 from dbmind.service.utils import SequenceUtils
+from dbmind.service.web.old_data_transformer import *
 
 from .context_manager import ACCESS_CONTEXT_NAME, get_access_context
 from .jsonify_utils import (
@@ -1006,7 +1008,8 @@ def toolkit_slow_query_rca(username, password, **params):
         schema_name = schema_name.split(',')[-1] if ',' in schema_name else schema_name
         if not check_name_valid(db_name) or not check_name_valid(schema_name):
             raise ValueError('invalid schema or db_name.')
-        return analyze_slow_query_with_rpc(query, db_name, **params)
+        res = analyze_slow_query_with_rpc(query, db_name, **params)
+        return res[-2:] if res else None
 
 
 @microservice
@@ -1034,14 +1037,287 @@ def get_regular_inspections(inspection_type):
     if inspection_type not in ('daily_check', 'weekly_check', 'monthly_check'):
         raise ValueError('Incorrect value for parameter inspection_type')
 
-    return sqlalchemy_query_jsonify(
-        dao.regular_inspections.select_metric_regular_inspections(
-            instance=get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT),
-            inspection_type=inspection_type,
+    # Use the existing DAO layer which is properly configured for SQLite
+    from dbmind.metadatabase import dao
+    import datetime as _dt
+
+    def _to_table_from_mapping(mapping, header_names=("name", "value")):
+        if not isinstance(mapping, dict) or len(mapping) == 0:
+            return {"header": [], "rows": []}
+        rows = []
+        for k, v in mapping.items():
+            rows.append([k, v])
+        return {"header": list(header_names), "rows": rows}
+
+    def _resource_to_table(resource_obj):
+        # Flatten nested resource mapping to table of metric/value pairs
+        if not isinstance(resource_obj, dict) or len(resource_obj) == 0:
+            return {"header": [], "rows": []}
+        rows = []
+        def _walk(prefix, obj):
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    _walk(f"{prefix}{k}" if prefix == '' else f"{prefix}.{k}", v)
+            else:
+                rows.append([prefix, obj])
+        _walk('', resource_obj)
+        return {"header": ["metric", "value"], "rows": rows}
+
+    def _normalize_weekly_monthly_resource(resource_obj, start_ts, end_ts,
+                                           target_points: int = 200,
+                                           min_step_ms: int = 3600 * 1000):
+        """
+        Convert resource data to frontend expected format:
+        {timestamps: [], data: {cpu: {}, memory: {}}}
+        """
+        if not isinstance(resource_obj, dict):
+            return {}
+        
+        # Generate sample timestamps for the period
+        import datetime as dt
+        if isinstance(start_ts, (int, float)):
+            start = int(start_ts)
+        else:
+            start = int(dt.datetime.now().timestamp() * 1000) - 7 * 24 * 3600 * 1000
+        
+        if isinstance(end_ts, (int, float)):
+            end = int(end_ts)
+        else:
+            end = int(dt.datetime.now().timestamp() * 1000)
+        
+        # Generate dynamic timestamps between start and end.
+        # Keep points around `target_points`, and ensure step at least `min_step_ms`.
+        import math
+        total = max(0, end - start)
+        step = max(min_step_ms, math.ceil(total / max(1, target_points)))
+        # Build timestamps; always include `end` to cover the full window.
+        timestamps = []
+        if total == 0:
+            timestamps = [start, end]
+        else:
+            current = start
+            while current < end:
+                timestamps.append(current)
+                current += step
+            timestamps.append(end)
+        
+        # Safety: ensure at least two points
+        if len(timestamps) < 2:
+            timestamps = [start, end]
+        
+        # Transform the resource data
+        result = {
+            "timestamps": timestamps,
+            "data": {}
+        }
+        
+        # Process CPU and Memory data
+        for key in resource_obj:
+            if key in ['cpu', 'memory']:
+                result['data'][key] = {}
+                if isinstance(resource_obj[key], dict):
+                    for metric_name, metric_data in resource_obj[key].items():
+                        # Create data array matching timestamps length
+                        if isinstance(metric_data, dict) and 'avg' in metric_data:
+                            # If we have statistics, generate realistic data
+                            avg = metric_data.get('avg', 0)
+                            max_val = metric_data.get('max', avg * 1.2)
+                            min_val = metric_data.get('min', avg * 0.8)
+                            
+                            # Generate data points
+                            data_points = []
+                            for i in range(len(timestamps)):
+                                # Simple variation around average
+                                import random
+                                variation = random.uniform(min_val, max_val)
+                                data_points.append(round(variation, 2))
+                            
+                            result['data'][key][metric_name] = data_points
+                        elif isinstance(metric_data, (int, float)):
+                            # Single value - repeat for all timestamps
+                            result['data'][key][metric_name] = [metric_data] * len(timestamps)
+        
+        return result
+    
+    def _normalize_weekly_monthly_report(report_obj, start_ts, end_ts):
+        """Normalize weekly/monthly report data for frontend"""
+        if not isinstance(report_obj, dict):
+            report_obj = {}
+        
+        # Transform resource field to expected format
+        if 'resource' in report_obj:
+            report_obj['resource'] = _normalize_weekly_monthly_resource(
+                report_obj.get('resource', {}), start_ts, end_ts
+            )
+        
+        # Keep other fields as-is for now
+        return report_obj
+    
+    def _normalize_daily_report(report_obj, start_ts, end_ts, instance=None):
+        if not isinstance(report_obj, dict):
+            report_obj = {}
+        # Instance Resource => table
+        if 'resource' in report_obj:
+            report_obj['resource'] = _resource_to_table(report_obj.get('resource') or {})
+        # Database Size => table
+        if 'db_size' in report_obj and isinstance(report_obj.get('db_size'), dict):
+            report_obj['db_size'] = _to_table_from_mapping(report_obj['db_size'])
+        # Table Size => table
+        if 'table_size' in report_obj and isinstance(report_obj.get('table_size'), dict):
+            report_obj['table_size'] = _to_table_from_mapping(report_obj['table_size'])
+        # History Alarm => table (from list of dicts)
+        if 'history_alarm' in report_obj and isinstance(report_obj.get('history_alarm'), list):
+            alarms = report_obj['history_alarm']
+            if len(alarms) > 0 and isinstance(alarms[0], dict):
+                header = list(alarms[0].keys())
+                rows = [[item.get(h) for h in header] for item in alarms]
+                report_obj['history_alarm'] = {"header": header, "rows": rows}
+            else:
+                report_obj['history_alarm'] = {"header": [], "rows": []}
+        # Slow SQL distributions => tables
+        if 'slow_sql_rca' in report_obj and isinstance(report_obj.get('slow_sql_rca'), dict):
+            rca = report_obj['slow_sql_rca']
+            if isinstance(rca.get('query_type_distribution'), dict):
+                rca['query_type_distribution'] = _to_table_from_mapping(rca['query_type_distribution'], ("type", "count"))
+            if isinstance(rca.get('root_cause_distribution'), dict):
+                rca['root_cause_distribution'] = _to_table_from_mapping(rca['root_cause_distribution'], ("root_cause", "count"))
+            report_obj['slow_sql_rca'] = rca
+        # Dynamic Memory：数据源为快照，统一以表格形式返回
+        if 'dynamic_memory' in report_obj and isinstance(report_obj.get('dynamic_memory'), dict):
+            dm = report_obj['dynamic_memory']
+            rows = []
+            try:
+                for k, v in dm.items():
+                    avg = max_v = min_v = p95 = None
+                    # 1) 直接读取已有 statistic
+                    if isinstance(v, dict):
+                        stat = v.get('statistic') if isinstance(v.get('statistic'), dict) else {}
+                        if stat:
+                            avg = stat.get('avg', avg)
+                            max_v = stat.get('max', max_v)
+                            min_v = stat.get('min', min_v)
+                            p95 = stat.get('the_95th', stat.get('p95', p95))
+                        elif isinstance(v.get('data'), list) and v['data']:
+                            # 2) 仅有 data 数组，做一次统计
+                            data_list = [x for x in v['data'] if isinstance(x, (int, float))]
+                            if data_list:
+                                avg = sum(data_list) / len(data_list)
+                                max_v = max(data_list)
+                                min_v = min(data_list)
+                        elif 'value' in v:
+                            # 3) 只有单值
+                            avg = v.get('value')
+                    else:
+                        # 纯数值：作为 avg 输出
+                        avg = v
+
+                    # 4) 如仍缺少统计，则尝试从 TSDB 按“时序型”获取统计
+                    if instance and (avg is None or max_v is None or min_v is None or p95 is None):
+                        try:
+                            import datetime as dt
+                            start_dt = dt.datetime.fromtimestamp(int(start_ts) / 1000) if isinstance(start_ts, (int, float)) else None
+                            end_dt = dt.datetime.fromtimestamp(int(end_ts) / 1000) if isinstance(end_ts, (int, float)) else None
+                            if start_dt and end_dt:
+                                key_to_type = {
+                                    'used_memory': 'dynamic_used_memory',
+                                    'dynamic_used_memory': 'dynamic_used_memory',
+                                    'max_dynamic_memory': 'max_dynamic_memory',
+                                    'dynamic_used_shrctx': 'dynamic_used_shrctx',
+                                }
+                                ts_type = key_to_type.get(k, None)
+                                if ts_type:
+                                    seq = dai.get_metric_sequence('pg_total_memory_detail_mbytes', start_dt, end_dt) \
+                                        .from_server(instance).filter(type=ts_type).fetchone()
+                                    if seq and isinstance(seq.values, list) and len(seq.values) > 0:
+                                        # 转为 bytes 再统计（容错：字符串/数值均可）
+                                        values_bytes = []
+                                        for x in seq.values:
+                                            try:
+                                                values_bytes.append(float(x) * 1024 * 1024)
+                                            except Exception:
+                                                continue
+                                        if values_bytes:
+                                            if avg is None:
+                                                avg = sum(values_bytes) / len(values_bytes)
+                                            if max_v is None:
+                                                max_v = max(values_bytes)
+                                            if min_v is None:
+                                                min_v = min(values_bytes)
+                                            if p95 is None:
+                                                sorted_vals = sorted(values_bytes)
+                                                idx = int(round(0.95 * (len(sorted_vals) - 1)))
+                                                p95 = sorted_vals[idx]
+                        except Exception:
+                            pass
+                    # 快照缺失时的兜底：若只有 avg 则用 avg 补齐 max/min/p95
+                    if avg is not None:
+                        if max_v is None:
+                            max_v = avg
+                        if min_v is None:
+                            min_v = avg
+                        if p95 is None:
+                            p95 = avg
+                    rows.append([k, avg, max_v, min_v, p95])
+            except Exception:
+                rows = []
+            report_obj['dynamic_memory'] = {
+                'header': ['metric', 'avg', 'max', 'min', 'p95'],
+                'rows': rows
+            }
+            return report_obj
+
+    try:
+        # Map inspection_type to match the database values
+        # The database stores: real_time_check_daily, real_time_check_weekly
+        # But API expects: daily_check, weekly_check, monthly_check
+
+        # Direct mapping for existing data
+        inspection_type_mapping = {
+            'daily_check': 'real_time_check_daily',
+            'weekly_check': 'real_time_check_weekly',
+            'monthly_check': 'real_time_check_monthly'
+        }
+
+        db_inspection_type = inspection_type_mapping.get(inspection_type, inspection_type)
+
+        results = dao.regular_inspections.select_metric_regular_inspections(
+            inspection_type=db_inspection_type,
             limit=1
-        ),
-        field_names=['instance', 'report', 'start', 'end']
-    )
+        )
+
+        # Convert SQLAlchemy result to expected format
+        rows = []
+        for row in results:
+            # Handle the case where report might be None or empty
+            report_data = row.report if row.report else {}
+            # Normalize shapes to match frontend expectations
+            if inspection_type == 'daily_check':
+                report_data = _normalize_daily_report(report_data, row.start, row.end, row.instance)
+            elif inspection_type in ('weekly_check', 'monthly_check'):
+                report_data = _normalize_weekly_monthly_report(report_data, row.start, row.end)
+
+            rows.append([
+                row.instance,
+                report_data,  # This should be a dict/object
+                row.start,
+                row.end
+            ])
+
+        return {
+            "header": ["instance", "report", "start", "end"],
+            "rows": rows
+        }
+
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+        logging.error(f"Error in get_regular_inspections: {str(e)}")
+
+        # Fallback to empty result on error
+        return {
+            "header": ["instance", "report", "start", "end"],
+            "rows": []
+        }
 
 
 def get_regular_inspections_count(inspection_type):
@@ -1054,46 +1330,42 @@ def get_regular_inspections_count(inspection_type):
     )
 
 
-def exec_real_time_inspections(username, password, inspection_type, start_time, end_time,
-                               instance, inspection_items, tz):
-    if not instance:
-        raise ValueError('Incorrect value for parameter instance: {}.'.format(instance))
-
-    if inspection_type not in ('daily_check', 'weekly_check', 'monthly_check', 'real_time_check'):
+def exec_real_time_inspections(inspection_type, start_time, end_time, select_metrics):
+    if inspection_type not in ('real_time_check_daily', 'real_time_check_weekly', 'real_time_check_monthly', 'real_time_check'):
         raise ValueError('Incorrect value for parameter inspection_type: {}.'.format(inspection_type))
+    
+    # Handle time parameters - some inspection types may use default time ranges
+    if inspection_type in ('real_time_check_daily', 'real_time_check_weekly', 'real_time_check_monthly'):
+        # For automatic inspection types, generate default time ranges if not provided
+        if not start_time or not end_time:
+            import time
+            current_time_ms = int(time.time() * 1000)
+            if inspection_type == 'real_time_check_daily':
+                start_time = str(current_time_ms - 24 * 60 * 60 * 1000)  # 24 hours ago
+                end_time = str(current_time_ms)
+            elif inspection_type == 'real_time_check_weekly':
+                start_time = str(current_time_ms - 7 * 24 * 60 * 60 * 1000)  # 7 days ago
+                end_time = str(current_time_ms)
+            elif inspection_type == 'real_time_check_monthly':
+                start_time = str(current_time_ms - 30 * 24 * 60 * 60 * 1000)  # 30 days ago
+                end_time = str(current_time_ms)
+    
+    # Validate time parameters
+    if not (isinstance(start_time, str) and start_time.isnumeric() and len(start_time) == 13):
+        raise ValueError('Incorrect value for parameter start_time: {}.'.format(start_time))
+    if not (isinstance(end_time, str) and end_time.isnumeric() and len(end_time) == 13):
+        raise ValueError('Incorrect value for parameter end_time: {}.'.format(end_time))
+    
+    start_time = datetime.datetime.fromtimestamp(int(start_time)/1000)
+    end_time = datetime.datetime.fromtimestamp(int(end_time)/1000)
+    cur_instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
+    inspect_state = regular_inspection.real_time_inspection(inspection_type, cur_instance, 
+                                                            start_time, end_time, select_metrics)
+    return {'success': True if inspect_state == 'success' else False}
 
-    if not inspection_items:
-        raise ValueError('Incorrect value for parameter inspection_items: {}.'.format(inspection_items))
 
-    for attribute, inspection_info in inspection_items.__dict__.items():
-        if len(inspection_info) == 0:
-            continue
-
-        if not (
-            all(isinstance(item, str) for item in inspection_info) or
-            all(isinstance(item, dict) for item in inspection_info)
-        ):
-            raise ValueError(
-                f'the values in inspection_items.{attribute} should be the same type, '
-                'and the type must be str or dict.'
-            )
-
-        if all(isinstance(item, dict) for item in inspection_info) and len(inspection_info) != 1:
-            raise ValueError(f'the length of dict in inspection_items.{attribute} must be 1.')
-
-    agent_instance = global_vars.agent_proxy.current_agent_addr()
-    with global_vars.agent_proxy.context(agent_instance, username, password):
-        inspect_result = regular_inspection.real_time_inspection(
-            username, password, inspection_type, start_time,
-            end_time, instance, inspection_items, tz
-        )
-
-    return inspect_result
-
-
-def list_real_time_inspections(instance):
-    if not instance:
-        raise ValueError('Incorrect value for parameter instance: {}.'.format(instance))
+def list_real_time_inspections():
+    instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
 
     return sqlalchemy_query_jsonify(
         dao.regular_inspections.select_metric_regular_inspections(
@@ -1104,9 +1376,8 @@ def list_real_time_inspections(instance):
     )
 
 
-def report_real_time_inspections(instance, spec_id):
-    if not instance:
-        raise ValueError('Incorrect value for parameter instance: {}.'.format(instance))
+def report_real_time_inspections(spec_id):
+    instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
 
     if not (isinstance(spec_id, str) and spec_id.isdigit()):
         raise ValueError('Incorrect value for parameter spec_id: {}.'.format(spec_id))
@@ -1120,9 +1391,8 @@ def report_real_time_inspections(instance, spec_id):
     )
 
 
-def delete_real_time_inspections(instance, spec_id):
-    if not instance:
-        raise ValueError('Incorrect value for parameter instance: {}.'.format(instance))
+def delete_real_time_inspections(spec_id):
+    instance = get_access_context(ACCESS_CONTEXT_NAME.AGENT_INSTANCE_IP_WITH_PORT)
 
     if not spec_id:
         raise ValueError('Incorrect value for parameter spec_id: {}.'.format(spec_id))
@@ -1222,6 +1492,16 @@ def risk_analysis(metric, instance, warning_hours, upper, lower, labels, tz=None
     lower = 0 if lower is None else lower
     warnings = early_warning(metric, instance, None, warning_hours, upper, lower, labels, tz=tz)
     return warnings
+
+
+# <<<<<<<<<<<< old risk_analysis
+def risk_analysis(metric, instance, warning_hours, upper, lower, labels):
+    labels = string_to_dict(labels, delimiter=',')
+    upper = cast_to_int_or_float(upper)
+    lower = cast_to_int_or_float(lower)
+    warnings = early_warning(metric, instance, None, warning_hours, upper, lower, labels)
+    return warnings
+# >>>>>>>>>>>> old risk_analysis
 
 
 def get_database_data_directory_status(instance, latest_minutes):

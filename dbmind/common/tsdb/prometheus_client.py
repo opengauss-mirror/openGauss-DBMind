@@ -22,6 +22,16 @@ from ..exceptions import ApiClientException
 from ..types import Sequence
 from ..types.ssl import SSLContext
 
+# Import metric mapping
+try:
+    from .metric_mapping import map_metric_name, is_complex_query
+except ImportError:
+    # Fallback if mapping file doesn't exist
+    def map_metric_name(metric_name):
+        return metric_name
+    def is_complex_query(metric_name):
+        return False
+
 
 def escape_label_value(value):
     # Escape backslashes and double quotes
@@ -133,14 +143,22 @@ class PrometheusClient(TsdbClient):
         """
         params = params or {}
         labels_like = params.pop('labels_like') if 'labels_like' in params else {}
-        if label_config or labels_like:
-            query = metric_name + label_to_query(label_config, labels_like)
+        
+        # Apply metric mapping
+        mapped_metric = map_metric_name(metric_name)
+        
+        # If it's a complex query, use it directly
+        if is_complex_query(metric_name):
+            query = mapped_metric
         else:
-            query = metric_name
-        if min_value:
-            query = str(min_value) + '<' + query
-        if max_value:
-            query = query + '<' + str(max_value)
+            if label_config or labels_like:
+                query = mapped_metric + label_to_query(label_config, labels_like)
+            else:
+                query = mapped_metric
+            if min_value:
+                query = str(min_value) + '<' + query
+            if max_value:
+                query = query + '<' + str(max_value)
 
         # using the query API to get raw data
         data = []
@@ -192,10 +210,18 @@ class PrometheusClient(TsdbClient):
         """
         params = params or {}
         labels_like = params.pop('labels_like') if 'labels_like' in params else {}
-        if label_config or labels_like:
-            query = metric_name + label_to_query(label_config, labels_like)
+        
+        # Apply metric mapping
+        mapped_metric = map_metric_name(metric_name)
+        
+        # If it's a complex query, use it directly
+        if is_complex_query(metric_name):
+            query = mapped_metric
         else:
-            query = metric_name
+            if label_config or labels_like:
+                query = mapped_metric + label_to_query(label_config, labels_like)
+            else:
+                query = mapped_metric
         data = []
         if not (isinstance(start_time, datetime) and isinstance(end_time, datetime)):
             raise TypeError("start_time and end_time can only be of type datetime.datetime")

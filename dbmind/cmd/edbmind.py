@@ -322,6 +322,9 @@ def init_global_configs(confpath):
         constants.MUST_FILTER_LABEL_CONFIG
     )
 
+    # 设置环境变量，让子进程能够找到配置文件
+    os.environ['DBMIND_CONFPATH'] = confpath
+
 
 def init_tsdb_with_config():
     ssl_cert_file = global_vars.configs.get('TSDB', 'ssl_certfile')
@@ -371,18 +374,23 @@ def init_anomaly_detection_pool():
 
 
 def record_child_process_pid(child_process_file_path):
-    if not platform.LINUX:
+    if platform.MACOS:
+        parent_pid = os.getpid()
+        child_pids = platform.macos_get_child_processes(parent_pid)
+    elif platform.LINUX:
+        parent_pid = os.getpid()
+        child_pids = []
+        for pid in os.listdir('/proc'):
+            if not pid.isdigit() or pid == parent_pid:
+                continue
+            try:
+                if check_parent_child_process(pid, parent_pid):
+                    child_pids.append(pid)
+            except (FileNotFoundError, PermissionError):
+                continue
+    else:
         return
-    parent_pid = os.getpid()
-    child_pids = []
-    for pid in os.listdir('/proc'):
-        if not pid.isdigit() or pid == parent_pid:
-            continue
-        try:
-            if check_parent_child_process(pid, parent_pid):
-                child_pids.append(pid)
-        except (FileNotFoundError, PermissionError):
-            continue
+        
     # format: pid1,pid2,pid3...
     separator = ','
     try:

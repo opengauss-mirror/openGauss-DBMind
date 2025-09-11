@@ -101,7 +101,18 @@ def get_process_state(cluster_state, local_ips, timeout=None):
     """
 
     def get_proc_info(node_role, node_ip, node_port, end_time):
-        pid_cmd = f"ss -tulnp | grep {shlex.quote(str(node_port))}"
+        # Import platform here to avoid circular imports
+        import os
+        _PLATFORM = os.sys.platform
+        MACOS = _PLATFORM == 'darwin'
+        
+        # Use appropriate command based on platform
+        if MACOS:
+            from dbmind.common import platform
+            pid_cmd = platform.macos_get_network_connections_cmd(shlex.quote(str(node_port)))
+        else:
+            pid_cmd = f"ss -tulnp | grep {shlex.quote(str(node_port))}"
+            
         remaining_time = None if end_time is None else end_time - time.monotonic()
         pid_output = get_shell_output_lines(pid_cmd, "", timeout=remaining_time)
         if not pid_output:
@@ -115,15 +126,36 @@ def get_process_state(cluster_state, local_ips, timeout=None):
             if not info:
                 break
 
-            search_pid = re.search('.*,pid=(.*?),.*', info[-1])
-            if search_pid is None:
-                return
+            if MACOS:
+                # Parse netstat output for macOS
+                # netstat output format is different from ss
+                # Skip if not a listening socket
+                if len(info) < 6 or 'LISTEN' not in info[5]:
+                    continue
+                # For netstat, we need to find the process differently
+                # This is a simplified approach - in real scenarios you might need more complex parsing
+                try:
+                    # Try to find process by port using lsof
+                    lsof_cmd = f"lsof -i :{node_port} | grep LISTEN"
+                    remaining_time = None if end_time is None else end_time - time.monotonic()
+                    lsof_output = get_shell_output_lines(lsof_cmd, "", timeout=remaining_time)
+                    for line in lsof_output:
+                        parts = line.split()
+                        if len(parts) > 1 and "gaussdb" in parts[0]:
+                            pid_list.add(parts[1])
+                            listen_pid.add(parts[1])
+                except:
+                    continue
+            else:
+                search_pid = re.search('.*,pid=(.*?),.*', info[-1])
+                if search_pid is None:
+                    return
 
-            pid = search_pid.groups()[0]
-            if "gaussdb" in info[-1]:
-                pid_list.add(pid)
-                if 'LISTEN' in info:
-                    listen_pid.add(pid)
+                pid = search_pid.groups()[0]
+                if "gaussdb" in info[-1]:
+                    pid_list.add(pid)
+                    if 'LISTEN' in info:
+                        listen_pid.add(pid)
 
         if not pid_list:
             return
@@ -133,21 +165,56 @@ def get_process_state(cluster_state, local_ips, timeout=None):
         else:
             pid = list(pid_list)[0]
 
-        readlink_cmd = f"readlink /proc/{shlex.quote(str(pid))}/cwd | grep -v USER"
+        # Get process working directory
+        if MACOS:
+            from dbmind.common import platform
+            cwd_cmd = platform.macos_get_process_cwd_cmd(shlex.quote(str(pid)))
+        else:
+            cwd_cmd = f"readlink /proc/{shlex.quote(str(pid))}/cwd | grep -v USER"
+        
         remaining_time = None if end_time is None else end_time - time.monotonic()
-        cwd = get_shell_output_lines(readlink_cmd, "", timeout=remaining_time)[0]
+        cwd_output = get_shell_output_lines(cwd_cmd, "", timeout=remaining_time)
+        cwd = cwd_output[0] if cwd_output else ""
 
-        leaked_fds_cmd = f"ls -l /proc/{shlex.quote(str(pid))}/fd | grep '(deleted)' | wc -l"
+        # Get leaked file descriptors count
+        if MACOS:
+            from dbmind.common import platform
+            leaked_fds_cmd = platform.macos_get_process_fds_cmd(shlex.quote(str(pid)))
+        else:
+            leaked_fds_cmd = f"ls -l /proc/{shlex.quote(str(pid))}/fd | grep '(deleted)' | wc -l"
+        
         remaining_time = None if end_time is None else end_time - time.monotonic()
         leaked_fds = get_shell_output_lines(leaked_fds_cmd, "", timeout=remaining_time)[0]
 
-        ps_cmd = f"ps -u --pid {shlex.quote(str(pid))} | grep -v USER"
+        # Get process info using ps
+        if MACOS:
+            from dbmind.common import platform
+            ps_cmd = platform.macos_get_ps_cmd(shlex.quote(str(pid)))
+        else:
+            ps_cmd = f"ps -u --pid {shlex.quote(str(pid))} | grep -v USER"
+        
         remaining_time = None if end_time is None else end_time - time.monotonic()
-        ps_output = get_shell_output_lines(ps_cmd, "", timeout=remaining_time)[0].split()
+        ps_output = get_shell_output_lines(ps_cmd, "", timeout=remaining_time)
         if not ps_output:
             return
 
-        cpu_usage, mem_usage, user = ps_output[2], ps_output[3], ps_output[0]
+        ps_line = ps_output[0].split()
+        if not ps_line:
+            return
+
+        # Parse ps output based on platform
+        if MACOS:
+            # macOS ps -u -p format: USER PID %CPU %MEM VSZ RSS TT STAT STARTED TIME COMMAND
+            if len(ps_line) >= 4:
+                user, cpu_usage, mem_usage = ps_line[0], ps_line[2], ps_line[3]
+            else:
+                return
+        else:
+            # Linux ps -u --pid format varies but typically: USER PID %CPU %MEM
+            if len(ps_line) >= 4:
+                cpu_usage, mem_usage, user = ps_line[2], ps_line[3], ps_line[0]
+            else:
+                return
 
         process_state["cpu_usage"].append(cpu_usage)
         process_state["mem_usage"].append(mem_usage)
@@ -425,12 +492,26 @@ def parse_df():
 
 def get_local_ips(ip_list):
     """
-    To parse the output from command `hostname -I`
+    To parse the output from command `hostname -I` on Linux or ifconfig on macOS
     """
-    new_ip_list = perform_shell_command(cmd="hostname -I", stdin="", timeout=1)[1].split()
+    import os
+    _PLATFORM = os.sys.platform
+    MACOS = _PLATFORM == 'darwin'
+    
+    if MACOS:
+        from dbmind.common import platform
+        cmd = platform.macos_get_local_ips_cmd()
+    else:
+        cmd = "hostname -I"
+    
+    new_ip_list = perform_shell_command(cmd=cmd, stdin="", timeout=1)[1].split()
     if not new_ip_list:
-        cmd = ("ip a | grep -E 'inet|inet6' | egrep -v '127.0.0.1/|::1/|"
-               "scope link' | sed -z 's/\// /g' | awk '{print $2}'")
+        if MACOS:
+            # Fallback for macOS
+            cmd = "ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}'"
+        else:
+            cmd = ("ip a | grep -E 'inet|inet6' | egrep -v '127.0.0.1/|::1/|"
+                   "scope link' | sed -z 's/\// /g' | awk '{print $2}'")
         new_ip_list = perform_shell_command(cmd=cmd, stdin="", timeout=1)[1].split("\n")
 
     if not isinstance(ip_list, list):

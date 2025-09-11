@@ -204,6 +204,14 @@ class LazyFetcher:
             )
         except Exception as e:
             logging.error('SequenceBufferPool crashed.', exc_info=e)
+            # 清理可能损坏的缓存条目
+            try:
+                buff.clear_metric_cache(self.metric_name, self.labels)
+                logging.info('Cleared corrupted cache for metric: %s', self.metric_name)
+            except Exception as clear_error:
+                logging.warning('Failed to clear cache: %s', clear_error)
+
+            # 直接从数据源获取数据
             buffered = self._fetch_sequence(start_time, end_time, step)
 
         dbmind_assert(buffered is not None)
@@ -705,8 +713,8 @@ def check_tsdb_status():
 
 
 def check_exporter_status():
-    # notes: if the scope is not specified, the global_var.agent_proxy.current_cluster_instances()
-    #        may return 'None' in most scenarios, therefore this method is limited to
+    # notes: if the scope is not specified, the global_var.agent_proxy.current_cluster_instances() 
+    #        may return 'None' in most scenarios, therefore this method is limited to 
     #        calling when implementing the API for front-end one agent or we only have one agent
     detail = {'opengauss_exporter': [], 'reprocessing_exporter': [], 'node_exporter': [], 'cmd_exporter': []}
     client = TsdbClientFactory.get_tsdb_client()
@@ -716,47 +724,31 @@ def check_exporter_status():
         detail['node_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
         detail['cmd_exporter'].append({'status': 'down', 'listen_address': 'unknown', 'instance': 'unknown'})
         return detail
-
-    self_exporters = {
-        'opengauss_exporter': 'pg_node_info_uptime',
-        'reprocessing_exporter': 'os_cpu_user_usage',
-        'node_exporter': 'node_boot_time_seconds',
-        'cmd_exporter': 'opengauss_cluster_state'
-    }
+    self_exporters = {'opengauss_exporter': 'pg_node_info_uptime', 'reprocessing_exporter': 'os_cpu_usage',
+                      'node_exporter': 'node_boot_time_seconds', 'cmd_exporter': 'gaussdb_cluster_state'}
     instance_with_port = global_vars.agent_proxy.current_cluster_instances()
-    instance_without_port = [split_ip_port(item)[0] for item in instance_with_port]
+    instance_with_no_port = [item.split(':')[0] for item in instance_with_port]
     for exporter, metric in self_exporters.items():
         if exporter in ('opengauss_exporter', 'cmd_exporter'):
             instances = instance_with_port
         else:
-            instances = instance_without_port
-
+            instances = instance_with_no_port
         for instance in instances:
             if exporter == 'node_exporter':
-                instance_regex = prepare_ip(instance) + PORT_SUFFIX
-                sequences = get_latest_metric_value(metric).from_server_like(instance_regex).fetchall()
+                instance_regex = instance + ':?.*'
+                sequences = get_latest_metric_value(metric).\
+                    from_server_like(instance_regex).fetchall()
             elif exporter == 'cmd_exporter':
-                instance_regex = prepare_ip(split_ip_port(instance)[0]) + PORT_SUFFIX
+                instance_regrex = instance.split(':')[0] + ':?.*'
                 # since the cluster state may change, it will be matched again
                 # on the 'primary' after the matching fails on the 'standby' to ensure not miss exporter
-                sequences = get_latest_metric_value(
-                    metric
-                ).filter_like(
-                    instance=instance_regex,
-                    standby=f"(|.*[0-9],|.*[0-9]],){instance}(,\\[[0-9].*|,[0-9].*|)"
-                ).fetchall()
-
+                sequences = get_latest_metric_value(metric).\
+                    filter_like(instance=instance_regrex, standby=f".*{instance}.*").fetchall()
                 if not is_sequence_valid(sequences):
-                    sequences = get_latest_metric_value(
-                        metric
-                    ).filter_like(
-                        instance=instance_regex,
-                        primary=prepare_ip(instance) + PORT_SUFFIX
-                    ).fetchall()
-
+                    sequences = get_latest_metric_value(metric).\
+                        filter_like(instance=instance_regrex).filter(primary=instance).fetchall()
             else:
                 sequences = get_latest_metric_value(metric).from_server(instance).fetchall()
-
             if is_sequence_valid(sequences):
                 for sequence in sequences:
                     listen_address = sequence.labels.get('instance')
@@ -857,6 +849,20 @@ def get_data_directory_mountpoint_info(instance):
                    sequence.labels['device'], round(sequence.values[-1] / 1024 / 1024 / 1024, 2)
 
 
+def get_iops(instance):
+    iops = ''
+    instance_without_port = instance.split(':')[0]
+    instance_regex = instance_without_port + PORT_SUFFIX
+    iops_sequence = get_latest_metric_value('os_disk_iops') \
+        .filter_like(instance=instance_regex) \
+        .fetchall()
+    logging.info('iops: %s, %s', len(iops_sequence), str(iops_sequence))
+    if is_sequence_valid(iops_sequence):
+        iops = round(max(sequence.values[-1] for sequence in iops_sequence), 1)
+
+    return iops
+
+
 def get_database_data_directory_status(instance, latest_minutes):
     # return the data-directory information of current cluster
     # note: now the node of instance should be deployed opengauss_exporter
@@ -878,6 +884,7 @@ def get_database_data_directory_status(instance, latest_minutes):
     detail['usage_rate'] = round(disk_usage_sequence.values[-1], 4)
     detail['used_space'] = round(detail['total_space'] * detail['usage_rate'], 2)
     detail['free_space'] = round(detail['total_space'] - detail['used_space'], 2)
+    detail['iops'] = get_iops(instance)
     return detail
 
 

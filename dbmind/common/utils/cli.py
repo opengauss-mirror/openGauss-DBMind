@@ -20,10 +20,23 @@ import json
 
 from dbmind.common.utils import dbmind_assert
 from dbmind.common.utils.base import WHITE_FMT, RED_FMT, GREEN_FMT, YELLOW_FMT
-from dbmind.common.platform import LINUX
+from dbmind.common.platform import LINUX, MACOS
 
 
 def set_proc_title(name: str):
+    # 支持Linux和macOS系统的进程标题设置
+    if MACOS:
+        try:
+            from dbmind.common import platform
+            platform.macos_set_proc_title(name)
+            return
+        except Exception as e:
+            logging.debug('An error (%s) occurred while setting the process name on macOS.', e)
+            return
+    elif not LINUX:
+        logging.debug('Process title masking is only supported on Linux and macOS systems.')
+        return
+        
     new_name = name.encode('ascii', 'replace')
 
     try:

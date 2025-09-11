@@ -1,9 +1,10 @@
 import React, { Component } from 'react';
-import { Card, Table, message } from 'antd';
+import { Table, message } from 'antd';
 import ResizeableTitle from '../common/ResizeableTitle';
 import { getNode } from '../../api/overview';
 import iconokgreen from '../../assets/imgs/iconokgreen.png';
 import iconstop from '../../assets/imgs/iconstop.png';
+import { capitalizeFirst } from '../../utils/function';
 
 export default class NodeTable extends Component {
   constructor() {
@@ -28,10 +29,10 @@ export default class NodeTable extends Component {
   }
   handleTableData (header, rows) {
     let historyColumObj = {}
-    let tableHeader = []
+    const tableHeader = []
     header.forEach(item => {
       historyColumObj = {
-        title: item.replace(/_/g, ' '),
+        title: capitalizeFirst(item.replace(/_/g, ' ')),
         dataIndex: item,
         key: item,
         align:item === 'state' ? 'center' : 'left',
@@ -47,9 +48,9 @@ export default class NodeTable extends Component {
       }
       tableHeader.push(historyColumObj)
     })
-    let res = []
+    const res = []
     rows.forEach((item, index) => {
-      let tabledata = {}
+      const tabledata = {}
       for (let i = 0; i < header.length; i++) {
         tabledata[header[i]] = item[i]
       }

@@ -1,6 +1,7 @@
 .menu_top {
   width: 100%;
-  background: #001529;
+  /* 深色渐变，更接近华为云官网风格 */
+  background: linear-gradient(90deg, var(--brand-header-bg-from, #0B1120) 0%, var(--brand-header-bg-to, #1B2A4B) 100%);
   height: 60px;
 }
 .menu_top .top{
@@ -44,16 +45,15 @@
   align-items: center;
 }
 .menu_top .top .userInfo2 .info{
-  color: rgb(192, 188, 188);
+  color: #E6E8EA;
 }
 .menu_top .top .userInfo2 .info .infoName{
   margin-right: 10px;
 }
-.changeInstance .ant-select-arrow{
-  color: #c0bcbc;
-}
-.changeInstance .ant-select-selection-item{
-  color: #c0bcbc;
-}
+.changeInstance .ant-select-arrow{ color: #D9DDE3; }
+.changeInstance .ant-select-selection-item{ color: #D9DDE3; }
 
+/* 头部可点击/链接采用品牌强调红 */
+.menu_top a { color: var(--brand-accent-red, #CF0A2C); }
+.menu_top a:hover { color: var(--brand-accent-red-hover, #C41127); }
 

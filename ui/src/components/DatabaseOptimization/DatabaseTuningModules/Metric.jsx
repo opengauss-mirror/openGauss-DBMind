@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTitle } from '../../../utils/function';
 import { getKnobRecommendationSnapshot } from '../../../api/databaseOptimization'
+import { getTimedTaskStatus } from '../../../api/overview';
 
 export default class MetricData extends Component {
   static propTypes={
@@ -30,7 +31,7 @@ export default class MetricData extends Component {
     this.setState({loading: true})
     if (header.length > 0) {
       let historyColumObj = {}
-      let tableHeader = []
+    const tableHeader = []
       header.forEach(item => {
         historyColumObj = {
           title: formatTableTitle(item),
@@ -40,9 +41,9 @@ export default class MetricData extends Component {
         }
         tableHeader.push(historyColumObj)
       })
-      let res = []
+    const res = []
       rows.forEach((item, index) => {
-        let tabledata = {}
+      const tabledata = {}
         for (let i = 0; i < header.length; i++) {
           tabledata[header[i]] = item[i]
         }
@@ -59,6 +60,21 @@ export default class MetricData extends Component {
       }))
     }
   }
+  async getTimedTaskStatus () {
+    const { success, data, msg } = await getTimedTaskStatus()
+    if (success) {
+      data.rows.forEach(item => {
+        if(item[0] === 'knob_recommend' && item[1] === 'Running' ){
+          this.getKnobRecommendationSnapshot({
+            current: 1,
+            pagesize: 10,
+          })
+        }
+      })
+    } else {
+      message.error(msg)
+    }
+  }
   async getKnobRecommendationSnapshot (params) {
     const { success, data, msg } = await getKnobRecommendationSnapshot(params)
     if (success) {
@@ -69,7 +85,7 @@ export default class MetricData extends Component {
   }
   // 回调函数，切换下一页
   changePage(current,pageSize){
-    let params = {
+    const params = {
       current: current,
       pagesize: pageSize,
     };
@@ -84,7 +100,7 @@ export default class MetricData extends Component {
     this.setState({
       pageSize: pageSize
     });
-    let params = {
+    const params = {
       current: current,
       pagesize: pageSize,
     };
@@ -101,10 +117,7 @@ export default class MetricData extends Component {
     });
   };
   componentDidMount () {
-    this.getKnobRecommendationSnapshot({
-      current: 1,
-      pagesize: 10,
-    })
+    this.getTimedTaskStatus()
   }
   render () {
     const columns = this.state.columns.map((col, index) => ({
@@ -125,12 +138,10 @@ export default class MetricData extends Component {
       onChange: (current,pageSize) => this.changePage(current,pageSize)
     };
     return (
-      <div className="contentWrap">
-        <div className="mb-20">
-          <Card title="Metric Snapshot" className="mb-20 formlabel-160">
+      <div>
+          <Card title="Metric Snapshot" className="mb-10 formlabel-160">
             <Table size="small" bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={metricProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
           </Card>
-        </div>
       </div>
     )
   }

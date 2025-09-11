@@ -63,7 +63,7 @@ class HttpService:
     """
 
     def __init__(self, name=__name__):
-        self.app = FastAPI(title=name, openapi_url=None, docs_url=None, redoc_url=None)
+        self.app = FastAPI(title=name)
         self._server = None
         self.static_directory = None
         self.need_to_exit = False

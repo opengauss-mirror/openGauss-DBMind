@@ -1503,7 +1503,7 @@ pg_audit:
       usage: COUNTER
       default: 0
       cumulative: 1
-  status: disable
+  status: enable
   ttl: 0
   timeout: 9
 

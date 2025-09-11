@@ -268,26 +268,56 @@ class Sequence(RPCJSONAble):
             if other.step != self.step:
                 specific.append('Step: %s vs %s.' % (self.step, other.step))
             raise TypeError('Cannot merge different type of sequences: ' + ' '.join(specific))
-        # eliminate overlap portion.
+
+        # 使用新的智能合并策略
+        return self._smart_merge(other)
+
+    def _smart_merge(self, other):
+        """智能合并两个序列，支持不对齐的序列合并"""
         sequences = [self, other]
         sequences.sort(key=lambda s: s.timestamps[0])
 
-        first_start, first_end = sequences[0].timestamps[0], sequences[0].timestamps[-1]
-        second_start, second_end = sequences[1].timestamps[0], sequences[1].timestamps[-1]
+        first_seq, second_seq = sequences[0], sequences[1]
+        first_start, first_end = first_seq.timestamps[0], first_seq.timestamps[-1]
+        second_start, second_end = second_seq.timestamps[0], second_seq.timestamps[-1]
 
         step = self.step or 1
-        if second_start > first_end + step:
-            raise TypeError('Cannot merge due to dis-continuousness.')
-        if not (binary_search(sequences[1].timestamps, first_end) >= 0 or
-                binary_search(sequences[1].timestamps, first_end + step) >= 0):
-            raise TypeError('Cannot merge due to unaligned sequences: (%d, %d, %d), (%d, %d, %d).'
-                            % (self.timestamps[0], self.timestamps[-1], self.step,
-                               other.timestamps[0], other.timestamps[-1], other.step)
-                            )
 
-        overlap_start_index = how_many_lesser_elements(sequences[0].timestamps, second_start)
-        new_timestamps = sequences[0].timestamps[:overlap_start_index] + sequences[1].timestamps
-        new_values = sequences[0].values[:overlap_start_index] + sequences[1].values
+        # 检查是否有间隙（不连续）
+        if second_start > first_end + step:
+            # 如果间隙太大，抛出异常
+            gap = second_start - first_end
+            if gap > step * 10:  # 允许最多10个步长的间隙
+                raise TypeError('Cannot merge due to large gap: %d ms (max allowed: %d ms).'
+                              % (gap, step * 10))
+            # 对于小间隙，创建连续序列
+            return self._merge_with_gap(first_seq, second_seq, step)
+
+        # 处理重叠情况
+        if second_start <= first_end:
+            return self._merge_overlapping(first_seq, second_seq)
+
+        # 处理连续情况
+        return self._merge_continuous(first_seq, second_seq)
+
+    def _merge_with_gap(self, first_seq, second_seq, step):
+        """合并有间隙的序列，在间隙中填充 None 值"""
+        # 计算需要填充的时间点
+        gap_start = first_seq.timestamps[-1] + step
+        gap_end = second_seq.timestamps[0] - step
+
+        gap_timestamps = []
+        current_time = gap_start
+        while current_time <= gap_end:
+            gap_timestamps.append(current_time)
+            current_time += step
+
+        # 创建填充值（使用 None）
+        gap_values = [None] * len(gap_timestamps)
+
+        # 合并所有部分
+        new_timestamps = first_seq.timestamps + gap_timestamps + second_seq.timestamps
+        new_values = first_seq.values + gap_values + second_seq.values
 
         return Sequence(
             name=self.name,
@@ -296,6 +326,60 @@ class Sequence(RPCJSONAble):
             timestamps=new_timestamps,
             values=new_values
         )
+
+    def _merge_overlapping(self, first_seq, second_seq):
+        """合并重叠的序列，优先使用后面序列的数据"""
+        # 找到重叠的开始位置
+        overlap_start_index = how_many_lesser_elements(first_seq.timestamps, second_seq.timestamps[0])
+
+        # 使用第一个序列的非重叠部分 + 第二个序列的全部
+        new_timestamps = first_seq.timestamps[:overlap_start_index] + second_seq.timestamps
+        new_values = first_seq.values[:overlap_start_index] + second_seq.values
+
+        return Sequence(
+            name=self.name,
+            labels=self.labels,
+            step=self.step,
+            timestamps=new_timestamps,
+            values=new_values
+        )
+
+    def _merge_continuous(self, first_seq, second_seq):
+        """合并连续的序列"""
+        new_timestamps = first_seq.timestamps + second_seq.timestamps
+        new_values = first_seq.values + second_seq.values
+
+        return Sequence(
+            name=self.name,
+            labels=self.labels,
+            step=self.step,
+            timestamps=new_timestamps,
+            values=new_values
+        )
+
+    @staticmethod
+    def safe_merge(seq1, seq2):
+        """安全合并两个序列，失败时返回较新的序列"""
+        try:
+            return seq1 + seq2
+        except TypeError as e:
+            # 如果合并失败，返回时间范围更大的序列
+            if len(seq1.timestamps) == 0:
+                return seq2
+            if len(seq2.timestamps) == 0:
+                return seq1
+
+            # 比较时间范围，返回覆盖范围更大的序列
+            seq1_range = seq1.timestamps[-1] - seq1.timestamps[0]
+            seq2_range = seq2.timestamps[-1] - seq2.timestamps[0]
+
+            if seq2_range > seq1_range:
+                return seq2
+            elif seq1_range > seq2_range:
+                return seq1
+            else:
+                # 范围相同时，返回更新的序列（结束时间更晚的）
+                return seq2 if seq2.timestamps[-1] > seq1.timestamps[-1] else seq1
 
     def __eq__(self, other):
         if not isinstance(other, Sequence):

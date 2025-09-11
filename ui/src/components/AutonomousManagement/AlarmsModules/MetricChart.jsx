@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Table, Card, message, Empty, Spin } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons'; 
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../../common/EChart';
 import { getRegularInspections } from '../../../api/autonomousManagement';
 import { formatTableTitle, formatTimestamp } from '../../../utils/function';
 
@@ -30,7 +30,7 @@ export default class MetricChart extends Component {
   }
   async getQps () {
     this.setState({ loading: true })
-    let params = {
+    const params = {
       metric_name: this.props.metric_name,
       instance: this.props.host,
       start_time: this.props.start_time,
@@ -40,9 +40,9 @@ export default class MetricChart extends Component {
     const { success, data, msg } = await getRegularInspections(params)
     if (success) {
       if (data && data[`${Object.keys(data)}`].length > 0) {
-        let arrayData = [],dataSourceData = [],columnsArr = [], colors = ['#5470c6', '#91cc75', '#fac858']
+        const arrayData = [], dataSourceData = [], columnsArr = [], colors = ['#5470c6', '#91cc75', '#fac858']
         columnsTable.forEach(item => {
-          let obj = {
+          const obj = {
             title: formatTableTitle(item),
             dataIndex: item,
             key: item,
@@ -52,19 +52,19 @@ export default class MetricChart extends Component {
           columnsArr.push(obj)
         })
         data[`${Object.keys(data)}`].forEach((item, index) => {
-          let dataSourceArray = {
+          const dataSourceArray = {
             'name':item[0].replace(/(\s*$)/g, '').split("from")[0],'address':item[0].replace(/(\s*$)/g, '').split("from")[1],'corr':item[1],'delay':item[2]
           }
           if(index){
             dataSourceData.push(dataSourceArray);
           }
           // 处理X轴
-          let formatTimeData = [];
+          const formatTimeData = [];
           item[4].forEach(ele => {
             formatTimeData.push(formatTimestamp(ele));
           });
           // 处理Y轴
-          let seriesItem = {
+          const seriesItem = {
             data: item[3],
             type: 'line',
             smooth: true,
@@ -72,7 +72,7 @@ export default class MetricChart extends Component {
             symbol: 'none',
             color: colors[0],
           }
-          let param = {
+          const param = {
             xdata:formatTimeData,
             seriesData:seriesItem,
             yname:item[0]
@@ -195,19 +195,16 @@ export default class MetricChart extends Component {
         <Card title={`${this.props.metric_name} from ${this.props.host}`} style={{ height: '100%' }} extra={<ReloadOutlined className="more_link" onClick={() => { this.handleRefresh() }} />}>
           {this.state.showFlag === 0 ? this.state.allDataRegular.map((item) => {
                 return (
-                    <ReactEcharts
+                    <EChart
                     ref={(e) => {
                       this.echartsElement = e
                     }}
                     option={this.getOption(item)}
-                    style={{ width: '100%', height: 240 }}
-                    lazyUpdate={true}
-                  >
-                  </ReactEcharts>
+                    style={{ height: 240 }}
+                  />
                 )
               })
             : this.state.showFlag === 1 ? <Empty description={false} style={{ paddingTop: 50 }} /> : <div style={{ textAlign: 'center' }}><Spin style={{ margin: '100px auto' }} /> </div>}
-            <Table bordered dataSource={this.state.rootCauseDataSource} columns={this.state.rootCausecolumns} rowKey={record => record.key} loading={this.state.loading} />
         </Card>
       </div>
     )

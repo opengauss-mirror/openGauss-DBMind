@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import { Col, message, Row, Spin } from 'antd';
 import '../../assets/css/common.css';
+import '../../assets/css/main/indexTuning.css';
 import TopShowList from './IndexTuningModules/TopShowList';
 import SuggestionsChangeChart from './IndexTuningModules/SuggestionsChangeChart';
 import ImprovementRateChart from './IndexTuningModules/ImprovementRateChart';
@@ -43,8 +44,8 @@ export default class IndexTuning extends Component {
     if (success) {
       this.getPositiveSqlCount();
       this.getExistingIndexesCount();
-      let topListData = []
-      let InvalidIndexArr = []
+      const topListData = []
+      const InvalidIndexArr = []
       this.setState({showflag: false},
         Object.keys(data).forEach(function (key, i) {
           if (key !== 'advised_indexes' && key !== 'existing_indexes' && key !== 'improvement_rate' && key !== 'invalid_indexes' && key !== 'positive_sql' && key !== 'redundant_indexes' && key !== 'suggestions' && key !== 'valid_index') {
@@ -56,7 +57,7 @@ export default class IndexTuning extends Component {
             } else{
               topName=key.replace(/_/g, ' ')
             }        
-            let obj = {
+            const obj = {
               name: topName,
               num: data[key],
               img: iconimg[i],
@@ -64,7 +65,7 @@ export default class IndexTuning extends Component {
             }
             topListData.push(obj)
           } else if (key === 'valid_index') {
-            let obj = {
+            const obj = {
               name: key,
               value: data[key],
             }
@@ -90,7 +91,7 @@ export default class IndexTuning extends Component {
   async getPositiveSqlCount () {
     const { success, data, msg } = await getPositiveSqlCount()
     if (success) {
-      let dataObj = this.state.positiveSQL;
+      const dataObj = this.state.positiveSQL;
       dataObj['total'] = data;
       this.setState(() => ({
         positiveSQL: dataObj
@@ -102,7 +103,7 @@ export default class IndexTuning extends Component {
   async getExistingIndexesCount () {
     const { success, data, msg } = await getExistingIndexesCount()
     if (success) {
-      let dataObj = this.state.existing_indexes;
+      const dataObj = this.state.existing_indexes;
       dataObj['total'] = data;
       this.setState(() => ({
         existing_indexes: dataObj
@@ -134,28 +135,29 @@ export default class IndexTuning extends Component {
   render () {
     return (
       <div className="contentWrap">
-        <div style={{ textAlign: 'center' }}>
-          {this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> :
+        <div className="indexTuning"style={{textAlign:'center'}}>
+          {this.state.showflag ? <Spin style={{ margin: '260px 0 '}} /> :
             <>
               <TopShowList topList={this.state.topList} />
-              <SuggestionsChangeChart suggestions={this.state.suggestions} />
-              <Row gutter={16} className="mb-20">
-                <Col className="gutter-row" span={6} >
+            
+              <Row gutter={10} className="mb-10">
+                <Col className="gutter-row" span={5} >
                   <ImprovementRateChart promoteSqlRate={this.state.promoteSqlRate} />
                 </Col>
-                <Col className="gutter-row" span={6}>
+                <Col className="gutter-row" span={5}>
                   <InvalidIndexChart invalidIndexData={this.state.invalidIndexData} />
                 </Col>
-                <Col className="gutter-row" span={6}>
-                  <InvalidIndexesChange invalidIndexes={this.state.invalidIndexes} />
+                <Col className="gutter-row" span={14}>
+               
+                  <SuggestionsChangeChart suggestions={this.state.suggestions} />
                 </Col>
-                <Col className="gutter-row" span={6}>
-                  <RedundantIndexesChangeChart redundantIndexes={this.state.redundantIndexes} />
-                </Col>
+               
               </Row>
               <AdvisedIndexes advisedIndexes={this.state.advisedIndexes} />
-              <PositiveSql positiveSQL={this.state.positiveSQL} />
+                <InvalidIndexesChange invalidIndexes={this.state.invalidIndexes}/>
+                <RedundantIndexesChangeChart redundantIndexes={this.state.redundantIndexes} />
               <ExistingIndexes existing_indexes={this.state.existing_indexes} />
+              <PositiveSql positiveSQL={this.state.positiveSQL} />
             </>
           }
         </div>

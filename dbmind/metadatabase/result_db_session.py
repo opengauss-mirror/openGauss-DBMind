@@ -67,7 +67,8 @@ def search_for_primary(database, db_type, hosts, password, ports, username, is_t
             engine = create_engine(dsn, pool_pre_ping=True,
                                    pool_size=10, max_overflow=10, pool_recycle=25,
                                    connect_args={'connect_timeout': 5, 'application_name': 'DBMind-Service'})
-        session_maker = sessionmaker(bind=engine, autocommit=True)
+        # SQLAlchemy 2.0 removed autocommit mode; use explicit transactions via get_session()
+        session_maker = sessionmaker(bind=engine)
         if db_type not in ('opengauss', 'opengauss', 'postgresql'):
             session_clz.update(
                 host=host,

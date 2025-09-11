@@ -19,6 +19,9 @@ export default class WarningData extends Component {
       total: 0,
       loading: false
     }
+  
+    // 绑定方法以避免this指向问题
+    this.handleTableData = this.handleTableData.bind(this);
   }
   components = {
     header: {
@@ -29,7 +32,7 @@ export default class WarningData extends Component {
     this.setState({loading: true})
     if (header.length > 0) {
       let historyColumObj = {}
-      let tableHeader = []
+    const tableHeader = []
       header.forEach(item => {
         historyColumObj = {
           title: formatTableTitle(item),
@@ -40,9 +43,9 @@ export default class WarningData extends Component {
         }
         tableHeader.push(historyColumObj)
       })
-      let res = []
+    const res = []
       rows.forEach((item, index) => {
-        let tabledata = {}
+      const tabledata = {}
         for (let i = 0; i < header.length; i++) {
           tabledata[header[i]] = item[i]
         }
@@ -69,7 +72,7 @@ export default class WarningData extends Component {
   }
   // 回调函数，切换下一页
   changePage(current,pageSize){
-    let params = {
+    const params = {
       current: current,
       pagesize: pageSize,
     };
@@ -84,7 +87,7 @@ export default class WarningData extends Component {
     this.setState({
       pageSize: pageSize
     });
-    let params = {
+    const params = {
       current: current,
       pagesize: pageSize,
     };
@@ -123,8 +126,8 @@ export default class WarningData extends Component {
     };
     return (
       <div>
-        <Card title="Warning" className="mb-20 formlabel-160">
-          <Table bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={warningProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
+        <Card title="Warning" className="mb-10 formlabel-160">
+          <Table size="small" bordered components={this.components} dataSource={this.state.dataSource} columns={columns} rowKey={record => record.key} pagination={warningProps} loading={this.state.loading} scroll={{ x: '100%'}}/>
         </Card>
       </div>
     )

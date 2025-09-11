@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Card, message, Table, Spin } from 'antd';
+import { message, Spin } from 'antd';
 import KnobData from './DatabaseTuningModules/Knob';
 import MetricData from './DatabaseTuningModules/Metric';
 import WarningData from './DatabaseTuningModules/Warning';
@@ -37,7 +37,7 @@ export default class DatabaseTuning extends Component {
   async getKnobRecommendationSnapshotCount () {
     const { success, data, msg } = await getKnobRecommendationSnapshotCount()
     if (success) {
-      let dataObj = this.state.metricData;
+      const dataObj = this.state.metricData;
       dataObj['total'] = data;
       this.setState(() => ({
         metricData: dataObj
@@ -49,7 +49,7 @@ export default class DatabaseTuning extends Component {
   async getKnobRecommendationWarningsCount () {
     const { success, data, msg } = await getKnobRecommendationWarningsCount()
     if (success) {
-      let dataObj = this.state.warningData;
+      const dataObj = this.state.warningData;
       dataObj['total'] = data;
       this.setState(() => ({
         warningData: dataObj
@@ -61,7 +61,7 @@ export default class DatabaseTuning extends Component {
   async getKnobRecommendationCount () {
     const { success, data, msg } = await getKnobRecommendationCount()
     if (success) {
-      let dataObj = this.state.knobData;
+      const dataObj = this.state.knobData;
       dataObj['total'] = data;
       this.setState(() => ({
         knobData: dataObj
@@ -85,7 +85,7 @@ export default class DatabaseTuning extends Component {
   }
   render () {
     return (
-      <div>
+      <div className="contentWrap" >
         {this.state.showflag ? <Spin style={{ margin: '260px 0 ' }} /> :
           <>
         <MetricData metricData={this.state.metricData} />

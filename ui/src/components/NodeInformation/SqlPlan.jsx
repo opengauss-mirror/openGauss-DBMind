@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { Button, Modal, Card, Descriptions } from "antd";
-import ReactEcharts from "echarts-for-react";
+import EChart from "../common/EChart";
 
 let datas = [],
   link = []
@@ -189,15 +189,14 @@ export default class SqlPlan extends Component {
   render() {
     return (
       <div>
-      <ReactEcharts
+      <EChart
         ref={(e) => {
           this.echartsElement = e;
         }}
         style={{ width: 1000, height: this.state.autoHeight, margin: "0 auto" }}
         option={this.getOption()}
         onEvents={this.onClick}
-        lazyUpdate={true}
-      ></ReactEcharts>
+      />
     
     <Modal
       title="nodeInfo"

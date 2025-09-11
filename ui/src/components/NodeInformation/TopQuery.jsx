@@ -1,8 +1,8 @@
 import React, { Component } from 'react';
-import { Card, message, Table } from 'antd';
+import { message, Table } from 'antd';
 import ResizeableTitle from '../common/ResizeableTitle';
 import { getTopQueryInterface } from '../../api/autonomousManagement';
-import { formatTableTime, formatTableTitle } from '../../utils/function';
+import { formatTableTitle } from '../../utils/function';
 
 export default class TopQuery extends Component {
   constructor() {
@@ -28,7 +28,7 @@ export default class TopQuery extends Component {
     if (success) {
       if (data.header.length > 0) {
         let historyColumObj = {}
-        let tableHeader = []
+        const tableHeader = []
         data.header.forEach((item) => {
           historyColumObj = {
             title: formatTableTitle(item),
@@ -38,19 +38,22 @@ export default class TopQuery extends Component {
           }
           tableHeader.push(historyColumObj)
         })
-        let res = []
+        const res = []
         data.rows.forEach((item, index) => {
-          let tabledata = {}
+          const tabledata = {}
           for (let i = 0; i < data.header.length; i++) {
-            tabledata[data.header[i]] = item[i]
+            if(data.header[i] === 'min_elapse_time' || data.header[i] === 'max_elapse_time' || data.header[i] === 'avg_elapse_time' || data.header[i] === 'db_time' || data.header[i] === 'cpu_time' || data.header[i] === 'execution_time'|| data.header[i] === 'parse_time'){
+              tabledata[data.header[i]] = item[i]/1000 + 'ms'
+            } else {
+              tabledata[data.header[i]] = item[i]
+            }
             tabledata['key'] = index + ''
           }
           res.push(tabledata)
         });
-        let formatData = formatTableTime(res)
         this.setState(() => ({
           loadingActiveSql: false,
-          dataSource: formatData,
+          dataSource: res,
           columns: tableHeader,
           pagination: {
             total: res.length,

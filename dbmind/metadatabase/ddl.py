@@ -56,10 +56,12 @@ def create_dynamic_config_schema():
     engine = create_engine(create_dsn('sqlite', DYNAMIC_CONFIG))
     DynamicConfigDbBase.metadata.create_all(engine)
 
-    # Batch insert default values into config tables.
-    with sessionmaker(engine, autocommit=True, autoflush=True)() as session:
+    # Batch insert default values into config tables. Use explicit transaction.
+    Session = sessionmaker(bind=engine, autoflush=True)
+    with Session() as session:
         try:
             session.bulk_save_objects(Table.default_values())
+            session.commit()
         except sqlalchemy.exc.IntegrityError as e:
             # May be duplicate, ignore it.
             raise DuplicateTableError(e)

@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
-import { Col, Row, Collapse, message} from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import { Col, Row, Collapse } from 'antd';
+import EChart from '../common/EChart';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
 
 const { Panel } = Collapse;
@@ -16,7 +16,7 @@ export default class DrawerStatistics extends Component {
     }
   }
   getData(){
-    let timeData = [],allArrayData = [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]],
+    const timeData = [], allArrayData = [[],[],[],[],[],[],[],[],[],[],[],[],[],[],[],[]],
     indexName = ['n_returned_rows','n_tuples_fetched','n_tuples_returned','n_tuples_inserted','n_tuples_updated','n_tuples_deleted','db_time','cpu_time','data_io_time','parse_time','plan_time','lock_wait_time','lwlock_wait_time','n_hard_parse','n_soft_parse','client_addr']
     this.props.dataSource.forEach((item, index) => {
       if(item["start_time"] !== undefined){
@@ -28,21 +28,21 @@ export default class DrawerStatistics extends Component {
         }
       })
     });
-    let data1 = {'legend':[{image:'',description: this.state.dataType[0]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[0],description: this.state.dataType[0], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[0],'unit':'','fixedflg':0}
-    let data2 = {'legend':[{image:'',description: this.state.dataType[1]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[1],description: this.state.dataType[1], colors: '#5990FD'}],'flg':0,'legendFlg':2,title:this.state.dataType[1],'unit':'','fixedflg':0}
-    let data3 = {'legend':[{image:'',description: this.state.dataType[2]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[2],description: this.state.dataType[2], colors: '#EC701C'}],'flg':0,'legendFlg':2,title:this.state.dataType[2],'unit':'','fixedflg':0}
-    let data4 = {'legend':[{image:'',description: this.state.dataType[3]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[3],description: this.state.dataType[3], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[3],'unit':'','fixedflg':0}
-    let data5 = {'legend':[{image:'',description: this.state.dataType[4]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[4],description: this.state.dataType[4], colors: '#5990FD'}],'flg':0,'legendFlg':2,title:this.state.dataType[4],'unit':'','fixedflg':0}
-    let data6 = {'legend':[{image:'',description: this.state.dataType[5]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[5],description: this.state.dataType[5], colors: '#EC701C'}],'flg':0,'legendFlg':2,title:this.state.dataType[5],'unit':'','fixedflg':0}
-    let data7 = {'legend':[{image:'',description: this.state.dataType[6]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[6],description: this.state.dataType[6], colors: '#5990FD'}],'flg':0,'legendFlg':2,title:this.state.dataType[6],'unit':'','fixedflg':0}
-    let data8 = {'legend':[{image:'',description: this.state.dataType[7]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[7],description: this.state.dataType[7], colors: '#F43146'}],'flg':0,'legendFlg':2,title:this.state.dataType[7],'unit':'','fixedflg':0}
-    let data9 = {'legend':[{image:'',description: this.state.dataType[8]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[8],description: this.state.dataType[8], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[8],'unit':'','fixedflg':0}
-    let data10 = {'legend':[{image:'',description: this.state.dataType[9]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[9],description: this.state.dataType[9], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[9],'unit':'','fixedflg':0}
-    let data11 = {'legend':[{image:'',description: this.state.dataType[10]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[10],description: this.state.dataType[10], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[10],'unit':'','fixedflg':0}
-    let data12 = {'legend':[{image:'',description: this.state.dataType[11]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[11],description: this.state.dataType[11], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[11],'unit':'','fixedflg':0}
-    let data13 = {'legend':[{image:'',description: this.state.dataType[12]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[12],description: this.state.dataType[12], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[12],'unit':'','fixedflg':0}
-    let data14 = {'legend':[{image:'',description: this.state.dataType[13]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[13],description: this.state.dataType[13], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[13],'unit':'','fixedflg':0}
-    let data15 = {'legend':[{image:'',description: this.state.dataType[14]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[14],description: this.state.dataType[14], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[14],'unit':'','fixedflg':0}
+    const data1 = {'legend':[{image:'',description: this.state.dataType[0]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[0],description: this.state.dataType[0], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[0],'unit':'','fixedflg':0}
+    const data2 = {'legend':[{image:'',description: this.state.dataType[1]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[1],description: this.state.dataType[1], colors: '#5990FD'}],'flg':0,'legendFlg':2,title:this.state.dataType[1],'unit':'','fixedflg':0}
+    const data3 = {'legend':[{image:'',description: this.state.dataType[2]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[2],description: this.state.dataType[2], colors: '#EC701C'}],'flg':0,'legendFlg':2,title:this.state.dataType[2],'unit':'','fixedflg':0}
+    const data4 = {'legend':[{image:'',description: this.state.dataType[3]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[3],description: this.state.dataType[3], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[3],'unit':'','fixedflg':0}
+    const data5 = {'legend':[{image:'',description: this.state.dataType[4]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[4],description: this.state.dataType[4], colors: '#5990FD'}],'flg':0,'legendFlg':2,title:this.state.dataType[4],'unit':'','fixedflg':0}
+    const data6 = {'legend':[{image:'',description: this.state.dataType[5]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[5],description: this.state.dataType[5], colors: '#EC701C'}],'flg':0,'legendFlg':2,title:this.state.dataType[5],'unit':'','fixedflg':0}
+    const data7 = {'legend':[{image:'',description: this.state.dataType[6]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[6],description: this.state.dataType[6], colors: '#5990FD'}],'flg':0,'legendFlg':2,title:this.state.dataType[6],'unit':'','fixedflg':0}
+    const data8 = {'legend':[{image:'',description: this.state.dataType[7]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[7],description: this.state.dataType[7], colors: '#F43146'}],'flg':0,'legendFlg':2,title:this.state.dataType[7],'unit':'','fixedflg':0}
+    const data9 = {'legend':[{image:'',description: this.state.dataType[8]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[8],description: this.state.dataType[8], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[8],'unit':'','fixedflg':0}
+    const data10 = {'legend':[{image:'',description: this.state.dataType[9]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[9],description: this.state.dataType[9], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[9],'unit':'','fixedflg':0}
+    const data11 = {'legend':[{image:'',description: this.state.dataType[10]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[10],description: this.state.dataType[10], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[10],'unit':'','fixedflg':0}
+    const data12 = {'legend':[{image:'',description: this.state.dataType[11]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[11],description: this.state.dataType[11], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[11],'unit':'','fixedflg':0}
+    const data13 = {'legend':[{image:'',description: this.state.dataType[12]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[12],description: this.state.dataType[12], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[12],'unit':'','fixedflg':0}
+    const data14 = {'legend':[{image:'',description: this.state.dataType[13]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[13],description: this.state.dataType[13], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[13],'unit':'','fixedflg':0}
+    const data15 = {'legend':[{image:'',description: this.state.dataType[14]}],'xAxisData':timeData,'seriesData':[{data:allArrayData[14],description: this.state.dataType[14], colors: '#2DA769'}],'flg':0,'legendFlg':2,title:this.state.dataType[14],'unit':'','fixedflg':0}
     let a = new Map(),clientHeader = [],clientValues = [];
     allArrayData[15].forEach((item) => {
       if (!a.get(item)) {
@@ -203,16 +203,13 @@ export default class DrawerStatistics extends Component {
             </Row>
           </Panel>
         </Collapse>
-        <ReactEcharts
+        <EChart
           ref={(e) => {
             this.echartsElement = e
           }}
           option={this.getOption()}
-          style={{ width: '100%', height: 300 }}
-          notMerge={true}
-          lazyUpdate={true}
-        >
-        </ReactEcharts>
+          style={{ height: 300 }}
+        />
       </div>
     )
   }
