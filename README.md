@@ -138,6 +138,23 @@ python3 -m pip install -r requirements-x86.txt
 python3 -m pip install -r requirements-x86.txt -t 3rd
 ```
 
+#### 使用 setup_env.sh 快速准备依赖和前端
+
+如果希望在仓库根目录内自动完成 Python 依赖安装与前端构建，可以使用新增的 `setup_env.sh` 脚本（仅支持 `x86_64` 与 `aarch64` 平台）：
+
+```
+chmod +x setup_env.sh
+./setup_env.sh
+```
+
+脚本会执行以下操作：
+- 下载并安装 Miniconda3（安装目录为仓库根目录下的 `python/`），并将其加入当前会话的 `PATH`；
+- 下载并解压 Node.js v16.9.0（目录为仓库根目录下的 `node-v16.9.0-linux-<arch>/`）；
+- 使用 `python/bin/python -m pip install -r requirements-<arch>.txt` 安装对应架构的第三方库；
+- 进入 `ui/` 目录执行 `npm install` 与 `npm run build`，产物会同步到后端静态目录。
+
+如已自行安装 Python 或 Node.js，可以跳过脚本的相关部分；若需要刷新依赖或重新构建前端，重复执行脚本即可。
+
 ### 使用DBMind
 #### 部署Prometheus
 可以通过Prometheus官方网站获取下载方式，下载并部署Prometheus，以便汇集对openGauss实例的监控结果。
@@ -364,6 +381,23 @@ Type the `pip3 install` command with dependencies according to the environment y
 ```
 pip install -r requirements-aarch64.txt | requirements-x86.txt
 ```
+
+#### Quick setup via setup_env.sh
+
+To automatically install the Python dependencies and build the frontend inside the repository, run the `setup_env.sh` script (available for `x86_64` and `aarch64` platforms only):
+
+```
+chmod +x setup_env.sh
+./setup_env.sh
+```
+
+The script performs the following steps:
+- Downloads and installs Miniconda3 to `python/` in the repository root, then appends it to `PATH` for the current session;
+- Downloads and extracts Node.js v16.9.0 to `node-v16.9.0-linux-<arch>/` under the project root;
+- Installs the architecture-specific Python dependencies via `python/bin/python -m pip install -r requirements-<arch>.txt`;
+- Enters the `ui/` directory to run `npm install` and `npm run build`, so the generated assets sync to the backend static directory automatically.
+
+If you already have Python or Node.js installed globally, feel free to skip the relevant parts. Re-run the script whenever you need to refresh dependencies or rebuild the frontend.
 
 #### Prometheus up and Running
 Download and run the [Prometheus] time-series database.
