@@ -90,9 +90,11 @@ DBMind基于Python语言实现，在使用DBMind时，需要运行环境具备Py
 #### 方式一：直接下载代码部署
 DBMind主要使用Python语言进行编写，因此，可以在下载获取DBMind的源代码后，使用操作系统上安装的Python虚拟机直接运行，不过该过程中的第三方依赖需要用户手动安装。
 
-用户可以通过 `git clone` 命令从Gitee或者Github上下载代码，例如：
+用户可以通过 `git clone` 命令从gitcode上下载代码，例如：
 
-也可以通过Gitee或者Github提供的zip包下载路径进行下载，而后解压缩该zip包即可。
+```
+git clone https://gitcode.com/opengauss/openGauss-DBMind.git -b master-dev openGauss-DBMind
+```
 
 下载DBMind后，会产生一个名为 `openGauss-DBMind` 的目录， 将该目录的路径添加到环境变量`PATH`中，即可调用该目录中的可执行文件。例如可以执行下述命令完成：
 ```
@@ -103,16 +105,6 @@ echo 'export PATH' >> ~/.bashrc
 
 source ~/.bashrc
 ```
-
-#### 方式二：使用安装包进行部署
-DBMind会定期在openGauss-DBMind项目的release页面发布DBMind的安装包，可以通过下载该DBMind安装包进行安装部署。该安装包会自动将DBMind解压到指定目录，并配置好环境变量。
-
-安装包使用：
-
-&emsp;&emsp;解压：tar zxvf dbmind-installer-x86_64-python3.10.sh.tar.gz
-
-&emsp;&emsp;DBMind安装: sh dbmind-installer-x86_64-python3.10.sh
-
 
 #### 关于Python运行环境
 需要至少为Python3.7的版本。虽然在DBMind的实现中对Python3.7以下的环境尽可能地进行了兼容，但是这些低版本的Python环境疏于测试，可能会引发意料之外的异常。同时，在DBMind启动时，也会尝试校验Python版本，如果Python版本不符合要求，则默认不会继续执行后续的动作。
@@ -157,17 +149,18 @@ chmod +x setup_env.sh
 
 ### 使用DBMind
 #### 部署Prometheus
-可以通过Prometheus官方网站获取下载方式，下载并部署Prometheus，以便汇集对openGauss实例的监控结果。
+可以通过 Prometheus 官方网站（https://prometheus.io/download/）或企业内部镜像获取适配操作系统与架构的安装包。选择与部署环境 CPU 架构匹配的压缩包解压后，目录中包含默认的 `prometheus.yml` 配置文件，可按照业务需求将 openGauss exporter、node exporter 等目标写入 `scrape_configs`。完成配置后，可在解压目录中执行以下命令启动 Prometheus 服务并加载自定义配置：
 ```
-prometheus --config.file=prometheus.yml
+./prometheus --config.file=prometheus.yml --web.listen-address=0.0.0.0:9090
 ```
+其中 `--config.file` 指定 Prometheus 的配置文件路径，`--web.listen-address` 用于声明监控 UI 与接口的监听地址与端口。首次部署建议在前台运行观察日志，确认采集目标正常后再结合 `systemd`、`supervisor` 或容器化方式转入后台运行。
 
 #### 部署Node Exporter
-下载并启动Prometheus node exporter. 
-一般而言，Prometheus监控平台都需要部署node-exporter用于监控Linux操作系统，后文提到的部分AI功能也需要依赖node-exporter采集Linux系统指标，故也需要用户来部署；使用方法详见：https://prometheus.io/docs/guides/node-exporter/#installing-and-running-the-node-exporter， 因此每个Linux环境（或容器内）只需要部署一个实例即可。
+Node Exporter 需要安装在每台被监控的 Linux 服务器（或容器）上，用于采集 CPU、内存、磁盘等系统指标，是 Prometheus 采集 openGauss 运行环境状态的前提。可从官方页面（https://prometheus.io/download/#node_exporter）下载对应平台的压缩包，选择合适的架构后解压至本地目录，进入解压目录即可执行二进制文件。默认监听 `9100` 端口，并提供 `/metrics` 接口供 Prometheus 抓取：
 ```
-node_exporter
+./node_exporter --web.listen-address=0.0.0.0:9100
 ```
+建议将上述命令写入系统自启动脚本或 `systemd` 单元中，保证随主机启动；若部署在容器内，则需在宿主机执行端口映射并确保防火墙允许访问。Prometheus 配置中应添加对应主机的 `<host>:9100` 作为抓取目标，以便 DBMind 的 AI 功能能够使用到这些系统指标。
 
 ### 启动 DBMind 组件
 如果希望将DBMind作为后台服务运行，则下面的DBMind组件是必须安装的，否则获取不到数据库的监控信息。为了获得更高的安全机制，DBMind提供的exporter默认是使用Https协议的，如果您觉得您的场景中不需要使用Https协议，则可以通过 `--disable-https` 选项禁用。
@@ -400,16 +393,18 @@ The script performs the following steps:
 If you already have Python or Node.js installed globally, feel free to skip the relevant parts. Re-run the script whenever you need to refresh dependencies or rebuild the frontend.
 
 #### Prometheus up and Running
-Download and run the [Prometheus] time-series database.
+Download the [Prometheus] time-series database (v2.42.0) from the official release page, pick the package matching your target CPU architecture, and extract it locally. The archive ships with a default `prometheus.yml`. Update `scrape_configs` to include the openGauss exporter, node exporter, or other targets you plan to collect. Start Prometheus inside the extracted directory with:
 ```
-prometheus --config.file=prometheus.yml
+./prometheus --config.file=prometheus.yml --web.listen-address=0.0.0.0:9090
 ```
+Here `--config.file` points to the configuration file and `--web.listen-address` exposes the UI and API endpoint. Run it in the foreground first to verify the scrape targets before moving it under a service manager.
 
 #### Node Exporter
-Download and run the [Prometheus node exporter]. Node-exporter is to monitor the Linux system. Hence, one Linux environment only needs to deploy one node-exporter.
+Download and run the [Prometheus node exporter] (v1.8.1). Deploy one instance on every Linux host (or container) you want to monitor. Select the archive by architecture, extract it, and then launch the exporter from the extracted directory:
 ```
-node_exporter
+./node_exporter --web.listen-address=0.0.0.0:9100
 ```
+Add `<host>:9100` to Prometheus `scrape_configs`, and keep the process managed by `systemd`, `supervisor`, or a container entrypoint so it restarts automatically after host reboots.
 
 ### DBMind Components
 The following DBMind components are required:
