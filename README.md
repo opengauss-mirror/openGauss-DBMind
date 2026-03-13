@@ -417,6 +417,14 @@ For example, use the following component to tune the knobs of a database:
 gs_dbmind component xtuner --help
 ```
 
+
+### Security
+If any vulnerabilities are discovered, you can be addressed by submitting an issue or using the following method:
+
+漏洞提交平台：https://opengausssrc.vulbox.com/home
+
+
+
 # LICENSE
 Mulan PSL v2
 
