@@ -55,6 +55,10 @@ def get_cn_number():
     return res[0][0] if res else 0
 
 
+def rewrite_sql_api(*args, **kwargs):
+    return ''
+
+
 def exception_follower(output=None):
     def decorator(func):
         @wraps(func)

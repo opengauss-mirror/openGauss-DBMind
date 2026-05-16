@@ -1380,6 +1380,23 @@ def get_knob_recommendation_count():
     return data_transformer.get_knob_recommendation_count()
 
 
+@request_mapping(api_prefix + '/app/knob-recommendation/xtuner', methods=['POST'], api=True)
+@oauth2.token_authentication()
+@ParameterChecker.define_rules(
+    instance={"type": ParameterChecker.INSTANCE, "optional": False}
+)
+@standardized_api_output
+def execute_knob_recommendation_xtuner(instance: str):
+    """
+    Execute knob recommendation using xtuner and save results to meta-database
+
+    - param instance: the database instance address (host:port)
+    - return: The recommended knob details
+         e.g. {"data":{"header":["instance","name","current","recommend","min","max"],"rows":[[]]},"success":true}
+    """
+    return data_transformer.execute_knob_recommendation_xtuner(instance)
+
+
 @request_mapping(api_prefix + '/summary/sql/slow', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
