@@ -1494,14 +1494,7 @@ def risk_analysis(metric, instance, warning_hours, upper, lower, labels, tz=None
     return warnings
 
 
-# <<<<<<<<<<<< old risk_analysis
-def risk_analysis(metric, instance, warning_hours, upper, lower, labels):
-    labels = string_to_dict(labels, delimiter=',')
-    upper = cast_to_int_or_float(upper)
-    lower = cast_to_int_or_float(lower)
-    warnings = early_warning(metric, instance, None, warning_hours, upper, lower, labels)
-    return warnings
-# >>>>>>>>>>>> old risk_analysis
+
 
 
 def get_database_data_directory_status(instance, latest_minutes):
@@ -2405,6 +2398,59 @@ def execute_update_statistics_time_task_dis():
         step = metric_stat["step"]
         dai.update_metric_stats(now, metric_name, length, step)
     logging.info('Metric statistics are successfully updated.')
+
+
+def execute_knob_recommendation_xtuner(instance):
+    from dbmind.app.optimization.knob_recommendation import RPCAndTSDBMetric
+    from dbmind.components.xtuner.tuner.recommend import recommend_knobs as rk
+    from dbmind.service.utils import SequenceUtils
+
+    metric = RPCAndTSDBMetric()
+    with global_vars.agent_proxy.context(instance):
+        split_result = split_ip_port(instance)
+        host = split_result[0]
+        port = split_result[1] if len(split_result) > 1 else '5432'
+        metric.set_host(host)
+        metric.set_port(port)
+        metric.set_address()
+        knobs = rk("recommend", metric)
+
+    if not knobs:
+        raise Exception('No recommended knobs for the database.')
+
+    dao.knob_recommendation.truncate_knob_recommend_tables()
+
+    metric_dict = metric.to_dict()
+    dao.knob_recommendation.batch_insert_knob_metric_snapshot(instance, metric_dict)
+
+    rows = []
+    for knob in knobs.all_knobs:
+        sequences = dai.get_latest_metric_value('pg_settings_setting').filter(name=knob.name).fetchall()
+        current_setting = -1
+        for s in sequences:
+            if SequenceUtils.from_server(s).startswith(instance) and len(s) > 0:
+                current_setting = s.values[0]
+                break
+        dao.knob_recommendation.insert_knob_recommend(
+            instance,
+            name=knob.name,
+            current=current_setting,
+            recommend=knob.recommend,
+            min_=knob.min,
+            max_=knob.max,
+            restart=knob.restart
+        )
+        rows.append([instance, knob.name, str(current_setting), str(knob.recommend),
+                     str(knob.min), str(knob.max)])
+
+    if knobs.reporter:
+        dao.knob_recommendation.batch_insert_knob_recommend_warnings(
+            instance,
+            knobs.reporter.warn,
+            knobs.reporter.bad
+        )
+
+    return {'header': ['instance', 'name', 'current', 'recommend', 'min', 'max'], 'rows': rows}
 
 
 def mode_check(f):

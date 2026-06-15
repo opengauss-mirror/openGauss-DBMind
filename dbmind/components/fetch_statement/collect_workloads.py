@@ -107,11 +107,13 @@ def collect_statement_from_asp(databases, start_time, end_time, db_users, sql_ty
 
 def collect_statement_from_activity(databases, db_users, sql_types, duration=60):
     stmt = f"""
-    SELECT usename, datname, application_name, sessionid, query_id, unique_sql_id, extract(epoch from pg_catalog.now() - query_start)
-    as duration, 
+    SELECT usename, datname, application_name, sessionid, query_id, unique_sql_id, 
+    GREATEST(extract(epoch from pg_catalog.now() - query_start), 0) AS duration, 
     query FROM pg_catalog.pg_stat_activity
-    WHERE state != 'idle' and application_name not in ('DBMind-openGauss-exporter', 'DBMind-Service')
-    and query_id != 0 and duration >= {duration}
+    WHERE state = 'active' and application_name not in ('DBMind-openGauss-exporter', 'DBMind-Service', 
+    'AutoVacWorker', 'RbCleaner', 'TxnSnapCapturer', 'statement flush thread', 'CfsShrinker', 
+    'PercentileJob', 'Asp', 'JobScheduler', 'ApplyLauncher', 'cm_agent') 
+    AND GREATEST(extract(epoch from pg_catalog.now() - query_start), 0) >= {duration}
 """
     if databases is not None:
         databases = _add_quote(databases)

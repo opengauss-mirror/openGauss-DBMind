@@ -98,7 +98,7 @@ class DB_Agent:
         # Check whether the binary files of the database can be located through environment variables.
         try:
             self.exec_command_on_host("which gsql")
-            self.exec_command_on_host("which opengauss")
+            self.exec_command_on_host("which gaussdb")
             self.exec_command_on_host("which gs_guc")
             self.exec_command_on_host("which gs_ctl")
         except ExecutionError as e:
@@ -110,7 +110,7 @@ class DB_Agent:
 
         # Check whether the third-party libraries can be properly loaded.
         try:
-            self.exec_command_on_host("opengauss --version")
+            self.exec_command_on_host("gaussdb --version")
             self.exec_command_on_host("gsql --version")
         except ExecutionError as e:
             logging.exception("An exception occurred while checking connection parameters: %s", e)
@@ -189,7 +189,7 @@ class DB_Agent:
         :param timeout: Int type. Unit second.
         :return: The parsed result from SQL statement execution.
         """
-        command = "gsql -p {db_port} -U {db_user} -d {db_name} -W {db_user_pwd} -c {sql}".format(
+        command = "gsql -p {db_port} -U {db_user} -d {db_name} -W {db_user_pwd} -h 127.0.0.1 -c {sql}".format(
             db_port=shlex.quote(str(self.db_port)),
             db_user=shlex.quote(self.db_user),
             db_name=shlex.quote(self.db_name),
@@ -211,7 +211,7 @@ class DB_Agent:
         :return: True means running and vice versa.
         """
         try:
-            stdout = self.exec_command_on_host("ps -ux | grep opengauss | wc -l")
+            stdout = self.exec_command_on_host("ps -ux | grep gaussdb | wc -l")
             at_least_count = 1  # Includes one 'grep opengauss' command.
             if int(stdout.strip()) <= at_least_count:
                 return False
