@@ -4,6 +4,15 @@ import ReactEcharts from "echarts-for-react";
 import { getTreeDetails } from "../../api/autonomousManagement";
 let datas = [],
   link = [];
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
 export default class VisualDeadlock extends Component {
   constructor(props) {
     super(props);
@@ -97,8 +106,10 @@ export default class VisualDeadlock extends Component {
           let res=""
          Object.keys(params.data).forEach(elem=>{
            if(elem!=='x' && elem!=='y' && elem!=='name'){
+           const key = escapeHtml(elem);
+           const value = escapeHtml(params.data[elem]);
            res+=  `
-          <span style="display:inline-block;width:120px;margin:2px 0;margin-right:10px;font-weight:600;text-align:right;"> ${elem}</span>: ${params.data[elem]}<br/>`
+          <span style="display:inline-block;width:120px;margin:2px 0;margin-right:10px;font-weight:600;text-align:right;"> ${key}</span>: ${value}<br/>`
            }
          })
         return res
