@@ -59,6 +59,12 @@ from .jsonify_utils import (
 )
 
 
+def _coerce_int(value):
+    if value is None:
+        raise ValueError('Expected numeric value.')
+    return int(value)
+
+
 # The following functions are
 # used to override LazyFetcher so that
 # we can filter sequences by custom rules, such as
@@ -1444,7 +1450,7 @@ def collect_workloads(username, password, data_source, databases, schemas, start
 
 
 def pg_terminate_pid(username, password, pid):
-    stmt = f"select PG_TERMINATE_BACKEND({pid})"
+    stmt = f"select PG_TERMINATE_BACKEND({_coerce_int(pid)})"
     res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmt)
     return psycopg2_dict_jsonify(res)
 
@@ -1457,13 +1463,16 @@ def get_wait_status(username, password, pid, sessionid):
            lockmode,
            block_sessionid
     FROM PG_THREAD_WAIT_STATUS
-    WHERE tid = {pid} and sessionid={sessionid};
+    WHERE tid = {_coerce_int(pid)} and sessionid={_coerce_int(sessionid)};
     """
     res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmt)
     return psycopg2_dict_jsonify(res)
 
 
 def get_wait_tree(username, password, sessionid):
+    sessionid = _coerce_int(sessionid)
+    if not sessionid:
+        return []
     stmt = f"""
     SELECT query,
            PG_STAT_ACTIVITY.query_id as query_id,
@@ -1477,8 +1486,6 @@ def get_wait_tree(username, password, sessionid):
     ON PG_THREAD_WAIT_STATUS.sessionid = PG_STAT_ACTIVITY.sessionid
     WHERE PG_STAT_ACTIVITY.sessionid={sessionid}
     """
-    if not sessionid:
-        return []
     res = global_vars.agent_proxy.current_rpc().call_with_another_credential(username, password, 'query_in_postgres', stmt)
     for _tuple in res:
         return [{'name': _tuple['query_id'],
@@ -1510,4 +1517,3 @@ def delete_metric_sequence(metric_name, instance, from_timestamp=None,
         else:
             labels.update({"from_instance": instance})
     return dai.delete_metric_sequence(metric_name, from_timestamp, to_timestamp, labels, regex_labels, flush)
-
