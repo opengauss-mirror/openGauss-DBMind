@@ -859,7 +859,7 @@ def collect_workloads(data_source: str = None, databases: str = None, schemas: s
 @request_mapping('/api/app/kill/{pid}', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def kill_pid(pid: str):
+def kill_pid(pid: int):
     username, password = oauth2.credential
     return data_transformer.pg_terminate_pid(username, password, pid)
 
@@ -867,7 +867,7 @@ def kill_pid(pid: str):
 @request_mapping('/api/app/query/wait_status', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_wait_status(pid: str, sessionid: str):
+def get_wait_status(pid: int, sessionid: int):
     username, password = oauth2.credential
     return data_transformer.get_wait_status(username, password, pid, sessionid)
      
@@ -875,7 +875,7 @@ def get_wait_status(pid: str, sessionid: str):
 @request_mapping('/api/app/query/wait_tree', methods=['GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
-def get_wait_tree(sessionid: str):
+def get_wait_tree(sessionid: int):
     username, password = oauth2.credential
     return data_transformer.get_wait_tree(username, password, sessionid)
 
@@ -892,4 +892,3 @@ class PlanModel(BaseModel):
 def get_query_plan(item: PlanModel):
     params = dict(item)
     return data_transformer.toolkit_get_query_plan(**params)
-
