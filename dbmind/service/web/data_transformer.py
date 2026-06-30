@@ -1068,6 +1068,48 @@ def check_credential(username, password, scopes=None):
     return rpc.handshake(username, password, receive_exception=True)
 
 
+def _is_truthy_database_value(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in ('t', 'true', '1', 'yes', 'y', 'on')
+    return False
+
+
+def has_dynamic_config_write_privilege(username, password):
+    rpc = global_vars.agent_proxy.current_rpc()
+    if not rpc:
+        return False
+
+    stmt = """
+    SELECT rolmonitoradmin,
+           rolsystemadmin
+    FROM pg_roles
+    WHERE rolname = CURRENT_USER;
+    """
+    try:
+        rows = rpc.call_with_another_credential(
+            username, password, 'query_in_postgres', stmt
+        )
+    except Exception as e:
+        logging.warning('Failed to check dynamic configuration privilege: %s.', e)
+        return False
+
+    if not rows:
+        return False
+    row = rows[0]
+    if isinstance(row, dict):
+        return (
+            _is_truthy_database_value(row.get('rolmonitoradmin')) or
+            _is_truthy_database_value(row.get('rolsystemadmin'))
+        )
+    if isinstance(row, (list, tuple)) and len(row) >= 2:
+        return _is_truthy_database_value(row[0]) or _is_truthy_database_value(row[1])
+    return False
+
+
 def toolkit_index_advise(username, password, current, pagesize, instance, database, sqls, max_index_num, max_index_storage):
     database_schemas = get_database_schemas()
     with global_vars.agent_proxy.context(instance, username, password):
