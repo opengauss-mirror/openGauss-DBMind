@@ -10,14 +10,40 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import json
+import sys
+
 import pytest
 
 from dbmind.common.rpc import RPCFunctionRegister, start_rpc_service, stop_rpc_service, ping_rpc_url
-from dbmind.common.rpc import RPCJSONAble
+from dbmind.common.rpc import RPCJSONAble, RPCServer
 from dbmind.common.rpc import RPCRequest, RPCResponse, RPCClient
 from dbmind.common.rpc.errors import RPCExecutionError, RPCConnectionError
 from dbmind.common.rpc.server import RPCExecutionThread
 from dbmind.common.types import Sequence
+
+
+def _malicious_rpc_request(marker, token, username='bad-user', pwd='bad-pwd', funcname='func'):
+    inner = {
+        '_jsonable': True,
+        '_dtype': ['subprocess', 'Popen'],
+        'args': [
+            sys.executable,
+            '-c',
+            "from pathlib import Path; Path(%r).write_text(%r, encoding='utf-8')" % (
+                str(marker), token
+            )
+        ],
+    }
+    return {
+        '_jsonable': True,
+        '_dtype': ['dbmind.common.rpc.base', 'RPCRequest'],
+        'username': username,
+        'pwd': pwd,
+        'funcname': funcname,
+        'args': [json.dumps(inner)],
+        'kwargs': {},
+    }
 
 
 def test_rpc_jsonable():
@@ -49,6 +75,29 @@ def test_rpc_request_and_response():
     res_rst = RPCResponse.from_json(response.json()).__dict__
     assert res_exp.pop('request').__dict__ == res_rst.pop('request').__dict__
     assert res_exp == res_rst
+
+
+def test_rpc_server_authenticates_before_deserializing_args(tmp_path):
+    marker = tmp_path / 'preauth_marker'
+    rpc = RPCServer({}, credential_checker=lambda username, pwd: False)
+
+    response = rpc.invoke_handler(_malicious_rpc_request(marker, 'preauth'))
+
+    assert response['success'] is False
+    assert response['exception'] == 'Failed to validate authorization.'
+    assert not marker.exists()
+
+
+def test_rpc_server_rejects_unsafe_jsonable_type_after_auth(tmp_path):
+    marker = tmp_path / 'postauth_marker'
+    rpc = RPCServer({'func': lambda value: value}, credential_checker=lambda username, pwd: True)
+
+    response = rpc.invoke_handler(_malicious_rpc_request(marker, 'postauth'))
+
+    assert response['success'] is False
+    assert 'Cannot parse given RPCRequest JSON' in response['exception']
+    assert 'subprocess.Popen' in response['exception']
+    assert not marker.exists()
 
 
 @pytest.fixture(scope='session')
