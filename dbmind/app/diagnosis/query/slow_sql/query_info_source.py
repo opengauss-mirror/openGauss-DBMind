@@ -16,6 +16,8 @@ from datetime import datetime
 from functools import wraps
 from typing import List
 
+import sqlparse
+
 from dbmind import global_vars
 from dbmind.app.optimization.index_recommendation import rpc_index_advise
 from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
@@ -34,6 +36,16 @@ PORT_SUFFIX = "(:[0-9]{4,5}|)"
 white_list_of_sql_type = ('SELECT', 'UPDATE', 'DELETE', 'INSERT', 'WITH')
 exception_catcher = ExceptionCatcher(strategy='raise', name='SLOW QUERY')
 DEFAULT_FETCH_INTERVAL = 15
+
+
+def _has_multiple_statements(query):
+    if not query or not query.strip():
+        return True
+    try:
+        statements = [statement for statement in sqlparse.split(query) if statement.strip()]
+    except Exception:
+        return True
+    return len(statements) > 1
 
 
 def exception_follower(output=None):
@@ -382,6 +394,10 @@ class QueryContextFromTSDBAndRPC(QueryContext):
         if is_query_normalized(self.standard_query):
             self.query_type = 'normalized'
         self.standard_query = standardize_sql(self.standard_query)
+        if _has_multiple_statements(self.standard_query):
+            logging.warning('Reject multi-statement SQL for execution plan: %s', self.standard_query)
+            self.is_sql_valid = False
+            return
         # make sure that only the SQL in the whitelist is used to obtain the execution plan
         if sum(self.slow_sql_instance.query.upper().startswith(item) for item in white_list_of_sql_type) and \
                 self.slow_sql_instance.query_plan is None:
@@ -979,6 +995,10 @@ class QueryContextFromDriver(QueryContext):
         if is_query_normalized(self.standard_query):
             self.query_type = 'normalized'
         self.standard_query = standardize_sql(self.standard_query)
+        if _has_multiple_statements(self.standard_query):
+            logging.warning('Reject multi-statement SQL for execution plan: %s', self.standard_query)
+            self.is_sql_valid = False
+            return
         # make sure that only the SQL in the whitelist is used to obtain the execution plan
         if sum(self.slow_sql_instance.query.upper().startswith(item) for item in white_list_of_sql_type) and \
                 self.slow_sql_instance.query_plan is None:
