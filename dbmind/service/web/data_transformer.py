@@ -1154,11 +1154,13 @@ def toolkit_slow_sql_rca(username, password, **params):
         return analyze_slow_query_with_rpc(query, db_name, **params)
 
 
-def toolkit_get_query_plan(**params):
-    query = params.pop("query")
-    db_name = params.pop("db_name")
-    schema_name = params.pop("schema_name", "public")
-    return get_query_plan(query, db_name, schema_name)
+def toolkit_get_query_plan(username, password, **params):
+    instance = global_vars.agent_proxy.current_agent_addr()
+    with global_vars.agent_proxy.context(instance, username, password):
+        query = params.pop("query")
+        db_name = params.pop("db_name")
+        schema_name = params.pop("schema_name", "public")
+        return get_query_plan(query, db_name, schema_name)
 
 
 def search_slow_sql_rca_result(sql, start_time=None, end_time=None, limit=None):

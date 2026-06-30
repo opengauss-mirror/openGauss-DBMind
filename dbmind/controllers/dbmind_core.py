@@ -952,4 +952,5 @@ class PlanModel(BaseModel):
 @standardized_api_output
 def get_query_plan(item: PlanModel):
     params = dict(item)
-    return data_transformer.toolkit_get_query_plan(**params)
+    username, password = oauth2.credential
+    return data_transformer.toolkit_get_query_plan(username, password, **params)
