@@ -10,9 +10,11 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import json
 import logging
+import re
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
 from dbmind.common.http.requests_utils import create_requests_session
 from dbmind.common.utils import cached_property
@@ -23,14 +25,34 @@ from ..types import Sequence
 from ..types.ssl import SSLContext
 
 
+_METRIC_NAME_RE = re.compile(r'^[a-zA-Z_:][a-zA-Z0-9_:]*$')
+_LABEL_NAME_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+
+
+def _quote_promql_string(value):
+    return json.dumps(str(value))
+
+
+def _validate_metric_name(metric_name):
+    if not isinstance(metric_name, str) or not _METRIC_NAME_RE.fullmatch(metric_name):
+        raise ValueError('Illegal Prometheus metric name: %r' % (metric_name,))
+    return metric_name
+
+
+def _validate_label_name(label_name):
+    if not isinstance(label_name, str) or not _LABEL_NAME_RE.fullmatch(label_name):
+        raise ValueError('Illegal Prometheus label name: %r' % (label_name,))
+    return label_name
+
+
 def label_to_query(labels: dict = None, labels_like: dict = None):
     query_list = list()
     if isinstance(labels, dict) and labels:
         for k, v in labels.items():
-            query_list.append(f"{k}=\"{v}\"")
+            query_list.append(f'{_validate_label_name(k)}={_quote_promql_string(v)}')
     if isinstance(labels_like, dict) and labels_like:
         for k, v in labels_like.items():
-            query_list.append(f"{k}=~\"{v}\"")
+            query_list.append(f'{_validate_label_name(k)}=~{_quote_promql_string(v)}')
     return "{" + ",".join(query_list) + "}"
 
 
@@ -127,6 +149,7 @@ class PrometheusClient(TsdbClient):
         params = params or {}
         labels_like = params.pop('labels_like') if 'labels_like' in params else {}
         result_limit = params.pop('dbmind_result_limit') if 'dbmind_result_limit' in params else None
+        metric_name = _validate_metric_name(metric_name)
         if label_config or labels_like:
             query = metric_name + label_to_query(label_config, labels_like)
         else:
@@ -194,6 +217,7 @@ class PrometheusClient(TsdbClient):
         params = params or {}
         labels_like = params.pop('labels_like') if 'labels_like' in params else {}
         result_limit = params.pop('dbmind_result_limit') if 'dbmind_result_limit' in params else None
+        metric_name = _validate_metric_name(metric_name)
         if label_config or labels_like:
             query = metric_name + label_to_query(label_config, labels_like)
         else:
@@ -270,6 +294,7 @@ class PrometheusClient(TsdbClient):
         metric_filter_labels = label_to_query(labels, labels_like)
         filter_condition = metric_filter_labels if metric_filter_labels != '{}' else ''
         if metric_name is not None:
+            metric_name = _validate_metric_name(metric_name)
             params['match[]'] = "{0}{1}".format(metric_name, filter_condition)
         # using the query_range API to get raw data
         response = self._post(
