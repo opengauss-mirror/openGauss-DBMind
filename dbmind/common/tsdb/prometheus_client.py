@@ -126,6 +126,7 @@ class PrometheusClient(TsdbClient):
         """
         params = params or {}
         labels_like = params.pop('labels_like') if 'labels_like' in params else {}
+        result_limit = params.pop('dbmind_result_limit') if 'dbmind_result_limit' in params else None
         if label_config or labels_like:
             query = metric_name + label_to_query(label_config, labels_like)
         else:
@@ -148,6 +149,13 @@ class PrometheusClient(TsdbClient):
             raise ApiClientException(
                 "HTTP Status Code {} ({!r})".format(response.status_code, response.content)
             )
+        if result_limit is not None and result_limit > 0 and len(data) > result_limit:
+            logging.warning(
+                'The number of sequences fetched from tsdb for metric %s is %d, '
+                'which exceeds the result limit %d. Only the first %d sequences will be used.',
+                metric_name, len(data), result_limit, result_limit
+            )
+            data = data[:result_limit]
         return _standardize(data)
 
     def get_metric_range_data(
@@ -185,6 +193,7 @@ class PrometheusClient(TsdbClient):
         """
         params = params or {}
         labels_like = params.pop('labels_like') if 'labels_like' in params else {}
+        result_limit = params.pop('dbmind_result_limit') if 'dbmind_result_limit' in params else None
         if label_config or labels_like:
             query = metric_name + label_to_query(label_config, labels_like)
         else:
@@ -234,6 +243,13 @@ class PrometheusClient(TsdbClient):
 
         logging.debug('Fetched sequence (%s) from tsdb from %s to %s. The length of sequence is %s.',
                       metric_name, start_time, end_time, len(data))
+        if result_limit is not None and result_limit > 0 and len(data) > result_limit:
+            logging.warning(
+                'The number of sequences fetched from tsdb for metric %s is %d, '
+                'which exceeds the result limit %d. Only the first %d sequences will be used.',
+                metric_name, len(data), result_limit, result_limit
+            )
+            data = data[:result_limit]
         return _standardize(data, step=step or self.scrape_interval)
 
     def delete_metric_data(self,

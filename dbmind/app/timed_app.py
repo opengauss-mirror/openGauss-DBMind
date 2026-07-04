@@ -14,6 +14,7 @@ import logging
 import time
 from collections import defaultdict
 from datetime import timedelta, datetime
+from itertools import islice
 
 from dbmind import global_vars, constants
 from dbmind.app.diagnosis.query.entry import diagnose_query
@@ -69,6 +70,13 @@ one_month = 30 * one_day  # unit is second
 expansion_coefficient = global_vars.dynamic_configs.get_int_or_float(
     'self_optimization', 'expansion_coefficient', fallback=1.5
 )
+_slow_sql_diagnosis_max_query_count = global_vars.dynamic_configs.get_int_or_float(
+    'self_monitoring', 'slow_sql_diagnosis_max_query_count', fallback=1024
+)
+slow_sql_diagnosis_max_query_count = int(
+    1024 if _slow_sql_diagnosis_max_query_count is None
+    else _slow_sql_diagnosis_max_query_count
+)
 templates = defaultdict(dict)
 
 _self_driving_records = NaiveQueue(20)
@@ -105,31 +113,40 @@ def slow_sql_diagnosis():
     # in order to avoid losing slow SQL data, the real 'fetch_interval' is equal to
     # the 'slow_sql_diagnosis_interval * expansion coefficient'
     fetch_interval = int(expansion_coefficient * slow_sql_diagnosis_interval / 60)
-    slow_query_collection = dai.get_all_slow_queries(fetch_interval)
-    logging.debug('The length of slow_query_collection is %d.', len(slow_query_collection))
+    slow_query_collection = dai.get_all_slow_queries(
+        fetch_interval, max_size=slow_sql_diagnosis_max_query_count
+    )
+    total_slow_query_count = 0
+    while True:
+        slow_query_batch = list(islice(slow_query_collection, 64))
+        if not slow_query_batch:
+            break
+        total_slow_query_count += len(slow_query_batch)
+        query_contexts = []
+        for slow_query in slow_query_batch:
+            try:
+                with global_vars.agent_proxy.context(slow_query.instance):
+                    query_contexts.append(
+                        (QueryContextFromTSDBAndRPC(slow_query),)
+                    )
+            except RPCAddressError as e:
+                logging.warning(
+                    'Cannot diagnose slow queries because %s.', e
+                )
+        if query_contexts:
+            slow_queries = global_vars.worker.parallel_execute(
+                diagnose_query, query_contexts
+            ) or []
+            dai.save_slow_queries(slow_queries)
+    logging.debug('The length of slow_query_collection is %d.', total_slow_query_count)
     _self_driving_records.put(
         {
             'catalog': 'monitoring',
             'msg': 'Completed detection for slow queries and diagnosed %d slow queries.'
-                   % len(slow_query_collection),
+                   % total_slow_query_count,
             'time': int(time.time() * 1000)
         }
     )
-    query_contexts = []
-    for slow_query in slow_query_collection:
-        try:
-            with global_vars.agent_proxy.context(slow_query.instance):
-                query_contexts.append(
-                    (QueryContextFromTSDBAndRPC(slow_query),)
-                )
-        except RPCAddressError as e:
-            logging.warning(
-                'Cannot diagnose slow queries because %s.', e
-            )
-    slow_queries = global_vars.worker.parallel_execute(
-        diagnose_query, query_contexts
-    ) or []
-    dai.save_slow_queries(slow_queries)
 
 
 @customized_timer(index_recommend_interval)

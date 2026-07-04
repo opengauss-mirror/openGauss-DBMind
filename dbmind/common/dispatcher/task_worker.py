@@ -18,12 +18,14 @@ import signal
 from abc import ABC, abstractmethod
 from concurrent.futures import as_completed, wait as wait4futures
 from concurrent.futures.process import ProcessPoolExecutor
+from itertools import islice
 
 from dbmind.common import utils
 from dbmind.common.platform import WIN32
 
 IN_PROCESS = 'DBMind [Worker Process] [IN PROCESS]'
 PENDING = 'DBMind [Worker Process] [IDLE]'
+PARALLEL_EXECUTE_BATCH_SIZE = 64
 
 _mp_sync_mgr_instance = None
 
@@ -153,29 +155,47 @@ class ProcessWorker(AbstractWorker):
         super().__init__(worker_num)
 
     def _parallel_execute(self, func, iterable):
-        futures = []
-
-        for params in iterable:
-            if isinstance(params, dict):
-                args = list()
-                kwargs = params
-            else:
-                args = list(params)
-                kwargs = dict()
-            args.insert(0, func)
-            futures.append(self.pool.submit(function_starter, *args, **kwargs))
-
-        wait4futures(futures)
         results = []
-        for future in futures:
-            try:
-                results.append(future.result())
-            except concurrent.futures.process.BrokenProcessPool:
-                # killed by parent process
-                results.append(None)
-            except Exception as e:
-                results.append(None)
-                logging.exception(e)
+        iterator = iter(iterable)
+
+        while True:
+            params_batch = list(islice(iterator, PARALLEL_EXECUTE_BATCH_SIZE))
+            if not params_batch:
+                break
+            futures = []
+            broken_pool = False
+            unsubmitted_count = 0
+            for params in params_batch:
+                if isinstance(params, dict):
+                    args = list()
+                    kwargs = params
+                else:
+                    args = list(params)
+                    kwargs = dict()
+                args.insert(0, func)
+                try:
+                    futures.append(self.pool.submit(function_starter, *args, **kwargs))
+                except concurrent.futures.process.BrokenProcessPool as e:
+                    logging.exception(e)
+                    broken_pool = True
+                    unsubmitted_count = len(params_batch) - len(futures)
+                    break
+
+            if futures:
+                wait4futures(futures)
+            for future in futures:
+                try:
+                    results.append(future.result())
+                except concurrent.futures.process.BrokenProcessPool:
+                    # killed by parent process
+                    results.append(None)
+                except Exception as e:
+                    results.append(None)
+                    logging.exception(e)
+            if broken_pool:
+                results.extend(None for _ in range(unsubmitted_count))
+                results.extend(None for _ in iterator)
+                break
         return results
 
     def _submit(self, func, synchronized, args):

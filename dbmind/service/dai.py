@@ -51,19 +51,28 @@ def datetime_to_timestamp(t: datetime):
 
 
 class LazyFetcher:
-    def __init__(self, metric_name, start_time=None, end_time=None, step=None, min_value=None, max_value=None):
+    def __init__(self, metric_name, start_time=None, end_time=None, step=None,
+                 min_value=None, max_value=None, result_limit=None):
         # The default filter should contain some labels (or tags)
         # from user's config. Otherwise, there will be lots of data stream
         # fetching from the remote time series database, whereas, we don't need them.
         self.metric_name = _map_metric(metric_name)
         self.start_time = start_time
         self.end_time = end_time
-        self.step = step or estimate_appropriate_step_ms(start_time, end_time)
+        estimated_step = estimate_appropriate_step_ms(start_time, end_time)
+        if step is None:
+            self.step = estimated_step
+        else:
+            # Never let a caller bypass adaptive down-sampling or the 1s floor.
+            self.step = max(step, 1000)
+            if estimated_step is not None:
+                self.step = max(self.step, estimated_step)
         self.labels = dict.copy(global_vars.must_filter_labels or {})
         self.labels_like = dict()
         self.rv = None
         self.min_value = min_value
         self.max_value = max_value
+        self.result_limit = result_limit
 
     def filter(self, **kwargs):
         dbmind_assert(
@@ -99,10 +108,16 @@ class LazyFetcher:
         self.labels_like[label_name] = host_like
         return self
 
+    def limit(self, size):
+        self.result_limit = size
+        return self
+
     def _fetch_sequence(self, start_time=None, end_time=None, step=None):
         params = dict()
         if self.labels_like:
             params["labels_like"] = self.labels_like.copy()
+        if self.result_limit is not None and self.result_limit > 0:
+            params["dbmind_result_limit"] = self.result_limit
         # Labels have been passed.
         if start_time == end_time or (end_time - start_time) / 1000 < 1:
             if start_time is not None:
@@ -136,6 +151,8 @@ class LazyFetcher:
 
         start_time, end_time = datetime_to_timestamp(self.start_time), datetime_to_timestamp(self.end_time)
         step = self.step
+        if self.result_limit is not None and self.result_limit > 0:
+            return self._fetch_sequence(start_time, end_time, step)
         try:
             buffered = buff.get(
                 metric_name=self.metric_name,
@@ -392,9 +409,11 @@ def get_all_last_monitoring_alarm_logs(minutes):
     return []
 
 
-def get_all_slow_queries(minutes):
-    slow_queries = []
-    sequences = get_latest_metric_sequence('pg_sql_statement_history_exc_time', minutes).fetchall()
+def get_all_slow_queries(minutes, max_size=1024):
+    fetcher = get_latest_metric_sequence('pg_sql_statement_history_exc_time', minutes)
+    if max_size is not None and max_size > 0:
+        fetcher.limit(max_size)
+    sequences = fetcher.fetchall()
     # The following fields should be normalized.
     for sequence in sequences:
         from_instance = SequenceUtils.from_server(sequence)
@@ -444,8 +463,7 @@ def get_all_slow_queries(minutes):
             sort_spill_count=sort_spill_count
         )
 
-        slow_queries.append(slow_sql_info)
-    return slow_queries
+        yield slow_sql_info
 
 
 def save_index_recomm(index_infos):
@@ -817,4 +835,3 @@ def check_agent_status():
     except Exception:
         detail['status'] = 'down'
     return detail
-

@@ -25,6 +25,7 @@ from collections import defaultdict, Counter
 from itertools import groupby
 
 import sqlparse
+from fastapi import HTTPException
 
 from dbmind import global_vars
 from dbmind.app.monitoring import ad_pool_manager, regular_inspection
@@ -36,7 +37,10 @@ from dbmind.common.types import ALARM_TYPES, ALARM_LEVEL
 from dbmind.common.types import Sequence
 from dbmind.components.extract_log import get_workload_template
 from dbmind.components.slow_query_diagnosis import analyze_slow_query_with_rpc, get_query_plan
-from dbmind.components.sql_rewriter.sql_rewriter import rewrite_sql_api
+from dbmind.components.sql_rewriter.sql_rewriter import (
+    rewrite_sql_api,
+    validate_sql_rewrite_input,
+)
 from dbmind.metadatabase import dao
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.components.anomaly_analysis import get_sequences, get_correlations
@@ -121,7 +125,8 @@ def get_metric_sequence_internal(metric_name, from_timestamp=None, to_timestamp=
 
 
 def get_metric_sequence(metric_name, instance, from_timestamp=None, to_timestamp=None, step=None, fetch_all=False,
-                        regex=False, labels=None, regex_labels=None, min_value=None, max_value=None):
+                        regex=False, labels=None, regex_labels=None, min_value=None, max_value=None,
+                        result_limit=None):
     # notes: this method must ensure that the front-end and back-end time are consistent
     if to_timestamp is None:
         to_timestamp = int(time.time() * 1000)
@@ -131,6 +136,8 @@ def get_metric_sequence(metric_name, instance, from_timestamp=None, to_timestamp
     to_datetime = datetime.datetime.fromtimestamp(to_timestamp / 1000)
     fetcher = dai.get_metric_sequence(metric_name, from_datetime, to_datetime, step=step,
                                       min_value=min_value, max_value=max_value)
+    if result_limit is not None:
+        fetcher.limit(result_limit)
     if instance is None:
         from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
         if from_server_predicate:
@@ -164,7 +171,8 @@ def get_metric_sequence(metric_name, instance, from_timestamp=None, to_timestamp
 
 
 def get_latest_metric_sequence(metric_name, instance, latest_minutes, step=None, fetch_all=False, regex=False,
-                               labels=None, regex_labels=None, min_value=None, max_value=None):
+                               labels=None, regex_labels=None, min_value=None, max_value=None,
+                               result_limit=None):
     # this function can actually be replaced by 'get_metric_sequence', but in order to avoid
     # the hidden problems of that method, we add 'instance', 'fetch_all' and 'labels' to solve it
     # notes: the format of labels is 'key1=val1, key2=val2, key3=val3, ...'
@@ -173,6 +181,8 @@ def get_latest_metric_sequence(metric_name, instance, latest_minutes, step=None,
     else:
         fetcher = dai.get_latest_metric_sequence(metric_name, latest_minutes, step=step, min_value=min_value,
                                                  max_value=max_value)
+    if result_limit is not None:
+        fetcher.limit(result_limit)
     if instance is None:
         from_server_predicate = get_access_context(ACCESS_CONTEXT_NAME.TSDB_FROM_SERVERS_REGEX)
         if from_server_predicate:
@@ -1128,6 +1138,10 @@ def pagination(data, page, size):
 
 
 def toolkit_rewrite_sql(username, password, instance, database, sqls):
+    try:
+        validate_sql_rewrite_input(sqls)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     with global_vars.agent_proxy.context(instance, username, password):
         return rewrite_sql_api(database, sqls)
 
@@ -1298,6 +1312,13 @@ def risk_analysis(metric, instance, warning_hours, upper, lower, labels):
 def get_database_data_directory_status(instance, latest_minutes):
     # instance: address of instance agent, format is 'host:port'
     # get the growth_rate of disk usage where the database data directory is located
+    valid_instances = get_access_context(
+        ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST) or []
+    if instance not in valid_instances:
+        raise HTTPException(
+            status_code=403,
+            detail='Requested instance is outside the current cluster scope.'
+        )
     return dai.get_database_data_directory_status(instance, latest_minutes)
 
 

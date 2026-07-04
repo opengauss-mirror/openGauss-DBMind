@@ -17,9 +17,11 @@
 import time
 from typing import Dict, Union, List, Optional
 
+from fastapi import HTTPException
 from pydantic import BaseModel
 
 from dbmind import global_vars
+from dbmind.cmd.configs.config_constants import IV_TABLE
 from dbmind.common.http import request_mapping, OAuth2, Request
 from dbmind.common.http import standardized_api_output
 from dbmind.service.web import context_manager
@@ -28,6 +30,57 @@ from dbmind.metadatabase.schema.config_dynamic_params import DynamicParams
 
 latest_version = 'v1'
 api_prefix = '/%s/api' % latest_version
+_HIDDEN_DYNAMIC_CONFIG_CATEGORIES = ('dbmind_config', IV_TABLE)
+MAX_METRIC_QUERY_RANGE_MS = 7 * 24 * 60 * 60 * 1000
+MIN_METRIC_QUERY_STEP_MS = 1000
+MAX_METRIC_QUERY_POINTS = 11000
+MAX_METRIC_QUERY_SERIES = 100
+
+
+def _check_dynamic_config_category(category):
+    if category in _HIDDEN_DYNAMIC_CONFIG_CATEGORIES:
+        raise HTTPException(403, detail='Forbidden to access hidden dynamic configurations.')
+
+
+def _validate_metric_query_budget(latest_minutes, from_timestamp, to_timestamp, step):
+    if latest_minutes is not None:
+        if latest_minutes <= 0:
+            return
+        range_ms = latest_minutes * 60 * 1000
+    else:
+        if to_timestamp is None:
+            to_timestamp = int(time.time() * 1000)
+        if from_timestamp is None:
+            from_timestamp = to_timestamp - int(0.5 * 60 * 60 * 1000)
+        if from_timestamp > to_timestamp:
+            raise HTTPException(status_code=400, detail='from_timestamp must not exceed to_timestamp.')
+        range_ms = to_timestamp - from_timestamp
+
+    if range_ms > MAX_METRIC_QUERY_RANGE_MS:
+        raise HTTPException(
+            status_code=400,
+            detail='The metric query time range is too large.'
+        )
+
+    if step is not None:
+        if step < MIN_METRIC_QUERY_STEP_MS:
+            raise HTTPException(
+                status_code=400,
+                detail='The metric query step is too small.'
+            )
+        if range_ms // step > MAX_METRIC_QUERY_POINTS:
+            raise HTTPException(
+                status_code=400,
+                detail='The metric query would return too many points.'
+            )
+
+
+def _normalize_metric_limit(limit):
+    if limit is None:
+        return MAX_METRIC_QUERY_SERIES
+    if limit <= 0:
+        raise HTTPException(status_code=400, detail='limit must be a positive integer.')
+    return min(limit, MAX_METRIC_QUERY_SERIES)
 
 
 
@@ -223,18 +276,22 @@ def manage_metric_sequence(request: Request, name: str, instance: str = None, la
         e.g. {"data":null,"success":true}
     """
     if request.method == 'GET':
+        _validate_metric_query_budget(latest_minutes, from_timestamp, to_timestamp, step)
+        result_limit = _normalize_metric_limit(limit)
         if latest_minutes is not None:
-            return data_transformer.get_latest_metric_sequence(name, instance, latest_minutes,
-                                                               step=step, fetch_all=fetch_all,
-                                                               regex=regex, labels=labels,
-                                                               regex_labels=regex_labels,
-                                                               min_value=min_value, max_value=max_value)
-
+            result = data_transformer.get_latest_metric_sequence(name, instance, latest_minutes,
+                                                                 step=step, fetch_all=fetch_all,
+                                                                 regex=regex, labels=labels,
+                                                                 regex_labels=regex_labels,
+                                                                 min_value=min_value, max_value=max_value,
+                                                                 result_limit=result_limit)
         else:
-            return data_transformer.get_metric_sequence(name, instance, from_timestamp, to_timestamp, step=step,
-                                                        fetch_all=fetch_all, regex=regex, labels=labels,
-                                                        regex_labels=regex_labels,
-                                                        min_value=min_value, max_value=max_value)
+            result = data_transformer.get_metric_sequence(name, instance, from_timestamp, to_timestamp, step=step,
+                                                          fetch_all=fetch_all, regex=regex, labels=labels,
+                                                          regex_labels=regex_labels,
+                                                          min_value=min_value, max_value=max_value,
+                                                          result_limit=result_limit)
+        return result
     elif request.method == 'DELETE':
         return data_transformer.delete_metric_sequence(name, instance, from_timestamp,
                                                        to_timestamp, regex, labels, regex_labels, flush)
@@ -521,6 +578,7 @@ def advise_indexes(pagesize: int, current: int, instance: str, database: str,
 @oauth2.token_authentication()
 @standardized_api_output
 def get_config_values(configname: str):
+    _check_dynamic_config_category(configname)
     return global_vars.dynamic_configs.get_category_values(configname)
 
 
@@ -556,6 +614,7 @@ class UpdateDynamicConfig(BaseModel):
 @oauth2.token_authentication()
 @standardized_api_output
 def update_dynamic_config(item: UpdateDynamicConfig):
+    _check_dynamic_config_category(item.configname)
     for key, value in item.config_dict.items():
         if '' in (key.strip(), value.strip()):
             raise Exception('You should input correct setting.')
@@ -578,6 +637,7 @@ def sqldiag(database: str, sql: str):
 @standardized_api_output
 def set_setting(config: str, name: str, value: str, dynamic: bool = True):
     if dynamic:
+        _check_dynamic_config_category(config)
         if '' in (config.strip(), name.strip(), value.strip()):
             raise Exception('You should input correct setting.')
         global_vars.dynamic_configs.set(config, name, value)
@@ -593,6 +653,7 @@ def set_setting(config: str, name: str, value: str, dynamic: bool = True):
 @standardized_api_output
 def get_setting(config: str, name: str, dynamic: bool = True):
     if dynamic:
+        _check_dynamic_config_category(config)
         return global_vars.dynamic_configs.get(config, name)
     else:
         raise Exception("Currently, DBMind doesn't support showing the static "

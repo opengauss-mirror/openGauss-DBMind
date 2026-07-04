@@ -39,6 +39,18 @@ from .rules import (AlwaysTrue, DistinctStar, OrderbyConst, Star2Columns, UnionA
 from .rules import Rule
 from .utils import get_table_names
 
+MAX_SQL_REWRITE_LENGTH = 65536
+MAX_SQL_REWRITE_STATEMENTS = 1
+
+
+def validate_sql_rewrite_input(sqls):
+    if len(sqls) > MAX_SQL_REWRITE_LENGTH:
+        raise ValueError('The SQL statement is too large.')
+    statement_count = len(sqlparse.split(sqls))
+    if statement_count > MAX_SQL_REWRITE_STATEMENTS:
+        raise ValueError('Only a single SQL statement is supported.')
+
+
 
 def get_all_involved_tables(sql, table_names=None):
     if table_names is None:

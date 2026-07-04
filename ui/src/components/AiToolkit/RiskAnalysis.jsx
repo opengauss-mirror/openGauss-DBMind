@@ -12,6 +12,19 @@ import '../../assets/css/main/aiToolkit.css';
 const { Option } = Select;
 const { TextArea } = Input;
 
+const escapeHtml = (value) => {
+  return String(value).replace(/[&<>"']/g, (character) => {
+    const entities = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }
+    return entities[character]
+  })
+}
+
 export default class RiskAnalysis extends Component {
   constructor() {
     super()
@@ -246,9 +259,9 @@ export default class RiskAnalysis extends Component {
         formatter: function (params) {
           let res = ''
           if (params[0].value || params[0].value === 0) {
-            res = `${params[0].name} <br/><span style="background: ${params[0].color}; height:10px; width: 10px; border-radius: 50%;display: inline-block;margin-right:10px;"></span> ${params[0].seriesName} ：${params[0].value}<br/>`
+            res = `${params[0].name} <br/><span style="background: ${params[0].color}; height:10px; width: 10px; border-radius: 50%;display: inline-block;margin-right:10px;"></span> ${escapeHtml(params[0].seriesName || '')} ：${params[0].value}<br/>`
           } else {
-            res = `${params[1].name} <br/><span style="background: ${params[1].color}; height:10px; width: 10px; border-radius: 50%;display: inline-block;margin-right:10px;"></span> ${params[1].seriesName} ：${params[1].value}<br/>`
+            res = `${params[1].name} <br/><span style="background: ${params[1].color}; height:10px; width: 10px; border-radius: 50%;display: inline-block;margin-right:10px;"></span> ${escapeHtml(params[1].seriesName || '')} ：${params[1].value}<br/>`
           }
           return res
         }
