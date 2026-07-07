@@ -11,6 +11,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 import configparser
+from types import SimpleNamespace
 from unittest import mock
 
 import numpy as np
@@ -68,6 +69,22 @@ def mock_get_funcntion(monkeypatch):
                         mock.Mock(side_effect=lambda x: mock_get_detection_threshold(param=x)))
     monkeypatch.setattr(monitoring, 'get_slow_sql_param',
                         mock.Mock(side_effect=lambda x: mock_get_slow_sql_param(param=x)))
+
+
+def test_query_context_rejects_multi_statement_sql():
+    slow_sql = SimpleNamespace(
+        query='SELECT 1; DROP TABLE t;',
+        schema_name='schema1',
+        query_plan=None,
+        track_parameter=False,
+    )
+    driver = mock.Mock()
+
+    context = query_info_source.QueryContextFromDriver(slow_sql, driver=driver)
+
+    assert not context.is_sql_valid
+    assert slow_sql.query_plan is None
+    driver.query.assert_not_called()
 
 
 class MockedComplexQueryContext(query_info_source.QueryContext):

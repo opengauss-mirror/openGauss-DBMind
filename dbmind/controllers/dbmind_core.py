@@ -610,11 +610,21 @@ class UpdateDynamicConfig(BaseModel):
     config_dict: dict
 
 
+def _require_dynamic_config_write_privilege():
+    username, password = oauth2.credential
+    if not data_transformer.has_dynamic_config_write_privilege(username, password):
+        raise HTTPException(
+            status_code=403,
+            detail='Only monitoradmin or sysadmin users can modify dynamic configurations.'
+        )
+
+
 @request_mapping('/api/setting/update_dynamic_config', methods=['POST', 'GET'], api=True)
 @oauth2.token_authentication()
 @standardized_api_output
 def update_dynamic_config(item: UpdateDynamicConfig):
     _check_dynamic_config_category(item.configname)
+    _require_dynamic_config_write_privilege()
     for key, value in item.config_dict.items():
         if '' in (key.strip(), value.strip()):
             raise Exception('You should input correct setting.')
@@ -638,6 +648,7 @@ def sqldiag(database: str, sql: str):
 def set_setting(config: str, name: str, value: str, dynamic: bool = True):
     if dynamic:
         _check_dynamic_config_category(config)
+        _require_dynamic_config_write_privilege()
         if '' in (config.strip(), name.strip(), value.strip()):
             raise Exception('You should input correct setting.')
         global_vars.dynamic_configs.set(config, name, value)
@@ -952,4 +963,5 @@ class PlanModel(BaseModel):
 @standardized_api_output
 def get_query_plan(item: PlanModel):
     params = dict(item)
-    return data_transformer.toolkit_get_query_plan(**params)
+    username, password = oauth2.credential
+    return data_transformer.toolkit_get_query_plan(username, password, **params)

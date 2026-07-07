@@ -126,6 +126,16 @@ class AgentProxy:
     def agents(self):
         return self._agents.copy()
 
+    def _set_thread_credential(self, username=None, pwd=None):
+        self._thread_context.username = username
+        self._thread_context.pwd = pwd
+
+    def _current_thread_credential(self):
+        return (
+            getattr(self._thread_context, 'username', None),
+            getattr(self._thread_context, 'pwd', None)
+        )
+
     def set_autodiscover_connection_info(self,
                                          username, password,
                                          ssl_certfile=None,
@@ -299,6 +309,7 @@ class AgentProxy:
             self._thread_context.rpc = None
             self._thread_context.agent_addr = None
             self._thread_context.cluster = None
+            self._set_thread_credential()
             return True
 
         self._try_to_finalize()
@@ -306,9 +317,8 @@ class AgentProxy:
             return False
         rpc = self._agents[agent_addr]
         self._thread_context.rpc = rpc
-        if username and pwd:
-            self._thread_context.rpc.username = username
-            self._thread_context.rpc.pwd = pwd 
+        if username is not None and pwd is not None:
+            self._set_thread_credential(username, pwd)
         self._thread_context.agent_addr = agent_addr
         self._thread_context.cluster = self._cluster.search_one(agent_addr)
         return True
@@ -352,6 +362,9 @@ class AgentProxy:
                 'Not switched to a valid RPC, '
                 'cannot perform remote call.'
             )
+        username, pwd = self._current_thread_credential()
+        if username is not None and pwd is not None:
+            return rpc.call_with_another_credential(username, pwd, funcname, *args, **kwargs)
         return rpc.call(funcname, *args, **kwargs)
 
     def __iter__(self):
@@ -361,7 +374,8 @@ class AgentProxy:
 
     def context(self, instance_address, username=None, pwd=None):
         outer = self
-        old = outer.current_rpc()
+        old_agent_addr = outer.current_agent_addr()
+        old_username, old_pwd = outer._current_thread_credential()
 
         class Inner:
             def __init__(self, addr):
@@ -375,7 +389,11 @@ class AgentProxy:
                     )
 
             def __exit__(self, exc_type, exc_val, exc_tb):
-                outer.switch_context(old)
+                if old_agent_addr:
+                    outer.switch_context(old_agent_addr)
+                else:
+                    outer.switch_context(None)
+                outer._set_thread_credential(old_username, old_pwd)
 
         return Inner(instance_address)
 

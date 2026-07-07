@@ -62,25 +62,27 @@ class RPCServer:
         :param _json: dict format, must be able to cast to RPCRequest.
         :return: dict format, converted from RPCResponse.
         """
+        req = RPCRequest(None, None, 'unknown')
         try:
-            req = RPCRequest.from_json(_json)
+            username = _json['username']
+            pwd = _json['pwd']
+            funcname = _json['funcname']
+            req = RPCRequest(username, pwd, funcname)
         except Exception as e:
             return RPCResponse(
-                RPCRequest(None, None, 'unknown'), success=False,
+                req, success=False,
                 exception='Cannot parse given RPCRequest JSON: %s.' % e
             ).json()
 
         try:
-            funcname = req.funcname
-
             # Just for heartbeat.
             if funcname == HEARTBEAT_FLAG:
                 return RPCResponse(
                     req, success=True, result='ok'
                 ).json()
 
-            # Validate credential.
-            if not self.checker(req.username, req.pwd):
+            # Validate credential before deserializing args and kwargs.
+            if not self.checker(username, pwd):
                 return RPCResponse(req, success=False,
                                    exception='Failed to validate authorization.').json()
 
@@ -88,6 +90,14 @@ class RPCServer:
             if funcname == AUTH_FLAG:
                 return RPCResponse(
                     req, success=True, result='ok'
+                ).json()
+
+            try:
+                req = RPCRequest.from_json(_json)
+            except Exception as e:
+                return RPCResponse(
+                    req, success=False,
+                    exception='Cannot parse given RPCRequest JSON: %s.' % e
                 ).json()
 
             if funcname not in self.register:
