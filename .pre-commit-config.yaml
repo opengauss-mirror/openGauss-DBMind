@@ -1,0 +1,69 @@
+# pre-commit 配置（openGauss-DBMind / 旧仓，Python 为主 + 前端 jsx/js/css）
+#
+# 旧仓策略：保留仓库已有的 flake8.conf 作为 lint 规则（ignore=F401,W291,W504,
+# max-line-length=120），不改用 ruff-lint，避免对存量代码制造新噪音。
+# 格式化(darker)行宽与 flake8 对齐为 120。
+#
+# 前端资源(ui/ 下 jsx/js/css/png 等)不纳入 Python 检查，用顶层 exclude 排除。
+#
+# 首次启用：
+#   pip install pre-commit mypy flake8
+#   pre-commit install
+
+default_language_version:
+  python: python3
+
+# 排除前端目录与非源码目录（DBMind 的 ui/ 是 React 前端，非本次检查范围）
+exclude: '^(ui/|docs/|.*\.min\.js$)'
+
+repos:
+  - repo: https://gitcode.com/gh_mirrors/pr/pre-commit-hooks.git
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+      - id: detect-private-key
+
+  - repo: https://gitcode.com/gh_mirrors/co/codespell.git
+    rev: v2.4.1
+    hooks:
+      - id: codespell
+
+  # Lint：保留旧仓 flake8。走 local 调本机 flake8，读仓库根的 flake8.conf。
+  - repo: local
+    hooks:
+      - id: flake8
+        name: flake8 (local, 读 flake8.conf)
+        entry: flake8
+        language: system
+        types: [python]
+        args: ["--config=flake8.conf"]
+
+  # 本仓无 pyproject.toml（不引入，避免改变旧仓构建行为），bandit 读独立的 .bandit 配置
+  - repo: https://gitcode.com/gh_mirrors/ba/bandit.git
+    rev: "1.9.4"
+    hooks:
+      - id: bandit
+        args: ["--ini", ".bandit"]
+
+  # 格式化：darker 行级，行宽 120 对齐 flake8
+  - repo: https://gitcode.com/gh_mirrors/da/darker.git
+    rev: v3.0.0
+    hooks:
+      - id: darker
+        additional_dependencies: ["black==24.10.0"]
+        args: ["--line-length=120"]
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy (local)
+        entry: mypy
+        language: system
+        types: [python]
+        require_serial: true
+        exclude: '^(tests/|ui/)'
