@@ -42,6 +42,10 @@ def is_port_used(host, port):
     uniformed_ip = uniform_ip(host.strip())
     if uniformed_ip in ['0.0.0.0', '::']:
         try:
+            # Align with the real server which sets SO_REUSEADDR.
+            # Without this, a lingering TIME_WAIT socket from a previous stop
+            # would cause a false 'Address already in use' on the next start.
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((uniformed_ip, port))
             return False
         except socket.error as e:
