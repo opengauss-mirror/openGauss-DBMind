@@ -44,6 +44,10 @@ escape_double_quote = lambda x: x.replace('"', '""')
 escape_back_quote = lambda x: x.replace('`', '``')
 
 
+def is_valid_obj(obj_name: str) -> bool:
+    return bool(re.fullmatch(r'^[a-zA-Z0-9_-]+$', obj_name))
+
+
 class cached_property:
     """A decorator for caching a property."""
 

@@ -32,6 +32,7 @@ from dbmind.cmd.edbmind import init_global_configs
 from dbmind.common.opengauss_driver import Driver
 from dbmind.common.parser.plan_parsing import Plan
 from dbmind.common.parser.sql_parsing import exist_track_parameter
+from dbmind.common.utils.base import is_valid_obj
 from dbmind.common.utils.checking import path_type, date_type
 from dbmind.common.utils.cli import (keep_inputting_until_correct,
                                      write_to_terminal)
@@ -128,6 +129,8 @@ def get_query_plan(
 
 
 def _is_database_exist(db_name, data_source='tsdb', driver=None):
+    if not is_valid_obj(db_name):
+        raise ValueError(f"Invalid database name: {db_name}")
     stmt = "select datname from pg_database where datname = '%s'" % db_name
     if data_source == 'tsdb':
         rows = global_vars.agent_proxy.call('query_in_database',
@@ -140,6 +143,8 @@ def _is_database_exist(db_name, data_source='tsdb', driver=None):
 
 
 def _is_schema_exist(schema, db_name=None, data_source='tsdb', driver=None):
+    if not is_valid_obj(schema):
+        raise ValueError(f"Invalid schema name: {schema}")
     stmt = "select nspname from pg_namespace where nspname = '%s'" % schema
     if data_source == 'tsdb':
         rows = global_vars.agent_proxy.call('query_in_database',
