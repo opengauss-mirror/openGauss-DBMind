@@ -18,6 +18,7 @@ import logging
 from .utils import get_placeholders, has_dollar_placeholder, replace_comma_with_dollar, replace_function_comma, \
     quote_columns, quote_table
 from dbmind.common.utils import escape_single_quote
+from ...common.utils.base import is_valid_obj
 
 counter = count(start=0, step=1)
 
@@ -218,6 +219,8 @@ def get_index_check_sqls(query, indexes, is_multi_node, is_fqs_on=False, is_m_co
 
 
 def get_table_info_sql(table, schema, is_m_compat=False):
+    if not is_valid_obj(table) or not is_valid_obj(schema):
+        raise ValueError(f"Invalid schema or table name")
     table_info_sql = f"select reltuples, parttype from pg_catalog.pg_class " \
                      f"where relname ilike '{escape_single_quote(table)}' " \
                      f"and relnamespace = (select oid from pg_catalog.pg_namespace where " \
@@ -231,6 +234,8 @@ def get_table_info_sql(table, schema, is_m_compat=False):
 
 
 def get_column_info_sql(table, schema, is_m_compat=False):
+    if not is_valid_obj(table) or not is_valid_obj(schema):
+        raise ValueError(f"Invalid schema or table name")
     column_info_sql = f"select n_distinct, attname from pg_catalog.pg_stats " \
                       f"where tablename ilike '{escape_single_quote(table)}' " \
                       f"and schemaname = '{escape_single_quote(schema)}';"

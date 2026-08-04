@@ -27,6 +27,7 @@ from sqlparse.tokens import Punctuation, Whitespace
 
 from dbmind import global_vars
 from dbmind.common.parser.sql_parsing import get_generate_prepare_sqls_function
+from dbmind.common.utils.base import is_valid_obj
 from dbmind.common.utils.checking import CheckWordValid, path_type, positive_int_type
 from dbmind.common.utils.cli import read_input_from_pipe
 from dbmind.common.utils.exporter import set_logger
@@ -262,6 +263,8 @@ def rewrite_sql_api(database, sqls, rewritten_flags=None, if_format=True, driver
         involved_tables = get_query_tables(formatted_sql)
         tableinfo = TableInfo()
         for table_name in involved_tables:
+            if not is_valid_obj(table_name):
+                raise ValueError(f"Invalid table name: {table_name}")
             search_table_stmt = "select column_name, ordinal_position " \
                                 "from %s where table_name='%s';" % (info_schema_columns, escape_single_quote(table_name))
             results = sorted(executor(stmt=search_table_stmt, return_tuples=True), key=lambda x: x[1])

@@ -114,18 +114,21 @@ oauth2 = DBMindOauth2.get_dbmind_oauth_instance()
 @request_mapping('/v1/api/list/agent', methods=['GET'], api=True)
 @request_mapping(api_prefix + '/agent/list', methods=['GET'], api=True)
 @standardized_api_output
+@oauth2.token_authentication()
 def get_all_agents():
     return data_transformer.get_all_agents()
 
 
 @request_mapping(api_prefix + '/agent/update', methods=['GET'], api=True)
 @standardized_api_output
+@oauth2.token_authentication()
 def update_agents():
     return data_transformer.update_agent_list(force=False)
 
 
 @request_mapping(api_prefix + '/agent/update/force', methods=['GET'], api=True)
 @standardized_api_output
+@oauth2.token_authentication()
 def update_agents_force():
     return data_transformer.update_agent_list(force=True)
 
