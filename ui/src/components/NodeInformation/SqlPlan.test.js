@@ -4,6 +4,7 @@ test('escapes execution plan properties in HTML tooltips', () => {
   const tooltip = formatPlanTooltip({
     data: {
       '<img src=x onerror=alert(1)>': '"><svg/onload=alert(2)>',
+      detail: 'a'.repeat(31),
       x: 10,
       y: 20,
       id: 'node-id',
@@ -16,4 +17,5 @@ test('escapes execution plan properties in HTML tooltips', () => {
   expect(tooltip).not.toContain('<img');
   expect(tooltip).not.toContain('<svg');
   expect(tooltip).not.toContain('node-id');
+  expect(tooltip).toContain(`${'a'.repeat(30)}<br>a`);
 });

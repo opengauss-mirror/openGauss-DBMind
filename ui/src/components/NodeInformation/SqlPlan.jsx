@@ -19,10 +19,9 @@ export const formatPlanTooltip = (params) => {
     if (elem !== 'x' && elem !== 'y' && elem !== 'id' && elem !== 'key') {
       const rawData = params.data[elem];
       const key = escapeHtml(elem);
-      const escapedData = escapeHtml(rawData);
       const data = rawData && typeof rawData !== 'number' && isNaN(rawData)
-        ? escapedData.replace(/(.{30})/g, '$1<br>')
-        : escapedData;
+        ? (String(rawData).match(/[\s\S]{1,30}/g) || []).map(escapeHtml).join('<br>')
+        : escapeHtml(rawData);
       res += `
           <span style="display:inline-block;width:120px;margin:2px 0;margin-right:10px;font-weight:600;text-align:right;"> ${key}</span>: ${data}<br/>`;
     }
