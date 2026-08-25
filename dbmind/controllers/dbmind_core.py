@@ -155,18 +155,21 @@ oauth2 = DBMindOauth2.get_dbmind_oauth_instance()
 
 @request_mapping('/api/list/agent', methods=['GET'], api=True)
 @request_mapping(api_prefix + '/agent/list', methods=['GET'], api=True)
+@oauth2.token_authentication()
 @standardized_api_output
 def get_all_agents():
     return data_transformer.get_all_agents()
 
 
 @request_mapping(api_prefix + '/agent/update', methods=['GET'], api=True)
+@oauth2.token_authentication()
 @standardized_api_output
 def update_agents():
     return data_transformer.update_agent_list(force=False)
 
 
 @request_mapping(api_prefix + '/agent/update/force', methods=['GET'], api=True)
+@oauth2.token_authentication()
 @standardized_api_output
 def update_agents_force():
     return data_transformer.update_agent_list(force=True)
@@ -219,11 +222,16 @@ def get_all_metrics():
 @standardized_api_output
 def get_metric_sequence(name: str, instance: str = None, from_timestamp: int = None,
                         to_timestamp: int = None, step: int = None, fetch_all: bool = False,
-                        regrex: bool = False, labels: str = None,
-                        regrex_labels: str = None):
-    return data_transformer.get_metric_sequence(name, instance, from_timestamp, to_timestamp,step=step,
-                                                fetch_all=fetch_all, regrex=regrex, labels=labels,
-                                                regrex_labels=regrex_labels)
+                        regex: bool = False, labels: str = None,
+                        regex_labels: str = None, regrex: bool = False,
+                        regrex_labels: str = None, limit: int = None):
+    _validate_metric_query_budget(None, from_timestamp, to_timestamp, step)
+    result_limit = _normalize_metric_limit(limit)
+    regex = regex or regrex
+    regex_labels = regex_labels if regex_labels is not None else regrex_labels
+    return data_transformer.get_metric_sequence(name, instance, from_timestamp, to_timestamp, step=step,
+                                                fetch_all=fetch_all, regex=regex, labels=labels,
+                                                regex_labels=regex_labels, result_limit=result_limit)
 
 
 @request_mapping('/api/summary/metrics/{name}', methods=['GET', 'DELETE'], api=True)

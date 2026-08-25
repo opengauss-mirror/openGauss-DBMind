@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 import threading
 import time
+import types
 from unittest import mock
 from collections import defaultdict
 
@@ -24,11 +25,13 @@ from dbmind.common.tsdb.prometheus_client import PrometheusClient
 from dbmind.common.types.sequence import Sequence
 from dbmind.common.utils import exporter as exporter_utils
 from dbmind.components import opengauss_exporter
+from dbmind.components.opengauss_exporter.core import main as og_main
 from dbmind.components.opengauss_exporter.core import controller as oe_controller
 from dbmind.components.opengauss_exporter.core.controller import app
 from dbmind.components.opengauss_exporter.core.main import ExporterMain as OpenGaussExporterMain
 from dbmind.components.opengauss_exporter.core.main import parse_argv as og_parse_argv
 from dbmind.components.reprocessing_exporter.core import controller as re_controller
+from dbmind.components.reprocessing_exporter.core import dao as re_dao
 from dbmind.components.reprocessing_exporter.core.main import ExporterMain
 from dbmind.components.reprocessing_exporter.core.main import parse_argv
 from dbmind.components.reprocessing_exporter.core.service import MetricConfig
@@ -37,6 +40,73 @@ from dbmind.components.reprocessing_exporter.core.service import MetricConfig
 from .test_rpc import rpc_client_testing
 
 assert rpc_client_testing
+
+
+def _run_opengauss_exporter_with_mocked_services(monkeypatch, args):
+    register_calls = []
+
+    monkeypatch.setattr(og_main, 'warn_ssl_certificate', lambda *args, **kwargs: None)
+    monkeypatch.setattr(og_main.controller, 'run', lambda *args, **kwargs: None)
+    monkeypatch.setattr(og_main.service, 'config_collecting_params', lambda *args, **kwargs: None)
+    monkeypatch.setattr(og_main.service, 'register_exporter_fixed_info', lambda: None)
+    monkeypatch.setattr(og_main.service, 'update_exporter_fixed_info', lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        og_main.service,
+        'register_metrics',
+        lambda parsed_yml, force_connection_db=None: register_calls.append(parsed_yml)
+    )
+    monkeypatch.setattr(
+        og_main.service,
+        'driver',
+        types.SimpleNamespace(main_dbname='postgres', address='127.0.0.1:5432')
+    )
+
+    exporter = OpenGaussExporterMain(og_parse_argv(args))
+    monkeypatch.setattr(exporter, 'change_file_permissions', lambda: None)
+    exporter.run()
+    return register_calls
+
+
+def test_opengauss_exporter_defaults_skip_statement_history_metrics(monkeypatch):
+    register_calls = _run_opengauss_exporter_with_mocked_services(
+        monkeypatch,
+        ['--url', 'postgresql://a:b@127.0.0.1:1234/testdb', '--disable-https', '--disable-agent']
+    )
+
+    registered_metric_names = {name for parsed_yml in register_calls for name in parsed_yml}
+    assert 'pg_sql_statement_history' not in registered_metric_names
+
+
+def test_opengauss_exporter_can_opt_in_statement_history_metrics(monkeypatch):
+    register_calls = _run_opengauss_exporter_with_mocked_services(
+        monkeypatch,
+        ['--url', 'postgresql://a:b@127.0.0.1:1234/testdb', '--disable-https', '--disable-agent',
+         '--enable-statement-history-metrics']
+    )
+
+    registered_metric_names = {name for parsed_yml in register_calls for name in parsed_yml}
+    assert 'pg_sql_statement_history' in registered_metric_names
+
+
+def test_metric_config_ttl_cache_starts_after_first_query(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(re_dao.time, 'time', lambda: 100.0)
+    monkeypatch.setattr(
+        re_dao,
+        'query',
+        lambda promql, timeout=None: calls.append((promql, timeout)) or ['cached-result']
+    )
+
+    cnf = MetricConfig('metric_a', 'sum(up)', 'desc', ttl=10, timeout=3)
+
+    assert cnf.query() == ['cached-result']
+    assert calls == [('sum(up)', 3)]
+    assert cnf._expired_time == 110.0
+
+    monkeypatch.setattr(re_dao.time, 'time', lambda: 105.0)
+    assert cnf.query() == ['cached-result']
+    assert calls == [('sum(up)', 3)]
 
 
 def test_reprocessing_exporter(monkeypatch):

@@ -83,6 +83,8 @@ def parse_argv(argv):
                         help='not collect pg_settings.yml metrics.')
     parser.add_argument('--disable-statement-history-metrics', action='store_true',
                         help='not collect statement-history metrics (including slow queries).')
+    parser.add_argument('--enable-statement-history-metrics', action='store_true',
+                        help='collect statement-history metrics (including SQL text and query plans).')
     parser.add_argument('--disable-https', action='store_true',
                         help='disable Https scheme')
     parser.add_argument('--disable-agent', action='store_true',
@@ -189,7 +191,7 @@ class ExporterMain(Daemon):
                     yaml.load(fp, Loader=yaml.FullLoader),
                     force_connection_db='postgres'
                 )
-        if not self.args.disable_statement_history_metrics:
+        if self.args.enable_statement_history_metrics and not self.args.disable_statement_history_metrics:
             with open(os.path.join(YAML_DIR_PATH, STATEMENTS_YAML), errors='ignore') as fp:
                 service.register_metrics(
                     yaml.load(fp, Loader=yaml.FullLoader),
