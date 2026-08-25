@@ -19,6 +19,7 @@ import re
 import shutil
 import sys
 import tarfile
+from urllib.parse import urlparse
 
 import psycopg2
 import requests
@@ -107,7 +108,17 @@ def convert_full_width_character_to_half_width(s):
     return transformed
 
 
+class InsecureDownloadURL(ValueError):
+    pass
+
+
+def _require_https(url):
+    if urlparse(url).scheme.lower() != 'https':
+        raise InsecureDownloadURL('Download URL must use HTTPS: {}'.format(url))
+
+
 def download(path, url, timeout=10):
+    _require_https(url)
     headers = {'user-agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) '
                              'AppleWebKit/537.36 (KHTML, like Gecko) '
                              'Chrome/71.0.3578.98 '
@@ -122,7 +133,8 @@ def download(path, url, timeout=10):
     filepath = os.path.join(path, filename)
 
     try:  # make sure that stream == True
-        with s.get(url, stream=True, headers=headers, timeout=timeout, verify=False) as response:
+        with s.get(url, stream=True, headers=headers, timeout=timeout, verify=True) as response:
+            _require_https(response.url)
             content_size = int(response.headers['content-length'])
 
             if response.status_code == 200:  # 200 means success
@@ -144,6 +156,8 @@ def download(path, url, timeout=10):
                 print("\n{file} downloading's response is abnormal.".format(file=filename))
                 sys.exit(0)
 
+    except InsecureDownloadURL:
+        raise
     except Exception as e:
         print('\n')
         print(e)

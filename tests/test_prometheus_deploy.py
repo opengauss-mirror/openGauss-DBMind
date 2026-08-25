@@ -27,6 +27,7 @@ from dbmind.components.deployment.prometheus_deploy import (
     generate_checks
 )
 from dbmind.components.deployment.utils import (
+    download,
     url_generate,
     check_config_validity
 )
@@ -202,6 +203,44 @@ def test_config_ports_has_conflict(deploy_configs):
     configs.set('EXPORTERS', 'opengauss_ports_range', '9087-9197')
     assert (config_ports_has_conflict(configs))
     configs.set('EXPORTERS', 'opengauss_ports_range', '9187-9197')
+
+
+def test_download_requires_https(tmp_path):
+    with pytest.raises(ValueError, match='must use HTTPS'):
+        download(str(tmp_path), 'http://example.com/release.tar.gz')
+
+
+def test_download_verifies_tls(monkeypatch, tmp_path):
+    response = mock.MagicMock()
+    response.url = 'https://example.com/release.tar.gz'
+    response.status_code = 200
+    response.headers = {'content-length': '7'}
+    response.iter_content.return_value = [b'content']
+
+    session = mock.MagicMock()
+    session.get.return_value.__enter__.return_value = response
+    monkeypatch.setattr(
+        'dbmind.components.deployment.utils.requests.Session',
+        mock.MagicMock(return_value=session)
+    )
+
+    assert download(str(tmp_path), response.url)
+    assert session.get.call_args.kwargs['verify'] is True
+
+
+def test_download_rejects_https_downgrade(monkeypatch, tmp_path):
+    response = mock.MagicMock()
+    response.url = 'http://example.com/release.tar.gz'
+
+    session = mock.MagicMock()
+    session.get.return_value.__enter__.return_value = response
+    monkeypatch.setattr(
+        'dbmind.components.deployment.utils.requests.Session',
+        mock.MagicMock(return_value=session)
+    )
+
+    with pytest.raises(ValueError, match='must use HTTPS'):
+        download(str(tmp_path), 'https://example.com/release.tar.gz')
 
 
 def test_db_exporters_parsing(deploy_configs):
