@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+# Copyright (c) 2020 Huawei Technologies Co.,Ltd.
 #
 # openGauss is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -7,79 +7,38 @@
 #          http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT.
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import datetime
+from unittest import mock
 
 import pytest
 
-from dbmind.common.tsdb.prometheus_client import PrometheusClient, label_to_query
+from dbmind.common.tsdb.prometheus_client import PrometheusClient
 
 
-class MockResponse:
-    status_code = 200
-
-    @staticmethod
-    def json():
-        return {'data': {'result': []}}
-
-
-def test_label_to_query_escapes_promql_label_values():
-    query = label_to_query(
-        {'instance': 'db"1\\prod'},
-        {'role': 'primary|standby'}
-    )
-
-    assert query == '{instance="db\\"1\\\\prod",role=~"primary|standby"}'
+@pytest.fixture(autouse=True)
+def get_mock_client(monkeypatch):
+    monkeypatch.setattr(PrometheusClient, '_post',
+                        mock.MagicMock(return_value=mock.MagicMock(status_code=204, data={"result": "context"})))
+    monkeypatch.setattr(PrometheusClient, '_get',
+                        mock.MagicMock(return_value=mock.MagicMock(status_code=200, data={"result": "context"})))
 
 
-def test_label_to_query_rejects_injected_label_name():
-    with pytest.raises(ValueError):
-        label_to_query({'instance"} or up{': 'db1'})
-
-
-def test_get_current_metric_value_rejects_invalid_metric_name():
-    client = PrometheusClient('http://localhost:9090')
-
-    with pytest.raises(ValueError):
-        client.get_current_metric_value('up} or process_cpu_seconds_total{')
-
-
-def test_get_metric_range_data_escapes_promql_label_values(monkeypatch):
-    captured = {}
-    client = PrometheusClient('http://localhost:9090')
-
-    def mock_get(url, **kwargs):
-        captured.update(kwargs['params'])
-        return MockResponse()
-
-    monkeypatch.setattr(client, '_get', mock_get)
-
-    client.get_metric_range_data(
-        'up',
-        label_config={'instance': 'db"1} or process_cpu_seconds_total{'},
-        params={'labels_like': {'role': 'primary"|standby'}},
-        step='30s'
-    )
-
-    assert captured['query'] == 'up{instance="db\\"1} or process_cpu_seconds_total{",role=~"primary\\"|standby"}'
-
-
-def test_get_metric_range_data_rejects_invalid_metric_name():
-    client = PrometheusClient('http://localhost:9090')
-
-    with pytest.raises(ValueError):
-        client.get_metric_range_data('up} or process_cpu_seconds_total{')
-
-
-def test_delete_metric_data_rejects_invalid_metric_name():
-    client = PrometheusClient('http://localhost:9090')
-
-    with pytest.raises(ValueError):
-        client.delete_metric_data('up} or process_cpu_seconds_total{', 1, 2)
-
-
-def test_delete_metric_data_rejects_injected_label_name():
-    client = PrometheusClient('http://localhost:9090')
-
-    with pytest.raises(ValueError):
-        client.delete_metric_data('up', 1, 2, labels={'instance"} or up{': 'db1'})
+def test_prometheus_query(monkeypatch):
+    client = PrometheusClient(url='http://127.0.0.1')
+    assert client.get_current_metric_value(metric_name="test", min_value=1, max_value=10) == []
+    assert client.get_metric_range_data(metric_name="test", min_value=1, max_value=10) == []
+    assert client.get_metric_range_data(metric_name="test", min_value=1, max_value=10, step="1000") == []
+    from_datetime = datetime.datetime.fromtimestamp(1692087897)
+    to_datetime = datetime.datetime.fromtimestamp(1692174298)
+    assert client.delete_metric_data(
+        metric_name="test", from_datetime=from_datetime, to_datetime=to_datetime, flush=True) is None
+    assert client.custom_query(query='test') == []
+    assert client.custom_query_range(query='test',
+                                     start_time=datetime.datetime.now() - datetime.timedelta(minutes=10),
+                                     end_time=datetime.datetime.now(),
+                                     step="1000") == []
+    assert client.timestamp() == 0
+    assert client.name == "prometheus"

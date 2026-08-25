@@ -3,7 +3,8 @@ import { Col, Row, message } from 'antd';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
 import { commonMetricMethod } from '../../utils/function';
 
-const metricData = ['gaussdb_cpu_time', 'pg_summary_file_iostat_total_phyblkrd', 'pg_summary_file_iostat_total_phyblkwrt']
+// 使用 reprocessing_exporter 提供的 CPU 时间指标
+const metricData = ['opengauss_cpu_time', 'pg_summary_file_iostat_total_phyblkrd', 'pg_summary_file_iostat_total_phyblkwrt']
 export default class DBResourceUsage extends Component {
   constructor(props) {
     super(props)
@@ -14,7 +15,7 @@ export default class DBResourceUsage extends Component {
         instance: this.props.selValue,
         latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,
         fetch_all: false,
-        regex: false,
+        regex: true,
         from_timestamp: this.props.startTime ? this.props.startTime : null,
         to_timestamp: this.props.endTime ? this.props.endTime : null
       }
@@ -50,7 +51,7 @@ export default class DBResourceUsage extends Component {
   componentDidUpdate(prevProps) {
     if (prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        param: Object.assign(this.state.param, { instance: this.props.selValue, latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null, from_timestamp: this.props.startTime, to_timestamp: this.props.endTime })
+        param: Object.assign(this.state.param, { instance: this.props.selValue, latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null, from_timestamp: this.props.startTime, to_timestamp: this.props.endTime, regex: true })
       }), () => {
         if (this.props.tabkey === "4") {
           this.getCpuDataAll()

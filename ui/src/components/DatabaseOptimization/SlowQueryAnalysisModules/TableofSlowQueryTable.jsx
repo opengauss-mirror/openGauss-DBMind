@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import { Card, Table } from "antd";
+import {Card, Table, message} from "antd";
 import PropTypes from "prop-types";
 import ResizeableTitle from "../../common/ResizeableTitle";
 import { formatTimestamp } from "../../../utils/function";
@@ -22,6 +22,9 @@ export default class TableofSlowQueryTable extends Component {
       tableWidth: 0,
       slowQueryDown: []
     };
+  
+    // 绑定方法以避免this指向问题
+    this.handleTableData = this.handleTableData.bind(this);
   }
   components = {
     header: {

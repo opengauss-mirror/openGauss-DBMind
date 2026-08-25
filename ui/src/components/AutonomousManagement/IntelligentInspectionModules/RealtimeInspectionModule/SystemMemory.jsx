@@ -1,4 +1,5 @@
 import React, { Component } from "react";
+import PropTypes from "prop-types";
 import { Col, Row, Card } from "antd";
 
 import NodeEchartFormWork from "../../../NodeInformation/NodeModules/NodeEchartFormWork";

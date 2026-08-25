@@ -16,10 +16,8 @@ import math
 import random
 import copy
 from collections import defaultdict
-try:
-    from utils import infer_workload_benefit
-except ImportError:
-    from .utils import infer_workload_benefit
+
+from .models import infer_workload_benefit
 
 TOTAL_STORAGE = 0
 STORAGE_THRESHOLD = 0
@@ -289,7 +287,8 @@ def best_child(node, is_exploration):
             C = 1 / math.sqrt(2.0)
         else:
             C = 0.0
-        # UCB = quality / times + C * sqrt(2 * ln(total_times) / times)
+        # UCB formula is:
+        # quality / times + C * sqrt(2 * ln(total_times) / times)
         left = sub_node.get_quality_value() / sub_node.get_visit_number()
         right = 2.0 * math.log(node.get_visit_number()) / sub_node.get_visit_number()
         score = left + C * math.sqrt(right)

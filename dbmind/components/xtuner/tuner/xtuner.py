@@ -14,8 +14,9 @@
 import logging
 import os
 import signal
-from logging import handlers
 
+from dbmind.common.utils import write_to_terminal
+from dbmind.common.utils.exporter import set_logger
 from . import benchmark
 from .character import WORKLOAD_TYPE
 from .db_agent import new_db_agent
@@ -37,34 +38,11 @@ def prompt_restart_risks():
                     "FATAL: Tuning program will exit because you are not currently allowed to interrupt business."
                 )
             )
-            exit(0)
+            exit(1)
         elif answer.lower() == 'yes':
             return
         else:
             answer = input(YELLOW_FMT.format("Please input yes or no:"))
-
-
-def set_logger(filename):
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
-    dirname = os.path.dirname(filename)
-    if not os.path.exists(dirname):
-        os.makedirs(dirname, mode=0o700)
-
-    stream_hdlr = logging.StreamHandler()
-    stream_hdlr.setLevel(logging.WARNING)
-
-    rota_hdlr = handlers.RotatingFileHandler(filename=filename,
-                                             maxBytes=1024 * 1024 * 100,
-                                             backupCount=5)
-    rota_hdlr.setLevel(logging.INFO)
-    formatter = logging.Formatter('[%(asctime)s] {%(filename)s:%(lineno)d} %(levelname)s - %(message)s',
-                                  '%m-%d %H:%M:%S')
-    rota_hdlr.setFormatter(formatter)
-
-    logger.addHandler(stream_hdlr)
-    logger.addHandler(rota_hdlr)
 
 
 def procedure_main(mode, db_info, config):
@@ -81,9 +59,17 @@ def procedure_main(mode, db_info, config):
     # Set the minimum permission on the output files.
     os.umask(0o0077)
     # Initialize logger.
-    set_logger(config['logfile'])
-    logging.info('Starting... (mode: %s)', mode)
+    logfile_path = os.path.join(os.getcwd(), config['logfile'])
+    set_logger(logfile_path, level="INFO")
     db_agent = new_db_agent(db_info)
+    num_cn = get_num_cn(db_agent)
+    logging.info('Starting... (mode: %s)', mode)
+    if num_cn is None:
+        write_to_terminal('Can not get the deployment mode.', color='red')
+        return -1
+    if num_cn > 0:
+        write_to_terminal('The Xtuner module does not support distributed.', color='red')
+        return -1
 
     # Clarify the scenario:
     if config['scenario'] in WORKLOAD_TYPE.TYPES:
@@ -239,3 +225,17 @@ def global_search(env, config):
         pso.minimize()
     else:
         raise ValueError('Incorrect method value: %s.' % method)
+
+
+def get_num_cn(db_agent):
+    """
+
+    Args:
+        db_agent: The connection to db.
+
+    Returns: the num of cn
+
+    """
+    sql = "select pg_catalog.count(*) from pg_catalog.pgxc_node where node_type='C';"
+    result = db_agent.exec_statement(sql)
+    return int(result[0][0]) if result and result[0] else None

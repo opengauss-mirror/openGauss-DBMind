@@ -17,30 +17,31 @@ import glob
 import os
 import platform
 import re
+import shlex
+import socket
 import sys
 import time
 from collections import defaultdict
-from urllib.parse import quote_plus
+from psycopg2.extensions import make_dsn
+from socket import getaddrinfo, gethostname
 from typing import Callable
 
 import requests
 import yaml
-from paramiko.ssh_exception import AuthenticationException
+from pexpect import ExceptionPexpect
 from prettytable import PrettyTable
 from requests.adapters import HTTPAdapter
-from socket import getaddrinfo, gethostname
 from urllib3 import disable_warnings
 from urllib3.exceptions import InsecureRequestWarning
 
-from dbmind.common.cmd_executor import SSH
+from dbmind.common.cmd_executor import SSH, SFTP, transfer_pool
 from dbmind.common.utils import dbmind_assert
 from dbmind.common.utils.base import RED_FMT, GREEN_FMT
-from dbmind.common.utils.checking import path_type
+from dbmind.common.utils.checking import path_type, prepare_ip, split_ip_port
 from dbmind.common.utils.cli import keep_inputting_until_correct
 from dbmind.constants import __version__
 from .utils import ConfigParser
 from .utils import (
-    SFTP,
     unzip,
     checksum_sha256,
     download_file,
@@ -48,10 +49,10 @@ from .utils import (
     check_config_validity,
     convert_full_width_character_to_half_width,
     parse_ip_info_from_string,
-    transfer_pool,
     validate_ssh_connection,
     validate_database_connection
 )
+from ...common.utils.exporter import set_logger
 
 disable_warnings(InsecureRequestWarning)
 
@@ -93,12 +94,13 @@ DBMIND_PERMISSION = '400'
 FILE_PERMISSION = '600'
 DIR_PERMISSION = '700'
 
-LOCALHOSTS = set([h[4][0] for h in getaddrinfo(gethostname(), None) if ':' not in h[4][0]] + ['127.0.0.1'])
-
+LOCALHOSTS = set([h[4][0] for h in getaddrinfo(gethostname(), None, family=socket.AF_INET)] + ['127.0.0.1'])
 ARCHITECTURES = {
     'x86_64': 'amd64',
     'aarch64': 'arm64',
 }
+
+N_TRANSPORTERS = 4
 
 
 def has_conflict(host, port, ports_occupied, option, section):
@@ -159,7 +161,7 @@ def config_ports_has_conflict(configs):
                 host = list()
                 for url in urls:
                     host_port = url.split('/', 1)[0].strip()
-                    h, p = map(str.strip, host_port.split(':', 1))
+                    h, p = map(str.strip, split_ip_port(host_port))
                     if has_conflict(h, p, ports_occupied, option, section):
                         return True
 
@@ -167,7 +169,7 @@ def config_ports_has_conflict(configs):
 
                 for url in urls:
                     host_port = url.split('/', 1)[0].strip()
-                    h, p = map(str.strip, host_port.split(':', 1))
+                    h, p = map(str.strip, split_ip_port(host_port))
                     add_port(h, p, ports_occupied)
 
     return False
@@ -181,25 +183,25 @@ def passwd_input(key, configs):
         port = configs.get(PROMETHEUS, 'ssh_port')
         dbmind_assert(
             username.strip() and port.strip(),
-            "Empty username or port. You should deploy and configure first."
+            "Empty usrname or port. You should checkout the config file."
         )
-        hosts = [username + '@' + configs.get(key, 'host') + ':' + port]
+        hosts = [f"{username}@{prepare_ip(configs.get(key, 'host'))}:{port}"]
     elif key == EXPORTERS:
         username = configs.get(EXPORTERS, 'host_username')
         port = configs.get(EXPORTERS, 'ssh_port')
         targets = configs.get(EXPORTERS, 'targets')
         dbmind_assert(
             username.strip() and port.strip() and targets.strip(),
-            "Empty username, port or address. You should deploy and configure first."
+            "Empty usrname, port or address. You should checkout the config file."
         )
-        hosts = list(set([username + '@' + s.split(':', 1)[0] + ':' + port
+        hosts = list(set([f"{username}@{prepare_ip(split_ip_port(s)[0])}:{port}"
                           for s in map(str.strip, targets.split(','))]))
     elif key == DATABASE:
         username = configs.get(EXPORTERS, 'database_username')
         targets = configs.get(EXPORTERS, 'targets')
         dbmind_assert(
             username.strip() and targets.strip(),
-            "Empty username or address. You should deploy and configure first."
+            "Empty usrname or address. You should checkout the config file."
         )
         hosts = list(set([username + '@' + s for s in map(str.strip, targets.split(','))]))
         validate = validate_database_connection
@@ -225,7 +227,7 @@ def db_exporters_parsing(configs):
     exporters = {}
     for url in urls:
         host_port = url.split('/')[0].strip()
-        host = host_port.split(':')[0].strip()
+        host = split_ip_port(host_port)[0].strip()
         if host not in exporters:
             exporters[host] = defaultdict(list)
 
@@ -234,7 +236,7 @@ def db_exporters_parsing(configs):
             continue
 
         for port in opengauss_ports_range:
-            opengauss_exporter = host + ':' + port
+            opengauss_exporter = f"{prepare_ip(host)}:{port}"
             if opengauss_exporter not in exporters[host]['opengauss_exporters']:
                 exporters[host]['db_instance'].append(url)
                 exporters[host]['opengauss_exporters'].append(opengauss_exporter)
@@ -283,14 +285,14 @@ def set_deploy_config_interactive(configs):
                 urls = parse_ip_info_from_string(input_value_)
                 for url in urls:
                     host_port = url.split('/', 1)[0].strip()
-                    h, p = map(str.strip, host_port.split(':', 1))
+                    h, p = map(str.strip, split_ip_port(host_port))
                     if has_conflict(h, p, ports_occupied, o, s):
                         input_value_ = ''
                         break
                 else:
                     for url in urls:
                         host_port = url.split('/', 1)[0].strip()
-                        h, p = map(str.strip, host_port.split(':', 1))
+                        h, p = map(str.strip, split_ip_port(host_port))
                         add_port(h, p, ports_occupied)
 
         return input_value_.strip()
@@ -329,7 +331,7 @@ def set_deploy_config_interactive(configs):
             elif section == PROMETHEUS and option == 'host':
                 host = configs.get(PROMETHEUS, 'host')
             elif section == EXPORTERS and option == 'targets':
-                host = list(set([s.split(':', 1)[0] for s in
+                host = list(set([split_ip_port(s)[0] for s in
                                  map(str.strip, configs.get(EXPORTERS, 'targets').split(','))]))
 
     with open(CONFIG_PATH, 'w') as f:  # write the config file
@@ -350,10 +352,8 @@ def edit_prometheus_yaml(
             'static_configs': [
                 {
                     'targets': [
-                        '{}:{}'.format(
-                            configs.get(PROMETHEUS, 'host'),
-                            configs.get(PROMETHEUS, 'prometheus_port')
-                        )
+                        f"{prepare_ip(configs.get(PROMETHEUS, 'host'))}:"
+                        f"{configs.get(PROMETHEUS, 'prometheus_port')}"
                     ]
                 }
             ],
@@ -364,10 +364,8 @@ def edit_prometheus_yaml(
             'static_configs': [
                 {
                     'targets': [
-                        '{}:{}'.format(
-                            configs.get(PROMETHEUS, 'host'),
-                            configs.get(PROMETHEUS, 'reprocessing_exporter_port')
-                        )
+                        f"{prepare_ip(configs.get(PROMETHEUS, 'host'))}:"
+                        f"{configs.get(PROMETHEUS, 'reprocessing_exporter_port')}"
                     ]
                 }
             ],
@@ -447,7 +445,7 @@ def edit_prometheus_yaml(
 
 def get_target_generator(exporters):
     def generate(port):
-        return [f'{host}:{port}' for host in exporters]
+        return [f'{prepare_ip(host)}:{port}' for host in exporters]
 
     return generate
 
@@ -475,14 +473,12 @@ def deploy(configs, online=False, lite=None):
         )
     }
 
-    dbmind_list = glob.glob(os.path.join(DBMIND_PATH, "dbmind", "**"), recursive=True)
-
     def sftp_upload(ip, username, passwd, port, remote_dir, software):
-        def upload_preparation(local_dir, remote_dir):
-            sftp.mkdir(remote_dir)
-            for entry in os.scandir(local_dir):
-                local_path = os.path.join(local_dir, entry.name)
-                remote_path = os.path.join(remote_dir, entry.name)
+        def upload_preparation(local, remote):
+            sftp.mkdir(remote)
+            for entry in os.scandir(local):
+                local_path = os.path.join(local, entry.name)
+                remote_path = os.path.join(remote, entry.name)
                 if entry.is_file() and entry.path not in block_dict["file"]:
                     if ip in LOCALHOSTS and local_path == remote_path:
                         print(f'WARNING: Source: {local_path} and destination: {remote_path}'
@@ -490,28 +486,32 @@ def deploy(configs, online=False, lite=None):
                               ' Transportation was skipped to avoid overwriting.')
                         continue
                     upload_list.append((local_path, remote_path))
-                    if entry.path in dbmind_list:
-                        dbmind_permission.append(f'chmod {DBMIND_PERMISSION} {remote_path}')
-                    else:
-                        dbmind_permission.append(f'chmod {FILE_PERMISSION} {remote_path}')
 
                 elif entry.is_dir() and entry.path not in block_dict["dir"]:
-                    dbmind_permission.append(f'chmod {DIR_PERMISSION} {remote_path}')
                     upload_preparation(entry.path, remote_path)
 
         with SFTP(ip, username, passwd, port=int(port)) as sftp:
             upload_list = list()
-            dbmind_permission = list()
-            sftp.remote_executor([f"chmod +w -R {remote_dir}"])
+            sftp.mkdir(remote_dir)
+            sftp.remote_executor.exec_command_sync(f"chmod u+xw -R {shlex.quote(remote_dir)}")
             if lite is None:
                 upload_preparation(DBMIND_PATH, remote_dir)
 
             upload_preparation(os.path.join(EXTRACT_PATH, software),
                                os.path.join(remote_dir, software))
 
-            transfer_pool(ip, int(port), username, passwd, upload_list, workers=4)
+            transfer_pool(ip, username, passwd, upload_list, port=int(port), workers=N_TRANSPORTERS)
 
-            sftp.remote_executor(dbmind_permission)
+            dbmind_permission = list()
+            dbmind_dir = os.path.join(remote_dir, "dbmind")
+            dbmind_permission.append(f'find {shlex.quote(remote_dir)} -type d -exec chmod {DIR_PERMISSION} {{}} \;')
+            dbmind_permission.append(f'find {shlex.quote(remote_dir)} -type f -exec chmod {FILE_PERMISSION} {{}} \;')
+            dbmind_permission.append(f'find {shlex.quote(dbmind_dir)} -type f -exec chmod {DBMIND_PERMISSION} {{}} \;')
+            dbmind_permission.append(f'chmod +x {shlex.quote(os.path.join(remote_dir, "gs_dbmind"))}')
+            dbmind_permission.append(f'find {shlex.quote(remote_dir)} -maxdepth 1 -type d -name python*'
+                                     f' -exec chmod -R +x {{}}/bin \;')
+
+            sftp.remote_executor.exec_command_sync(dbmind_permission)
 
     download_path = os.path.join(EXTRACT_PATH, 'downloads')
     if not os.path.exists(download_path):
@@ -600,11 +600,11 @@ def deploy(configs, online=False, lite=None):
     else:
         if lite == 'node_exporter':
             node_exporter_path = '/tmp/node_exporter'
-            if os.path.exists(node_exporter_path):
+            if node_exporter_ready:
                 local_dir = os.path.join(EXTRACT_PATH, configs.get(DOWNLOADING, "node_exporter"))
                 if not os.path.exists(local_dir):
                     os.mkdir(local_dir)
-                cmd = 'cp {} {}'.format(node_exporter_path, local_dir)
+                cmd = 'cp {} {}'.format(shlex.quote(node_exporter_path), shlex.quote(local_dir))
                 os.system(cmd)
                 exporters = db_exporters_parsing(configs)
                 for target in exporters:
@@ -634,19 +634,19 @@ def generate_tasks(configs):
     """
 
     def cert_permission(x):
-        tasks[x].append(f'chmod {CERT_PERMISSION} {configs.get(SSL, "prometheus_ssl_keyfile")}')
-        tasks[x].append(f'chmod {CERT_PERMISSION} {configs.get(SSL, "prometheus_ssl_ca_file")}')
-        tasks[x].append(f'chmod {CERT_PERMISSION} {configs.get(SSL, "prometheus_ssl_certfile")}')
-        tasks[x].append(f'chmod {CERT_PERMISSION} {configs.get(SSL, "exporter_ssl_keyfile")}')
-        tasks[x].append(f'chmod {CERT_PERMISSION} {configs.get(SSL, "exporter_ssl_ca_file")}')
-        tasks[x].append(f'chmod {CERT_PERMISSION} {configs.get(SSL, "exporter_ssl_certfile")}')
+        tasks[x].append(f'chmod {CERT_PERMISSION} {shlex.quote(configs.get(SSL, "prometheus_ssl_keyfile"))}')
+        tasks[x].append(f'chmod {CERT_PERMISSION} {shlex.quote(configs.get(SSL, "prometheus_ssl_ca_file"))}')
+        tasks[x].append(f'chmod {CERT_PERMISSION} {shlex.quote(configs.get(SSL, "prometheus_ssl_certfile"))}')
+        tasks[x].append(f'chmod {CERT_PERMISSION} {shlex.quote(configs.get(SSL, "exporter_ssl_keyfile"))}')
+        tasks[x].append(f'chmod {CERT_PERMISSION} {shlex.quote(configs.get(SSL, "exporter_ssl_ca_file"))}')
+        tasks[x].append(f'chmod {CERT_PERMISSION} {shlex.quote(configs.get(SSL, "exporter_ssl_certfile"))}')
 
     tasks = defaultdict(list)
     if configs.get(SSL, 'enable_ssl') == "True":
         ssl = '--ssl-keyfile {} --ssl-certfile {} --ssl-ca-file {}'.format(
-            configs.get(SSL, 'exporter_ssl_keyfile'),
-            configs.get(SSL, 'exporter_ssl_certfile'),
-            configs.get(SSL, 'exporter_ssl_ca_file'),
+            shlex.quote(configs.get(SSL, 'exporter_ssl_keyfile')),
+            shlex.quote(configs.get(SSL, 'exporter_ssl_certfile')),
+            shlex.quote(configs.get(SSL, 'exporter_ssl_ca_file')),
         )
     else:
         ssl = '--disable-https'
@@ -660,26 +660,23 @@ def generate_tasks(configs):
     reprocessing_exporter_port = configs.get(PROMETHEUS, 'reprocessing_exporter_port')
     try:
         ssh = SSH(host, username, PWD[PROMETHEUS], port=int(port))
-        executor = ssh.exec_command_sync
-    except AuthenticationException:
-        raise AuthenticationException(
-            "Invalid username, password or address for {}@{}:{}".format(username, host, port)
-        )
+        executor = ssh
+    except ExceptionPexpect:
+        raise ExceptionPexpect(f"Invalid usrname, passwd or address for {username}@{prepare_ip(host)}:{port}")
 
     prometheus_path = os.path.join(path, configs.get(DOWNLOADING, 'prometheus'))
-    dbmind_path = os.path.join(path, 'gs_dbmind')
+
     # Authorize to make the file executable
-    tasks[executor].append(f'chmod +x {os.path.join(prometheus_path, "prometheus")}')
-    tasks[executor].append(f'chmod +x {dbmind_path}')
+    tasks[executor].append(f'chmod +x {shlex.quote(os.path.join(prometheus_path, "prometheus"))}')
     if configs.get(SSL, 'enable_ssl') == "True":
         cert_permission(executor)
 
     # prometheus
-    prometheus_listen = '--web.listen-address=' + ':'.join([listen_address, prometheus_port])
-    prometheus_conf = '--config.file {}'.format(os.path.join(prometheus_path, 'prometheus.yml'))
-    prometheus_web = '--web.enable-admin-api'
-    prometheus_retention_time = '--storage.tsdb.retention.time=1w'
-    prometheus_log_dir = f'>{os.path.join(EXTRACT_PATH, "prometheus.log")}'
+    prometheus_listen = f"--web.listen-address={shlex.quote(prepare_ip(listen_address))}:{prometheus_port}"
+    prometheus_conf = f"--config.file {shlex.quote(os.path.join(prometheus_path, 'prometheus.yml'))}"
+    prometheus_web = "--web.enable-admin-api"
+    prometheus_retention_time = "--storage.tsdb.retention.time=1w"
+    prometheus_log_dir = f">{shlex.quote(os.path.join(path, 'prometheus.log'))}"
     prometheus_cmd = ' '.join([
         os.path.join(prometheus_path, 'prometheus'),
         prometheus_listen,
@@ -692,11 +689,12 @@ def generate_tasks(configs):
     WAITING_CMD.append(prometheus_cmd)
     BACKEND_CMD.append(prometheus_cmd)
     # reprocessing exporter
-    reprocessing_exporter_web = '{} {}'.format(host, prometheus_port)
+    reprocessing_exporter_web = '{} {}'.format(shlex.quote(str(host)), shlex.quote(str(prometheus_port)))
     reprocessing_exporter_listen = '--web.listen-address {} --web.listen-port {}'.format(
-        listen_address,
+        shlex.quote(listen_address),
         reprocessing_exporter_port
     )
+    dbmind_path = shlex.quote(os.path.join(path, 'gs_dbmind'))
     reprocessing_exporter_cmd = ' '.join([
         dbmind_path,
         'component',
@@ -710,7 +708,7 @@ def generate_tasks(configs):
         f'reprocessing-exporter of {host} has been started or the address already in use.',
         f'reprocessing-exporter of {host}'
     ])
-    tasks[executor].append(f'chmod {LOG_PERMISSION} {os.path.join(EXTRACT_PATH, "prometheus.log")}')
+    tasks[executor].append(f'chmod {LOG_PERMISSION} {shlex.quote(os.path.join(path, "prometheus.log"))}')
     # node_exporters, cmd_exporters and opengauss_exporters
     exporters = db_exporters_parsing(configs)
     username = configs.get(EXPORTERS, 'host_username')
@@ -722,24 +720,19 @@ def generate_tasks(configs):
     for host in exporters:
         try:
             db_ssh = SSH(host, username, PWD[EXPORTERS], port=int(port))
-            executor = db_ssh.exec_command_sync
-        except AuthenticationException:
-            raise AuthenticationException(
-                "Invalid username, password or address for "
-                "{}@{}:{}".format(username, host, port)
-            )
+            executor = db_ssh
+        except ExceptionPexpect:
+            raise ExceptionPexpect(f"Invalid usrname, passwd or address for {username}@{prepare_ip(host)}:{port}")
 
         node_exporter_path = os.path.join(path, configs.get(DOWNLOADING, 'node_exporter'))
-        dbmind_path = os.path.join(path, 'gs_dbmind')
+
         # Authorize to make the file executable
-        tasks[executor].append(f'chmod +x {os.path.join(node_exporter_path, "node_exporter")}')
-        tasks[executor].append(f'chmod +x {os.path.join(path, "python/bin/*")}')
-        tasks[executor].append(f'chmod +x {dbmind_path}')
+        tasks[executor].append(f'chmod +x {shlex.quote(os.path.join(node_exporter_path, "node_exporter"))}')
         if configs.get(SSL, 'enable_ssl') == "True":
             cert_permission(executor)
 
         # node exporter
-        node_exporter_listen = '--web.listen-address=:{}'.format(node_exporter_port)
+        node_exporter_listen = '--web.listen-address=:{}'.format(shlex.quote(str(node_exporter_port)))
         node_exporter_cmd = ' '.join([
             os.path.join(node_exporter_path, 'node_exporter'),
             node_exporter_listen
@@ -748,9 +741,10 @@ def generate_tasks(configs):
         BACKEND_CMD.append(node_exporter_cmd)
         # cmd exporter
         cmd_exporter_listen = '--web.listen-address {} --web.listen-port {}'.format(
-            listen_address if listen_address == '0.0.0.0' else host,
-            cmd_exporter_port
+            shlex.quote(str(listen_address)) if listen_address == '0.0.0.0' else shlex.quote(host),
+            shlex.quote(str(cmd_exporter_port))
         )
+        dbmind_path = shlex.quote(os.path.join(path, 'gs_dbmind'))
         cmd_exporter_cmd = ' '.join([
             dbmind_path,
             'component',
@@ -768,20 +762,16 @@ def generate_tasks(configs):
         for i, db_instance in enumerate(exporters[host]['db_instance']):
             opengauss_exporter = exporters[host]['opengauss_exporters'][i]
             opengauss_exporter_listen = '--web.listen-address {} --web.listen-port {}'.format(
-                listen_address if listen_address == '0.0.0.0' else host,
-                opengauss_exporter.split(':')[1],
+                shlex.quote(str(listen_address)) if listen_address == '0.0.0.0' else shlex.quote(host),
+                shlex.quote(str(split_ip_port(opengauss_exporter)[1])),
             )
-            dsn = 'postgresql://{0}:{1}@{2}'.format(
-                quote_plus(db_username),
-                quote_plus(PWD[DATABASE]),
-                quote_plus(db_instance, safe=':/'),
-            )
+            dsn = make_dsn('postgresql://{}'.format(db_instance), user=db_username, password=PWD[DATABASE])
             opengauss_exporter_cmd = ' '.join([
                 dbmind_path,
                 'component',
                 'opengauss_exporter',
-                '--url',
-                dsn,
+                '--dsn',
+                shlex.quote(dsn),
                 opengauss_exporter_listen,
                 ssl
             ])
@@ -802,9 +792,9 @@ def run(tasks):
             if isinstance(cmd, list):
                 print(f'Starting {cmd[2]}')
                 if cmd[0] in BACKEND_CMD:
-                    _, _ = executor([f"{cmd[0]} 2>&1 &"])
+                    _, _ = executor.exec_command_sync("nohup " + cmd[0], redirection=" 2>&1 &")
                 else:
-                    stdout, stderr = executor(cmd[0], get_pty=True)
+                    stdout, stderr = executor.exec_command_sync(cmd[0])
                     if 'address already in use' in stdout:
                         print(cmd[1])
                         continue
@@ -814,12 +804,14 @@ def run(tasks):
                     time.sleep(30)
 
             else:
-                stdout, stderr = executor(cmd, get_pty=True)
+                stdout, stderr = executor.exec_command_sync(cmd)
 
             if stderr:
                 print(stderr)
             elif stdout:
                 print(stdout)
+
+        executor.close()
 
 
 def generate_checks(configs):
@@ -835,23 +827,23 @@ def generate_checks(configs):
     listen_address = configs.get(PROMETHEUS, 'listen_address')
     prometheus_port = configs.get(PROMETHEUS, 'prometheus_port')
     reprocessing_exporter_port = configs.get(PROMETHEUS, 'reprocessing_exporter_port')
-    prometheus_url = "{}:{}/api/v1/query?query=up".format(host, prometheus_port)
+    prometheus_url = f"{prepare_ip(host)}:{prometheus_port}/api/v1/query?query=up"
     checks.append({
         'url': prometheus_url,
         'type': 'prometheus-server',
-        'address': ':'.join([host, prometheus_port]),
-        'listen': ':'.join([listen_address, prometheus_port]),
+        'address': f"{prepare_ip(host)}:{prometheus_port}",
+        'listen': f"{prepare_ip(listen_address)}:{prometheus_port}",
         'target': '-',
         'status': 'Down'
     })
     # reprocessing exporter
-    reprocessing_exporter_url = "{}:{}/metrics".format(host, reprocessing_exporter_port)
+    reprocessing_exporter_url = f"{prepare_ip(host)}:{reprocessing_exporter_port}/metrics"
     checks.append({
         'url': reprocessing_exporter_url,
         'type': 'reprocessing-exporter',
-        'address': ':'.join([host, reprocessing_exporter_port]),
-        'listen': ':'.join([listen_address, reprocessing_exporter_port]),
-        'target': ':'.join([host, prometheus_port]),
+        'address': f"{prepare_ip(host)}:{reprocessing_exporter_port}",
+        'listen': f"{prepare_ip(listen_address)}:{reprocessing_exporter_port}",
+        'target': f"{prepare_ip(host)}:{prometheus_port}",
         'status': 'Down'
     })
     # node_exporters, cmd_exporters and opengauss_exporters
@@ -861,44 +853,36 @@ def generate_checks(configs):
     cmd_exporter_port = configs.get(EXPORTERS, 'cmd_exporter_port')
     for host in exporters:
         # node exporter
-        node_exporter_url = "{}:{}/metrics".format(host, node_exporter_port)
+        listen = listen_address if listen_address == '0.0.0.0' else host
+        node_exporter_url = f"{prepare_ip(host)}:{node_exporter_port}/metrics"
         checks.append({
             'url': node_exporter_url,
             'type': 'node-exporter',
-            'address': ':'.join([host, node_exporter_port]),
-            'listen': ':'.join([
-                listen_address if listen_address == '0.0.0.0' else host,
-                node_exporter_port
-            ]),
+            'address': f"{prepare_ip(host)}:{node_exporter_port}",
+            'listen': f"{prepare_ip(listen)}:{node_exporter_port}",
             'target': host,
             'status': 'Down'
         })
         # cmd exporter
-        cmd_exporter_url = "{}:{}/metrics".format(host, cmd_exporter_port)
+        cmd_exporter_url = f"{prepare_ip(host)}:{cmd_exporter_port}/metrics"
         checks.append({
             'url': cmd_exporter_url,
             'type': 'cmd-exporter',
-            'address': ':'.join([host, cmd_exporter_port]),
-            'listen': ':'.join([
-                listen_address if listen_address == '0.0.0.0' else host,
-                cmd_exporter_port
-            ]),
+            'address': f"{prepare_ip(host)}:{cmd_exporter_port}",
+            'listen': f"{prepare_ip(listen)}:{cmd_exporter_port}",
             'target': host,
             'status': 'Down'
         })
         # opengauss exporter
         for i, db_instance in enumerate(exporters[host]['db_instance']):
             opengauss_exporter = exporters[host]['opengauss_exporters'][i]
-            opengauss_port = opengauss_exporter.split(':')[1]
+            opengauss_port = split_ip_port(opengauss_exporter)[1]
             opengauss_exporter_url = "{}/metrics".format(opengauss_exporter)
             checks.append({
                 'url': opengauss_exporter_url,
                 'type': 'opengauss-exporter',
                 'address': opengauss_exporter,
-                'listen': ':'.join([
-                    listen_address if listen_address == '0.0.0.0' else host,
-                    opengauss_port
-                ]),
+                'listen': f"{prepare_ip(listen)}:{opengauss_port}",
                 'target': db_instance,
                 'status': 'Down'
             })
@@ -1013,6 +997,8 @@ def main(argv):
                              'all for deploy Prometheus and node_exporter. '
                              'prometheus for deploy Prometheus. node_exporter for deploy node_exporter.')
     args = vars(parser.parse_args(argv))
+    log_file_path = os.path.join(os.getcwd(), 'dbmind_deployment.log')
+    set_logger(log_file_path, "info")
 
     n_actions = sum([bool(action) for action in (args['online'], args['offline'], args['run'], args['check'])])
     if n_actions == 0:

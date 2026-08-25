@@ -17,6 +17,8 @@ import sys
 
 from dbmind.common.utils import where_am_i
 
+components_black_list = ['fetch_statement', 'anomaly_analysis', 'forecast', 'metric_diagnosis', 'deployment']
+
 
 def list_components():
     """Return all components in current directory."""
@@ -25,6 +27,9 @@ def list_components():
         map(lambda tup: tup[1],
             pkgutil.iter_modules((curr_dir,)))
     )
+    for component in components_black_list:
+        if component in components:
+            components.remove(component)
 
     return components
 

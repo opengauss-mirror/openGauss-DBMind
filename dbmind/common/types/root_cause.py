@@ -73,15 +73,21 @@ class RootCause:
     QPS_VIOLENT_INCREASE = _Define('[DB][QPS]', 'Database QPS rises sharply.', 'NONE')
     POOR_SQL_PERFORMANCE = _Define('[DB][SQL]', 'Database has poor performance of SQL.', 'NONE')
     # slow query
+    REMOTE_QUERY = _Define('[SLOW SQL][OPERATOR]',
+                           'Sql can not be pushdown.',
+                           'Avoid using functions or expressions which can not be pushdown.')
+    LARGE_BROADCAST = _Define('[SLOW SQL][OPERATOR]',
+                              'Large table in Broadcast streaming.',
+                              'Optimize the sql to avoid large table in broadcast streaming.')
     LOCK_CONTENTION = _Define('[SLOW QUERY][LOCK]',
-                              '{lock_contention}',
+                              '{lock_contention}.',
                               'Adjust the business reasonably to avoid lock blocking.')
     MANY_DEAD_TUPLES = _Define('[SLOW QUERY][TABLE EXPANSION]',
                                '{many_dead_tuples}.',
                                '{many_dead_tuples}.')
     HEAVY_SCAN_OPERATOR = _Define('[SLOW QUERY][SCAN]',
-                                  '{heavy_scan_operator}',
-                                  '{heavy_scan_operator}')
+                                  '{heavy_scan_operator}.',
+                                  '{heavy_scan_operator}.')
     ABNORMAL_PLAN_TIME = _Define('[SLOW SQL][PLAN]',
                                  'hard parse cost too much time, '
                                  'detail: {abnormal_plan_time}.',
@@ -109,12 +115,12 @@ class RootCause:
     VACUUM_EVENT = _Define('[SLOW SQL][VACUUM]',
                            'During SQL execution, related tables are executing VACUUM tasks, '
                            'resulting in slow queries,'
-                           'detail: {vacuum}',
+                           'detail: {vacuum}.',
                            )
     ANALYZE_EVENT = _Define('[SLOW SQL][ANALYZE]',
                             'During SQL execution, related tables are executing ANALYZE tasks, '
                             'resulting in slow queries,'
-                            'detail: {analyze}',
+                            'detail: {analyze}.',
                             )
     WORKLOAD_CONTENTION = _Define('[SLOW SQL][WORKLOAD]',
                                   '{workload_contention}.',
@@ -142,7 +148,7 @@ class RootCause:
                                      '{os_resource_contention}.'
                                      )
     WAIT_EVENT = _Define('[SLOW SQL][DATABASE]',
-                         '{wait_event}',
+                         '{wait_event}.',
                          )
     LACK_STATISTIC_INFO = _Define('[SLOW SQL][DATABASE]',
                                   '{lack_of_statistics}.',
@@ -172,9 +178,8 @@ class RootCause:
     ABNORMAL_SQL_STRUCTURE = _Define('[SLOW SQL][PLAN]',
                                      '{abnormal_sql_structure}.',
                                      '{abnormal_sql_structure}.')
-    TIMED_TASK_CONFLICT = _Define('[SLOW SQL][PLAN]',
-                                  '{timed_task_conflict}.',
-                                  '{timed_task_conflict}.')
+    RISK_INFORMATION = _Define('[SLOW SQL][WDR]',
+                               '{risk_information}')
     DATABASE_VIEW = _Define('[SLOW SQL][VIEW]',
                             'Poor performance of database views',
                             'System table query service, no suggestion.')
@@ -182,10 +187,9 @@ class RootCause:
                           'Only support UPDATE, DELETE, INSERT, SELECT')
     EXISTING_EXCEPTION = _Define('[SLOW SQL][EXCEPTION]',
                                  'Exception occurred during diagnosis.')
-    UNKNOWN = _Define('[SLOW SQL][UNKNOWN]',
-                      'The current execution plan is good and not found the possible root cause.')
+    NO_ROOT_CAUSE_FOUND = _Define('[SLOW SQL][UNKNOWN]', 'Not found the possible root cause.')
     INVALID_SQL = _Define('[SLOW SQL][INVALID]',
-                          'Invalid SQL.',
+                          'Not found the possible root cause.',
                           'Confirm whether the SQL is legal. '
                           'Confirm the schema and database is correct')
     UNSUPPORTED_TYPE = _Define('[SLOW SQL][TYPE]',
@@ -193,20 +197,24 @@ class RootCause:
     LACK_INFORMATION = _Define('[LACK INFORMATION]',
                                'LACK NECESSARY INFORMATION.')
     # security
-    TOO_MANY_ERRORS = _Define(
-        '[SECURITY][RISK]',
-        'The database has produced too many execution errors in a short period of time,'
-        ' a scanning or penetration attack may have occurred.',
-        ' Please check whether the access interface exposed to the user is secure and for no vulnerable application.'
-    )
     TOO_MANY_INVALID_LOGINS = _Define(
         '[SECURITY][RISK]',
         'Too many invalid logins to the database is a short in a short period of time,'
         ' a brute-force attack may have occurred.',
         ' Please check whether the access interface exposed to the user is secure.'
     )
+    SCANNING_ATTACK = _Define(
+        '[SECURITY][RISK]',
+        'The database has produced too many execution errors or too many invalid logins in a short period of time,'
+        ' a scanning or penetration attack may have occurred.',
+        ' Please check whether the access interface exposed to the user is secure and for no vulnerable application.'
+    )
+    TOO_MANY_USER_VIOLATION = _Define(
+        '[SECURITY][RISK]',
+        'Too many user violation in a short period of time,'
+        ' Please check whether there is operational issue or maybe someone is exploring the database.'
+    )
 
-    # ...
     # Define more root causes *above*.
 
     @staticmethod

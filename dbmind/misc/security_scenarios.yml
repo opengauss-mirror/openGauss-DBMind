@@ -1,0 +1,31 @@
+scenarios:
+  - name: scanning_attack
+    low_threshold: 0.2
+    medium_threshold: 0.6
+    high_threshold: 0.8
+    root_cause: SCANNING_ATTACK
+    metrics:
+      - name: opengauss_log_errors_rate
+        weight: 0.5
+        anomalies_num_in_period: 3
+      - name: opengauss_user_violation_rate
+        weight: 0.5
+        anomalies_num_in_period: 3
+  - name: brute_force_login_attack
+    low_threshold: 0.1
+    medium_threshold: 0.3
+    high_threshold: 0.4
+    root_cause: TOO_MANY_INVALID_LOGINS
+    metrics:
+      - name: opengauss_invalid_logins_rate
+        anomalies_num_in_period: 6
+      - name: opengauss_user_locked_rate
+        anomalies_num_in_period: 6
+  - name: user_violation_attack
+    low_threshold: 0.2
+    medium_threshold: 0.6
+    high_threshold: 0.8
+    root_cause: TOO_MANY_USER_VIOLATION
+    metrics:
+      - name: opengauss_user_violation_rate
+        anomalies_num_in_period: 6

@@ -10,55 +10,49 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-import json
 import logging
-import re
 from datetime import datetime, timedelta
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlparse, urlencode
 
 from dbmind.common.http.requests_utils import create_requests_session
-from dbmind.common.utils import cached_property
+from dbmind.common.utils import cached_property, cast_to_int_or_float
 
 from .tsdb_client import TsdbClient, cast_duration_to_seconds
 from ..exceptions import ApiClientException
 from ..types import Sequence
 from ..types.ssl import SSLContext
 
-
-_METRIC_NAME_RE = re.compile(r'^[a-zA-Z_:][a-zA-Z0-9_:]*$')
-_LABEL_NAME_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
-
-
-def _quote_promql_string(value):
-    return json.dumps(str(value))
-
-
-def _validate_metric_name(metric_name):
-    if not isinstance(metric_name, str) or not _METRIC_NAME_RE.fullmatch(metric_name):
-        raise ValueError('Illegal Prometheus metric name: %r' % (metric_name,))
-    return metric_name
+# Import metric mapping
+try:
+    from .metric_mapping import map_metric_name, is_complex_query
+except ImportError:
+    # Fallback if mapping file doesn't exist
+    def map_metric_name(metric_name):
+        return metric_name
+    def is_complex_query(metric_name):
+        return False
 
 
-def _validate_label_name(label_name):
-    if not isinstance(label_name, str) or not _LABEL_NAME_RE.fullmatch(label_name):
-        raise ValueError('Illegal Prometheus label name: %r' % (label_name,))
-    return label_name
+def escape_label_value(value):
+    # Escape backslashes and double quotes
+    return value.replace('"', '\\"')
 
 
 def label_to_query(labels: dict = None, labels_like: dict = None):
     query_list = list()
     if isinstance(labels, dict) and labels:
         for k, v in labels.items():
-            query_list.append(f'{_validate_label_name(k)}={_quote_promql_string(v)}')
+            query_list.append(f'{k}="{escape_label_value(v)}"')
     if isinstance(labels_like, dict) and labels_like:
         for k, v in labels_like.items():
-            query_list.append(f'{_validate_label_name(k)}=~{_quote_promql_string(v)}')
+            query_list.append(f'{k}=~"{escape_label_value(v)}"')
     return "{" + ",".join(query_list) + "}"
 
 
 # Standardized the format of return value.
 def _standardize(data, step=None):
     if step is not None:
+        step = cast_to_int_or_float(step)
         step = step * 1000  # convert to ms
     rv = []
     for datum in data:
@@ -78,6 +72,7 @@ def _standardize(data, step=None):
             )
         )
     return rv
+
 
 class PrometheusClient(TsdbClient):
     """
@@ -119,7 +114,7 @@ class PrometheusClient(TsdbClient):
         Check Prometheus connection.
         :param params: (dict) Optional dictionary containing parameters to be
             sent along with the API request.
-        :returns: (bool) True if the endpoint can be reached, False if cannot be reached.
+        :returns: (bool) True if the endpoint can be reached, False if it cannot be reached.
         """
         response = self._get(
             "{0}/".format(self.url),
@@ -148,16 +143,22 @@ class PrometheusClient(TsdbClient):
         """
         params = params or {}
         labels_like = params.pop('labels_like') if 'labels_like' in params else {}
-        result_limit = params.pop('dbmind_result_limit') if 'dbmind_result_limit' in params else None
-        metric_name = _validate_metric_name(metric_name)
-        if label_config or labels_like:
-            query = metric_name + label_to_query(label_config, labels_like)
+        
+        # Apply metric mapping
+        mapped_metric = map_metric_name(metric_name)
+        
+        # If it's a complex query, use it directly
+        if is_complex_query(metric_name):
+            query = mapped_metric
         else:
-            query = metric_name
-        if min_value:
-            query = str(min_value) + '<' + query
-        if max_value:
-            query = query + '<' + str(max_value)
+            if label_config or labels_like:
+                query = mapped_metric + label_to_query(label_config, labels_like)
+            else:
+                query = mapped_metric
+            if min_value:
+                query = str(min_value) + '<' + query
+            if max_value:
+                query = query + '<' + str(max_value)
 
         # using the query API to get raw data
         data = []
@@ -172,13 +173,6 @@ class PrometheusClient(TsdbClient):
             raise ApiClientException(
                 "HTTP Status Code {} ({!r})".format(response.status_code, response.content)
             )
-        if result_limit is not None and result_limit > 0 and len(data) > result_limit:
-            logging.warning(
-                'The number of sequences fetched from tsdb for metric %s is %d, '
-                'which exceeds the result limit %d. Only the first %d sequences will be used.',
-                metric_name, len(data), result_limit, result_limit
-            )
-            data = data[:result_limit]
         return _standardize(data)
 
     def get_metric_range_data(
@@ -216,12 +210,18 @@ class PrometheusClient(TsdbClient):
         """
         params = params or {}
         labels_like = params.pop('labels_like') if 'labels_like' in params else {}
-        result_limit = params.pop('dbmind_result_limit') if 'dbmind_result_limit' in params else None
-        metric_name = _validate_metric_name(metric_name)
-        if label_config or labels_like:
-            query = metric_name + label_to_query(label_config, labels_like)
+        
+        # Apply metric mapping
+        mapped_metric = map_metric_name(metric_name)
+        
+        # If it's a complex query, use it directly
+        if is_complex_query(metric_name):
+            query = mapped_metric
         else:
-            query = metric_name
+            if label_config or labels_like:
+                query = mapped_metric + label_to_query(label_config, labels_like)
+            else:
+                query = mapped_metric
         data = []
         if not (isinstance(start_time, datetime) and isinstance(end_time, datetime)):
             raise TypeError("start_time and end_time can only be of type datetime.datetime")
@@ -267,34 +267,26 @@ class PrometheusClient(TsdbClient):
 
         logging.debug('Fetched sequence (%s) from tsdb from %s to %s. The length of sequence is %s.',
                       metric_name, start_time, end_time, len(data))
-        if result_limit is not None and result_limit > 0 and len(data) > result_limit:
-            logging.warning(
-                'The number of sequences fetched from tsdb for metric %s is %d, '
-                'which exceeds the result limit %d. Only the first %d sequences will be used.',
-                metric_name, len(data), result_limit, result_limit
-            )
-            data = data[:result_limit]
         return _standardize(data, step=step or self.scrape_interval)
 
     def delete_metric_data(self,
                            metric_name: str,
-                           from_timestamp: int = None,
-                           to_timestamp: int = None,
+                           from_datetime: datetime = None,
+                           to_datetime: datetime = None,
                            labels: dict = None,
                            labels_like: dict = None,
                            flush: bool = False
                            ):
-        if from_timestamp > to_timestamp:
+        if from_datetime > to_datetime:
             raise ValueError("There is a problem with the start time being greater than the end time.")
         params = {}
-        if from_timestamp is not None:
-            params['start'] = from_timestamp
-        if to_timestamp is not None:
-            params['end'] = to_timestamp
+        if from_datetime is not None:
+            params['start'] = round(from_datetime.timestamp())
+        if to_datetime is not None:
+            params['end'] = round(to_datetime.timestamp())
         metric_filter_labels = label_to_query(labels, labels_like)
         filter_condition = metric_filter_labels if metric_filter_labels != '{}' else ''
         if metric_name is not None:
-            metric_name = _validate_metric_name(metric_name)
             params['match[]'] = "{0}{1}".format(metric_name, filter_condition)
         # using the query_range API to get raw data
         response = self._post(
@@ -306,7 +298,7 @@ class PrometheusClient(TsdbClient):
                 "HTTP Status Code {} ({!r})".format(response.status_code, response.content)
             )
         logging.debug('Delete sequences (%s) from tsdb from %s to %s.',
-                      metric_name, from_timestamp, to_timestamp)
+                      metric_name, from_datetime, to_datetime)
         if flush:
             response = self._post(
                 "{0}/api/v1/admin/tsdb/clean_tombstones".format(self.url),
@@ -323,8 +315,7 @@ class PrometheusClient(TsdbClient):
         Send a custom query to a Prometheus Host.
         This method takes as input a string which will be sent as a query to
         the specified Prometheus Host. This query is a PromQL query.
-        :param query: (str) This is a PromQL query, a few examples can be found
-            at https://prometheus.io/docs/prometheus/latest/querying/examples/
+        :param query: (str) This is a PromQL query.
         :param params: (dict) Optional dictionary containing GET parameters to be
             sent along with the API request, such as "time"
         :param timeout: how long to wait for query
@@ -357,8 +348,7 @@ class PrometheusClient(TsdbClient):
         Send a query_range to a Prometheus Host.
         This method takes as input a string which will be sent as a query to
         the specified Prometheus Host. This query is a PromQL query.
-        :param query: (str) This is a PromQL query, a few examples can be found
-            at https://prometheus.io/docs/prometheus/latest/querying/examples/
+        :param query: (str) This is a PromQL query.
         :param start_time: (datetime) A datetime object that specifies the query range start time.
         :param end_time: (datetime) A datetime object that specifies the query range end time.
         :param step: (str) Query resolution step width in duration format or float number of seconds
@@ -403,7 +393,17 @@ class PrometheusClient(TsdbClient):
             return cast_duration_to_seconds(response['data'][0])
         return None
 
-    @cached_property
+    @property
+    def current_scrape_interval(self):
+        response = self._get(
+            "{0}/api/v1/label/interval/values".format(self.url),
+            headers=self.headers
+        ).json()
+        if response['status'] == 'success' and len(response['data']) > 0:
+            return cast_duration_to_seconds(response['data'][0])
+        return None
+
+    @property
     def all_metrics(self):
         response = self._get(
             "{0}/api/v1/label/__name__/values".format(self.url),

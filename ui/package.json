@@ -22,16 +22,28 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "build:analyze": "npm run build && npx serve -s build -p 3001",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
+    "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
+    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
+    "eject": "react-scripts eject",
+    "serve": "serve -s build -p 3000"
   },
   "eslintConfig": {
-    "extends": "react-app",
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ],
     "rules": {
-      "no-undef": "off",
-      "no-restricted-globals": "off",
-      "no-unused-vars": "off",
-      "no-useless-escape": "off"
+      "no-unused-vars": "warn",
+      "no-console": "warn",
+      "prefer-const": "warn",
+      "no-var": "warn",
+      "no-undef": "warn",
+      "jsx-a11y/alt-text": "warn",
+      "react-hooks/exhaustive-deps": "warn"
     }
   },
   "browserslist": {
@@ -53,6 +65,8 @@
     "eslint-plugin-jsx-a11y": "^6.6.1",
     "eslint-plugin-react": "^7.30.1",
     "http-proxy-middleware": "^2.0.4",
-    "@babel/plugin-proposal-private-property-in-object":"^7.16.7"
+    "@babel/plugin-proposal-private-property-in-object": "^7.16.7",
+    "prettier": "^2.8.0",
+    "serve": "^14.0.0"
   }
 }

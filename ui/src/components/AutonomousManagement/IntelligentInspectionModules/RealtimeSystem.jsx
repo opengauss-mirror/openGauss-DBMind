@@ -16,15 +16,22 @@ export default class RealtimeSystem extends Component {
       systemIO: {},
       systemNetwork: {}
     };
+    // 绑定方法以避免this指向问题
+    this.getRealtimeInspections = this.getRealtimeInspections.bind(this);
   }
 
   getRealtimeInspections(data) {
+    // 添加数据验证，防止undefined错误
+    if (!data || typeof data !== 'object') {
+      console.warn('RealtimeSystem: 无效的数据格式', data);
+      return;
+    }
 
     this.setState({
-      systemCpu: data.cpu,
-      systemMemory: data.memory,
-      systemIO: data.io,
-      systemNetwork: data.network,
+      systemCpu: data.cpu || {},
+      systemMemory: data.memory || {},
+      systemIO: data.io || {},
+      systemNetwork: data.network || {},
     });
   }
   componentDidMount() {

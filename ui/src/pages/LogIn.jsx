@@ -18,6 +18,7 @@ class LogIn extends React.Component {
       options: [],
       loading:false
     }
+    this.formRef = React.createRef()
   }
   onFinish = async (values) => {
     this.login(values)
@@ -27,19 +28,24 @@ class LogIn extends React.Component {
   }
   async getItemList () {
     const { success, data, msg } = await getAgentListInterface()
-    let optionArr = []
+    const optionArr = []
     Object.keys(data).forEach(function (key) {
       optionArr.push({key:key,value:data[key].toString()})
     })
     if (success) {
-      this.setState({options: optionArr})
+      const defaultValue = optionArr.length > 0 ? optionArr[0].key : ''
+      this.setState({options: optionArr, selValue: defaultValue})
+      // 同步更新Form字段值
+      if (this.formRef.current) {
+        this.formRef.current.setFieldsValue({ database: defaultValue })
+      }
     } else {
       message.error(msg)
     }
   }
   onFinishFailed = () => { };
   async login (value) {
-    let params = {
+    const params = {
       grant_type: '',
       username: value.username,
       password: value.password,
@@ -48,21 +54,25 @@ class LogIn extends React.Component {
       client_secret: ''
     }
     this.setState({loading:true})
-    await loginInterface(params).then((res) =>{
-      if (Object.prototype.hasOwnProperty.call(res,'success')) {
-        message.error(res.msg)
-      } else {
+    try {
+      const res = await loginInterface(params)
+      // 兼容多种返回结构：直接token，或 {data:{token}}
+      const payload = res && res.access_token ? res : (res && res.data ? res.data : null)
+      if (!payload || !payload.access_token) {
+        message.error(res?.msg || 'Login failed')
         this.setState({loading:false})
-        db.ss.set('access_token', res.access_token)
-        db.ss.set('token_type', res.token_type)
-        db.ss.set('user_name', value.username)
-        db.ss.set('expires_in', res.expires_in)
-        db.ss.set('Instance_value', this.state.selValue)
-        this.props.history.push('/overview')
+        return
       }
-    }).catch(()=>{
       this.setState({loading:false})
-    })
+      db.ss.set('access_token', payload.access_token)
+      db.ss.set('token_type', payload.token_type || 'Bearer')
+      db.ss.set('user_name', value.username)
+      db.ss.set('expires_in', payload.expires_in)
+      db.ss.set('Instance_value', this.state.selValue)
+      this.props.history.push('/overview')
+    } catch (e) {
+      this.setState({loading:false})
+    }
   }
   componentDidMount () {
     this.getItemList()
@@ -74,11 +84,12 @@ class LogIn extends React.Component {
           <img src={Logo} alt="" style={{ width: '30%' }} className="logintip" />
           <div className="btnboxrow">
             <Form
+              ref={this.formRef}
               name="basic"
               layout="inline"
               labelCol={{ span: 2 }}
               wrapperCol={{ span: 22 }}
-              initialValues={{ remember: true }}
+              initialValues={{ remember: true, database: this.state.selValue }}
               onFinish={this.onFinish}
               onFinishFailed={this.onFinishFailed}
               autoComplete="off"
@@ -117,7 +128,7 @@ class LogIn extends React.Component {
                   ]}
                   style={style}
                 >
-                  <Select value={this.state.selValue} className="LogInTwoBtn"  placeholder="Instance List" onChange={(val) => { this.changeSelVal(val) }} showSearch
+                  <Select className="LogInTwoBtn" placeholder="Instance List" onChange={(val) => { this.changeSelVal(val) }} showSearch
                     optionFilterProp="children" filterOption={(input, option) =>
                       option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 275, borderRadius: 10}}>
                     {

@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Card } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../../common/EChart';
 
 export default class MeanIoTimeChart extends Component {
   constructor(props) {
@@ -109,15 +109,13 @@ export default class MeanIoTimeChart extends Component {
     return (
       <div>
         <Card title="Mean IO Time" style={{ height: 321}}>
-          <ReactEcharts
+          <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption()}
-            style={{ width: '100%', height: 260 }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts>
+            style={{ height: 260 }}
+          />
         </Card>
       </div>
     )

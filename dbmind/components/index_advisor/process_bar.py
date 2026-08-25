@@ -14,7 +14,7 @@
 import os
 import re
 import time
-
+import threading
 
 try:
     TERMINAL_SIZE = os.get_terminal_size().columns
@@ -31,6 +31,8 @@ class ProcessBar:
         self.title = None
         self.percent = 0
         self.process_num = 0
+        self.total_num = 0
+        self.lock = threading.Lock()
 
     def process_bar(self, iterable, title):
         self.iterable = iterable
@@ -69,6 +71,20 @@ class ProcessBar:
         self.__processbar()
 
         return self.iterable[self.process_num - 1]
+
+    def reset_bar(self, total_num, title):
+        self.total_num = total_num
+        self.title = title
+        self.percent = 0
+        self.process_num = 0
+
+    def next_bar(self):
+        with self.lock:
+            self.process_num += 1
+            if self.process_num > self.total_num:
+                raise IndexError
+            self.percent = self.process_num / self.total_num
+            self.__processbar()
 
 
 def _print_wrap():

@@ -21,6 +21,7 @@ export default class NodeNetwork extends Component {
       param: {
         instance: this.props.selValue,
         latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,
+        regex: true,
         fetch_all: true,
         from_timestamp: this.props.startTime ? this.props.startTime : null,
         to_timestamp: this.props.endTime ? this.props.endTime : null
@@ -28,10 +29,11 @@ export default class NodeNetwork extends Component {
     }
   }
   compare(property) {
+    // 字符串字段排序，避免使用数值减法导致 NaN
     return function (a, b) {
-      var value1 = a.labels[property];
-      var value2 = b.labels[property];
-      return value1 - value2;
+      const v1 = (a && a.labels && a.labels[property]) || ''
+      const v2 = (b && b.labels && b.labels[property]) || ''
+      return String(v1).localeCompare(String(v2))
     }
   }
   async getNetworkDataAll() {
@@ -43,34 +45,46 @@ export default class NodeNetwork extends Component {
       commonMetricMethod(this.state.param, { label: metricData[4] }),
       commonMetricMethod(this.state.param, { label: metricData[5] })
     ]).then((result) => {
-      if (result[0]) {
-        result.forEach((item, index) => {
-          item.sort(this.compare('device'))
-        });
-        let primitiveDataAll = [], networkAllArray = []
-        result[0].forEach((item, index) => {
-          let DataItems = []
-          result.forEach((oitem, oindex) => {
-            DataItems.push(oitem[index])
-          });
-          primitiveDataAll.push(DataItems)
-        });
-        primitiveDataAll.forEach((item, index) => {
-          let chartData = [], data1 = {}, data2 = {}, data3 = {}, data4 = {}
-          data1 = { 'legend': [{ image: CurrentReceiveRate, description: 'Current Receive Rate' }], 'xAxisData': item[0] ? item[0].timestamps : item[1].timestamps, 'seriesData': [{ data: item[0] ? item[0].values : [...item[1].values.fill(0)], description: 'Current Receive Rate', colors: '#2DA769' }], 'flg': 0, 'legendFlg': 1, 'unit': 'MB/s', 'fixedflg': 4, 'toolBox': true }
-          data2 = { 'legend': [{ image: CurrentSendingRate, description: 'Current Sending Rate' }], 'xAxisData': item[1] ? item[1].timestamps : item[0].timestamps, 'seriesData': [{ data: item[1] ? item[1].values : [...item[0].values.fill(0)], description: 'Current Sending Rate', colors: '#5990FD' }], 'flg': 0, 'legendFlg': 1, 'unit': 'MB/s', 'fixedflg': 4, 'toolBox': true }
-          data3 = { 'legend': [{ image: ReceiveDrop, description: 'Receive Drop' }, { image: TransmitDrop, description: 'Transmit Drop' }], 'xAxisData': item[2] ? item[2].timestamps : item[3].timestamps, 'seriesData': [{ data: item[2] ? item[2].values : [...item[3].values.fill(0)], description: 'Receive Drop', colors: '#2DA769' }, { data: item[3] ? item[3].values : [...item[2].values.fill(0)], description: 'Transmit Drop', colors: '#EC6F1A' }], 'flg': 0, 'legendFlg': 1, 'unit': '', 'fixedflg': 4, 'toolBox': true }
-          data4 = { 'legend': [{ image: ReceiveError, description: 'Receive Error' }, { image: TransmitError, description: 'Transmit Error' }], 'xAxisData': item[4] ? item[4].timestamps : item[5].timestamps, 'seriesData': [{ data: item[4] ? item[4].values : [...item[5].values.fill(0)], description: 'Receive Error', colors: '#F43146' }, { data: item[5] ? item[5].values : [...item[4].values.fill(0)], description: 'Transmit Error', colors: '#9185F0' }], 'flg': 0, 'legendFlg': 1, 'unit': '', 'fixedflg': 4, 'toolBox': true }
-          chartData.push(data1, data2, data3, data4)
-          networkAllArray.push(chartData)
-        })
-        this.setState(() => ({
-          networkAllData: networkAllArray,
-          primitiveDataAll: primitiveDataAll,
-        }), () => {
-          this.onChange(this.state.vectorKey)
-        })
+      const arrays = (result || []).map(arr => Array.isArray(arr) ? arr : [])
+      // 排序（按 device 字符串）
+      arrays.forEach(arr => arr.sort(this.compare('device')))
+
+      // 选择一个非空数组作为设备基准
+      const baseIdx = arrays.findIndex(arr => Array.isArray(arr) && arr.length > 0)
+      if (baseIdx === -1) {
+        this.setState({ networkAllData: [], primitiveDataAll: [] })
+        return
       }
+      const baseArr = arrays[baseIdx]
+      const devices = baseArr.map(s => (s.labels && s.labels.device) || '')
+
+      const primitiveDataAll = []
+      const networkAllArray = []
+      devices.forEach((dev) => {
+        // 按设备名在各指标数组中查找对应序列
+        const group = arrays.map(arr => arr.find(s => s && s.labels && s.labels.device === dev))
+        primitiveDataAll.push(group)
+        const ts = (group[0] && group[0].timestamps) || (group[1] && group[1].timestamps) || []
+        const recvVals = (group[0] && group[0].values) || (group[1] ? Array(group[1].values.length).fill(0) : [])
+        const sendVals = (group[1] && group[1].values) || (group[0] ? Array(group[0].values.length).fill(0) : [])
+        const rdropVals = (group[2] && group[2].values) || (group[3] ? Array(group[3].values.length).fill(0) : [])
+        const tdropVals = (group[3] && group[3].values) || (group[2] ? Array(group[2].values.length).fill(0) : [])
+        const rerrVals = (group[4] && group[4].values) || (group[5] ? Array(group[5].values.length).fill(0) : [])
+        const terrVals = (group[5] && group[5].values) || (group[4] ? Array(group[4].values.length).fill(0) : [])
+
+        const data1 = { 'legend': [{ image: CurrentReceiveRate, description: 'Current Receive Rate' }], 'xAxisData': ts, 'seriesData': [{ data: recvVals, description: 'Current Receive Rate', colors: '#2DA769' }], 'flg': 0, 'legendFlg': 1, 'unit': 'MB/s', 'fixedflg': 4, 'toolBox': true }
+        const data2 = { 'legend': [{ image: CurrentSendingRate, description: 'Current Sending Rate' }], 'xAxisData': ts, 'seriesData': [{ data: sendVals, description: 'Current Sending Rate', colors: '#5990FD' }], 'flg': 0, 'legendFlg': 1, 'unit': 'MB/s', 'fixedflg': 4, 'toolBox': true }
+        const data3 = { 'legend': [{ image: ReceiveDrop, description: 'Receive Drop' }, { image: TransmitDrop, description: 'Transmit Drop' }], 'xAxisData': ts, 'seriesData': [{ data: rdropVals, description: 'Receive Drop', colors: '#2DA769' }, { data: tdropVals, description: 'Transmit Drop', colors: '#EC6F1A' }], 'flg': 0, 'legendFlg': 1, 'unit': '', 'fixedflg': 4, 'toolBox': true }
+        const data4 = { 'legend': [{ image: ReceiveError, description: 'Receive Error' }, { image: TransmitError, description: 'Transmit Error' }], 'xAxisData': ts, 'seriesData': [{ data: rerrVals, description: 'Receive Error', colors: '#F43146' }, { data: terrVals, description: 'Transmit Error', colors: '#9185F0' }], 'flg': 0, 'legendFlg': 1, 'unit': '', 'fixedflg': 4, 'toolBox': true }
+        networkAllArray.push([data1, data2, data3, data4])
+      })
+
+      this.setState(() => ({
+        networkAllData: networkAllArray,
+        primitiveDataAll: primitiveDataAll,
+      }), () => {
+        this.onChange(this.state.vectorKey)
+      })
     }).catch((error) => {
       console.log('error', error)
     })
@@ -78,7 +92,7 @@ export default class NodeNetwork extends Component {
   componentDidUpdate(prevProps) {
     if (prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        param: Object.assign(this.state.param, { instance: this.props.selValue, latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null, from_timestamp: this.props.startTime, to_timestamp: this.props.endTime })
+        param: Object.assign(this.state.param, { instance: this.props.selValue, latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null, from_timestamp: this.props.startTime, to_timestamp: this.props.endTime, regex: true })
       }), () => {
         if (this.props.tabkey === "4") {
           this.getNetworkDataAll()

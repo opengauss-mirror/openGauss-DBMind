@@ -36,6 +36,7 @@ import { formatTableTitleToUpper } from "../../utils/function"
 import {
   getSlowQueryAnalysisInterface,
   getSlowQueryRecentCount,
+  getSlowQueryRecent,
 } from "../../api/databaseOptimization";
 import {
   getSettingListInterface,
@@ -97,7 +98,7 @@ export default class SlowQueryAnalysis extends Component {
     const { success, data, msg } = await getTimedTaskStatus();
     if (success) {
       data.rows.forEach((item) => {
-        if (item[0] === "slow_sql_diagnosis" && item[1] === "Running") {
+        if (item[0] === "slow_query_diagnosis" && item[1] === "Running") {
           this.setState({ isSlowQuery: true }, () => {
             this.getSlowQueryAnalysis({ current: 1, pagesize: 10 });
           });
@@ -115,24 +116,25 @@ export default class SlowQueryAnalysis extends Component {
     const { success, data } = await getSettingListInterface();
 
     let resultMap = new Map();
-    if (success) {
+    if (success && data && data.dynamic && Array.isArray(data.dynamic.slow_sql_threshold)) {
       data.dynamic.slow_sql_threshold.forEach((item) => {
         if (
-          item[0] === "nestloop_rows_threshold" ||
-          item[0] === "plan_height_threshold" ||
-          item[0] === "complex_operator_threshold" ||
-          item[0] === "large_in_list_threshold"
+          item &&
+          (item[0] === "nestloop_rows_threshold" ||
+            item[0] === "plan_height_threshold" ||
+            item[0] === "complex_operator_threshold" ||
+            item[0] === "large_in_list_threshold")
         ) {
           resultMap.set(item[0], item[1]);
         }
       });
-      this.setState({
-        complexThreshold: resultMap.get("complex_operator_threshold"),
-        largeThreshold: resultMap.get("large_in_list_threshold"),
-        nestloopThreshold: resultMap.get("nestloop_rows_threshold"),
-        planThreshold: resultMap.get("plan_height_threshold"),
-      });
     }
+    this.setState({
+      complexThreshold: resultMap.get("complex_operator_threshold") || "",
+      largeThreshold: resultMap.get("large_in_list_threshold") || "",
+      nestloopThreshold: resultMap.get("nestloop_rows_threshold") || "",
+      planThreshold: resultMap.get("plan_height_threshold") || "",
+    });
   }
   onBlurChangeLarge(e) {
     if (e && !this.getHasSame("large_in_list_threshold")) {
@@ -267,7 +269,6 @@ export default class SlowQueryAnalysis extends Component {
   async getSlowQueryAnalysis(params) {
     const { success, data, msg } = await getSlowQueryAnalysisInterface(params);
     if (success) {
-      this.getSlowQueryRecentCount();
       let toplistArr = [];
       this.setState(
         {
@@ -307,10 +308,41 @@ export default class SlowQueryAnalysis extends Component {
         meanFetchTime: data.mean_fetch_rate,
         statistics: data.slow_query_template,
         slowQueryTemplate: data.slow_query_template,
+        // 保持与历史逻辑一致：若后端未返回该字段，则保持为 undefined，避免子组件误用
         tableOfSlowQuery: data.table_of_slow_query,
+      }, async () => {
+        // 方案B：当后端未返回 table_of_slow_query 时，首屏回退拉取最近慢 SQL
+        const tbl = data.table_of_slow_query;
+        const hasTable = tbl && Array.isArray(tbl.header) && Array.isArray(tbl.rows);
+        if (hasTable) {
+          this.getSlowQueryRecentCount();
+        } else {
+          await this.fetchRecentSlowQueriesFallback(10, 1);
+        }
       });
     } else {
       message.error(msg);
+    }
+  }
+  // 首屏回退：主动拉取最近慢 SQL 列表与总数
+  async fetchRecentSlowQueriesFallback(pagesize = 10, current = 1) {
+    try {
+      const [listResp, countResp] = await Promise.all([
+        getSlowQueryRecent({ current, pagesize }),
+        getSlowQueryRecentCount(),
+      ]);
+      if (listResp && listResp.success) {
+        const header = (listResp.data && listResp.data.header) || [];
+        const rows = (listResp.data && listResp.data.rows) || [];
+        const total = (countResp && countResp.success && countResp.data) ? countResp.data : 0;
+        this.setState({
+          tableOfSlowQuery: { header, rows, total },
+        });
+      } else {
+        message.error(listResp && listResp.msg ? listResp.msg : "Failed to load recent slow queries");
+      }
+    } catch (e) {
+      message.error("Failed to load recent slow queries");
     }
   }
   async getSlowQueryRecentCount() {
@@ -444,9 +476,11 @@ export default class SlowQueryAnalysis extends Component {
                   <Spin style={{ margin: "100px auto" }} />{" "}
                 </div>
               )}
-              <div className="queryTable">
-                {this.state.isKillerShow ? <KilledSlowQueryTable /> : <Empty />}
-              </div>
+              {this.state.isKillerShow && (
+                <div className="queryTable">
+                  <KilledSlowQueryTable />
+                </div>
+              )}
               <Modal
                 title="Setting"
                 width="40vw"

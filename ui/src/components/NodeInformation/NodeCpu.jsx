@@ -20,6 +20,7 @@ export default class NodeCpu extends Component {
         instance: this.props.selValue,
         latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,
         fetch_all: false,
+        regex: true,
         from_timestamp: this.props.startTime ? this.props.startTime : null,
         to_timestamp: this.props.endTime ? this.props.endTime : null
       }
@@ -60,7 +61,7 @@ export default class NodeCpu extends Component {
   componentDidUpdate(prevProps) {
     if (prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        param: Object.assign(this.state.param, { instance: this.props.selValue, latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null, from_timestamp: this.props.startTime, to_timestamp: this.props.endTime })
+        param: Object.assign(this.state.param, { instance: this.props.selValue, latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null, from_timestamp: this.props.startTime, to_timestamp: this.props.endTime, regex: true })
       }), () => {
         if (this.props.tabkey === "1") {
           this.getCpuDataAll()

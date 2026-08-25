@@ -14,7 +14,10 @@
 from functools import partial
 
 import numpy as np
-from scipy.stats import pearsonr, zscore
+try:
+    from scipy.stats import pearsonr, zscore
+except ImportError:
+    pass
 
 
 def pearson(x, y):
@@ -61,11 +64,6 @@ class CorrelationAnalysis:
     but it could be computationally expensive. On the other hand, if you decide not to turn on the normalization_switch,
     the result could be distortion when the original data has a large range. Note that this swich only works when
     choosing "pearson" as analyze_method, and normalization is mandatory for "coflux".
-
-    Inputs
-    ----------
-    x: An array-like time series
-    y: An array-like time series
 
     Examples
     ----------
@@ -199,7 +197,8 @@ class CorrelationAnalysis:
                       'coflux': self._coflux_correlation_analysis}
         return method_map[method](x, y)
 
-    def _inner_product(self, x, y):
+    @staticmethod
+    def _inner_product(x, y):
         """Compute the inner product of two time series
 
         parameters
@@ -240,7 +239,7 @@ class CorrelationAnalysis:
             if abs(correlation_coefficient) > abs(max_correlation_coefficient):
                 max_correlation_coefficient = correlation_coefficient
                 shift = s
-        return (max_correlation_coefficient, shift)
+        return max_correlation_coefficient, shift
 
     def _pearson_correlation_analysis(self, x, y):
         x, y = np.nan_to_num(x), np.nan_to_num(y)
@@ -254,7 +253,7 @@ class CorrelationAnalysis:
             if abs(correlation) > abs(max_correlation):
                 max_correlation = correlation
                 final_shift = shift
-        return (max_correlation, final_shift)
+        return max_correlation, final_shift
 
     @staticmethod
     def normalize(data):
@@ -272,6 +271,12 @@ class CorrelationAnalysis:
         return data
 
     def preprocess(self, x, y):
+        """
+        Inputs
+        ----------
+        x: An array-like time series
+        y: An array-like time series
+        """
         x = np.asarray(x)
         y = np.asarray(y)
         if np.all(x == x[0]) or np.all(y == y[0]):
@@ -281,8 +286,13 @@ class CorrelationAnalysis:
                 self._preprocess_execute(y, self.preprocess_method))
 
     def analyze(self, x, y):
+        """
+        Inputs
+        ----------
+        x: An array-like time series
+        y: An array-like time series
+        """
         if np.all(x == x[0]) or np.all(y == y[0]):
-            return (0, 0)
+            return 0, 0
 
         return self._analyze_execute(x, y, self.analyze_method)
-

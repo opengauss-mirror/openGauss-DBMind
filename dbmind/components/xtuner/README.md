@@ -32,7 +32,7 @@ For Debian-based OS (e.g., Ubuntu, KaliLinux):
 
 You should install the following dependencies by python-pip.
     
-    paramiko
+    pexpect
     bayesian-optimization
     ptable
 
@@ -149,10 +149,3 @@ when running the benchmark on the new knobs set.
 
 The above steps can be seen as a Markov transfer matrix in the current environment. We can directly use this trained model to tune knobs on other environments that are similar to the current one. However, if the tuning environment is far different, the currently trained model can be also used as the initial parameters on the new tuning process.
 Nevertheless, some knobs have no relative internal states, such as random_page_cost, seq_page_cost, etc. Because such knobs are correlative to each other, we use the Global OPtimization algorithm (GOP) to solve this combinatorial optimization problem. Particle Swarm Optimization (PSO) is applied as our heuristic algorithm since its simpleness and stabilization. At the same time, we use Bayesian optimization to solve this problem too.
-
-**For details, see the related sections in the openGauss [online documentation](https://opengauss.org/zh/docs/1.0.1/docs/Quickstart/Quickstart.html).**
-
-# References
-1. [Automatic Database Management System Tuning Through Large-scale Machine Learning](http://db.cs.cmu.edu/papers/2017/p1009-van-aken.pdf)
-2. [QTune: A Query-Aware Database Tuning System with Deep Reinforcement Learning](https://www.vldb.org/pvldb/vol12/p2118-li.pdf)
-3. [An End-to-End Automatic Cloud Database TuningSystem Using Deep Reinforcement Learning](https://dbgroup.cs.tsinghua.edu.cn/ligl/papers/sigmod19-cdbtune.pdf)

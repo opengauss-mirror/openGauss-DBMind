@@ -1,11 +1,9 @@
 import React from "react";
 import {
-  DashboardOutlined,
   ToolOutlined,
   CalculatorOutlined,
   ConsoleSqlOutlined,
   ApartmentOutlined,
-  SecurityScanOutlined,
   CodeSandboxOutlined,
 } from "@ant-design/icons";
 const menusList = [
@@ -15,24 +13,19 @@ const menusList = [
     key: "/overview",
   },
   {
-    label: "Autonomouse Management",
+    label: "Autonomous Management",
     icon: <ApartmentOutlined />,
-    key: "/AutonomouseManagement",
+    key: "/AutonomousManagement",
     children: [
       {
         label: "Metric",
         icon: "",
-        key: "/AutonomouseManagement/nodeinfor",
+        key: "/AutonomousManagement/nodeinfor",
       },
       {
         label: "Alarm",
         icon: "",
-        key: "/AutonomouseManagement/alarms",
-      },
-      {
-        label: "Intelligent Inspection",
-        icon: "",
-        key: "/AutonomouseManagement/intelligentInspection",
+        key: "/AutonomousManagement/alarms",
       },
     ],
   },
@@ -41,25 +34,11 @@ const menusList = [
     icon: <CalculatorOutlined />,
     key: "/DatabaseOptimization",
     children: [
-      {
-        label: "Index Tuning",
-        icon: "",
-        key: "/DatabaseOptimization/indexTuning",
-      },
-      {
-        label: "Database Tuning",
-        icon: "",
-        key: "/DatabaseOptimization/databaseTuning",
-      },
+
       {
         label: "Slow Query Diagnosis",
         icon: "",
         key: "/DatabaseOptimization/slowqueryanalysis",
-      },
-      {
-        label: "Regular Inspections",
-        icon: "",
-        key: "/DatabaseOptimization/regularinspections",
       },
       {
         label: "SQL Intelligent Collection",

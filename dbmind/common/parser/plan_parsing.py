@@ -23,23 +23,46 @@ CHILD_NODE_FLAG = '->'
 
 HEADER_PATTERN = re.compile(
     r'(.*?)%s\(cost=(.*?)\.\.(.*?) rows=(.*?) width=(.*?)\)' % INDENT_BLANK)
+ABO_FLAG_PATTERN = re.compile(r'p-time=(.*?) p-rows=(.*?) ')
+ABO_HEADER_PATTERN = re.compile(
+    r'(.*?)%s\(cost=(.*?)\.\.(.*?) rows=(.*?) p-time=(.*?) p-rows=(.*?) width=(.*?)\)' % INDENT_BLANK)
 PROPERTY_PATTERN = re.compile(
     r'(.*?): (.*)')
 IDX_SCAN_PATTERN = re.compile(
-    r'Index Scan using (.*?) on (.*?)'
+    r'Index Scan using (.*?) on (.*?)$'
+)
+PARTITION_IDX_SCAN_PATTERN = re.compile(
+    r'Partitioned Index Scan using (.*?) on (.*?)$'
 )
 IDX_ONLY_SCAN_PATTERN = re.compile(
-    # r'Index (?:[a-zA-Z_0-9]*?) Scan (?:[a-zA-Z_0-9]*?) using (.*?) on (.*?)'
-    r'Index(?:[0-9a-zA-Z ]*?)Scan(?:[0-9a-zA-Z ]*?)using (.*?) on (.*?)$'
+    r'Index Only Scan using (.*?) on (.*?)$'
+)
+PARTITION_IDX_ONLY_SCAN_PATTERN = re.compile(
+    r'Partitioned Index Only Scan using (.*?) on (.*?)$'
 )
 SEQ_SCAN_PATTERN = re.compile(
     r'Seq Scan on (.*)'
 )
+PARTITION_SEQ_SCAN_PATTERN = re.compile(
+    r'Partitioned Seq Scan on (.*)'
+)
+CStore_SCAN_PATTERN = re.compile(
+    r'CStore Scan on (.*)'
+)
+PARTITION_CSTORE_SCAN_PATTERN = re.compile(
+    r'Partitioned CStore Scan on (.*)'
+)
 BITMAP_INDEX_SCAN_PATTERN = re.compile(
     r'Bitmap Index Scan on (.*)'
 )
+PARTITION_BITMAP_INDEX_SCAN_PATTERN = re.compile(
+    r'Partitioned Bitmap Index Scan on (.*)'
+)
 BITMAP_HEAP_SCAN_PATTERN = re.compile(
     r'Bitmap Heap Scan on (.*)'
+)
+PARTITION_BITMAP_HEAP_SCAN_PATTERN = re.compile(
+    r'Partitioned Bitmap Heap Scan on (.*)'
 )
 UPDATE_PATTERN = re.compile(
     r'Update on (.*)'
@@ -52,6 +75,12 @@ DELETE_PATTERN = re.compile(
 )
 COLUMN_PATTERN = re.compile(
     r"(\w+) [><=]+ [\w:']+"
+)
+REMOTE_PATTERN = re.compile(
+    r'Data Node Scan on (.*)_REMOTE_([A-Z]*)_QUERY_'
+)
+BROADCAST_PATTERN = re.compile(
+    r'(.*)Streaming\(type:(.*)BROADCAST(.*)\)'
 )
 
 
@@ -80,7 +109,7 @@ class Operator:
         self.children = []  # not only binary tree.
 
         # Other specific operator info:
-        self.table = None
+        self.table = ''
         self.columns = []
         self.index = None
         self.type = None
@@ -100,7 +129,10 @@ class Operator:
         return True  # Not thrown exception means successful.
 
     def _parse_header(self, line):
-        name, start_cost, total_cost, rows, width = re.findall(HEADER_PATTERN, line)[0]
+        if re.search(ABO_FLAG_PATTERN, line):
+            name, start_cost, total_cost, rows, _, _, width = re.findall(ABO_HEADER_PATTERN, line)[0]
+        else:
+            name, start_cost, total_cost, rows, width = re.findall(HEADER_PATTERN, line)[0]
         self.name = name.strip()
         self.start_cost = float(start_cost)
         self.total_cost = float(total_cost)
@@ -124,34 +156,68 @@ class Operator:
             self.type = 'Hash Join'
         elif self.name.find('Update on') >= 0:
             self.type = 'Update'
-            tbl = re.findall(UPDATE_PATTERN, self.name)[0]
-            self.table = tbl
+            tbl = re.findall(UPDATE_PATTERN, self.name)
+            self.table = tbl[0].split()[0] if tbl else ''
         elif self.name.find('Delete on') >= 0:
             self.type = 'Delete'
-            tbl = re.findall(DELETE_PATTERN, self.name)[0]
-            self.table = tbl
+            tbl = re.findall(DELETE_PATTERN, self.name)
+            self.table = tbl[0].split()[0] if tbl else ''
         elif self.name.find('Insert on') >= 0:
             self.type = 'Insert'
-            tbl = re.findall(INSERT_PATTERN, self.name)[0]
-            self.table = tbl
+            tbl = re.findall(INSERT_PATTERN, self.name)
+            self.table = tbl[0].split()[0] if tbl else ''
         elif self.name.find('Scan') >= 0:
             self.type = 'Scan'
             if self.name.startswith('Index'):
                 try:
-                    index, tbl = re.findall(IDX_SCAN_PATTERN, self.name)[0]
+                    res = re.findall(IDX_SCAN_PATTERN, self.name)[0]
                 except IndexError:
-                    index, tbl = re.findall(IDX_ONLY_SCAN_PATTERN, self.name)[0]
-                self.index = index
-                self.table = tbl
+                    # There are other scenarios not considered
+                    res = re.findall(IDX_ONLY_SCAN_PATTERN, self.name)
+                    res = res[0] if res else []
+                if res:
+                    self.index, self.table = res[0], res[1].split()[0]
+                    self.table = self.table.split('.')[1] if '.' in self.table else self.table
+            elif self.name.startswith('Partitioned Index'):
+                try:
+                    res = re.findall(PARTITION_IDX_SCAN_PATTERN, self.name)[0]
+                except IndexError:
+                    # There are other scenarios not considered
+                    res = re.findall(PARTITION_IDX_ONLY_SCAN_PATTERN, self.name)
+                    res = res[0] if res else []
+                if res:
+                    self.index, self.table = res[0], res[1].split()[0]
+                    self.table = self.table.split('.')[1] if '.' in self.table else self.table
             elif self.name.startswith('Seq'):
-                tbl = re.findall(SEQ_SCAN_PATTERN, self.name)[0]
-                self.table = tbl
+                tbl = re.findall(SEQ_SCAN_PATTERN, self.name)
+                self.table = tbl[0].split()[0] if tbl else ''
+                self.table = self.table.split('.')[1] if '.' in self.table else self.table
+            elif self.name.startswith('Partitioned Seq Scan'):
+                tbl = re.findall(PARTITION_SEQ_SCAN_PATTERN, self.name)
+                self.table = tbl[0].split()[0] if tbl else ''
+                self.table = self.table.split('.')[1] if '.' in self.table else self.table
+            elif self.name.startswith('CStore Scan'):
+                tbl = re.findall(CStore_SCAN_PATTERN, self.name)
+                self.table = tbl[0].split()[0] if tbl else ''
+                self.table = self.table.split('.')[1] if '.' in self.table else self.table
+            elif self.name.startswith('Partitioned CStore Scan'):
+                tbl = re.findall(PARTITION_CSTORE_SCAN_PATTERN, self.name)
+                self.table = tbl[0].split()[0] if tbl else ''
+                self.table = self.table.split('.')[1] if '.' in self.table else self.table
             elif self.name.startswith('Bitmap Index'):
-                index = re.findall(BITMAP_INDEX_SCAN_PATTERN, self.name)[0]
-                self.index = index
+                index = re.findall(BITMAP_INDEX_SCAN_PATTERN, self.name)
+                self.index = index[0] if index else ''
+            elif self.name.startswith('Partitioned Bitmap Index'):
+                index = re.findall(PARTITION_BITMAP_INDEX_SCAN_PATTERN, self.name)
+                self.index = index[0] if index else ''
             elif self.name.startswith('Bitmap Heap'):
-                table = re.findall(BITMAP_HEAP_SCAN_PATTERN, self.name)[0]
-                self.table = table
+                tbl = re.findall(BITMAP_HEAP_SCAN_PATTERN, self.name)
+                self.table = tbl[0].split()[0] if tbl else ''
+                self.table = self.table.split('.')[1] if '.' in self.table else self.table
+            elif self.name.startswith('Partitioned Bitmap Heap'):
+                tbl = re.findall(PARTITION_BITMAP_HEAP_SCAN_PATTERN, self.name)
+                self.table = tbl[0].split()[0] if tbl else ''
+                self.table = self.table.split('.')[1] if '.' in self.table else self.table
         elif self.name.find('Join') >= 0:
             self.type = 'Join'
         else:
@@ -322,32 +388,6 @@ class Plan:
                     break
 
         self.traverse(finder)
-        return opts
-
-    def plan_tree(self):
-        opts = []
-
-        def recursive_helper(node: Operator, opt: list):
-            if node is None:
-                return
-            temp_dict = {'name': node.name,
-                         'level': node.level,
-                         'detail': {'properties': node.properties,
-                                    'start_cost': node.start_cost,
-                                    'total_cost': node.total_cost,
-                                    'exec_cost': node.exec_cost,
-                                    'rows': node.rows,
-                                    'width': node.width,
-                                    'table': node.table,
-                                    'index': node.index}}
-            if node.children:
-                temp_dict['children'] = []
-                for child in node.children:
-                    recursive_helper(child, temp_dict['children'])
-                opt.append(temp_dict)
-            else:
-                opt.append(temp_dict)
-        recursive_helper(self.root_node, opts)
         return opts
 
     def __repr__(self):

@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import {Row, Col, Empty, message } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../common/EChart';
 import { getResponseTime } from '../../api/overview';
 import db from '../../utils/storage';
 
@@ -79,7 +79,7 @@ export default class TpsCharts extends Component {
   }
   
   async getTpsTime () {
-    let param = {
+    const param = {
       instance:db.ss.get('Instance_value'),
       label:'gaussdb_qps_by_instance'
     }
@@ -104,15 +104,13 @@ export default class TpsCharts extends Component {
           {this.state.showFlag ?
           <Row>
           <Col className="gutter-row" span={24}>
-            <ReactEcharts
+            <EChart
               ref={(e) => {
                 this.echartsElement = e
               }}
               option={this.getOption()}
-              style={{ width: '100%', height: 90 }}
-              lazyUpdate={true}
-            >
-            </ReactEcharts>
+              style={{ height: 90 }}
+            />
           </Col>
         </Row>
           : <Empty description={false} />}

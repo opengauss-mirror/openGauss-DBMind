@@ -19,7 +19,7 @@ class IndexRecommendationStats(ResultDbBase):
     __tablename__ = "tb_index_recommendation_stats"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    instance = Column(String(24), nullable=False)
+    instance = Column(String(64), nullable=False)
     db_name = Column(String(32), nullable=False)
     recommend_index_count = Column(Integer)
     redundant_index_count = Column(Integer)

@@ -79,9 +79,9 @@ def get_recommendation_stat(instance=None, offset=None, limit=None):
     return result
 
 
-def get_advised_index(instance=None, offset=None, limit=None, index_type=1):
+def get_advised_index(instance=None, offset=None, limit=None):
     with get_session() as session:
-        result = session.query(IndexRecommendation).filter(IndexRecommendation.index_type == index_type)
+        result = session.query(IndexRecommendation).filter(IndexRecommendation.index_type == 1)
         if instance is not None:
             result = result.filter(IndexRecommendation.instance == instance)
         if offset is not None:
@@ -99,12 +99,11 @@ def get_advised_index_details(instance=None, offset=None, limit=None):
     with get_session() as session:
         result = session.query(IndexRecommendationStmtDetails, IndexRecommendationStmtTemplates,
                                IndexRecommendation).filter(
-            IndexRecommendationStmtDetails.instance == instance).filter(
-            IndexRecommendationStmtTemplates.instance == instance).filter(
-            IndexRecommendation.instance == instance).filter(
             IndexRecommendationStmtDetails.template_id == IndexRecommendationStmtTemplates.id).filter(
             IndexRecommendationStmtDetails.index_id == IndexRecommendation.id).filter(
-            IndexRecommendationStmtDetails.correlation_type == 1)
+            IndexRecommendationStmtDetails.correlation_type == 0)
+        if instance is not None:
+            result = result.filter(IndexRecommendationStmtDetails.instance == instance)
         if offset is not None:
             result = result.offset(offset)
         if limit is not None:
@@ -160,20 +159,15 @@ def insert_recommendation(instance, db_name, schema_name, tb_name, columns, inde
                                         index_stmt=index_stmt))
 
 
-def get_template_id(instance, db_name, template):
+def get_template_start_id():
     with get_session() as session:
-        result = session.query(IndexRecommendationStmtTemplates).\
-                         filter(IndexRecommendationStmtTemplates.instance == instance).\
-                         filter(IndexRecommendationStmtTemplates.db_name == db_name).\
-                         filter(IndexRecommendationStmtTemplates.template == template).first().id
-        return result
+        return session.query(func.min(IndexRecommendationStmtTemplates.id)).first()[0]
 
 
-def insert_recommendation_stmt_details(template_id, instance, db_name, stmt, optimized, correlation_type, stmt_count):
+def insert_recommendation_stmt_details(template_id, db_name, stmt, optimized, correlation_type, stmt_count):
     with get_session() as session:
         session.add(IndexRecommendationStmtDetails(
             index_id=session.query(func.max(IndexRecommendation.id)).first()[0],
-            instance = instance,
             template_id=template_id,
             db_name=db_name,
             stmt=stmt,
@@ -183,10 +177,9 @@ def insert_recommendation_stmt_details(template_id, instance, db_name, stmt, opt
         ))
 
 
-def insert_recommendation_stmt_templates(template, instance,  db_name):
+def insert_recommendation_stmt_templates(template, db_name):
     with get_session() as session:
         session.add(IndexRecommendationStmtTemplates(
-            instance = instance,
             db_name=db_name,
             template=template
         ))

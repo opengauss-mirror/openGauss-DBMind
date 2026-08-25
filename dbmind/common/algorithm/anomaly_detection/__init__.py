@@ -24,6 +24,8 @@ from .volatility_shift_detector import VolatilityShiftDetector
 from .quantile_detector import QuantileDetector
 from .esd_test_detector import EsdTestDetector
 from .spike_detector import remove_spike
+from .evt_detector import EvtDetector
+from .forecasting_anomaly_detector import ForecastingAnomalyDetector
 
 
 detectors = {
@@ -37,4 +39,5 @@ detectors = {
     "VolatilityShiftDetector": VolatilityShiftDetector,
     "QuantileDetector": QuantileDetector,
     "EsdTestDetector": EsdTestDetector,
+    "ForecastingAnomalyDetector": ForecastingAnomalyDetector
 }

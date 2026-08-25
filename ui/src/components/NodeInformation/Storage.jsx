@@ -42,7 +42,9 @@ export default class Storage extends Component {
       from_timestamp:this.state.startTime ? this.state.startTime : null,
       to_timestamp:this.state.endTime ? this.state.endTime : null
     }
+    console.log('Storage - getStorageData1 params:', param);
     const { success, data, msg }= await getMetric(param)
+    console.log('Storage - getStorageData1 result:', {success, dataLength: data ? data.length : 0, msg});
     if (success) {
       return data
     } else {
@@ -60,7 +62,9 @@ export default class Storage extends Component {
       from_timestamp:this.state.startTime ? this.state.startTime : null,
       to_timestamp:this.state.endTime ? this.state.endTime : null
     }
+    console.log('Storage - getStorageData2 params:', param);
     const { success, data, msg }= await getMetric(param)
+    console.log('Storage - getStorageData2 result:', {success, dataLength: data ? data.length : 0, msg});
     if (success) {
       return data
     } else {

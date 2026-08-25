@@ -25,9 +25,6 @@ from .utils import dbmind_assert
 
 def _merge_intervals(sorted_, start: Callable, end: Callable, merge_func: Callable):
     """In-place merging for sorted list.
-
-    The following link describes the whole problem:
-    https://leetcode.com/problems/merge-intervals
     """
     cursor = 1
     while cursor < len(sorted_):
@@ -202,7 +199,9 @@ class SequenceTree:
 
         sorted_ = sorted(sequences, key=lambda s: s.timestamps[0])
 
-        _merge_intervals(sorted_, start, end, merge_func=lambda a, b: a + b)
+        # 使用安全合并函数，避免合并失败导致崩溃
+        from dbmind.common.types.sequence import Sequence
+        _merge_intervals(sorted_, start, end, merge_func=lambda a, b: Sequence.safe_merge(a, b))
 
         # Concatenate two sequences that the distance between them is the length of the step.
         cursor = 1
@@ -256,20 +255,38 @@ class SequenceTree:
         else:
             children = [node, TreeNode(sequence)]
 
-        merged = self._merge(children)
-        # If only has one child, this only one child is the current node's value, don't
-        # need to maintain the list of tree nodes.
-        if len(merged) == 1:
-            node.set(merged[0])
-            node.clear_children()
-        # Otherwise, need to reorganize children.
-        else:
-            node.sequence = None
-            node.start = merged[0].timestamps[0]
-            node.end = merged[-1].timestamps[-1]
-            node.clear_children()
-            for s in merged:
-                node.add_child(TreeNode(s))
+        try:
+            merged = self._merge(children)
+            # If only has one child, this only one child is the current node's value, don't
+            # need to maintain the list of tree nodes.
+            if len(merged) == 1:
+                node.set(merged[0])
+                node.clear_children()
+            # Otherwise, need to reorganize children.
+            else:
+                node.sequence = None
+                node.start = merged[0].timestamps[0]
+                node.end = merged[-1].timestamps[-1]
+                node.clear_children()
+                for s in merged:
+                    node.add_child(TreeNode(s))
+        except Exception as e:
+            # 如果合并失败，保留原有节点结构，只添加新序列作为子节点
+            logging.warning('Failed to merge sequences in tree node: %s. Fallback to simple addition.', e)
+            if len(node.children) == 0:
+                # 如果没有子节点，将当前节点和新序列都作为子节点
+                old_sequence = node.sequence
+                node.sequence = None
+                node.start = min(old_sequence.timestamps[0], sequence.timestamps[0])
+                node.end = max(old_sequence.timestamps[-1], sequence.timestamps[-1])
+                node.clear_children()
+                node.add_child(TreeNode(old_sequence))
+                node.add_child(TreeNode(sequence))
+            else:
+                # 如果已有子节点，直接添加新序列作为子节点
+                node.add_child(TreeNode(sequence))
+                node.start = min(node.start, sequence.timestamps[0])
+                node.end = max(node.end, sequence.timestamps[-1])
 
         dbmind_assert(len(node.children) == 0 or len(node.children) == 2)
 
@@ -418,10 +435,8 @@ class SequenceTree:
         dbmind_assert(start <= end)
         node = self.search_node(start, end)
         if not node:
-            logging.debug(
-                'SequenceTree cannot search the appointed range %d - %d. The returned node is %s. ' % (
-                    start, end, node)
-            )
+            logging.debug('SequenceTree cannot search the appointed range %d - %d. The returned node is %s.',
+                          start, end, node)
             raise LookupError('Not found the given range.')
 
         # Maybe the data itself is fragmented in the time-series database.
@@ -531,8 +546,15 @@ def is_dict_matched_regex(parent: dict, regex: dict):
         # If not given rules, means anyone can be allowed.
         return True
     for k, rule in regex.items():
-        if k not in parent or not re.match(rule, parent[k]):
+        try:
+            pattern = re.compile(rule)
+        except re.error:
+            rule = rule.replace("\\\\", "\\")
+            pattern = re.compile(rule)
+
+        if k not in parent or not pattern.match(parent[k]):
             return False
+
     return True
 
 
@@ -544,7 +566,7 @@ class SequenceBufferPool:
         And the final value is a list of SequenceTree,
         which the list is sorted by step field.
         e.g.,
-                                      os_cpu_usage
+                                      os_mem_usage
                               /                               \
          {'from_instance': 'host1'}                        {'from_instance': 'host2'}
                    /                                                           \
@@ -567,6 +589,27 @@ class SequenceBufferPool:
     def time():
         """Can be changed to logical time."""
         return int(time.time() * 1000)
+
+    def clear_metric_cache(self, metric_name, labels=None):
+        """清理特定指标的缓存，用于错误恢复"""
+        with self._lock:
+            if metric_name not in self._buffer:
+                return
+
+            if labels is None:
+                # 清理整个指标的缓存
+                del self._buffer[metric_name]
+                logging.info('Cleared all cache for metric: %s', metric_name)
+            else:
+                # 清理特定标签的缓存
+                labels_key = tuple(sorted(labels.items())) if labels else ()
+                if labels_key in self._buffer[metric_name]:
+                    del self._buffer[metric_name][labels_key]
+                    logging.info('Cleared cache for metric: %s with labels: %s', metric_name, labels)
+
+                # 如果该指标下没有其他缓存，删除整个指标条目
+                if not self._buffer[metric_name]:
+                    del self._buffer[metric_name]
 
     def evict(self, cutoff):
         with self._lock:
@@ -646,10 +689,8 @@ class SequenceBufferPool:
         :param sequence: need to be processed sequence.
         :return: aligned sequence.
         """
-        logging.debug(
-            '[SequenceBuffer] align sequences: (%d, %d) and (%d, %d) with step %d.'
-            % (tree_start, tree_end, sequence.timestamps[0], sequence.timestamps[-1], sequence.step)
-        )
+        logging.debug('[SequenceBuffer] align sequences: (%d, %d) and (%d, %d) with step %d.',
+                      tree_start, tree_end, sequence.timestamps[0], sequence.timestamps[-1], sequence.step)
         sequence_start = sequence.timestamps[0]
         distance = tree_end - sequence_start
         if distance % sequence.step == 0:
@@ -827,10 +868,6 @@ class SequenceBufferPool:
                     sequence = self._sample(raw_sequence, step)
                     rv.append(sequence)
                 except LookupError as e:
-                    logging.warning(
-                        'Cannot fetch the sequence %s from %s to %s. The tree is (%d, %d, %d).' % (
-                            metric_name, start_time, end_time,
-                            tree.start, tree.end, tree.step
-                        ), exc_info=e
-                    )
+                    logging.warning('Cannot fetch the sequence %s from %s to %s. The tree is (%d, %d, %d).',
+                                    metric_name, start_time, end_time, tree.start, tree.end, tree.step, exc_info=e)
             return rv

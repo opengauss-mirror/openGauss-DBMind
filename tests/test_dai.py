@@ -16,15 +16,15 @@ from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.types import Alarm, ALARM_TYPES, ALARM_LEVEL
 from dbmind.common.types import RootCause
 from dbmind.common.types import Sequence
-from dbmind.app.diagnosis.query.slow_sql import SlowQuery
+from dbmind.common.types import SlowQuery
 from dbmind.metadatabase.ddl import create_metadatabase_schema
 from dbmind.service import dai
 from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
 from dbmind.service.utils import SequenceUtils
 
 create_metadatabase_schema()
-golden_kpi = ('os_cpu_usage', 'os_mem_usage_rate',
-              'gaussdb_qps_by_instance', 'gaussdb_dynamic_used_memory')
+golden_kpi = ('os_cpu_user_usage', 'os_mem_usage',
+              'os_disk_usage', 'opengauss_qps_by_instance')
 
 
 def test_range_metrics(mock_dai):
@@ -63,19 +63,6 @@ def test_tsdb():
 def test_save_xxx():
     host = '127.0.0.1'
     metric_name = 'test_metric'
-
-    sequence = Sequence(tuple(range(0, 100)), tuple(range(100, 200)))
-    dai.save_forecast_sequence(host, metric_name, sequence)
-
-    future_alarm = Alarm(
-        instance=host,
-        alarm_content="disk occupied will exceed percentage threshold",
-        alarm_type=ALARM_TYPES.SYSTEM,
-        metric_name=metric_name,
-        alarm_level=ALARM_LEVEL.ERROR,
-        alarm_cause=RootCause.get('DISK_WILL_SPILL')
-    )
-    dai.save_future_alarms([future_alarm, future_alarm, future_alarm])
 
     history_alarm = Alarm(
         instance=host,

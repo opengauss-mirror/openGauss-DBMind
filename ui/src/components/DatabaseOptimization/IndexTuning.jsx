@@ -44,8 +44,8 @@ export default class IndexTuning extends Component {
     if (success) {
       this.getPositiveSqlCount();
       this.getExistingIndexesCount();
-      let topListData = []
-      let InvalidIndexArr = []
+      const topListData = []
+      const InvalidIndexArr = []
       this.setState({showflag: false},
         Object.keys(data).forEach(function (key, i) {
           if (key !== 'advised_indexes' && key !== 'existing_indexes' && key !== 'improvement_rate' && key !== 'invalid_indexes' && key !== 'positive_sql' && key !== 'redundant_indexes' && key !== 'suggestions' && key !== 'valid_index') {
@@ -57,7 +57,7 @@ export default class IndexTuning extends Component {
             } else{
               topName=key.replace(/_/g, ' ')
             }        
-            let obj = {
+            const obj = {
               name: topName,
               num: data[key],
               img: iconimg[i],
@@ -65,7 +65,7 @@ export default class IndexTuning extends Component {
             }
             topListData.push(obj)
           } else if (key === 'valid_index') {
-            let obj = {
+            const obj = {
               name: key,
               value: data[key],
             }
@@ -91,7 +91,7 @@ export default class IndexTuning extends Component {
   async getPositiveSqlCount () {
     const { success, data, msg } = await getPositiveSqlCount()
     if (success) {
-      let dataObj = this.state.positiveSQL;
+      const dataObj = this.state.positiveSQL;
       dataObj['total'] = data;
       this.setState(() => ({
         positiveSQL: dataObj
@@ -103,7 +103,7 @@ export default class IndexTuning extends Component {
   async getExistingIndexesCount () {
     const { success, data, msg } = await getExistingIndexesCount()
     if (success) {
-      let dataObj = this.state.existing_indexes;
+      const dataObj = this.state.existing_indexes;
       dataObj['total'] = data;
       this.setState(() => ({
         existing_indexes: dataObj

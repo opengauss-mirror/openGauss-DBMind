@@ -4,10 +4,11 @@ import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWor
 import { commonMetricMethod } from '../../utils/function';
 
 const { Panel } = Collapse;
+// 使用 reprocessing_exporter 的速率指标名称
 const metricData = ['pg_db_xact_commit','pg_db_xact_rollback','pg_db_conflicts','pg_db_confl_lock',
 'pg_db_confl_snapshot','pg_db_confl_bufferpin','pg_db_confl_deadlock','pg_db_deadlocks',
-'pg_db_temp_bytes','pg_db_temp_files','gaussdb_tup_inserted_rate','gaussdb_tup_deleted_rate',
-'gaussdb_tup_updated_rate','gaussdb_tup_fetched_rate'];
+'pg_db_temp_bytes','pg_db_temp_files','opengauss_tup_inserted_rate','opengauss_tup_deleted_rate',
+'opengauss_tup_updated_rate','opengauss_tup_fetched_rate'];
 export default class DBServiceCapability extends Component {
   constructor(props) {
     super(props)
@@ -26,10 +27,11 @@ export default class DBServiceCapability extends Component {
     }
   }
   compare(property){
+    // 以字符串排序，避免数值减法导致 NaN
     return function(a,b){
-        var value1 = a.labels[property];
-        var value2 = b.labels[property];
-        return value1 - value2;
+        const v1 = (a && a.labels && a.labels[property]) || ''
+        const v2 = (b && b.labels && b.labels[property]) || ''
+        return String(v1).localeCompare(String(v2));
     }
   }
   additionItem(arr1, arr2) {
@@ -78,11 +80,13 @@ async getServiceDataAll () {
         failureRateArrayData.push(JSON.parse(JSON.stringify(item)))
         if(result[0][index].values.length > result[1][index].values.length){
           lengthDiff = result[0][index].values.length - result[1][index].values.length
-          result[0][index].values.length.splice(0,lengthDiff);
+          // 修复：对数组本身做 splice，而不是 length.splice
+          result[0][index].values.splice(0,lengthDiff);
           totalArrayData[index].timestamps = result[1][index].timestamps
         } else if(result[0][index].values.length < result[1][index].values.length){
           lengthDiff = result[1][index].values.length - result[0][index].values.length
-          result[1][index].values.length.splice(0,lengthDiff);
+          // 修复：对数组本身做 splice，而不是 length.splice
+          result[1][index].values.splice(0,lengthDiff);
           totalArrayData[index].timestamps = result[0][index].timestamps
         }
         totalArrayData[index].values= this.additionItem(result[0][index].values, result[1][index].values);

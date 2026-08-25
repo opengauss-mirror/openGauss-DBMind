@@ -6,8 +6,13 @@ import Buffer from '../../assets/imgs/Buffer.png';
 import Cache from '../../assets/imgs/Cache.png';
 import NodeEchartFormWork from '../NodeInformation/NodeModules/NodeEchartFormWork';
 import { commonMetricMethod } from '../../utils/function';
+import { getMetricName } from '../../utils/metricMapping';
 
-const metricData = ['node_memory_MemTotal_bytes', 'node_memory_MemAvailable_bytes', 'node_memory_SwapTotal_bytes', 'node_memory_SwapFree_bytes', 'os_mem_usage', 'node_memory_MemAvailable_bytes', 'node_memory_Buffers_bytes', 'node_memory_Cached_bytes']
+// 原始指标名称（Linux 格式）
+const originalMetrics = ['node_memory_MemTotal_bytes', 'node_memory_MemAvailable_bytes', 'node_memory_SwapTotal_bytes', 'node_memory_SwapFree_bytes', 'os_mem_usage', 'node_memory_MemAvailable_bytes', 'node_memory_Buffers_bytes', 'node_memory_Cached_bytes'];
+
+// 根据操作系统动态映射指标名称
+const metricData = originalMetrics.map(metric => getMetricName(metric));
 export default class NodeMemory extends Component {
   constructor(props) {
     super(props)
@@ -49,8 +54,12 @@ export default class NodeMemory extends Component {
       commonMetricMethod(this.state.param, { latest_minutes: this.state.selTimeValue, label: metricData[6] }),
       commonMetricMethod(this.state.param, { latest_minutes: this.state.selTimeValue, label: metricData[7] })
     ]).then((result) => {
-      if (result[0]) {
-        let totalRight = result[2][0].values[0] + result[3][0].values[0], totalLeft = [], usageData = [], usageValues = []
+      console.log('NodeMemory - Original metrics:', originalMetrics);
+      console.log('NodeMemory - Mapped metrics:', metricData);
+      console.log('NodeMemory - API results:', result);
+      if (result[0] && result[0][0] && result[0][0].values) {
+        let totalRight = result[2] && result[2][0] && result[2][0].values ? result[2][0].values[0] + (result[3] && result[3][0] && result[3][0].values ? result[3][0].values[0] : 0) : 0;
+        let totalLeft = [], usageData = [], usageValues = []
         result[4][0].values.forEach((oitem) => {
           usageValues.push(result[0][0].values[0] * oitem)
         });

@@ -31,7 +31,7 @@ export default class MetricData extends Component {
     this.setState({loading: true})
     if (header.length > 0) {
       let historyColumObj = {}
-      let tableHeader = []
+    const tableHeader = []
       header.forEach(item => {
         historyColumObj = {
           title: formatTableTitle(item),
@@ -41,9 +41,9 @@ export default class MetricData extends Component {
         }
         tableHeader.push(historyColumObj)
       })
-      let res = []
+    const res = []
       rows.forEach((item, index) => {
-        let tabledata = {}
+      const tabledata = {}
         for (let i = 0; i < header.length; i++) {
           tabledata[header[i]] = item[i]
         }
@@ -85,7 +85,7 @@ export default class MetricData extends Component {
   }
   // 回调函数，切换下一页
   changePage(current,pageSize){
-    let params = {
+    const params = {
       current: current,
       pagesize: pageSize,
     };
@@ -100,7 +100,7 @@ export default class MetricData extends Component {
     this.setState({
       pageSize: pageSize
     });
-    let params = {
+    const params = {
       current: current,
       pagesize: pageSize,
     };

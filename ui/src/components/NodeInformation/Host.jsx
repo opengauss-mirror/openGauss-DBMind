@@ -29,6 +29,7 @@ export default class Host extends Component {
   }
   onChange = (key) => {
     this.setState(() => ({tabkey: key}))
+    try { sessionStorage.setItem('host.tabs', JSON.stringify(key)) } catch(e) {}
   };
   changeSelVal (value) {
     this.setState({selValue: value})
@@ -66,6 +67,13 @@ export default class Host extends Component {
       endTime: dateStrings ? new Date(dateStrings).getTime() : '',}))
   };
   componentDidMount () {
+    // 恢复上次选中的 Host 子Tab
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('host.tabs'))
+      if (saved) {
+        this.setState({ tabkey: saved })
+      }
+    } catch(e) {}
     this.getItemList()
   }
   render() {
@@ -109,10 +117,10 @@ export default class Host extends Component {
     return (
       <div className='nodeselect'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} destroyInactiveTabPane={true}
+        <Tabs tabBarGutter={30}  className='childstyle' type="card " activeKey={this.state.tabkey} items={items} onChange={this.onChange} destroyInactiveTabPane={true}
          tabBarExtraContent={
           <div>
-          <Select disabled value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
+          <Select value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch
           optionFilterProp="children"  filterOption={(input, option) =>
             option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0} style={{ width: 124, marginRight: 10 }} className='mb-10' >
           {

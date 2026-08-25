@@ -3,7 +3,7 @@ import { Input, message, Card, Col, Row, Table, Tabs, DatePicker, Modal, Radio, 
 import { getIntelligentSqlAnalysisInterface } from '../../api/aiTool';
 import { getLabelData, getIntelligentSqlCondition } from '../../api/databaseOptimization';
 import { getExecutionPlan } from '../../api/autonomousManagement';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../common/EChart';
 import moment from 'moment';
 import Analyze from '../../assets/imgs/Analyze.png';
 import Detail from '../../assets/imgs/Detail.png';
@@ -537,45 +537,36 @@ export default class SlowSqlDiagnosis extends Component {
           <Row gutter={10} className='mb-10'>
             <Col span={this.state.selectedRow.length === 0 ? 24 : 16}>
               <Card title="SQL Statistics">
-                <ReactEcharts
+                <EChart
                     ref={(e) => {
                       this.echartsElement = e
                     }}
                     option={this.getOption('two')}
                     style={{ height: 300 }}
-                    notMerge={true}
-                    lazyUpdate={true}
-                  >
-                </ReactEcharts>
+                  />
               </Card>
             </Col>
             {this.state.selectedRow.length === 1 ? <Col span={8}>
               <Card title="Segment time-consuming SQL distribution">
-                <ReactEcharts
+                <EChart
                   ref={(e) => {
                     this.echartsElement = e
                   }}
                   option={this.getOption('one')}
                   style={{ height: 300 }}
-                  notMerge={true}
-                  lazyUpdate={true}
-                >
-                </ReactEcharts>
+                />
               </Card>
             </Col> : ''}
           </Row> : <Row gutter={10} className='mb-10'>
               <Col span={24}>
                 <Card title="SQL Statistics">
-                  <ReactEcharts
+                  <EChart
                       ref={(e) => {
                         this.echartsElement = e
                       }}
                       option={this.getOption('two')}
-                      style={{ width: '100%', height: 300 }}
-                      notMerge={true}
-                      lazyUpdate={true}
-                    >
-                  </ReactEcharts>
+                      style={{ height: 300 }}
+                    />
                 </Card>
               </Col>
         </Row>} 

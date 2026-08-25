@@ -11,7 +11,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-from sqlalchemy import Column, String, Integer, BigInteger, CHAR, Index, Boolean
+from sqlalchemy import Column, String, Integer, BigInteger, Index, Boolean
 
 from .. import ResultDbBase
 
@@ -20,7 +20,7 @@ class HealingRecords(ResultDbBase):
     __tablename__ = "tb_healing_records"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    instance = Column(CHAR(64), nullable=False)
+    instance = Column(String(64), nullable=False)
     trigger_events = Column(String(1024), nullable=True)
     trigger_root_causes = Column(String(1024), nullable=True)
     action = Column(String(64), nullable=True)

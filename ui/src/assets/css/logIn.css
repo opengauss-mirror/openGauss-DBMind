@@ -7,12 +7,16 @@
     justify-content: center;
     align-items: center;
     overflow: hidden;
-    background-color: #001529;
+    /* 统一与顶栏相同的深色渐变外壳 */
+    background: linear-gradient(90deg, var(--brand-header-bg-from, #0B1120) 0%, var(--brand-header-bg-to, #1B2A4B) 100%);
 }
 .loginwrap{
     position: relative;
     width: 1100px;
-    background: #808a94;
+    /* 半透明深色卡片，增强层级与品牌统一 */
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
     border-radius: 10px;
     height: 100px;
 }

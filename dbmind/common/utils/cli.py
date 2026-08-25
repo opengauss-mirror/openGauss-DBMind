@@ -16,12 +16,27 @@ import select
 import sys
 import multiprocessing
 import signal
+import json
 
 from dbmind.common.utils import dbmind_assert
 from dbmind.common.utils.base import WHITE_FMT, RED_FMT, GREEN_FMT, YELLOW_FMT
+from dbmind.common.platform import LINUX, MACOS
 
 
 def set_proc_title(name: str):
+    # 支持Linux和macOS系统的进程标题设置
+    if MACOS:
+        try:
+            from dbmind.common import platform
+            platform.macos_set_proc_title(name)
+            return
+        except Exception as e:
+            logging.debug('An error (%s) occurred while setting the process name on macOS.', e)
+            return
+    elif not LINUX:
+        logging.debug('Process title masking is only supported on Linux and macOS systems.')
+        return
+        
     new_name = name.encode('ascii', 'replace')
 
     try:
@@ -79,29 +94,46 @@ def write_to_terminal(
         out_message = message
 
     # choosing a streaming.
-    if level == 'error':
-        sys.stderr.write(out_message)
-        sys.stderr.write(os.linesep)
-        sys.stderr.flush()
-    else:
-        sys.stdout.write(out_message)
-        sys.stdout.write(os.linesep)
-        sys.stdout.flush()
+    try:
+        if level == 'error':
+            sys.stderr.write(out_message)
+            sys.stderr.write(os.linesep)
+            sys.stderr.flush()
+        else:
+            sys.stdout.write(out_message)
+            sys.stdout.write(os.linesep)
+            sys.stdout.flush()
+    except BrokenPipeError:
+        pass
+    except OSError as os_error:
+        if "Input/output error" not in str(os_error):
+            raise os_error
 
 
 def read_input_from_pipe():
     """
     Read stdin input if there is "echo 'str1 str2' | python xx.py", return the input string.
     """
+    if not LINUX:
+        return ""
+
     input_str = ""
     r_handle, _, _ = select.select([sys.stdin], [], [], 0)
     if not r_handle:
         return ""
 
     for item in r_handle:
-        if item == sys.stdin:
+        if item == sys.stdin and not sys.stdin.line_buffering:
             input_str = sys.stdin.read().strip()
     return input_str
+
+
+def parse_json_from_stdin():
+    json_str = read_input_from_pipe()
+    if json_str:
+        return json.loads(json_str)
+
+    return dict()
 
 
 def raise_fatal_and_exit(

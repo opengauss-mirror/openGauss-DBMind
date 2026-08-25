@@ -1,0 +1,527 @@
+# Copyright (c) 2022 Huawei Technologies Co.,Ltd.
+#
+# openGauss is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+
+# Format of this configuration file:
+# <metric_prefix>:
+# metrics:
+#   - name: <metric_suffix>:
+#   - miner_type: <indicates the log miner type suitable for the metric.>
+#   - template: <the log template of the metric>
+#   - offset: <There are some logs which are atomic recorded, the log meets the template >
+#              may not contain the key information, but the relative positions to each other
+#              of these logs is fixed, we use offset to indicate the very log which contains
+#              the information. The information will be recorded in the label 'content'.>
+#   - usage: <Prometheus type>
+#   - type: <the way of metric calculation>
+#   - labels: <'labels' determines what label to be included when doing aggregation.>
+#   - labels_in_content: <extract the label information from content, when you only need
+#                         part of wildcards (<*>), use null at the wildcard you want to
+#                         discard. e.g. log sth <*> <*> <*>, [null, host, null]
+#                         will only take the 2nd wildcard as host and ignore the others.
+#                         labels_in_content should be a subset of labels.>
+#   - description: <description text, optional>
+#   ...
+
+
+opengauss_log:
+  - name: deadlock_count
+    miner_type: postgresql,opengauss
+    template:
+      else: deadlock detected
+    offset: 1
+    usage: GAUGE
+    type: trie
+    labels: [app_name, thread_name, user_name, datname, host, node_name, content]
+    labels_in_content: []
+    description: the count of deadlocks during the scape interval.
+    status: enable
+
+  - name: user_cancel_statement
+    miner_type: postgresql,opengauss
+    template:
+      else: canceling statement due to user request
+    offset: 1
+    usage: GAUGE
+    type: trie
+    labels: [app_name, thread_name, user_name, datname, host, node_name]
+    labels_in_content: []
+    description: the count of canceling statements during the scape interval.
+    status: enable
+
+  - name: login_denied
+    miner_type: postgresql,opengauss
+    template:
+      else: Invalid username/password,login denied.
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [app_name, thread_name, user_name, datname, host, node_name]
+    labels_in_content: []
+    description: the count of logins denied during the scape interval.
+    status: enable
+
+  - name: errors_total
+    miner_type: postgresql,opengauss
+    template:
+      else: ERROR
+    offset: 0
+    usage: COUNTER
+    type: cumulative
+    labels: []
+    labels_in_content: []
+    description: the count of errors in log file.
+    status: enable
+
+  - name: panic
+    miner_type: postgresql,opengauss
+    template:
+      else: PANIC
+    offset: 0
+    usage: GAUGE
+    type: level
+    labels: [app_name, thread_name, user_name, datname, host, node_name, content]
+    labels_in_content: []
+    description: the count of panics in log file.
+    status: enable
+
+  - name: dn_ping_standby
+    miner_type: postgresql,opengauss
+    template:
+      else: walreceiver could not connect and shutting down
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: []
+    labels_in_content: []
+    description: the count of dn ping standby.
+    status: enable
+
+  - name: flow_control
+    miner_type: postgresql,opengauss
+    template:
+      else: Log control take effect due to <*>, <*> is <*>, <*> is <*>, current the sleep time is <*> microseconds
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [datname, host, node_name, control_type]
+    labels_in_content: [control_type, null, null, null, null, null]
+    description: the count of flow control.
+    status: disable
+
+  - name: lock_wait_timeout
+    miner_type: postgresql,opengauss
+    template:
+      else: ^blocked by (hold lock|lock requested waiter) thread (.*?), statement (.*?), (hold|requested) lockmode (.*?).$
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [datname, host, node_name, thread, statement, lockmode]
+    labels_in_content: [null, thread, statement, null, lockmode]
+    description: the count of lock timeout.
+    status: disable
+
+  - name: recycle_lsn
+    miner_type: postgresql,opengauss
+    template:
+      else: ^attempting to remove WAL segments older than log file ([0-9a-zA-Z]*)
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [node_name, recycle_lsn]
+    labels_in_content: [recycle_lsn]
+    description: the count of xlog recycle with lsn.
+    status: enable
+
+  - name: recycle_replication_slot
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: replication slot limit] max replication slot limits is <*>, keep lsn is <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, replication_slot_limit, lsn]
+    labels_in_content: [replication_slot_limit, lsn]
+    description: the count of xlog recycle exception by recycle replication slot limit.
+    status: enable
+
+  - name: recycle_build
+    miner_type: postgresql,opengauss
+    template:
+      else: keep all the xlog segments, because there is a full-build task in the backend, and start segno is less than or equal to zero
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name]
+    labels_in_content: []
+    description: the count of xlog recycle exception by build.
+    status: enable
+
+  - name: recycle_full_build
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: FullBuildXlogCopyStart] xlogcopystartptr is <*>, xlogcopystartptr: <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno, lsn]
+    labels_in_content: [segno, lsn]
+    description: the count of xlog recycle exception by full build.
+    status: enable
+
+  - name: recycle_quorum_required
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: PRIMARY_MODE] quorum/tools min required required, segno is <*>, quorum min lsn: <*>, min tools required: <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno, lsn, lsn_required]
+    labels_in_content: [segno, lsn, lsn_required]
+    description: the count of xlog recycle quorum required.
+    status: enable
+
+  - name: recycle_dcf_zero
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: DCF ] min applied segno is <*>, min applied lsn is <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno, lsn]
+    labels_in_content: [segno, lsn]
+    description: the count of xlog recycle exception by dcf idx zero.
+    status: enable
+
+  - name: recycle_dcf_else
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: DCF] keep all files, segno is <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno]
+    labels_in_content: [segno]
+    description: the count of xlog recycle exception by dcf for other reason.
+    status: enable
+
+  - name: recycle_dummy_standby
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: PRIMARY_MODE] DUMMY_STANDYS_MODE keep all log, segno is <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno]
+    labels_in_content: [segno]
+    description: the count of xlog recycle exception by dummy standby.
+    status: enable
+
+  - name: recycle_cbm
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: cbm] cbm tracked segno is <*>, cbm tracked lsn: <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno, lsn]
+    labels_in_content: [segno, lsn]
+    description: the count of xlog recycle exception by cbm.
+    status: enable
+
+  - name: recycle_standby_backup
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: STANDBY && !dummyStandby] standby backup slot segno is <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno]
+    labels_in_content: [segno]
+    description: the count of xlog recycle exception by standby backup.
+    status: enable
+
+  - name: recycle_auxilary_db
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: aux db] keep all files, segno is <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno]
+    labels_in_content: [segno]
+    description: the count of xlog recycle exception by auxilary db.
+    status: disable
+
+  - name: recycle_extro_read_zero
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: EXTRO_READ] recycle segno is 0, keep all files, segno is <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno]
+    labels_in_content: [segno]
+    description: the count of xlog recycle exception by extro read.
+    status: enable
+
+  - name: recycle_extro_read_else
+    miner_type: postgresql,opengauss
+    template:
+      else: '[recycle: EXTRO_READ] recycle segno is <*>, global recycle lsn: <*>.'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [node_name, segno, lsn]
+    labels_in_content: [segno, lsn]
+    description: the count of xlog recycle exception by other extro read.
+    status: enable
+
+  - name: authentication_timeout
+    miner_type: postgresql,opengauss
+    template:
+      else: 'terminate because authentication timeout(<*>)'
+    offset: 0
+    usage: GAUGE
+    type: trie
+    labels: [app_name, thread_name, user_name, datname, host, node_name]
+    labels_in_content: []
+    description: the count of authentication timeout.
+    status: disable
+
+  - name: node_restart
+    miner_type: cm_agent
+    template:
+      else: (.*?) restart !
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [role]
+    labels_in_content: [role]
+    description: the count of node restart.
+    status: enable
+
+  - name: node_start
+    miner_type: cm_agent
+    template:
+      else: (.*?) START system\(command:(.*?)\)
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [role, command]
+    labels_in_content: [role, command]
+    description: the count of node start.
+    status: enable
+
+  - name: cn_status
+    miner_type: cm_agent
+    template:
+      else: cn_manual_stop=([0,1]), cn_replace=[0,1], g_cnDiskDamage=([0,1]), g_cnNicDown=([0,1]), port_conflict\((.*?)\)=([0,1])
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [cn_manual_stop, cn_disk_damage, cn_nic_down, port, cn_port_conflict]
+    labels_in_content: [cn_manual_stop, cn_disk_damage, cn_nic_down, port, cn_port_conflict]
+    description: the count of cn status.
+    status: enable
+
+  - name: cn_disk_status_after_removed
+    miner_type: cm_agent
+    template:
+      else: 'cn_(.*?) can not be repaired: g_cnDiskDamage=([0,1]), g_cnNicDown=[0,1]'
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [instance_id, cn_disk_damage_after_removed]
+    labels_in_content: [instance_id, cn_disk_damage_after_removed]
+    description: the count of cn disk damage after cn is removed.
+    status: enable
+
+  - name: dn_status
+    miner_type: cm_agent
+    template:
+      else: datanodeId=(.*?), dn_manual_stop=([0,1]), g_dnDiskDamage=([0,1]), g_nicDown=([0,1]), port_conflict=([0,1])
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [instance_id, dn_manual_stop, dn_disk_damage, dn_nic_down, dn_port_conflict]
+    labels_in_content: [instance_id, dn_manual_stop, dn_disk_damage, dn_nic_down, dn_port_conflict]
+    description: the count of dn status.
+    status: enable
+
+  - name: gtm_status
+    miner_type: cm_agent
+    template:
+      else: gtm_manual_stop=([0,1]), gtm_replace=[0,1], g_gtmDiskDamage=([0,1]), g_gtmNicDown=([0,1]), port_conflict\((.*?)\)=([0,1])
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [gtm_manual_stop, gtm_disk_damage, gtm_nic_down, port, gtm_port_conflict]
+    labels_in_content: [gtm_manual_stop, gtm_disk_damage, gtm_nic_down, port, gtm_port_conflict]
+    description: the count of gtm status.
+    status: enable
+
+  - name: dn_writable_failed
+    miner_type: cm_agent
+    template:
+      else: data path disc writable test failed
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: []
+    labels_in_content: []
+    description: the count of dn writable failed.
+    status: enable
+
+  - name: cms_heartbeat_timeout_restart
+    miner_type: cm_server
+    template:
+      else: restart (.*?), there is not report msg for
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [instance_id]
+    labels_in_content: [instance_id]
+    description: the count of cms heartbeat timeout.
+    status: enable
+
+  - name: cms_phonydead_restart
+    miner_type: cm_server
+    template:
+      else: phony dead times\(.*?:.*?\) already exceeded, will restart\((.*?)\)
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [instance_id]
+    labels_in_content: [instance_id]
+    description: the count of cms phony dead times.
+    status: enable
+
+  - name: cms_cn_down
+    miner_type: cm_server
+    template:
+      else: cn_(.*?) is down. cn_down_to_delete=([0,1]), isCnDnDisconnected=([0,1])(, .*?, erDeleteCn=\[([0,1])\], cnTpNetDeleted\[([0,1])\])?
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [instance_id, cn_down_to_delete, cn_dn_disconnected, er_delete_cn, cn_tp_net_deleted]
+    labels_in_content: [instance_id, cn_down_to_delete, cn_dn_disconnected, null, er_delete_cn, cn_tp_net_deleted]
+    description: the count of cms down.
+    status: enable
+
+  - name: cn_restart_time_exceed
+    miner_type: cm_server
+    template:
+      else: of cn instance restarts within ten minutes is more than
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: []
+    labels_in_content: []
+    description: the count of cn restart time exceed.
+    status: enable
+
+  - name: cms_read_only
+    miner_type: cm_server
+    template:
+      else: (instance|instanceId:) (.*?) (is transaction |set |was set |is )read only
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [instance_id]
+    labels_in_content: [null, instance_id, null]
+    description: the count of cn read only.
+    status: enable
+
+  - name: cms_restart_pending
+    miner_type: cm_server
+    template:
+      else: notify local datanode\((.*?)\) to standby
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [instance_id]
+    labels_in_content: [instance_id]
+    description: the count of cms restart pending.
+    status: enable
+
+  - name: cms_heartbeat_timeout
+    miner_type: cm_server
+    template:
+      else: instance\((.*?)\) heartbeat timeout
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [instance_id]
+    labels_in_content: [instance_id]
+    description: the count of cms heartbeat timeout.
+    status: enable
+
+  - name: bind_ip_failed
+    miner_type: system_call
+    template:
+      else: could not bind (.*?) socket
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: [socket]
+    labels_in_content: [socket]
+    description: the count of bind ip failed.
+    status: enable
+
+  - name: gtm_disconnected_to_primary
+    miner_type: gtm
+    template:
+      else: could not connect to the GTM primary server
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: []
+    labels_in_content: []
+    description: the count of gtm disconnected to primary.
+    status: disable
+
+  - name: gtm_panic
+    miner_type: gtm
+    template:
+      else: FATAL|PANIC
+    offset: 0
+    usage: GAUGE
+    type: regex
+    labels: []
+    labels_in_content: []
+    description: the count of gtm panic or fatal.
+    status: disable
+
+  - name: ffic
+    miner_type: ffic_opengauss
+    template:
+      else: core
+    offset: 0
+    usage: GAUGE
+    type: core
+    labels: [unique_sql_id, debug_sql_id]
+    labels_in_content: []
+    description: the count of ffic.
+    status: enable
+
+  - name: cn_dn_disconnection
+    miner_type: system_alarm
+    template:
+      else: ^.*?-(.*?)_(.*?)\((\d+-\d+)\)$
+    offset: 0
+    usage: GAUGE
+    type: AbnormalTopologyConnect
+    labels: [role, instance_id, node_code]
+    labels_in_content: []
+    description: the topology disconnection.
+    status: enable

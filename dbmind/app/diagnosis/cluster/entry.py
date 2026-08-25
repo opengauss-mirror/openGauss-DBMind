@@ -12,5 +12,5 @@
 # See the Mulan PSL v2 for more details.
 
 
-def diagnose_cluster(host, alarm_log):
+def diagnose_cluster():
     pass

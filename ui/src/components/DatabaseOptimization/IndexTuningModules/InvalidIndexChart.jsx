@@ -15,8 +15,8 @@ export default class InvalidIndexChart extends Component {
   }
  
   initChart() {
-    let myChart = echarts.init(document.getElementById("indexTuningChart3"));
-    let option = {
+    const myChart = echarts.init(document.getElementById("indexTuningChart3"));
+    const option = {
       tooltip: {
         trigger: "item",
       },

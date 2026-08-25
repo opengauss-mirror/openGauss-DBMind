@@ -10,12 +10,13 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
-import logging
 from contextlib import contextmanager
 import psycopg2
 
 from . import index_advisor_workload, process_bar
 from .executors.driver_executor import DriverExecutor
+
+from dbmind.common.utils import escape_double_quote
 
 
 class Executor(DriverExecutor):
@@ -27,6 +28,8 @@ class Executor(DriverExecutor):
     def set_connection(self, connection):
         self.conn = connection
         self.cur = self.conn.cursor()
+        result = self.__execute("SHOW sql_compatibility;")
+        self.is_m_compat = result[0][0] == 'M'
 
     def set_schemas(self, schemas):
         self.schema = ','.join(schemas)
@@ -49,15 +52,16 @@ def api_index_advise(sql_pairs, connection=None, dsn=None,
     index_advisor_workload.get_workload_costs = index_advisor_workload.get_plan_cost
     templates = dict()
     executor = Executor()
-    executor.set_schemas(schemas)
+    executor.set_schemas(','.join(f'"{escape_double_quote(schema)}"' for schema in schemas))
     if connection:
         cursor = connection.cursor()
         cursor.execute('show search_path;')
         search_path = cursor.fetchone()[0]
         connection.commit()
     elif dsn:
-        connection = psycopg2.connect(dsn=dsn)
+        connection = psycopg2.connect(dsn=dsn, application_name='DBMind-index-advisor')
     else:
+        connection_kwargs['application_name'] = 'DBMind-index-advisor'
         connection = psycopg2.connect(**connection_kwargs)
     executor.set_connection(connection)
 

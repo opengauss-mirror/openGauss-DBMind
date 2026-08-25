@@ -12,7 +12,10 @@
 # See the Mulan PSL v2 for more details.
 
 import numpy as np
-import scipy.stats
+try:
+    import scipy.stats
+except ImportError:
+    pass
 
 from ._abstract_detector import AbstractDetector
 from ...types import Sequence
@@ -51,53 +54,63 @@ class IncreaseDetector(AbstractDetector):
         self.side = side
         self.alpha = alpha
         self.cdfs = None
+        self.user_defined = self.alpha is not None
 
     def _fit(self, s: Sequence):
-        self.length = len(s.values)
-        self.half_n = int(self.length / 2)
-        if self.alpha is None:
-            if self.half_n > 0:
-                self.cdfs = 2 * scipy.stats.binom.cdf(range(self.half_n + 1), self.length, 0.5)
+        length = len(s.values)
+        half_n = int(length / 2)
+        if not self.user_defined:
+            if half_n > 0:
+                self.cdfs = 2 * scipy.stats.binom.cdf(range(half_n + 1), length, 0.5)
                 idx = np.where(np.diff(self.cdfs) > CDF_THRESHOLD)[0][0]
                 self.alpha = self.cdfs[idx]
             else:
                 self.alpha = 0
 
     def _predict(self, s: Sequence) -> Sequence:
+        length = len(s.values)
+        if self.least_length is not None and length < self.least_length:
+            return Sequence(timestamps=s.timestamps, values=[False] * length)
+
+        half_n = int(length / 2)
+
         x, y = s.timestamps, s.values
         coef = np.polyfit(x, y, deg=1)[0]
 
         n_pos = n_neg = 0
-        for i in range(self.half_n):
-            diff = y[i + self.half_n] - y[i]
+        for i in range(half_n):
+            diff = y[i + half_n] - y[i]
             if diff > 0:
                 n_pos += 1
             elif diff < 0:
                 n_neg += 1
         n_diff = n_pos + n_neg
 
+        if n_diff == 0:
+            return Sequence(timestamps=s.timestamps, values=[False] * length)
+
         if self.side == "positive":
             if n_neg > n_pos:
-                return Sequence(timestamps=s.timestamps, values=[False] * self.length)
+                return Sequence(timestamps=s.timestamps, values=[False] * length)
 
             if self.cdfs is None:
                 p_value = 2 * scipy.stats.binom.cdf(n_neg, n_diff, 0.5)
             else:
                 p_value = self.cdfs[n_neg]
 
-            if p_value < self.alpha and coef > 0:
-                return Sequence(timestamps=s.timestamps, values=[True] * self.length)
+            if p_value <= self.alpha and coef > 0:
+                return Sequence(timestamps=s.timestamps, values=[True] * length)
 
         elif self.side == "negative":
             if n_pos > n_neg:
-                return Sequence(timestamps=s.timestamps, values=[False] * self.length)
+                return Sequence(timestamps=s.timestamps, values=[False] * length)
 
             if self.cdfs is None:
                 p_value = 2 * scipy.stats.binom.cdf(n_pos, n_diff, 0.5)
             else:
                 p_value = self.cdfs[n_pos]
 
-            if p_value < self.alpha and coef < 0:
-                return Sequence(timestamps=s.timestamps, values=[True] * self.length)
+            if p_value <= self.alpha and coef < 0:
+                return Sequence(timestamps=s.timestamps, values=[True] * length)
 
-        return Sequence(timestamps=s.timestamps, values=[False] * self.length)
+        return Sequence(timestamps=s.timestamps, values=[False] * length)

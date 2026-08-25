@@ -16,6 +16,7 @@ import sys
 import os
 from configparser import ConfigParser
 
+from dbmind.common.utils.exporter import set_logger
 from dbmind.constants import __version__
 
 from .algorithm.diag import SQLDiag
@@ -23,7 +24,7 @@ from .preprocessing import LoadData, split_sql
 from .utils import ResultSaver, is_valid_conf
 from dbmind.common.utils.checking import path_type
 
-__description__ = 'SQLdiag integrated by openGauss.'
+__description__ = 'SQLdiag integrated by DBMind.'
 
 
 def parse_args(argv):
@@ -44,9 +45,9 @@ def parse_args(argv):
                         help='Choose the model model to use.')
     parser.add_argument('--query', help='Input the queries to predict.')
     parser.add_argument('--threshold', help='Slow SQL threshold.')
-    parser.add_argument('--model-file', '--model-path', required=True, type=os.path.realpath,
+    parser.add_argument('--model-file', '--model-path', required=True, type=path_type,
                         help='The storage path of the model file, used to read or save the model file.')
-    parser.add_argument('--config-file', default='sqldiag.conf', type=path_type)
+    parser.add_argument('--config-file', '--config', default='sqldiag.conf', type=path_type)
     parser.version = __version__
     return parser.parse_args(argv)
 
@@ -58,20 +59,21 @@ def get_config(filepath):
 
 
 def change_file_permissions(args):
-    if os.path.exists(args.csv_file) and os.path.isfile(args.csv_file):
+    if args.csv_file and os.path.exists(args.csv_file) and os.path.isfile(args.csv_file):
         os.chmod(args.csv_file, 0o600)
-    if os.path.exists(args.predicted_file) and os.path.isfile(args.predicted_file):
+    if args.predicted_file and os.path.exists(args.predicted_file) and os.path.isfile(args.predicted_file):
         os.chmod(args.predicted_file, 0o600)
-    if os.path.exists(args.model_file) and os.path.isfile(args.model_file):
+    if args.model_file and os.path.exists(args.model_file) and os.path.isfile(args.model_file):
         os.chmod(args.model_file, 0o600)
-    if os.path.exists(args.config_file) and os.path.isfile(args.config_file):
+    if args.config_file and os.path.exists(args.config_file) and os.path.isfile(args.config_file):
         os.chmod(args.config_file, 0o600)
 
 
 def main(argv):
     args = parse_args(argv)
+    log_file_path = os.path.join(os.getcwd(), 'dbmind_sqldiag.log')
+    set_logger(log_file_path, "info")
     change_file_permissions(args)
-    logging.basicConfig(level=logging.WARNING)
     if not is_valid_conf(args.config_file):
         logging.fatal('The [--config-file] parameter is incorrect')
         sys.exit(1)

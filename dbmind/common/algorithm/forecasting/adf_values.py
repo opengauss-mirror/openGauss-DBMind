@@ -12,7 +12,10 @@
 # See the Mulan PSL v2 for more details.
 
 import numpy as np
-from scipy.stats import norm
+try:
+    from scipy.stats import norm
+except ImportError:
+    pass
 
 tau_star_nc = -1.04
 tau_min_nc = -19.04

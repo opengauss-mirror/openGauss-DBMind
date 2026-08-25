@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Col, Row } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../../common/EChart';
 import PropTypes from 'prop-types';
 import { Empty, message } from 'antd';
 import { formatTimestamp } from '../../../utils/function';
@@ -273,16 +273,13 @@ export default class NodeEchartFormWork extends Component {
               })}
         </>
       </p>
-      <ReactEcharts
+      <EChart
         ref={(e) => {
           this.echartsElement = e
         }}
         option={this.getOption()}
-        style={{ width: '100%', height: 240 }}
-        notMerge={true}
-        lazyUpdate={true}
-      >
-      </ReactEcharts>
+        style={{ height: 240 }}
+      />
       </div>
       : <Empty description={false} style={{ paddingTop: 50 }} />
     )

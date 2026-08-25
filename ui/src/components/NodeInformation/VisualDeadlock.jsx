@@ -1,18 +1,9 @@
 import React, { Component } from "react";
-import { Modal, Descriptions, Spin } from "antd";
-import ReactEcharts from "echarts-for-react";
+import { Spin } from "antd";
+import EChart from "../common/EChart";
 import { getTreeDetails } from "../../api/autonomousManagement";
 let datas = [],
   link = [];
-
-const escapeHtml = (value) =>
-  String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
 export default class VisualDeadlock extends Component {
   constructor(props) {
     super(props);
@@ -25,7 +16,7 @@ export default class VisualDeadlock extends Component {
   }
   dealDataItem(data) {
     data.forEach((item, index) => {
-      let dataItem = {
+      const dataItem = {
         name: item.name,
       };
       Object.keys(item.details).forEach((elem) => {
@@ -34,7 +25,7 @@ export default class VisualDeadlock extends Component {
 
       datas.push(dataItem);
       if (item.children.length) {
-        let linkItem = {
+        const linkItem = {
           source: typeof item.name==='number' ?item.name.toString():item.name,
           target: typeof item.children[0].name==='number'?item.children[0].name.toString():item.children[0].name,
         };
@@ -44,11 +35,11 @@ export default class VisualDeadlock extends Component {
     });
   }
   async dealData() {
-    const { success, data, msg } = await getTreeDetails(
+    const { success, data } = await getTreeDetails(
       this.props.detailsParam.sessionid
     );
 
-    let firstX = 300,
+    const firstX = 300,
       firstY = 100;
     if (success) {
       if (data.length) {
@@ -58,19 +49,19 @@ export default class VisualDeadlock extends Component {
             ele.x = firstX;
             ele.y = firstY;
           }
-          let indexNum = index + 1;
+          const indexNum = index + 1;
           const s = parseInt(indexNum / 4);
           const l = indexNum % 4;
           // 商数是偶数
           if (s % 2 === 0) {
-            let XArr = [100, 200, 300, 400];
+            const XArr = [100, 200, 300, 400];
             if (l < 1) {
               ele.x = XArr[0];
             } else {
               ele.x = XArr[l - 1];
             }
           } else {
-            let XArr = [400, 300, 200, 100];
+            const XArr = [400, 300, 200, 100];
             // 商数是基数
             if (l < 1) {
               ele.x = XArr[0];
@@ -106,10 +97,8 @@ export default class VisualDeadlock extends Component {
           let res=""
          Object.keys(params.data).forEach(elem=>{
            if(elem!=='x' && elem!=='y' && elem!=='name'){
-           const key = escapeHtml(elem);
-           const value = escapeHtml(params.data[elem]);
            res+=  `
-          <span style="display:inline-block;width:120px;margin:2px 0;margin-right:10px;font-weight:600;text-align:right;"> ${key}</span>: ${value}<br/>`
+          <span style="display:inline-block;width:120px;margin:2px 0;margin-right:10px;font-weight:600;text-align:right;"> ${elem}</span>: ${params.data[elem]}<br/>`
            }
          })
         return res
@@ -156,14 +145,13 @@ export default class VisualDeadlock extends Component {
     return (
       <>
         {this.state.dataFlg ? (
-          <ReactEcharts
+          <EChart
             ref={(e) => {
               this.echartsElement = e;
             }}
             style={{ width: 1000, height: 600, margin: "0 auto" }}
             option={this.getOption()}
-            lazyUpdate={true}
-          ></ReactEcharts>
+          />
         ) : (
           <div style={{ textAlign: "center" }}>
             <Spin style={{ margin: "100px auto" }} />{" "}

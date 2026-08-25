@@ -1,7 +1,7 @@
 import React, { Component } from "react";
 import { Card, Empty, Select } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
-import ReactEcharts from "echarts-for-react";
+// 移除未使用的 ReloadOutlined
+import EChart from "../../common/EChart";
 import PropTypes from "prop-types";
 import { formatTimestamp } from "../../../utils/function";
 
@@ -95,13 +95,13 @@ export default class SuggestionsChangeChart extends Component {
   getChartData(data) {
     if (data.timestamps.length > 0) {
       // 处理X轴
-      let formatTimeData = [];
+      const formatTimeData = [];
       data.timestamps.forEach((ele) => {
         formatTimeData.push(formatTimestamp(ele));
       });
       // 处理Y轴数据
-      let ydata = [];
-      let seriesItem = {
+      const ydata = [];
+      const seriesItem = {
         data: data.values,
         type: "line",
         smooth: true,
@@ -151,14 +151,13 @@ export default class SuggestionsChangeChart extends Component {
           }
         >
           {this.state.ifShow ? (
-            <ReactEcharts
+            <EChart
               ref={(e) => {
                 this.echartsElement = e;
               }}
               option={this.getOption()}
-              style={{ width: "100%", height: 200 }}
-              lazyUpdate={true}
-            ></ReactEcharts>
+              style={{ height: 200 }}
+            />
           ) : (
             <Empty
               description={this.state.ifShow}
