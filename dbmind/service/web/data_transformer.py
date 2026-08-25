@@ -69,6 +69,16 @@ def _coerce_int(value):
     return int(value)
 
 
+def _assert_instance_in_current_scope(instance):
+    valid_instances = (get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_WITH_PORT_LIST) or []) + \
+        (get_access_context(ACCESS_CONTEXT_NAME.INSTANCE_IP_LIST) or [])
+    if instance not in valid_instances:
+        raise HTTPException(
+            status_code=403,
+            detail='Requested instance is outside the current cluster scope.'
+        )
+
+
 # The following functions are
 # used to override LazyFetcher so that
 # we can filter sequences by custom rules, such as
@@ -752,6 +762,7 @@ def get_history_alarms(pagesize=None, current=None, instance=None, alarm_type=No
                        alarm_level=None, metric_name=None, start_at=None, end_at=None,
                        anomaly_type=None, group: bool = False):
     if instance is not None:
+        _assert_instance_in_current_scope(instance)
         instances = [instance]
     else:
         instances = None
@@ -782,6 +793,7 @@ def get_history_alarms_count(instance=None, alarm_type=None, alarm_level=None,
                              metric_name=None, start_at=None, end_at=None,
                              anomaly_type=None, group=False):
     if instance is not None:
+        _assert_instance_in_current_scope(instance)
         instances = [instance]
     else:
         instances = None
@@ -1278,6 +1290,7 @@ def delete_real_time_inspections(spec_id):
 
 def get_correlation_result(metric_name, instance, start_time, end_time, topk=10,
                            metric_filter=None):
+    _assert_instance_in_current_scope(instance)
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics
     # In case the length from start_time to end_time is too short,
@@ -1346,6 +1359,7 @@ def get_timed_task_status():
 
 
 def risk_analysis(metric, instance, warning_hours, upper, lower, labels):
+    _assert_instance_in_current_scope(instance)
     labels = string_to_dict(labels, delimiter=',')
     upper = cast_to_int_or_float(upper)
     lower = cast_to_int_or_float(lower)
