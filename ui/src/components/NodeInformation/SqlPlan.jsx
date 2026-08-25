@@ -4,6 +4,32 @@ import ReactEcharts from "echarts-for-react";
 
 let datas = [],
   link = []
+
+export const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+export const formatPlanTooltip = (params) => {
+  let res = "";
+  Object.keys(params.data).forEach((elem) => {
+    if (elem !== 'x' && elem !== 'y' && elem !== 'id' && elem !== 'key') {
+      const rawData = params.data[elem];
+      const key = escapeHtml(elem);
+      const escapedData = escapeHtml(rawData);
+      const data = rawData && typeof rawData !== 'number' && isNaN(rawData)
+        ? escapedData.replace(/(.{30})/g, '$1<br>')
+        : escapedData;
+      res += `
+          <span style="display:inline-block;width:120px;margin:2px 0;margin-right:10px;font-weight:600;text-align:right;"> ${key}</span>: ${data}<br/>`;
+    }
+  });
+  return res;
+};
+
 export default class SqlPlan extends Component {
   constructor(props) {
     super(props);
@@ -123,17 +149,7 @@ export default class SqlPlan extends Component {
     return {
       tooltip: {
         trigger:'item',
-        formatter: function (params) {
-          let res=""
-         Object.keys(params.data).forEach(elem=>{
-           if(elem!=='x' && elem!=='y' && elem!=='id' && elem!=='key'){
-            let data = params.data[elem] && typeof params.data[elem] !== 'number' && isNaN(params.data[elem]) ? params.data[elem].replace(/(.{30})/g, '$1<br>') : params.data[elem]
-           res+=  `
-          <span style="display:inline-block;width:120px;margin:2px 0;margin-right:10px;font-weight:600;text-align:right;"> ${elem}</span>: ${data}<br/>`
-           }
-         })
-        return res
-        },
+        formatter: formatPlanTooltip,
       },
       animationDurationUpdate: 1500,
       animationEasingUpdate: "quinticInOut",
