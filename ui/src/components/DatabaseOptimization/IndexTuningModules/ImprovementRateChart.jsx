@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { Card } from "antd";
-import ReactEcharts from "echarts-for-react";
+import EChart from "../../common/EChart";
 
 export default class ImprovementRateChart extends Component {
   constructor(props) {
@@ -106,14 +106,13 @@ export default class ImprovementRateChart extends Component {
     return (
       <div>
         <Card title="Improvement Rate">
-          <ReactEcharts
+          <EChart
             ref={(e) => {
               this.echartsElement = e;
             }}
-            style={{ width: "100%", height: 200 }}
+            style={{ height: 200 }}
             option={this.getOption()}
-            lazyUpdate={true}
-          ></ReactEcharts>
+          />
         </Card>
       </div>
     );

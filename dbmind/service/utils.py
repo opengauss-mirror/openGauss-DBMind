@@ -12,6 +12,7 @@
 # See the Mulan PSL v2 for more details.
 
 from dbmind.common.types import Sequence
+from dbmind.common.utils.checking import split_ip_port
 from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL, EXPORTER_INSTANCE_LABEL
 
 
@@ -33,6 +34,6 @@ class SequenceUtils:
     def exporter_ip(s: Sequence):
         address = SequenceUtils.exporter_address(s)
         if address:
-            return address.split(':')[0].strip()
+            return split_ip_port(address)[0].strip()
 
 

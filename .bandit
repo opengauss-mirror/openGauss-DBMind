@@ -1,3 +1,0 @@
-[bandit]
-# 存量目录不纳入安全扫描；被本次 commit 改动的其它文件仍会检查
-exclude = /tests,/ui,/docs

@@ -52,9 +52,10 @@ export default class Session extends Component {
   }
   async getSessionData() {
     this.setState({ loadingActiveSql: true })
-    const { success, data, msg } = await getActiveSQLDataInterface()
-    if (success) {
-      if (data.header.length > 0) {
+    try {
+      const { success, data, msg } = await getActiveSQLDataInterface()
+      if (success) {
+        if (data.header.length > 0) {
         let historyColumObj = {}
         let tableHeader = []
         data.header.push('operation')
@@ -106,20 +107,28 @@ export default class Session extends Component {
             defaultCurrent: 1
           }
         }))
+        } else {
+          this.setState({
+            loadingActiveSql: false,
+            dataSource: [],
+            columns: [],
+          })
+        }
       } else {
         this.setState({
           loadingActiveSql: false,
           dataSource: [],
           columns: [],
         })
+        message.error(msg)
       }
-    } else {
+    } catch (e) {
+      // 捕获请求异常，避免一直 loading
       this.setState({
         loadingActiveSql: false,
         dataSource: [],
         columns: [],
       })
-      message.error(msg)
     }
   }
   async isKill(item) {

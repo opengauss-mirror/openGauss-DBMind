@@ -1,7 +1,7 @@
 import { get, post } from './request';
 
 export const getInterface = () => {
-  return get('/overview');
+  return get('/status/overview');
 };
 
 export const getResponseTime = (data) => {
@@ -52,5 +52,5 @@ export const getStartTimed = (data) => {
 };
 
 export const getResetInterval = (data) => {
-  return post(`/app/reset_interval?funcname=${data.funcname}&seconds=${data.seconds}`)
+  return post(`/app/reset_qinterval?funcname=${data.funcname}&seconds=${data.seconds}`)
 };

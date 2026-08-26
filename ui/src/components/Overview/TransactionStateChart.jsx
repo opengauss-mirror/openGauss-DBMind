@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Empty, Modal } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../common/EChart';
 import { commonMetricMethod } from '../../utils/function';
 import { getTransaction } from '../../api/overview';
 import db from '../../utils/storage';
@@ -122,9 +122,7 @@ export default class TransactionStateChart extends Component {
       } else {
         this.setState({ifShow: false})
       }
-    }).catch((error) => {
-      console.log('error', error)
-    })
+    }).catch(() => {})
   }
   isMore() {
     this.setState({
@@ -144,26 +142,22 @@ export default class TransactionStateChart extends Component {
   render () {
     return (
       <div>
-        {this.state.ifShow ? <ReactEcharts
+        {this.state.ifShow ? <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption(true)}
-            style={{ width: '100%', height: '258px' }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts> : <Empty description={this.state.ifShow} style={{ height: 200, paddingTop: 50 }} />}
+            style={{ height: '258px' }}
+          /> : <Empty description={this.state.ifShow} style={{ height: 200, paddingTop: 50 }} />}
           <Modal title="Transaction State" style={{maxWidth: "70vw"}} bodyStyle={{overflowY: "auto",height: "60vh",}} width="70vw" okButtonProps={{ style: { display: 'none' } }} 
          destroyOnClose='true' visible={this.state.isModalVisible} maskClosable = {false} centered='true' onCancel={() => this.handleCancel()}>
-          <ReactEcharts
+          <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption(false)}
             style={{ width: 1296, height: 500 }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts>
+          />
         </Modal>
       </div>
     )

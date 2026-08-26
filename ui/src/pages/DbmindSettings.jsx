@@ -45,7 +45,7 @@ export default class DbmindSettings extends React.Component {
     this.setState({ editArr });
   };
   onBlurChange = (e, record, index, field) => {
-    let obj = {
+    const obj = {
       key: record.key,
       value: record[field],
       name: record.name
@@ -55,11 +55,11 @@ export default class DbmindSettings extends React.Component {
   async getSettingList () {
     const { success, data, msg } = await getSettingListInterface()
     if (success) {
-      let tableAll = []
+      const tableAll = []
       Object.keys(data.dynamic).forEach(function (key, i) {
-        let tableKeyData = []
+        const tableKeyData = []
         data.dynamic[key].forEach((it, index) => {
-          let obj = {
+          const obj = {
             key: index + '@' + key,
             name: it[0],
             value: it[1],
@@ -67,7 +67,7 @@ export default class DbmindSettings extends React.Component {
           }
           tableKeyData.push(obj)
         })
-        let tableobj = {
+        const tableobj = {
           tableName: key,
           tableSource: [...tableKeyData],
           key: i
@@ -84,7 +84,7 @@ export default class DbmindSettings extends React.Component {
     }
   }
   async putSettingDetails (params) {
-    let paramData = {
+    const paramData = {
       ...params
     }
     const { success, msg } = await putSettingDetailInterface(paramData)

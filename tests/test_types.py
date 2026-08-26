@@ -27,7 +27,7 @@ def test_sequence():
     assert s1[30] == 3
     assert s1[1] is None
 
-    sub1 = s1[20, 40]  # (20, 30, 40), (2, 3, 4)
+    sub1 = s1[20, 40]
     assert sub1.timestamps == (20, 30, 40)
     assert sub1.values == (2, 3, 4)
 

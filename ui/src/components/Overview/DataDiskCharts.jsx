@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import {Row, Col, message, Card } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../common/EChart';
 import { getDataDisk } from '../../api/overview';
 import db from '../../utils/storage';
 
@@ -20,7 +20,7 @@ export default class DataDiskCharts extends Component {
       } else if(data.iops < db.ss.get('iops_Min')){
         db.ss.set('iops_Min', data.iops)
       }
-      let allData = [[
+      const allData = [[
         { value: data.used_space, name: 'Used Space' },
         { value: data.free_space, name: 'Free Space' },
       ],[
@@ -104,10 +104,7 @@ export default class DataDiskCharts extends Component {
           label: {
               position: 'center',
               show: true,
-              formatter:() => {
-                  let str = (flg === 'one' ? ((this.state.chartData[2][0].totalLeft*100).toFixed(2)+'%') : (this.state.chartData[2][0].totalRight+'/s'))
-                  return str
-              },
+              formatter:() => (flg === 'one' ? ((this.state.chartData[2][0].totalLeft*100).toFixed(2)+'%') : (this.state.chartData[2][0].totalRight+'/s')),
               color: '#5990fdff ',
               lineHeight: 16,
               fontSize: 22,
@@ -166,26 +163,22 @@ export default class DataDiskCharts extends Component {
         <Card title="Data Disk" className='instancename' style={{ height: 278}} extra={<span>{this.state.instance}</span>} >
         <Row>
             <Col className="gutter-row" span={12}>
-              <ReactEcharts
+              <EChart
                 ref={(e) => {
                   this.echartsElement = e
                 }}
                 option={this.getOption('one')}
-                style={{ width: '100%', height: 221 }}
-                lazyUpdate={true}
-              >
-              </ReactEcharts>
+                style={{ height: 221 }}
+              />
             </Col>
             <Col className="gutter-row" span={12}>
-              <ReactEcharts
+              <EChart
                 ref={(e) => {
                   this.echartsElement = e
                 }}
                 option={this.getOption('two')}
-                style={{ width: '100%', height: 221 }}
-                lazyUpdate={true}
-              >
-              </ReactEcharts>
+                style={{ height: 221 }}
+              />
             </Col>
           </Row>
         </Card>

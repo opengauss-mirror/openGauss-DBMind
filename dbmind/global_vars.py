@@ -4,7 +4,8 @@
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
 # You may obtain a copy of Mulan PSL v2 at:
 #
-#          http://license.coscl.org.cn/MulanPSL2#
+#          http://license.coscl.org.cn/MulanPSL2
+#
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
@@ -19,8 +20,6 @@ it should be placed where the nearest used position is.
 """
 # The following modules should be enough clean because
 # this global_vars is an underlying module.
-from dbmind.service import multicluster
-from dbmind.common.dispatcher.task_worker import AbstractWorker
 
 configs: "ReadonlyConfig" = None
 dynamic_configs: "DynamicConfig" = None
@@ -32,4 +31,9 @@ confpath = ''
 default_timed_task = []
 timed_task = {}
 is_dry_run_mode = False
-agent_proxy = multicluster.AgentProxy()
+is_distribute_mode = False
+agent_proxy_setter: "AgentFactory" = None
+agent_proxy: "AgentFactory.get_agent()" = None
+metadatabase_list = []
+ip_map = {}
+LANGUAGE = 'en'

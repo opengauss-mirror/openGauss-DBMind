@@ -1,6 +1,5 @@
 import React, { Component } from 'react';
-import { Row, Col, Card, Spin, Tooltip } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { Row, Col, Card, Tooltip } from 'antd';
 import Refresh from '../assets/imgs/Refresh.png';
 import Help from '../assets/imgs/Help.png';
 import '../assets/css/main/overview.css';
@@ -16,6 +15,7 @@ import Proxy from '../components/Overview/Proxy';
 import NodeTable from '../components/Overview/NodeTable';
 import CollectionTable from '../components/Overview/CollectionTable';
 import ScheduledTaskTable from '../components/Overview/ScheduledTaskTable';
+import LoadingOrEmpty from '../components/common/LoadingOrEmpty';
 
 
 export default class Overview extends Component {
@@ -96,12 +96,11 @@ export default class Overview extends Component {
             </Col>
         </Row>
         <Card title="Scheduled Task" className='instancename' style={{ height: 520}} extra={<div><Tooltip placement="left" color={'#ffffff'} title={<span style={{ color: '#000' }}>The current status needs to be modified in the background. The front-end setting is temporarily unavailable.</span>}><img src={Help} alt="" className='iconstyle' ></img></Tooltip><img src={Refresh} title='Refresh' alt="" className='iconstyle' onClick={() => this.ScheduledTaskTableRef.refresh()} ></img></div>}>
-          {this.state.showFlag === 0 ?
-          <ScheduledTaskTable key={this.state.reFreshKey} ref={(e) => {this.ScheduledTaskTableRef = e}}/> 
-          : <div style={{ textAlign: 'center' }}><Spin style={{ margin: '100px auto' }} /> </div>}
+          <LoadingOrEmpty loading={this.state.showFlag !== 0} hasData={true} height={440}>
+            <ScheduledTaskTable key={this.state.reFreshKey} ref={(e) => {this.ScheduledTaskTableRef = e}}/>
+          </LoadingOrEmpty>
         </Card>
       </div>
     )
   }
 }
-

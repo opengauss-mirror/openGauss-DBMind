@@ -14,22 +14,32 @@
 # This file contains the metrics that need to scrape from multiple databases.
 # Because the fetching result from different databases is different.
 
-
 pg_class:
   name: pg_class
   desc: Postgres relation catalog info db level normal version
-  query:
-    - name: pg_class
-      sql: |-
-        SELECT CURRENT_CATALOG AS datname,(select nspname from pg_namespace where oid=relnamespace) as nspname,relname,relkind,relpages,reltuples,
-          CASE WHEN relkind = 'i' THEN NULL ELSE pg_catalog.age(relfrozenxid64) END AS relage,pg_catalog.pg_relation_size(oid) AS relsize
-        FROM pg_class
-        WHERE relkind = 'r' and relname not like 'pg_%' and relname not like 'gs_%' and nspname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
-        ORDER BY relpages DESC LIMIT 32;
-      version: '>=0.0.0'
-      timeout: 3
-      ttl: 60
-      status: disable
+  query: |-
+    SELECT 
+      CURRENT_DATABASE() AS datname,
+      (SELECT nspname FROM pg_catalog.pg_namespace WHERE oid=relnamespace) AS nspname,
+      relname,
+      relkind,
+      relpages,
+      reltuples,
+      CASE WHEN relkind = 'i' THEN NULL ELSE pg_catalog.age(relfrozenxid64) END AS relage,
+      pg_catalog.pg_relation_size(oid) AS relsize
+    FROM 
+      pg_catalog.pg_class
+    WHERE 
+      relkind = 'r' 
+      AND 
+      relname NOT LIKE 'pg_%' 
+      AND 
+      relname NOT LIKE 'gs_%' 
+      AND 
+      nspname NOT IN ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+    ORDER BY 
+      relpages DESC 
+    LIMIT 32;
   metrics:
     - name: datname
       description: database name of this relation
@@ -63,18 +73,29 @@ pg_class:
 pg_index:
   name: pg_index
   desc: opengauss index statistics, db level, normal version
-  query:
-    - name: pg_index
-      sql: |-
-        SELECT CURRENT_CATALOG AS datname,psui.schemaname AS nspname,psui.relname AS tablename,psui.indexrelname AS relname, pg_get_indexdef(psui.indexrelid) AS indexdef,
-        idx_scan, idx_blks_read, idx_blks_hit, pgi.indisvalid as indisvalid, pg_catalog.pg_relation_size(psui.indexrelid) / 1024 / 1024 as mbytes
-        FROM pg_stat_user_indexes psui,pg_statio_user_indexes psio, pg_index pgi
-        WHERE psio.indexrelid = psui.indexrelid and psio.indexrelid = pgi.indexrelid and psui.schemaname not in ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
-        order by idx_scan desc limit 10;
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 3600
-      status: enable
+  query: |-
+    SELECT 
+      CURRENT_DATABASE() AS datname,
+      psui.schemaname AS nspname,
+      psui.relname AS tablename,
+      psui.indexrelname AS relname, 
+      pg_catalog.pg_get_indexdef(psui.indexrelid) AS indexdef,
+      idx_scan, 
+      idx_blks_read, 
+      idx_blks_hit, 
+      pgi.indisvalid AS indisvalid, 
+      pg_catalog.pg_relation_size(psui.indexrelid) / 1024 / 1024 AS mbytes
+    FROM 
+      pg_catalog.pg_stat_user_indexes psui, pg_catalog.pg_statio_user_indexes psio, pg_catalog.pg_index pgi
+    WHERE 
+      psio.indexrelid = psui.indexrelid 
+      AND 
+      psio.indexrelid = pgi.indexrelid 
+      AND 
+      psui.schemaname NOT IN ('information_schema', 'pg_catalog', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+    ORDER BY 
+      idx_scan DESC 
+    LIMIT 10;
   metrics:
     - name: datname
       description: database name of this relation
@@ -106,7 +127,7 @@ pg_index:
     - name: mbytes
       description: index size
       usage: GAUGE
-  status: enable
+  status: disable
   ttl: 3600
   timeout: 9
 
@@ -114,21 +135,24 @@ pg_index:
 pg_tables_size:
   name: pg_tables_size
   desc: OpenGauss tables size
-  query:
-    - name: pg_tables_size
-      sql: |-
-          SELECT CURRENT_CATALOG AS datname,nsp.nspname,rel.relname,
-             pg_catalog.pg_total_relation_size(rel.oid)  / 1024 / 1024      AS totalsize,
-             pg_catalog.pg_relation_size(rel.oid) / 1024 / 1024             AS relsize,
-             pg_catalog.pg_indexes_size(rel.oid) / 1024 / 1024              AS indexsize,
-             (case when reltoastrelid=0 then 0 else pg_catalog.pg_total_relation_size(reltoastrelid) / 1024 / 1024 end) AS toastsize
-          FROM pg_namespace nsp JOIN pg_class rel ON nsp.oid = rel.relnamespace
-          WHERE nspname NOT IN ('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') AND rel.relkind = 'r'
-          order by totalsize desc limit 10;
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 3600
-      status: enable
+  query: |-
+    SELECT 
+      pg_catalog.CURRENT_DATABASE() AS datname,
+      nsp.nspname,
+      rel.relname,
+      pg_catalog.pg_total_relation_size(rel.oid) / 1024 / 1024 AS totalsize,
+      pg_catalog.pg_relation_size(rel.oid) / 1024 / 1024 AS relsize,
+      pg_catalog.pg_indexes_size(rel.oid) / 1024 / 1024 AS indexsize,
+      (CASE WHEN reltoastrelid=0 THEN 0 ELSE pg_catalog.pg_total_relation_size(reltoastrelid) / 1024 / 1024 END) AS toastsize
+    FROM 
+      pg_catalog.pg_namespace nsp JOIN pg_catalog.pg_class rel ON nsp.oid = rel.relnamespace
+    WHERE 
+      nspname NOT IN ('pg_catalog', 'information_schema', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf') 
+      AND 
+      rel.relkind = 'r'
+    ORDER BY 
+      totalsize DESC 
+    LIMIT 10;
   metrics:
     - name: datname
       description: database name of this relation
@@ -151,7 +175,7 @@ pg_tables_size:
     - name: toastsize
       description:  size of corresponding toast tables
       usage: GAUGE
-  status: enable
+  status: disable
   ttl: 3600
   timeout: 9
 
@@ -159,24 +183,29 @@ pg_tables_size:
 pg_never_used_indexes:
   name: pg_never_used_indexes
   desc: OpenGauss indexes never used
-  query:
-    - name: pg_never_used_indexes
-      sql: |-
-        select CURRENT_CATALOG as datname, pi.schemaname, pi.relname, pi.indexrelname, pg_catalog.pg_table_size(pi.indexrelid) as index_size
-        from pg_indexes pis
-        join pg_stat_user_indexes pi
-        on pis.schemaname = pi.schemaname and pis.tablename = pi.relname and pis.indexname = pi.indexrelname
-        left join pg_constraint pco
-        on pco.conname = pi.indexrelname and pco.conrelid = pi.relid
-        where pco.contype is distinct from 'p' and pco.contype is distinct from 'u'
-        and (idx_scan,idx_tup_read,idx_tup_fetch) = (0,0,0)
-        and pis.indexdef !~ ' UNIQUE INDEX '
-        and pis.schemaname not in('pg_catalog', 'information_schema','snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
-        order by pg_catalog.pg_table_size(indexrelid) desc limit 10;
-      version: '>=0.0.0'
-      timeout: 9
-      ttl: 3600
-      status: disable
+  query: |-
+    SELECT 
+      pg_catalog.CURRENT_DATABASE() AS datname, 
+      pi.schemaname, 
+      pi.relname, 
+      pi.indexrelname, 
+      pg_catalog.pg_table_size(pi.indexrelid) AS index_size
+    FROM 
+      pg_catalog.pg_indexes pis JOIN pg_catalog.pg_stat_user_indexes pi 
+      ON pis.schemaname = pi.schemaname AND pis.tablename = pi.relname AND pis.indexname = pi.indexrelname
+      LEFT JOIN pg_catalog.pg_constraint pco
+      ON pco.conname = pi.indexrelname AND pco.conrelid = pi.relid
+    WHERE 
+      pco.contype IS DISTINCT FROM 'p' AND pco.contype IS DISTINCT FROM 'u'
+      AND 
+      (idx_scan, idx_tup_read, idx_tup_fetch) = (0, 0, 0)
+      AND 
+      pis.indexdef !~ ' UNIQUE INDEX '
+      AND 
+      pis.schemaname NOT IN('pg_catalog', 'information_schema', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+    ORDER BY 
+      pg_catalog.pg_table_size(indexrelid) DESC 
+    LIMIT 10;
   metrics:
     - name: datname
       description: database of table
@@ -198,40 +227,40 @@ pg_never_used_indexes:
   timeout: 9
 
 
-
 pg_tables_structure:
   name: pg_tables_structure
   desc: OpenGauss database tables stucture
-  query:
-    - name: pg_tables_structure
-      sql: |-
-        SELECT CURRENT_CATALOG                           AS                                                   datname,
-               psut.schemaname,
-               psut.relname,
-               (coalesce(seq_scan, 0) + coalesce(idx_scan, 0))                     AS                                                   tbl_scan,
-               (coalesce(seq_tup_read, 0) + coalesce(idx_tup_fetch, 0))            AS                                                   n_tup_read,
-               (n_tup_ins + n_tup_upd + n_tup_del) AS n_tup_mod,
-               n_tup_ins,
-               n_tup_upd,
-               n_tup_del,
-               n_tup_hot_upd,
-               n_live_tup,
-               n_dead_tup,
-               round(n_dead_tup / (n_live_tup + n_dead_tup + 1), 2)   as                                                   dead_rate,
-               vacuum_count + autovacuum_count as vacuum_count,
-               analyze_count + autoanalyze_count as analyze_count,
-               case when (last_vacuum is null) then -1 else extract(epoch from pg_catalog.now() - last_vacuum)::bigint end as vacuum_delay,
-               case when (last_analyze is null) then -1 else extract(epoch from pg_catalog.now() - last_analyze)::bigint end as analyze_delay,
-               case when (last_data_changed is null) then -1 else extract(epoch from pg_catalog.now() - last_data_changed)::bigint end as last_data_changed_delay
-        FROM pg_stat_user_tables psut,
-             pg_statio_user_tables psio
-        WHERE psio.relid = psut.relid
-          and psio.schemaname not in ('pg_catalog', 'information_schema', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
-        order by n_dead_tup desc
-        limit 20;
-      version: '>=0.0.0'
-      timeout: 9
-      status: enable
+  query: |-
+    SELECT 
+      pg_catalog.CURRENT_DATABASE() AS datname,
+      psut.schemaname,
+      psut.relname,
+      (COALESCE(seq_scan, 0) + COALESCE(idx_scan, 0)) AS tbl_scan,
+      (COALESCE(seq_tup_read, 0) + COALESCE(idx_tup_fetch, 0)) AS n_tup_read,
+      (n_tup_ins + n_tup_upd + n_tup_del) AS n_tup_mod,
+      n_tup_ins,
+      n_tup_upd,
+      n_tup_del,
+      n_tup_hot_upd,
+      n_live_tup,
+      n_dead_tup,
+      pg_catalog.ROUND(n_dead_tup / (n_live_tup + n_dead_tup + 1), 2) AS dead_rate,
+      vacuum_count + autovacuum_count AS vacuum_count,
+      analyze_count + autoanalyze_count AS analyze_count,
+      CASE WHEN (last_vacuum IS NULL) THEN -1 ELSE EXTRACT(EPOCH FROM last_vacuum)::BIGINT END AS last_vacuum,
+      CASE WHEN (last_analyze IS NULL) THEN -1 ELSE EXTRACT(EPOCH FROM last_analyze)::BIGINT END AS last_analyze,
+      CASE WHEN (last_autovacuum IS NULL) THEN -1 ELSE EXTRACT(EPOCH FROM last_autovacuum)::BIGINT END AS last_autovacuum,
+      CASE WHEN (last_autoanalyze IS NULL) THEN -1 ELSE EXTRACT(EPOCH FROM last_autoanalyze)::BIGINT END AS last_autoanalyze,
+      CASE WHEN (last_data_changed IS NULL) THEN -1 ELSE EXTRACT(EPOCH FROM pg_catalog.now() - last_data_changed)::BIGINT END AS last_data_changed_delay
+    FROM 
+      pg_catalog.pg_stat_user_tables psut, pg_catalog.pg_statio_user_tables psio
+    WHERE 
+      psio.relid = psut.relid
+      AND 
+      psio.schemaname NOT IN ('pg_catalog', 'information_schema', 'snapshot', 'dbe_pldeveloper', 'db4ai', 'dbe_perf')
+    ORDER BY 
+      n_dead_tup DESC
+    LIMIT 20;
   metrics:
     - name: datname
       description: database name of this relation
@@ -272,11 +301,17 @@ pg_tables_structure:
     - name: dead_rate
       description: dead rate of table
       usage: GAUGE
-    - name: vacuum_delay
+    - name: last_vacuum
       description: delay from last vacuum time
       usage: GAUGE
-    - name: analyze_delay
+    - name: last_analyze
       description: delay from last  analyze time
+      usage: GAUGE
+    - name: last_autovacuum
+      description: delay from last auto vacuum time
+      usage: GAUGE
+    - name: last_autoanalyze
+      description: delay from last auto analyze time
       usage: GAUGE
     - name: last_data_changed_delay
       description: delay from last data change time
@@ -287,6 +322,6 @@ pg_tables_structure:
     - name: analyze_count
       description: manual analyze count
       usage: COUNTER
-  status: enable
+  status: disable
   ttl: 10
   timeout: 9

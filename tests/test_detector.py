@@ -11,21 +11,26 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
+
+import copy
+import json
 import multiprocessing
 import os
 import random
-from configparser import ConfigParser
 from unittest import mock
 
+from dbmind import global_vars
 from dbmind.app.monitoring import ad_pool_manager, generic_anomaly_detector
+from dbmind.app.monitoring.ad_pool_manager import DetectorParam
+from dbmind.app.monitoring.specific_detection import SpecificDetection
+from dbmind.cmd import edbmind
 from dbmind.common import utils
 from dbmind.common.algorithm import anomaly_detection
 from dbmind.common.tsdb.tsdb_client_factory import TsdbClientFactory
 from dbmind.common.types import Sequence
-from dbmind.cmd import edbmind
+from dbmind.common.utils.checking import split_ip_port
 from dbmind.components.anomaly_detection import main as ad_main
 from dbmind.service import dai
-
 from .conftest import mock_get_metric_sequence
 
 cpus = multiprocessing.cpu_count()
@@ -557,29 +562,14 @@ def test_iqr_detector():
     assert anomalies.values == (False, False, True, False, False, False)
 
 
-def mock_configs(*args):
-    configs = ConfigParser()
-    configs.add_section("TSDB")
-    configs.set('TSDB', 'name', 'prometheus'),
-    configs.set('TSDB', 'host', 'xx.xx.xx.100'),
-    configs.set('TSDB', 'port', '1234'),
-    configs.set('TSDB', 'username', 'aaa'),
-    configs.set('TSDB', 'password', 'bbb'),
-    configs.set('TSDB', 'ssl_certfile', ''),
-    configs.set('TSDB', 'ssl_keyfile', ''),
-    configs.set('TSDB', 'ssl_keyfile_password', ''),
-    configs.set('TSDB', 'ssl_ca_file', '')
-    return configs
-
-
 def test_detection_interface(monkeypatch):
     monkeypatch.setattr(os, 'chdir', mock.MagicMock())
     monkeypatch.setattr(utils, 'read_simple_config_file', lambda x: dict())
-    monkeypatch.setattr(edbmind, 'load_sys_configs', mock_configs)
+    monkeypatch.setattr(edbmind, 'load_sys_configs', lambda *args: global_vars.configs)
     monkeypatch.setattr(TsdbClientFactory, 'set_client_info', mock.MagicMock())
     monkeypatch.setattr(dai, 'get_metric_sequence', mock_get_metric_sequence)
     args = ['--conf', '/', '--metric', 'os_cpu_usage', '--start-time', '1673942700000',
-            '--end-time', '1673942730000', '--host', 'xx.xx.xx.100:1234']
+            '--end-time', '1673942730000', '--host', '192.168.0.1:1111']
     ad_main(['--action', 'overview'] + args)
     ad_main(['--action', 'plot'] + args + ['--anomaly', 'level_shift'])
     ad_main(['--action', 'plot'] + args + ['--anomaly', 'seasonal'])
@@ -588,7 +578,6 @@ def test_detection_interface(monkeypatch):
 
 
 def mock_get_metric_sequence_beta(metric_name, start_time, end_time):
-
     class MockFetcher(dai.LazyFetcher):
         def _read_buffer(self):
             instance_label = dai._get_data_source_flag(self.metric_name)
@@ -602,7 +591,7 @@ def mock_get_metric_sequence_beta(metric_name, start_time, end_time):
             values = timestamps.copy()
 
             if instance_label in self.labels_like:
-                instance = self.labels_like.pop(instance_label).split(":")[0]
+                instance = split_ip_port(self.labels_like.pop(instance_label))[0]
             elif instance_label in self.labels:
                 instance = self.labels[instance_label]
             else:
@@ -622,35 +611,135 @@ def mock_get_metric_sequence_beta(metric_name, start_time, end_time):
     return MockFetcher(metric_name, start_time, end_time)
 
 
-def test_anomaly_detector_pool(monkeypatch):
+def query(json_dict, detector_id, cluster_name, detector_name):
+    """To transform the json_dict into meta dict"""
+    alarm_info = json_dict[DetectorParam.ALARM_INFO]
+    return {
+        DetectorParam.DETECTOR_ID: detector_id,
+        DetectorParam.CLUSTER_NAME: cluster_name,
+        DetectorParam.DETECTOR_NAME: detector_name,
+        DetectorParam.ALARM_CAUSE: alarm_info.get(DetectorParam.ALARM_CAUSE),
+        DetectorParam.ALARM_CONTENT: alarm_info.get(DetectorParam.ALARM_CONTENT),
+        DetectorParam.ALARM_LEVEL: alarm_info.get(DetectorParam.ALARM_LEVEL),
+        DetectorParam.ALARM_TYPE: alarm_info.get(DetectorParam.ALARM_TYPE),
+        DetectorParam.EXTRA: alarm_info.get(DetectorParam.EXTRA),
+        DetectorParam.DETECTOR_INFO: json.dumps(json_dict[DetectorParam.DETECTOR_INFO]),
+        DetectorParam.DURATION: json_dict[DetectorParam.DURATION],
+        DetectorParam.FORECASTING_SECONDS: json_dict[DetectorParam.FORECASTING_SECONDS],
+        DetectorParam.RUNNING: json_dict[DetectorParam.RUNNING],
+    }
 
+
+MOCK_META = {
+    '["0.0.0.0"]': {
+        detector_name: query(json_dict, idx + 1, '["0.0.0.0"]', detector_name)
+        for idx, (detector_name, json_dict) in enumerate(SpecificDetection.detections.items())}
+}
+
+
+def mock_get_detectors_from_metadatabase(nodes=None, detector_name=None):
+    """To mock the 'get_detectors_from_metadatabase' from ad_pool_manager"""
+    meta_detectors = copy.deepcopy(MOCK_META)
+    if nodes is not None:
+        cluster_name = json.dumps(sorted(nodes))
+        for cluster in list(meta_detectors.keys()):
+            if cluster != cluster_name:
+                meta_detectors.pop(cluster)
+
+    if detector_name is not None and detector_name != "all":
+        for cluster in list(meta_detectors.keys()):
+            for detector in list(meta_detectors[cluster].keys()):
+                if detector != detector_name:
+                    meta_detectors[cluster].pop(detector)
+
+    for cluster in list(meta_detectors.keys()):
+        if not meta_detectors[cluster]:
+            meta_detectors.pop(cluster)
+
+    return meta_detectors
+
+
+def mock_delete_anomaly_detectors(detector_id_list):
+    """To mock the 'delete_anomaly_detectors' from ad_pool_manager"""
+    detector_id = DetectorParam.DETECTOR_ID
+    for cluster_name in list(MOCK_META.keys()):
+        for detector_name in list(MOCK_META[cluster_name].keys()):
+            if MOCK_META[cluster_name][detector_name][detector_id] in detector_id_list:
+                MOCK_META[cluster_name].pop(detector_name)
+
+
+def mock_update_anomaly_detectors(detector_id, **detector_args):
+    """To mock the 'update_anomaly_detectors' from ad_pool_manager"""
+    param_id = DetectorParam.DETECTOR_ID
+    for cluster_name in list(MOCK_META.keys()):
+        for detector_name in list(MOCK_META[cluster_name].keys()):
+            if MOCK_META[cluster_name][detector_name][param_id] == detector_id:
+                MOCK_META[cluster_name][detector_name].update(detector_args)
+
+
+def mock_save_anomaly_detectors(record):
+    """To mock the 'save_anomaly_detectors' from ad_pool_manager"""
+    cluster_name = record[DetectorParam.CLUSTER_NAME]
+    detector_name = record[DetectorParam.DETECTOR_NAME]
+    if cluster_name in MOCK_META:
+        detectors = MOCK_META[cluster_name]
+        id_list = [detector[DetectorParam.DETECTOR_ID] for detector in MOCK_META[cluster_name].values()]
+        max_id = max(id_list) if id_list else 0
+    else:
+        MOCK_META[cluster_name] = dict()
+        detectors = MOCK_META[cluster_name]
+        max_id = 0
+
+    if detector_name not in MOCK_META[cluster_name]:
+        record[DetectorParam.DETECTOR_ID] = max_id + 1
+        detectors[detector_name] = record
+
+
+def mock_init_specific_detections(primary, nodes):
+    cluster_name = json.dumps(sorted(nodes))
+    for idx, (detector_name, json_dict) in enumerate(SpecificDetection.detections.items()):
+        MOCK_META[cluster_name][detector_name] = query(json_dict, idx + 1, '["0.0.0.0"]', detector_name)
+
+
+def test_anomaly_detector_pool(monkeypatch):
     def timed_app():
         alarm_list = []  # timed app
         for detection in ad_pool_manager.get_anomaly_detectors():
             running = detection.get(ad_pool_manager.DetectorParam.RUNNING)
             detector = detection.get(ad_pool_manager.DetectorParam.DETECTOR)
             if running and detector:
-                alarm_list.extend(detector.detect())
+                alarm_list.extend(detector.detect([]))
+
         return alarm_list
 
     instance_label = dai._get_data_source_flag("os_cpu_usage")
 
     monkeypatch.setattr(dai, 'get_metric_sequence', mock_get_metric_sequence_beta)
+    monkeypatch.setattr(ad_pool_manager, 'get_detectors_from_metadatabase', mock_get_detectors_from_metadatabase)
+    monkeypatch.setattr(ad_pool_manager, 'delete_anomaly_detectors', mock_delete_anomaly_detectors)
+    monkeypatch.setattr(ad_pool_manager, 'update_anomaly_detectors', mock_update_anomaly_detectors)
+    monkeypatch.setattr(ad_pool_manager, 'save_anomaly_detectors', mock_save_anomaly_detectors)
+    monkeypatch.setattr(ad_pool_manager, 'init_specific_detections', mock_init_specific_detections)
 
     try:  # Unknown detector
         generic_anomaly_detector.DetectorInfo("os_cpu_usage", "WhatDetector", {}, {})
     except Exception as e:
         assert str(e) == "'Detector name: WhatDetector was not found.'"
 
-    ad_pool_manager.clear_detector()
+    ad_pool_manager.clear_detector(["0.0.0.0"])
 
-    ad_pool_manager.init_specific_detections()
-    assert ad_pool_manager.view_detector("all").keys() == \
-           {'high_disk_usage_detector', 'high_mem_usage_detector',
-            'high_cpu_usage_detector', 'mem_usage_spike_detector',
-            'qps_spike_detector'}
+    ad_pool_manager.init_specific_detections("0.0.0.0", ["0.0.0.0"])
+    assert ad_pool_manager.view_detector(["0.0.0.0"], "all").keys() == \
+           {'high_thread_pool_rate_detector', 'slow_sql_detector', 'deadlock_detector',
+            'high_disk_usage_detector', 'high_io_delay_detector', 'high_cpu_usage_detector',
+            'leaked_fd_detector', 'lag_detector', 'other_mem_increase_detector',
+            'high_xlog_count_detector', 'shared_mem_increase_detector', 'high_mem_usage_detector',
+            'mem_leak_detector', 'core_detector', 'slow_disk_detector',
+            'session_mem_increase_detector', 'packet_loss_detector',
+            'disk_io_jam_detector', 'high_db_disk_usage_detector',
+            'response_time_fluctuation_detector'}
 
-    ad_pool_manager.clear_detector()
+    ad_pool_manager.clear_detector(["0.0.0.0"])
 
     json_dict = (
         {
@@ -671,8 +760,8 @@ def test_anomaly_detector_pool(monkeypatch):
             ]
         }
     )
-    ad_pool_manager.add_detector("test1", json_dict)
-    assert ad_pool_manager.view_detector("all").keys() == {"test1"}
+    ad_pool_manager.add_detector("0.0.0.0", ["0.0.0.0"], "test1", json_dict)
+    assert ad_pool_manager.view_detector(["0.0.0.0"], "all").keys() == {"test1"}
 
     json_dict = (
         {
@@ -700,11 +789,11 @@ def test_anomaly_detector_pool(monkeypatch):
             ]
         }
     )
-    ad_pool_manager.add_detector("test2", json_dict)
-    assert ad_pool_manager.view_detector("all").keys() == {"test1", "test2"}
+    ad_pool_manager.add_detector("0.0.0.0", ["0.0.0.0"], "test2", json_dict)
+    assert ad_pool_manager.view_detector(["0.0.0.0"], "all").keys() == {"test1", "test2"}
 
     alarms = timed_app()
-    assert [alarm.alarm_content for alarm in alarms] == ['test1: cpu usage is too high.']
+    assert set(alarm.alarm_content for alarm in alarms) == {'cpu usage is too high.'}
 
     json_dict = (
         {
@@ -725,25 +814,25 @@ def test_anomaly_detector_pool(monkeypatch):
             ]
         }
     )
-    ad_pool_manager.add_detector("test3", json_dict)
+    ad_pool_manager.add_detector("0.0.0.0", ["0.0.0.0"], "test3", json_dict)
     alarms = timed_app()
-    assert [alarm.alarm_content for alarm in alarms] == ['test1: cpu usage is too high.',
-                                                         'test3: cpu usage is too low.']
-    ad_pool_manager.pause_detector('test1')
+    assert set(alarm.alarm_content for alarm in alarms) == {'cpu usage is too high.',
+                                                            'cpu usage is too low.'}
+    ad_pool_manager.pause_detector(["0.0.0.0"], 'test1')
     alarms = timed_app()
-    assert [alarm.alarm_content for alarm in alarms] == ['test3: cpu usage is too low.']
-    ad_pool_manager.resume_detector('test1')
+    assert set(alarm.alarm_content for alarm in alarms) == {'cpu usage is too low.'}
+    ad_pool_manager.resume_detector(["0.0.0.0"], 'test1')
     alarms = timed_app()
-    assert [alarm.alarm_content for alarm in alarms] == ['test1: cpu usage is too high.',
-                                                         'test3: cpu usage is too low.']
+    assert set(alarm.alarm_content for alarm in alarms) == {'cpu usage is too high.',
+                                                            'cpu usage is too low.'}
 
-    ad_pool_manager.delete_detector("test1")
-    assert ad_pool_manager.view_detector("all").keys() == {"test2", "test3"}
+    ad_pool_manager.delete_detector(["0.0.0.0"], "test1")
+    assert ad_pool_manager.view_detector(["0.0.0.0"], "all").keys() == {"test2", "test3"}
 
     alarms = timed_app()
-    assert [alarm.alarm_content for alarm in alarms] == ['test3: cpu usage is too low.']
-    assert ad_pool_manager.view_detector("all").keys() == {"test2", "test3"}
-    ad_pool_manager.rebuild_detector()
+    assert [alarm.alarm_content for alarm in alarms] == ['cpu usage is too low.']
+    assert ad_pool_manager.view_detector(["0.0.0.0"], "all").keys() == {"test2", "test3"}
+    ad_pool_manager.rebuild_detector(["0.0.0.0"])
 
-    ad_pool_manager.clear_detector()
-    assert not ad_pool_manager.view_detector("all")
+    ad_pool_manager.clear_detector(["0.0.0.0"])
+    assert not ad_pool_manager.view_detector(["0.0.0.0"], "all")

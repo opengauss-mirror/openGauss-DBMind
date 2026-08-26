@@ -62,42 +62,39 @@ class RPCServer:
         :param _json: dict format, must be able to cast to RPCRequest.
         :return: dict format, converted from RPCResponse.
         """
-        req = RPCRequest(None, None, 'unknown')
         try:
-            username = _json['username']
-            pwd = _json['pwd']
-            funcname = _json['funcname']
-            req = RPCRequest(username, pwd, funcname)
+            req = RPCRequest.from_json(_json)
+            password = req.pwd
+            req.pwd = '******'
         except Exception as e:
             return RPCResponse(
-                req, success=False,
+                RPCRequest(None, None, 'unknown'), success=False,
                 exception='Cannot parse given RPCRequest JSON: %s.' % e
             ).json()
 
         try:
+            funcname = req.funcname
+
             # Just for heartbeat.
             if funcname == HEARTBEAT_FLAG:
                 return RPCResponse(
                     req, success=True, result='ok'
                 ).json()
 
-            # Validate credential before deserializing args and kwargs.
-            if not self.checker(username, pwd):
-                return RPCResponse(req, success=False,
-                                   exception='Failed to validate authorization.').json()
+            # Validate credential.
+            pwd_check_res, pwd_check_msg = self.checker(req.username, password)
+            if not pwd_check_res:
+                if pwd_check_msg and isinstance(pwd_check_msg, str):
+                    return RPCResponse(req, success=False,
+                                       exception=pwd_check_msg).json()
+                else:
+                    return RPCResponse(req, success=False,
+                                       exception='Failed to validate authorization.').json()
 
             # If request is only for authorization test, we can return here.
             if funcname == AUTH_FLAG:
                 return RPCResponse(
                     req, success=True, result='ok'
-                ).json()
-
-            try:
-                req = RPCRequest.from_json(_json)
-            except Exception as e:
-                return RPCResponse(
-                    req, success=False,
-                    exception='Cannot parse given RPCRequest JSON: %s.' % e
                 ).json()
 
             if funcname not in self.register:
@@ -128,6 +125,8 @@ class RPCServer:
                 req, success=False,
                 exception='Unexpected error occurred: %s.' % e
             ).json()
+        finally:
+            del password
 
 
 class RPCListenService:
@@ -145,7 +144,7 @@ def start_rpc_service(
         ssl_keyfile=None, ssl_certfile=None, ssl_keyfile_password=None
 ):
     def checker(u, p):
-        return u == username and p == pwd
+        return (u == username and p == pwd), None
 
     rpc = RPCServer(register, credential_checker=checker)
     service = HttpService()

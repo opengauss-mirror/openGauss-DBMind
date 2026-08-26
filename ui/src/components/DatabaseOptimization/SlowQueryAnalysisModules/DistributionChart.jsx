@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Card } from 'antd';
 import PropTypes from 'prop-types';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../../common/EChart';
 
 export default class DistributionChart extends Component {
   static propTypes={
@@ -77,15 +77,13 @@ export default class DistributionChart extends Component {
     return (
       <div className="mb-10" >
         <Card title="Distribution of slow Query" style={{height:'278px'}}>
-          <ReactEcharts
+          <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption()}
-            style={{ width: '100%', height: '200px' }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts>
+            style={{ height: '200px' }}
+          />
         </Card>
       </div>
     )

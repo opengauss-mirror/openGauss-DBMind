@@ -27,6 +27,7 @@ export default class Node extends Component {
   }
   onChange = (key) => {
     this.setState(() => ({tabkey: key}))
+    try { sessionStorage.setItem('node.tabs', JSON.stringify(key)) } catch(e) {}
     
   };
   changeSelVal (value) {
@@ -47,7 +48,8 @@ export default class Node extends Component {
       }
     })
     optionArr.forEach((item) => {
-      newOptionArr.push(item.split(':')[0])
+      // 保留完整的 host:port 格式，不要截断端口
+      newOptionArr.push(item)
     })
     if (success) {
       this.setState(() => ({
@@ -65,6 +67,13 @@ export default class Node extends Component {
       endTime: dateStrings ? new Date(dateStrings).getTime() : '',}))
   };
   componentDidMount () {
+    // 恢复上次选中的子Tab
+    try {
+      const saved = JSON.parse(sessionStorage.getItem('node.tabs'))
+      if (saved) {
+        this.setState({ tabkey: saved })
+      }
+    } catch(e) {}
     this.getItemList()
   }
   render() {
@@ -98,7 +107,7 @@ export default class Node extends Component {
     return (
       <div className='nodeselect'>
         {this.state.ifShow ? 
-        <Tabs tabBarGutter={30}  className='childstyle' type="card "  defaultActiveKey="1" items={items} onChange={this.onChange} destroyInactiveTabPane={true}
+        <Tabs tabBarGutter={30}  className='childstyle' type="card " activeKey={this.state.tabkey} items={items} onChange={this.onChange} destroyInactiveTabPane={true}
          tabBarExtraContent={
           <div>
           <Select value={this.state.selValue} onChange={(val) => { this.changeSelVal(val) }} showSearch

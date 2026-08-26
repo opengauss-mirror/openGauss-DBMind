@@ -14,7 +14,8 @@ import logging
 
 from dbmind.common.platform import LINUX
 from dbmind.common.types.root_cause import RootCause
-from .slow_sql.analyzer import SlowSQLAnalyzer
+from dbmind.components.slow_query_diagnosis.analyzer import SlowSQLAnalyzer
+from dbmind.components.slow_query_diagnosis.query_info_source import QueryContextFromTSDBAndRPC
 
 if LINUX:
     from dbmind.common.dispatcher.task_worker import get_mp_sync_manager
@@ -25,10 +26,11 @@ else:
 _analyzer = SlowSQLAnalyzer(buffer=shared_sql_buffer)
 
 
-def diagnose_query(query_context):
+def diagnose_query(query):
+    query_context = QueryContextFromTSDBAndRPC(query)
     try:
         _analyzer.run(query_context)
     except Exception as e:
-        query_context.slow_sql_instance.add_cause(RootCause.get('LACK_INFORMATION'))
+        query_context.slow_query_instance.add_cause(RootCause.get('LACK_INFORMATION'))
         logging.exception(e)
-    return query_context.slow_sql_instance
+    return query_context.slow_query_instance

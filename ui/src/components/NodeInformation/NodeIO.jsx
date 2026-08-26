@@ -22,6 +22,7 @@ export default class NodeIO extends Component {
       param: {
         instance: this.props.selValue,
         latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null,
+        regex: true,
         fetch_all: true,
         from_timestamp: this.props.startTime ? this.props.startTime : null,
         to_timestamp: this.props.endTime ? this.props.endTime : null
@@ -36,6 +37,8 @@ export default class NodeIO extends Component {
     }
   }
   async getIoDataAll() {
+    console.log('NodeIO - Request params:', this.state.param);
+    console.log('NodeIO - Metrics being requested:', metricData);
     Promise.all([
       commonMetricMethod(this.state.param, { label: metricData[0] }),
       commonMetricMethod(this.state.param, { label: metricData[1] }),
@@ -45,9 +48,13 @@ export default class NodeIO extends Component {
       commonMetricMethod(this.state.param, { label: metricData[5] }),
       commonMetricMethod(this.state.param, { label: metricData[6] })
     ]).then((result) => {
+      console.log('NodeIO - API results:', result);
+      console.log('NodeIO - Result details:', result.map(r => r ? (Array.isArray(r) && r.length > 0 ? `Has ${r.length} items` : 'Empty array') : 'null/undefined'));
       if (result[0]) {
         result.forEach((item, index) => {
-          item.sort(this.compare('device'))
+          if (item && item.sort) {
+            item.sort(this.compare('device'))
+          }
         });
         let primitiveDataAll = [], ioAllArray = []
         result[0].forEach((item, index) => {
@@ -81,7 +88,7 @@ export default class NodeIO extends Component {
   componentDidUpdate(prevProps) {
     if (prevProps.selValue !== this.props.selValue || prevProps.selTimeValue !== this.props.selTimeValue || prevProps.startTime !== this.props.startTime || prevProps.endTime !== this.props.endTime || prevProps.tabkey !== this.props.tabkey) {
       this.setState(() => ({
-        param: Object.assign(this.state.param, { instance: this.props.selValue, latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null, from_timestamp: this.props.startTime, to_timestamp: this.props.endTime })
+        param: Object.assign(this.state.param, { instance: this.props.selValue, latest_minutes: this.props.selTimeValue ? this.props.selTimeValue : null, from_timestamp: this.props.startTime, to_timestamp: this.props.endTime, regex: true })
       }), () => {
         if (this.props.tabkey === "2") {
           this.getIoDataAll()

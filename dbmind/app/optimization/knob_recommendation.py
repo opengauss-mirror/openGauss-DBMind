@@ -10,14 +10,16 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+
 import logging
 
 from dbmind import global_vars
-from dbmind.service.multicluster import RPCAddressError
+from dbmind.common.utils.checking import prepare_ip, split_ip_port
 from dbmind.components.xtuner.tuner.character import AbstractMetric
 from dbmind.components.xtuner.tuner.recommend import recommend_knobs as rk
 from dbmind.components.xtuner.tuner.utils import cached_property
 from dbmind.service import dai
+from dbmind.service.multicluster import RPCAddressError
 from dbmind.service.utils import SequenceUtils
 
 
@@ -30,9 +32,7 @@ def _fetch_value_by_rpc(sql, database='postgres', default_val=0):
                                               return_tuples=True)
         return result[0][0]
     except Exception as e:
-        logging.warning(
-            'Failed to use RPC in the KnobRecommendation.', exc_info=e
-        )
+        logging.warning('Failed to use RPC in the KnobRecommendation.', exc_info=e)
         return default_val
 
 
@@ -79,23 +79,17 @@ def recommend_knobs():
     for address in addresses:
         try:
             with global_vars.agent_proxy.context(address):
-                host, port = address.split(':')
+                host, port = split_ip_port(address)
                 metric.set_host(host)
                 metric.set_port(port)
                 metric.set_address()
                 knobs = rk("recommend", metric)
                 result[address] = [knobs, metric.to_dict()]
         except RPCAddressError as e:
-            logging.warning(
-                'Cannot recommend knobs for the address %s because %s.',
-                address, str(e)
-            )
+            logging.warning('Cannot recommend knobs for the address %s because %s.', address, str(e))
         except Exception as e:
-            logging.warning(
-                'Cannot recommend knobs for the '
-                'address %s maybe because of information lack.', address,
-                exc_info=e
-            )
+            logging.warning('Cannot recommend knobs for the address %s maybe because of information lack.',
+                            address, exc_info=e)
     return result
 
 
@@ -136,12 +130,12 @@ class RPCAndTSDBMetric(AbstractMetric):
         self.database_port = database_port
 
     def set_address(self):
-        self.database_address = "%s:%s" % (self.database_host, self.database_port)
+        self.database_address = f"{prepare_ip(self.database_host)}:{self.database_port}"
 
     def get_one_value_from_seqs_according_to_database_host(self, seqs, default_val=None):
         val = default_val
         for seq in seqs:
-            host = SequenceUtils.from_server(seq).split(":")[0]
+            host = split_ip_port(SequenceUtils.from_server(seq))[0]
             val = seq.values[0]
             if self.database_host == host:
                 return val
@@ -207,7 +201,7 @@ class RPCAndTSDBMetric(AbstractMetric):
     def shared_buffer_heap_hit_rate(self):
         if self.is_rpc_valid:
             stmt = "select pg_catalog.sum(heap_blks_hit)*100 / (pg_catalog.sum(heap_blks_read) + " \
-                   "pg_catalog.sum(heap_blks_hit)+1) from pg_statio_user_tables;"
+                   "pg_catalog.sum(heap_blks_hit)+1) from pg_catalog.pg_statio_user_tables;"
             return float(_fetch_value_by_rpc(stmt, database=self.most_xact_db, default_val=100))
         return 100.0
 
@@ -215,7 +209,7 @@ class RPCAndTSDBMetric(AbstractMetric):
     def shared_buffer_toast_hit_rate(self):
         if self.is_rpc_valid:
             stmt = "select pg_catalog.sum(toast_blks_hit)*100 / (pg_catalog.sum(toast_blks_read) + " \
-                   "pg_catalog.sum(toast_blks_hit)+1) from pg_statio_user_tables;"
+                   "pg_catalog.sum(toast_blks_hit)+1) from pg_catalog.pg_statio_user_tables;"
             return float(_fetch_value_by_rpc(stmt, database=self.most_xact_db, default_val=100))
         return 100.0
 
@@ -223,7 +217,7 @@ class RPCAndTSDBMetric(AbstractMetric):
     def shared_buffer_tidx_hit_rate(self):
         if self.is_rpc_valid:
             stmt = "select pg_catalog.sum(tidx_blks_hit)*100 / (pg_catalog.sum(tidx_blks_read) + " \
-                   "pg_catalog.sum(tidx_blks_hit)+1) from pg_statio_user_tables;"
+                   "pg_catalog.sum(tidx_blks_hit)+1) from pg_catalog.pg_statio_user_tables;"
             return float(_fetch_value_by_rpc(stmt, database=self.most_xact_db, default_val=100))
         return 100.0
 
@@ -231,7 +225,7 @@ class RPCAndTSDBMetric(AbstractMetric):
     def shared_buffer_idx_hit_rate(self):
         if self.is_rpc_valid:
             stmt = "select pg_catalog.sum(idx_blks_hit)*100/(pg_catalog.sum(idx_blks_read) + " \
-                   "pg_catalog.sum(idx_blks_hit)+1) from pg_statio_user_tables ;"
+                   "pg_catalog.sum(idx_blks_hit)+1) from pg_catalog.pg_statio_user_tables ;"
             return float(_fetch_value_by_rpc(stmt, database=self.most_xact_db, default_val=100))
         return 100.0
 
@@ -327,9 +321,9 @@ class RPCAndTSDBMetric(AbstractMetric):
         return load1, load5, load15
 
     @cached_property
-    def nb_gaussdb(self):
+    def nb_opengauss(self):
         number = 0
-        seqs = _fetch_all_value("gaussdb_qps_by_instance")
+        seqs = _fetch_all_value("opengauss_qps_by_instance")
         for seq in seqs:
             if seq.labels and self.database_host in SequenceUtils.from_server(seq):
                 number += 1

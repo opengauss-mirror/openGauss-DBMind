@@ -13,6 +13,9 @@ export default class SlowQueryTable extends Component {
       dataSource: [],
       columns: []
     }
+  
+    // 绑定方法以避免this指向问题
+    this.handleTableData = this.handleTableData.bind(this);
   }
   components = {
     header: {

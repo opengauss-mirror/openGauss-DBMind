@@ -1,10 +1,11 @@
 import { getMetric } from '../api/autonomousManagement';
+import { message } from 'antd';
 // 1.时间戳转为年月日时分秒  2018-05-06 10:18:11
 const formatTimestamp = function (data, fmt) {
   if (!data) return "";
-  let timeStr = new Date(parseInt(data));
+  const timeStr = new Date(parseInt(data));
   fmt = fmt || "yyyy-MM-dd hh:mm:ss";
-  let o = {
+  const o = {
     "M+": timeStr.getMonth() + 1,
     "d+": timeStr.getDate(),
     "h+": timeStr.getHours(),
@@ -18,7 +19,7 @@ const formatTimestamp = function (data, fmt) {
       RegExp.$1,
       (timeStr.getFullYear() + "").substr(4 - RegExp.$1.length)
     );
-  for (let k in o)
+  for (const k in o)
     if (new RegExp("(" + k + ")").test(fmt))
       fmt = fmt.replace(
         RegExp.$1,
@@ -40,11 +41,9 @@ const formatTableTitle = function (title) {
 // 大写
 const formatTableTitleToUpper = function (title) {
   let titleName = title.replace(/_/g, " ");
-  let arr = titleName.split(" ");
-  arr.forEach((e, i) => {
-    arr[i] = arr[i].charAt(0).toUpperCase() + arr[i].slice(1);
-  });
-  return arr.join(" ");
+  const arr = titleName.split(" ");
+  const up = arr.map((e) => e.charAt(0).toUpperCase() + e.slice(1));
+  return up.join(" ");
 };
 //3.将秒转几天几小时
 const formatSecond = function (second) {
@@ -85,12 +84,11 @@ const formatTableTime = function (data) {
 };
 // 5.单词首字母大写
 const capitalizeFirst = function (str) {
-  let data = str.charAt(0).toUpperCase() + str.slice(1);
-  return data;
+  return str.charAt(0).toUpperCase() + str.slice(1);
 };
 //6.Metric界面接口封装
 const commonMetricMethod = async function (publicParam,privateParam,interfaceName=''){
-  let params = Object.assign(publicParam,privateParam)
+  const params = Object.assign(publicParam,privateParam)
   const { success, data, msg }= await (interfaceName ? interfaceName(params) : getMetric(params))
   if (success) {
     return data

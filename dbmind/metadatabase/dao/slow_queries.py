@@ -21,7 +21,6 @@ Meanwhile, supply some basic analysis functionalities.
 import time
 
 from sqlalchemy import func
-from sqlalchemy.orm import load_only
 from sqlalchemy.sql import text, desc, and_
 
 from dbmind.common.parser import sql_parsing
@@ -235,27 +234,38 @@ def group_by_schema(instance=None):
         return key_value_format(query)
 
 
-def execute_on_the_table(sql):
+def execute_on_the_table(sql, params=None):
     with get_session() as session:
-        return session.execute(text(sql)).all()
+        if params is None:
+            return session.execute(text(sql)).all()
+        else:
+            return session.execute(text(sql), params).all()
 
 
 def count_systable(instance=None):
     if instance is None:
         stmt = """
-        with systable(n) as (select count(1) from tb_slow_queries where involving_systable),
-         bussiness(n) as (select count(1) from tb_slow_queries where not involving_systable)
-          select systable.n, bussiness.n from systable, bussiness;
-    """
+        with systable(n) as (
+            select count(1) from tb_slow_queries where involving_systable
+        ),
+        bussiness(n) as (
+            select count(1) from tb_slow_queries where not involving_systable
+        )
+        select systable.n, bussiness.n from systable, bussiness;
+        """
+        result = execute_on_the_table(stmt)
     else:
         stmt = """
-            with systable(n) as (
-                select count(1) from tb_slow_queries where involving_systable and instance = '{instance}'),
-             bussiness(n) as (
-                select count(1) from tb_slow_queries where not involving_systable and instance = '{instance}')
-              select systable.n, bussiness.n from systable, bussiness;
-        """.format(instance=instance)
-    result = execute_on_the_table(stmt)
+        with systable(n) as (
+            select count(1) from tb_slow_queries where involving_systable and instance = :instance
+        ),
+        bussiness(n) as (
+            select count(1) from tb_slow_queries where not involving_systable and instance = :instance
+        )
+        select systable.n, bussiness.n from systable, bussiness;
+        """
+        result = execute_on_the_table(stmt, params={"instance": instance})
+
     if len(result) > 0:
         systable, busstable = result[0]
         return {'system_table': systable, 'business_table': busstable}
@@ -266,15 +276,17 @@ def count_systable(instance=None):
 def slow_query_trend(instance=None):
     if instance is None:
         stmt = """
-            select round_start_at as time, count(1) 
-            from tb_slow_queries_journal group by time order by time limit 100;
-            """
+        select round_start_at as time, count(1) 
+        from tb_slow_queries_journal group by time order by time limit 100;
+        """
+        result = execute_on_the_table(stmt)
     else:
         stmt = """
-            select round_start_at as time, count(1) 
-            from tb_slow_queries_journal where instance = '{instance}' group by time order by time limit 100;
-            """.format(instance=instance)
-    result = execute_on_the_table(stmt)
+        select round_start_at as time, count(1) 
+        from tb_slow_queries_journal where instance = :instance group by time order by time limit 100;
+        """
+        result = execute_on_the_table(stmt, params={"instance": instance})
+
     if len(result) > 0:
         timestamps = []
         values = []
@@ -303,22 +315,24 @@ def slow_query_distribution(instance=None):
             FROM   tb_slow_queries
             WHERE  query_type = 'u'); 
         """
+        result = execute_on_the_table(stmt)
     else:
         stmt = """
         SELECT (SELECT Count(1)
             FROM   tb_slow_queries
-            WHERE  query_type = 's' AND instance = '{instance}'),
+            WHERE  query_type = 's' AND instance = :instance),
            (SELECT Count(1)
             FROM   tb_slow_queries
-            WHERE  query_type = 'd' AND instance = '{instance}'),
+            WHERE  query_type = 'd' AND instance = :instance),
            (SELECT Count(1)
             FROM   tb_slow_queries
-            WHERE  query_type = 'i' AND instance = '{instance}'),
+            WHERE  query_type = 'i' AND instance = :instance),
            (SELECT Count(1)
             FROM   tb_slow_queries
-            WHERE  query_type = 'u' AND instance = '{instance}'); 
-        """.format(instance=instance)
-    result = execute_on_the_table(stmt)
+            WHERE  query_type = 'u' AND instance = :instance); 
+        """
+        result = execute_on_the_table(stmt, params={"instance": instance})
+
     if len(result) > 0:
         select, delete, insert, update = result[0]
         return {
@@ -406,6 +420,7 @@ def slow_query_template(instance=None):
           ORDER  BY t1.count DESC
         LIMIT 50;
         """
+        return execute_on_the_table(stmt)
     else:
         stmt = """
         SELECT t1.template_id,
@@ -414,7 +429,7 @@ def slow_query_template(instance=None):
         FROM
           (SELECT template_id,
                   Count(1) AS COUNT
-           FROM tb_slow_queries WHERE instance = '{instance}' GROUP  BY template_id) t1
+           FROM tb_slow_queries WHERE instance = :instance GROUP  BY template_id) t1
         INNER JOIN
           (SELECT template_id,
                   query,
@@ -425,8 +440,8 @@ def slow_query_template(instance=None):
         WHERE t2.rn = 1
           ORDER  BY t1.count DESC
         LIMIT 50;
-        """.format(instance=instance)
-    return execute_on_the_table(stmt)
+        """
+        return execute_on_the_table(stmt, params={"instance": instance})
 
 
 def insert_killed_slow_queries(instance, db_name, query, killed, username, elapsed_time, killed_time):

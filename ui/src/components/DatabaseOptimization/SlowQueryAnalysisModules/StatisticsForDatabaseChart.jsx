@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { Card } from 'antd';
 import PropTypes from 'prop-types';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../../common/EChart';
 
 export default class StatisticsForDatabaseChart extends Component {
   static propTypes={
@@ -82,15 +82,13 @@ export default class StatisticsForDatabaseChart extends Component {
     return (
       <div>
         <Card title="Statistics For Database" style={{ height: '278px' }}>
-          <ReactEcharts
+          <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption()}
-            style={{ width: '100%', height: 200 }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts>
+            style={{ height: 200 }}
+          />
         </Card>
       </div>
     )

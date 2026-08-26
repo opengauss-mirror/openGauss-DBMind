@@ -11,8 +11,7 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 
-
-from sqlalchemy import Column, String, Integer, BigInteger, CHAR, Index, TEXT
+from sqlalchemy import Column, String, Integer, BigInteger, Index, TEXT
 
 from .. import ResultDbBase
 
@@ -21,7 +20,7 @@ class HistoryAlarms(ResultDbBase):
     __tablename__ = "tb_history_alarms"
 
     history_alarm_id = Column(Integer, primary_key=True, autoincrement=True)
-    instance = Column(CHAR(24), nullable=False)
+    instance = Column(String(64), nullable=False)
     metric_name = Column(String(64), nullable=False)
     metric_filter = Column(TEXT)
     alarm_type = Column(String(16), nullable=False)
@@ -31,5 +30,13 @@ class HistoryAlarms(ResultDbBase):
     alarm_content = Column(String(1024))
     extra_info = Column(TEXT)
     anomaly_type = Column(String(64), nullable=False)
+    alarm_cause = Column(TEXT)
 
-    idx_history_alarms = Index("idx_history_alarms", alarm_type, instance, start_at, alarm_level)
+    idx_history_alarms = Index(
+        "idx_history_alarms",
+        instance,
+        metric_name,
+        anomaly_type,
+        start_at,
+        end_at,
+    )

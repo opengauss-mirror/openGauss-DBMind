@@ -73,9 +73,8 @@ def get_benchmark_instance(script, path, cmd, db_info):
                 .get_executor()
             return bm.run(server_ssh, local_ssh)
         except Exception as e:
-            logging.warning(
-                "An error occured while running the benchmark, hence the benchmark score is 0. The error is %s.", e,
-                exc_info=True)
+            logging.warning("An error occured while running the benchmark, hence the benchmark score is 0. "
+                            "The error is %s.", e, exc_info=True)
             return .0
 
     return wrapper

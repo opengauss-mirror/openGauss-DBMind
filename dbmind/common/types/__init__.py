@@ -11,8 +11,9 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 from .alarm import Alarm
-from .enums import ALARM_LEVEL, ALARM_TYPES
+from .enums import ALARM_LEVEL, ALARM_TYPES, AnomalyTypes
 from .misc import Log
 from .root_cause import RootCause
 from .sequence import Sequence, EMPTY_SEQUENCE
 from .ssl import SSLContext
+from .slow_query import SlowQuery

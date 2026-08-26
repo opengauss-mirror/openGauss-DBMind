@@ -12,7 +12,10 @@
 # See the Mulan PSL v2 for more details.
 
 import numpy as np
-from scipy import stats
+try:
+    from scipy import stats
+except ImportError:
+    pass
 
 from ._abstract_detector import AbstractDetector
 from ...types import Sequence
@@ -83,6 +86,10 @@ class EsdTestDetector(AbstractDetector):
         )
 
     def _predict(self, s: Sequence) -> Sequence:
+        length = len(s.values)
+        if self.least_length is not None and length < self.least_length:
+            return Sequence(timestamps=s.timestamps, values=[False] * length)
+
         np_values = np.array(s.values)
         new_sum = np_values + self._normal_sum
         new_count = self._normal_count + 1

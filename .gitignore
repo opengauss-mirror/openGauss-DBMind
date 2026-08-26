@@ -152,12 +152,11 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 
-# PyCharm
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
+# PyCharm / IntelliJ IDEA
+.idea/
+
+# VS Code
+.vscode/
 
 # Ingore node.js
 # Logs
@@ -291,5 +290,96 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-# pre-commit 本地隔离环境（由 setup-pre-commit.sh 创建，不提交）
-.pre-commit-venv/
+# Local Node.js runtime
+node-v*/
+
+# Local helper scripts/reports
+start_mcp_servers.sh
+stop_mcp_servers.sh
+sequence_buffer_refactor_report.md
+
+# Local configuration (do not commit)
+dbmindconf/
+
+# Test files and reports
+COMPREHENSIVE_E2E_TEST_REPORT.md
+comprehensive_test_report.json
+comprehensive_ui_test.py
+debug_screenshot.png
+debug_ui_test.py
+deep_analysis_report.json
+deep_ui_analysis.js
+enhanced_ui_test.py
+manual_test_analysis.js
+test-ui-api.html
+test_dbmind_e2e.js
+test_report.json
+ui_test_report.json
+ui_test_report.md
+
+# Documentation and notes
+docs/ui-fixes-*.md
+
+# Screenshots and images
+screenshots/
+*.png
+
+# Package management files (root level)
+package-lock.json
+package.json
+
+# Node.js archives
+*.tar.gz
+
+# UI development files
+ui/.env.example
+ui/start-dev.sh
+ui/test-config-detection.js
+
+# Claude AI configuration
+.claude/
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Build outputs and compiled assets
+ui/build/
+dbmind/service/web/static/
+dbmind/service/web/index.html
+dbmind/service/web/asset-manifest.json
+dbmind/service/web/favicon.ico
+
+# Source maps (development only)
+*.map
+
+# Development and testing tools
+.playwright-mcp/
+.serena/
+
+# Compressed files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Temporary and backup files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Project agent instruction file
+AGENTS.md
+\n+# Local helper script (untracked)
+/make_ui.sh
+
+# Built HTML (untracked)
+/ui/build/index.html
+/# Ignore entire build output directory
+/ui/build/

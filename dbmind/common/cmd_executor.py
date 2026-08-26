@@ -14,20 +14,24 @@
 import getpass
 import logging
 import shlex
+import signal
 import socket
 import subprocess
 import threading
 import time
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, wait
 
-import paramiko
+import pexpect
+from pexpect import TIMEOUT, EOF
+if os.sys.platform == 'win32':
+    pass
+else:
+    from pexpect.pxssh import pxssh
 
-from dbmind.common.utils.checking import check_ssh_version
-
-n_stdin = 0
-n_stdout = 1
-n_stderr = 2
+from dbmind.common.utils.base import SecurityChecker
+from dbmind.common.utils import write_to_terminal
 
 
 class shlex_py38(shlex.shlex):
@@ -219,8 +223,8 @@ class ExecutorFactory:
                 raise AssertionError
 
             return SSH(host=self.host,
-                       user=self.user,
-                       pwd=self.pwd,
+                       username=self.user,
+                       password=self.pwd,
                        port=self.port)
         else:
             return LocalExec()
@@ -230,8 +234,19 @@ class ExecutorFactory:
             return False  # Not setting host is treated as local.
 
         hostname = socket.gethostname()
-        _, _, ip_address_list = socket.gethostbyname_ex(hostname)
-        if self.host in ('127.0.0.1', 'localhost') or self.host in ip_address_list:
+        try:
+            v4_addrs = socket.getaddrinfo(hostname, None, family=socket.AF_INET)
+        except socket.gaierror:
+            v4_addrs = []
+
+        try:
+            v6_addrs = socket.getaddrinfo(hostname, None, family=socket.AF_INET6)
+        except socket.gaierror:
+            v6_addrs = []
+
+        addr_infos = v4_addrs + v6_addrs
+        ip_address_list = [addr_info[4][0] for addr_info in addr_infos]
+        if self.host in ('127.0.0.1', 'localhost', '::1') or self.host in ip_address_list:
             return False
         else:
             return True
@@ -254,128 +269,138 @@ class Executor:
 
 
 class SSH(Executor):
-    def __init__(self, host, user, pwd, port=22, max_retry_times=5):
-        """
-        Use the paramiko library to establish an SSH connection with the remote server.
-        You can run one or more commands.
-        In addition, the `gsql` password information is not exposed.
-
-        :param host: String type.
-        :param user: String type.
-        :param pwd: String type.
-        :param port: Int type.
-        :param max_retry_times: Int type. Maximum number of retries if the connection fails.
-        """
-        check_ssh_version()
+    def __init__(self, host, username, password, port=22, max_retry_times=5, timeout=10):
         self.host = host
-        self.user = user
-        self.pwd = pwd
         self.port = port
+        self.username = username
+        self.password = password
         self.max_retry_times = max_retry_times
+        self.timeout = timeout
         self.retry_cnt = 0
-        self.client = SSH._connect_ssh(host, user, pwd, port)
-
-        # Init a thread local variable to save the exit status.
-        self._exit_status = threading.local()
-        self._exit_status.value = 0
+        self.executor = SSH.connect(host, username, password, port=self.port)
+        self.check_version()
 
     @staticmethod
-    def _connect_ssh(host, user, pwd, port):
-        client = paramiko.SSHClient()
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        client.connect(host, port, user, pwd)
-        return client
-
-    @property
-    def exit_status(self):
-        return self._exit_status.value
-
-    def _exec_command(self, command, **kwargs):
-        if self.client is None:
-            self.client = SSH._connect_ssh(self.host, self.user,
-                                           self.pwd, self.port)
+    def connect(host, username, password, port=22):
+        ssh_options = {
+            'PreferredAuthentications': 'password',
+            'PubkeyAuthentication': 'no',
+            'StrictHostKeyChecking': 'no',
+            'UserKnownHostsFile': '/dev/null'
+        }
+        executor = pxssh(
+            echo=False,
+            options=ssh_options,
+            env={'LD_LIBRARY_PATH': ''}
+        )
         try:
-            if type(command) in (list, tuple):
-                chan = self.client.get_transport().open_session()
-                chan.invoke_shell()
+            executor.login(
+                host,
+                port=port,
+                username=username,
+                password=password,
+                sync_multiplier=8
+            )
+            return executor
 
-                buff_size = 32768
-                timeout = kwargs.get('timeout', None)
-                stdout = list()
-                stderr = list()
-                cmds = list(command)
-                # In interactive mode,
-                # we cannot determine whether the process exits. We need to exit the shell manually.
-                cmds.append('exit $?')
-                for line in cmds:
-                    chan.send(line + '\n')
-                    while not chan.send_ready():  # Wait until the sending is complete.
-                        time.sleep(0.1)
+        except Exception as e:
+            if executor:
+                executor.close()
 
-                # Wait until all commands are executed.
-                start_time = time.monotonic()
-                while not chan.exit_status_ready():
-                    if chan.recv_ready():
-                        stdout.append(chan.recv(buff_size))
-                    if chan.recv_stderr_ready():
-                        stderr.append(chan.recv_stderr(buff_size))
-                    if timeout and (time.monotonic() - start_time) > timeout:
-                        break
-                    time.sleep(0.1)
+            raise e
 
-                chan.close()
-                self._exit_status.value = chan.recv_exit_status()
-                result_tup = (bytes2text(stdout), bytes2text(stderr))
+    def exec_command_sync(self, command, *args, redirection=" 1>>stdout 2>>stderr", **kwargs):
+        if not self.executor or self.executor.closed:
+            self.executor = self.connect(self.host, self.username, self.password)
+
+        if not hasattr(self.executor, 'sendline'):
+            raise ConnectionError("Slow connection.")
+
+        try:
+            if isinstance(command, (list, tuple, set)):
+                for cmd in command:
+                    self._exec_single_command(cmd, redirection=redirection)
             else:
-                blocking_fd = kwargs.pop('fd')
-
-                # Some environments miss the path of /path/to/bin and /path/to/sbin,
-                # so we have to attach a common path to the environment PATH.
-                bin_paths = '/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin'
-                path_prefix = 'PATH=$PATH:%s && ' % bin_paths
-                command = path_prefix + command
-
-                chan = self.client.exec_command(command=command, **kwargs)
-                while not chan[blocking_fd].channel.exit_status_ready():  # Blocking here.
-                    time.sleep(0.1)
-
-                self._exit_status.value = chan[blocking_fd].channel.recv_exit_status()
-                result_tup = (bytes2text(chan[n_stdout].read()), bytes2text(chan[n_stderr].read()))
+                self._exec_single_command(command, redirection=redirection)
 
             self.retry_cnt = 0
-            return result_tup
-        except paramiko.SSHException as e:
-            # reconnect
-            self.client.close()
-            self.client = SSH._connect_ssh(self.host, self.user,
-                                           self.pwd, self.port)
+            self.exit_status = 0
 
-            # Retry until the upper limit is reached.
+            if redirection == " 1>>stdout 2>>stderr":
+                return self.get_stdout(), self.get_stderr()
+            else:
+                return "", ""
+
+        except pexpect.ExceptionPexpect:
+            self.executor.close()
+            self.executor = self.connect(self.host, self.username, self.password)
             if self.retry_cnt >= self.max_retry_times:
+                self.exit_status = -1
                 raise ConnectionError("Can not connect to remote host.")
 
-            logging.warning("SSH: %s, so try to reconnect.", e)
             self.retry_cnt += 1
-            return self._exec_command(command)
+            self.exec_command_sync(command)
 
-    def exec_command_sync(self, command, *args, **kwargs):
-        """
-        You can run one or more commands.
+    def get_stdout(self):
+        self._exec_single_command("cat stdout")
+        stdout = self.executor.before.decode()
+        num = 0
+        while not stdout and num < 5:
+            self.executor.prompt(timeout=0.1)
+            stdout = self.executor.before.decode()
+            num += 1
 
-        :param command: Type: tuple, list or string.
-        :param kwargs: blocking_fd means blocking and waiting for which standard streams.
-        :return: Execution result.
-        """
-        blocking_fd = kwargs.pop('blocking_fd', n_stdout)
-        if not isinstance(blocking_fd, int) or blocking_fd > n_stderr or blocking_fd < n_stdin:
-            raise ValueError
+        if "cat stdout\r\n" in stdout:
+            idx = stdout.find("cat stdout\r\n")
+            stdout = stdout[idx + 12:]
 
-        return self._exec_command(command, fd=blocking_fd, **kwargs)
+        self._exec_single_command("rm -f stdout")
+
+        return stdout
+
+    def get_stderr(self):
+        self._exec_single_command("cat stderr")
+        stderr = self.executor.before.decode()
+        num = 0
+        while not stderr and num < 5:
+            self.executor.prompt(timeout=0.1)
+            stderr = self.executor.before.decode()
+            num += 1
+
+        if "cat stderr\r\n" in stderr:
+            idx = stderr.find("cat stderr\r\n")
+            stderr = stderr[idx + 12:]
+
+        self._exec_single_command("rm -f stderr")
+
+        return stderr
+
+    def _exec_single_command(self, command, redirection=""):
+        self.executor.sendline(command + redirection)
+        self.executor.prompt(timeout=self.timeout)
+
+    def check_version(self):
+        conn = pexpect.spawn(f"ssh -1 {self.host}")
+        try:
+            i = conn.expect(
+                ['Protocol major versions differ',
+                 'SSH protocol v.1 is no longer supported',
+                 TIMEOUT],
+                timeout=self.timeout
+            )
+            if i == 0 or i == 1:
+                write_to_terminal('The ssh version 2 is qualified.')
+            else:
+                raise ValueError('The ssh version is lower than v2.x.')
+
+        except pexpect.ExceptionPexpect:
+            raise ValueError('The ssh version is lower than v2.x.')
+
+        finally:
+            conn.close()
 
     def close(self):
-        if self.client:
-            self.client.close()
-            self.client = None
+        self.executor.close()
 
 
 class LocalExec(Executor):
@@ -409,7 +434,12 @@ class LocalExec(Executor):
                                         stderr=subprocess.PIPE,
                                         shell=False,
                                         cwd=cwd)
-                outs, errs = proc.communicate(timeout=kwargs.get('timeout', None))
+                try:
+                    outs, errs = proc.communicate(timeout=kwargs.get('timeout', None))
+                except Exception as e:
+                    proc.kill()
+                    raise e
+
                 LocalExec._exit_status.value = proc.returncode  # Get the last one.
                 if outs:
                     stdout.append(outs)
@@ -484,11 +514,73 @@ def to_cmds(cmdline):
     return cmds, require_stdin[:len(cmds)]
 
 
+class SubprocessExecutor:
+    def __init__(self, stdin, stdout, stderr, env, cwd, timeout=None):
+        self.stdin = stdin
+        self.stdout = stdout
+        self.stderr = stderr
+        self.env = env
+        self.cwd = cwd
+        self.timeout = timeout
+        self.timed_out = False
+
+    def timeout_callback(self, process):
+        self.timed_out = True
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except Exception as e:
+            logging.exception(f"Failed to kill process group: {e}")
+
+    def run(self, command, pipe_input, close_fds=True,
+            preexec_fn=None, start_new_session=False):
+        proc = subprocess.Popen(
+            command,
+            stdin=self.stdin,
+            stdout=self.stdout,
+            stderr=self.stderr,
+            env=self.env,
+            cwd=self.cwd,
+            close_fds=close_fds,
+            preexec_fn=preexec_fn,
+            start_new_session=start_new_session
+        )
+        timer = threading.Timer(self.timeout, self.timeout_callback, [proc])
+        timer.start()
+        try:
+            output, errors = proc.communicate(
+                input=pipe_input,
+                timeout=self.timeout
+            )
+        except subprocess.TimeoutExpired:
+            self.timed_out = True
+        finally:
+            timer.cancel()
+            if proc.stdin:
+                proc.stdin.close()
+
+            if proc.stdout:
+                proc.stdout.close()
+
+            if proc.stderr:
+                proc.stderr.close()
+
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+                proc.wait()
+            except OSError:
+                pass
+
+        if self.timed_out:
+            raise subprocess.TimeoutExpired(command, self.timeout)
+
+        return proc.returncode, output, errors
+
+
 def multiple_cmd_exec(cmdline, **communicate_kwargs):
     """This function only returns the execution result of the last
     command. And only support the basic scenarios.
 
-    Notice: this function is only a simple wrapper of popen,
+    Notice: this function is only a simple wrapper of Popen,
      which doesn't support complicated scenarios. e.g.,
     `echo $?`, `dirname $(pwd)`, `PATH=$PATH; echo $PATH`, `echo abc >&2`
     """
@@ -497,17 +589,22 @@ def multiple_cmd_exec(cmdline, **communicate_kwargs):
         stdin = None
     else:
         stdin = subprocess.PIPE
-    process_list = []
+
     # Support some basic scenarios, for example,
     # cd and export commands.
     cwd = os.getcwd()
     env = os.environ.copy()
+    timeout = communicate_kwargs.get("timeout")
+
+    end_time = time.monotonic() + timeout if isinstance(timeout, (int, float)) else None
     for index, cmd in enumerate(cmds):
         # Try to render a simple scenario
         # which contains $ and refer to and environment variable.
         dollar_index = -1
         for i, word in enumerate(cmd):
             if word[0] == '$' and word.count("$") == 1 and env.get(word[1:]):
+                p_word = env.get(word[1:]).replace("\\", "\\\\").replace('"', '\\"\\"')
+                SecurityChecker.check_injection_char(p_word)
                 dollar_index = i
                 break
 
@@ -518,45 +615,222 @@ def multiple_cmd_exec(cmdline, **communicate_kwargs):
         if cmd[0] == 'cd':
             cwd = cmd[1]
             continue
+
         if cmd[0] == 'export' and '=' in cmd[1]:
             k, v = cmd[1].split('=')
             env[k] = v
             continue
 
         if index == 0:
-            _p = subprocess.Popen(
-                cmd, stdin=stdin, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, shell=False
-            )
             if communicate_kwargs.get('input'):
-                _p.stdin.write(communicate_kwargs.pop('input'))
-                _p.stdin.close()  # avoid hanging
-        else:
-            if require_stdin[index] and len(process_list):
-                prev_process = process_list[-1]
-                stdin = prev_process.stdout
+                the_input = communicate_kwargs.get('input')
             else:
-                stdin = None
-            _p = subprocess.Popen(
-                cmd, stdin=stdin,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                shell=False,
-                env=env,
-                cwd=cwd
+                the_input = b""
+
+        elif require_stdin[index]:
+            stdin = subprocess.PIPE
+            the_input = last_output
+        else:
+            stdin = None
+            the_input = b""
+
+        remaining_time = None if end_time is None else end_time - time.monotonic()
+        subprocess_executor = SubprocessExecutor(
+            stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            cwd=cwd,
+            timeout=remaining_time
+        )
+        exitcode, last_output, errs = subprocess_executor.run(
+            cmd, the_input, start_new_session=True
+        )
+
+    return exitcode, last_output, errs
+
+
+class SFTP:
+    def __init__(self, host, username, password, port=22, timeout=1):
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.timeout = timeout
+        self.retry_cnt = 0
+        self.executor = None
+        self.remote_executor = SSH(host, username, password, port=port)
+
+    def connect(self):
+        second_regex_array = [
+            "sftp>",
+            "(?i)are you sure you want to continue connecting",
+            r"(?i)(?:password:)|(?:passphrase for key)",
+            "(?i)permission denied",
+            "(?i)terminal type",
+        ]
+        first_regex_array = second_regex_array + ["(?i)connection closed by remote host", EOF]
+
+        self.executor = pexpect.spawn(f"sftp -2 -P {self.port} {self.username}@{self.host}")
+        try:  # First phase
+            i = self.executor.expect(first_regex_array, timeout=self.timeout)
+            if i == 1:  # New certificate -- always accept it.
+                self.executor.sendline("yes")
+                i = self.executor.expect(second_regex_array, timeout=self.timeout)
+            if i == 2:  # password or passphrase
+                self.executor.sendline(self.password)
+                i = self.executor.expect(second_regex_array, timeout=self.timeout)
+            if i == 4:
+                self.executor.sendline("ansi")
+                i = self.executor.expect(second_regex_array, timeout=self.timeout)
+            if i == 6:
+                self.executor.close()
+                raise ConnectionError('could not establish connection to host')
+
+            if i == 0:  # as expected
+                pass
+            elif i == 1:  # Second phase
+                self.executor.close()
+                raise ConnectionError('Weird error. Got "are you sure" prompt twice.')
+            elif i == 2:  # password prompt again means incorrect password。
+                self.executor.close()
+                raise ConnectionError('user or password error, connection refused')
+            elif i == 3:  # permission denied -- password was bad.
+                self.executor.close()
+                raise ConnectionError('user or password error, connection refused')
+            elif i == 4:  # terminal type again? WTF?
+                self.executor.close()
+                raise ConnectionError('Weird error. Got "terminal type" prompt twice.')
+            elif i == 5:  # Connection closed by remote host
+                self.executor.close()
+                raise ConnectionError('connection closed')
+            else:  # Unexpected
+                self.executor.close()
+                raise ConnectionError('unexpected login response')
+
+        except Exception as e:
+            if self.executor or not self.executor.closed:
+                self.executor.close()
+            raise e
+
+    def upload_file(self, local_file, remote_file):
+        file = os.path.split(local_file)[1]
+        if not os.path.isfile(local_file):
+            raise FileNotFoundError(f"File {local_file} is not found.")
+        try:
+            self.executor.sendline(f"put '{local_file}' '{remote_file}'")
+            i = self.executor.expect(["100%", "No such file or directory"], timeout=self.timeout)
+            if i == 0:
+                write_to_terminal(f"Successfully uploaded local {local_file} to {self.host}{remote_file}.")
+            elif i == 1:
+                raise FileNotFoundError(f"No such file or directory: {local_file}.")
+
+        except Exception as e:
+            write_to_terminal(
+                f"WARNING: Transportation of {local_file} to {self.host}{remote_file} failed, "
+                f"check if '{file}' is running in processes: {e}"
             )
-        process_list.append(_p)
 
-    last_process = process_list[-1]
-    # If the stdin pipe has been broken or closed, but we didn't close it explicitly,
-    # the subprocess will throw a
-    # ValueError which notifies this stdin is a closed file.
-    if last_process.stdin and last_process.stdin.closed:
-        last_process.stdin = None
+    def upload_dir(self, local_dir, remote_dir):
+        self.mkdir(remote_dir)
+        for entry in os.scandir(local_dir):
+            local_item = os.path.join(local_dir, entry.name)
+            remote_item = os.path.join(remote_dir, entry.name)
+            if entry.is_dir():
+                self.upload_dir(local_item, remote_item)
+            elif entry.is_file():
+                self.upload_file(local_item, remote_item)
 
-    try:
-        outs, errs = last_process.communicate(**communicate_kwargs)
-    finally:
-        for _p in process_list:
-            _p.terminate()
-    return last_process.returncode, outs, errs
+    def exists(self, remote_path):
+        self.executor.sendline(f"ls {remote_path}")
+        i = self.executor.expect(["not found", TIMEOUT], timeout=0.1)
+        self.executor.expect(["sftp>", TIMEOUT], timeout=0.1)
+        if i == 0:
+            return False
+        return True
+
+    def mkdir(self, path):
+        if self.exists(path):
+            return
+
+        self.mkdir(os.path.dirname(path))
+        self.executor.sendline(f"mkdir {path}")
+        i = self.executor.expect(["Permission denied", TIMEOUT], timeout=0.1)
+        if i == 0:
+            raise pexpect.ExceptionPexpect(
+                "Invalid username, password, address or unauthorized path for "
+                r"{}@{}/{}".format(self.username, self.host, path)
+            )
+
+    def exec_sftp_command(self, command):
+        self.executor.sendline(command)
+        i = self.executor.expect(["sftp>", TIMEOUT], timeout=self.timeout)
+        if i == 1:
+            raise TIMEOUT(f"The execution has exceeded the timeout limit {self.timeout}s")
+
+    def close(self):
+        self.executor.close()
+        self.remote_executor.close()
+
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
+thr_local_variables = threading.local()
+
+
+def sftp_put(local_file, remote_file):
+    client = thr_local_variables.client
+    if not os.path.isfile(local_file):
+        raise FileNotFoundError(f'File {local_file} is not found.')
+
+    client.upload_file(local_file, remote_file)
+
+
+def close_client():
+    client = thr_local_variables.client
+    client.close()
+    time.sleep(1)
+
+
+def initializer(host, username, passwd, port):
+    client = SFTP(host, username, passwd, port=port)
+    client.connect()
+    thr_local_variables.client = client
+
+
+def transfer_pool(host, username, passwd, upload_list, port=22, workers=4, method='process'):
+    if method == "process":
+        pool = ProcessPoolExecutor
+    elif method == "thread":
+        pool = ThreadPoolExecutor
+    else:
+        raise AttributeError("Attribute method must be 'process' or 'thread'.")
+
+    with pool(
+        max_workers=workers,
+        initializer=initializer,
+        initargs=(host, username, passwd, port)
+    ) as executor:
+        futures = [executor.submit(sftp_put, *(local_file, remote_file))
+                   for local_file, remote_file in upload_list]
+
+        wait(futures)
+        for future in futures:
+            try:
+                future.result()
+            except Exception as e:
+                logging.warning(str(e))
+
+        futures = [executor.submit(close_client) for _ in range(workers)]
+
+        wait(futures)
+        for future in futures:
+            try:
+                future.result()
+            except Exception as e:
+                logging.warning(str(e))

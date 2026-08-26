@@ -11,9 +11,13 @@
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 from . import alarms
+from . import anomaly_detectors
+from . import cluster_diagnosis_records
 from . import dynamic_config
 from . import healing_records
 from . import index_recommendation
 from . import knob_recommendation
 from . import slow_queries
 from . import regular_inspections
+from . import high_availability_status
+from . import metric_statistics

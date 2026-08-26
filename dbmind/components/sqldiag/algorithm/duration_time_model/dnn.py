@@ -1,6 +1,19 @@
-import json
+# Copyright (c) 2020 Huawei Technologies Co.,Ltd.
+#
+# openGauss is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#          http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+# EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+# MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+
 import logging
 import os
+import pickle
 import stat
 import sys
 from abc import ABC
@@ -120,64 +133,18 @@ class DnnModel(AbstractModel, ABC):
         score = np.hstack((np.array(data_backup).reshape(-1, 1), score.reshape(-1, 1))).tolist()
         return score
 
-    @staticmethod
-    def _serialize_scaler(scaler):
-        if scaler is None:
-            return None
-        return {
-            'version': 1,
-            'feature_range': list(scaler.feature_range),
-            'data_min_': scaler.data_min_.tolist(),
-            'data_max_': scaler.data_max_.tolist(),
-            'data_range_': scaler.data_range_.tolist(),
-            'min_': scaler.min_.tolist(),
-            'scale_': scaler.scale_.tolist(),
-            'n_samples_seen_': int(scaler.n_samples_seen_),
-            'n_features_in_': int(getattr(scaler, 'n_features_in_', len(scaler.scale_))),
-            'clip': bool(getattr(scaler, 'clip', False)),
-        }
-
-    @staticmethod
-    def _deserialize_scaler(payload):
-        if payload is None:
-            return None
-        from sklearn.preprocessing import MinMaxScaler
-
-        scaler = MinMaxScaler(feature_range=tuple(payload['feature_range']))
-        scaler.data_min_ = np.asarray(payload['data_min_'])
-        scaler.data_max_ = np.asarray(payload['data_max_'])
-        scaler.data_range_ = np.asarray(payload['data_range_'])
-        scaler.min_ = np.asarray(payload['min_'])
-        scaler.scale_ = np.asarray(payload['scale_'])
-        scaler.n_samples_seen_ = int(payload['n_samples_seen_'])
-        scaler.n_features_in_ = int(payload['n_features_in_'])
-        scaler.clip = bool(payload.get('clip', False))
-        return scaler
-
     def load(self, filepath):
         realpath = os.path.realpath(filepath)
         if os.path.exists(realpath):
             dnn_path = os.path.join(realpath, 'dnn_model.h5')
             word2vector_path = os.path.join(realpath, 'w2v.model')
-            scaler_path = os.path.join(realpath, 'scaler.json')
-            legacy_scaler_path = os.path.join(realpath, 'scaler.pkl')
+            scaler_path = os.path.join(realpath, 'scaler.pkl')
             self.regression.load(dnn_path)
             self.w2v.load(word2vector_path)
-            if os.path.exists(scaler_path):
-                with open(scaler_path, mode='r', encoding='utf-8') as f:
-                    self.scaler = self._deserialize_scaler(json.load(f))
-            elif os.path.exists(legacy_scaler_path):
-                logging.error(
-                    'Legacy pickle-based scaler artifact %s is no longer supported; '
-                    'please resave the model.',
-                    legacy_scaler_path,
-                )
-                sys.exit(1)
-            else:
-                logging.error("{} not exist.".format(realpath))
-                sys.exit(1)
+            with open(scaler_path, 'rb') as f:
+                self.scaler = pickle.load(f)
         else:
-            logging.error("{} not exist.".format(realpath))
+            logging.error("%s not exist.", realpath)
             sys.exit(1)
 
     def save(self, filepath):
@@ -188,11 +155,11 @@ class DnnModel(AbstractModel, ABC):
             os.chmod(realpath, stat.S_IRWXU)
         dnn_path = os.path.join(realpath, 'dnn_model.h5')
         word2vector_path = os.path.join(realpath, 'w2v.model')
-        scaler_path = os.path.join(realpath, 'scaler.json')
+        scaler_path = os.path.join(realpath, 'scaler.pkl')
         self.regression.save(dnn_path)
         self.w2v.save(word2vector_path)
-        with open(scaler_path, mode='w', encoding='utf-8') as f:
-            json.dump(self._serialize_scaler(self.scaler), f)
+        with open(scaler_path, 'wb') as f:
+            pickle.dump(self.scaler, f)
         if os.path.exists(dnn_path):
             os.chmod(dnn_path, 0o600)
         if os.path.exists(word2vector_path):

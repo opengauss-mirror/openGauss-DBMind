@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
-import { UploadOutlined, SettingFilled, InfoCircleFilled } from '@ant-design/icons';
-import { Button, Card, Input, message, Select, Table, Upload, Modal, InputNumber, Collapse } from 'antd';
+import { UploadOutlined } from '@ant-design/icons';
+import { Button, Card, Input, message, Select, Table, Upload, Modal, Collapse } from 'antd';
 import { getItemListInterface, getListIndexAdvisorInterface } from '../../api/aiTool';
 import { formatTableTitle } from '../../utils/function';
 import { getSettingDefaults, getSettingCurrentValue, updateSetting } from "../../api/dbmindSettings";
@@ -11,8 +11,7 @@ import '../../assets/css/main/aiToolkit.css';
 const { TextArea } = Input;
 const { Option } = Select;
 const { Panel } = Collapse;
-const labelStyle = {width:160,float:'left',textAlign:'right',lineHeight:'32px'}
-const inputStyle = {marginLeft:20,marginRight:20}
+// 清理未使用的样式常量，避免 no-unused-vars 警告
 export default class IndexAdvisor extends Component {
   constructor(props) {
     super(props)
@@ -40,11 +39,7 @@ export default class IndexAdvisor extends Component {
         total: 0,
         defaultCurrent: 1
       },
-      maxIndexNum: '',
-      maxIndexStorage: '',
-      minImprovedRate: '',
       isDetailsVisible:false,
-      isSettingVisible:false,
       selValue: '',
       textareaVal: '',
       options: [],
@@ -56,18 +51,21 @@ export default class IndexAdvisor extends Component {
   async getItemList () {
     const { success, data, msg } = await getItemListInterface()
     if (success) {
-      this.setState({options: data})
+      this.setState({
+        options: data,
+        selValue: this.state.selValue || (data.length > 0 ? data[0] : '')
+      })
     } else {
       message.error(msg)
     }
   }
   async getListIndexAdvisor (arrs,pageParams) {
-    let params = {
+    const params = {
       database: this.state.selValue,
       textareaVal: [arrs],
-      max_index_num: this.state.maxIndexNum,
-      max_index_storage: this.state.maxIndexStorage,
-      min_improved_rate: this.state.minImprovedRate,
+      max_index_num: 1000,
+      max_index_storage: 1000000000,
+      min_improved_rate: 0,
       current: pageParams ? pageParams.current : this.state.current,
       pagesize:pageParams ? pageParams.pagesize : this.state.pageSize,
       instance:db.ss.get('Instance_value')
@@ -75,9 +73,16 @@ export default class IndexAdvisor extends Component {
     this.setState({ loadingAdvisor: true });
     const { success, data, msg } = await getListIndexAdvisorInterface(params)
     if (success) {
-      let advisorColumObj = {},advisorHeader = ["index","improve_rate","index_size","templates","select","delete","update","insert"],advisorTableHeader = [],
-      redundantColumObj = [],redundantHeader = ["schemaName","tbName","columns","statement","existingIndex"],redundantTableHeader = [],
-      uselessColumObj = [],uselessHeader = ["schemaName","tbName","columns","statement"],uselessTableHeader = [],widthArray = ['34%','12%','12%','12%','5%','5%','5%','15%']
+      let advisorColumObj = {}
+      const advisorHeader = ["index","improve_rate","index_size","templates","select","delete","update","insert"]
+      const advisorTableHeader = []
+      let redundantColumObj = []
+      const redundantHeader = ["schemaName","tbName","columns","statement","existingIndex"]
+      const redundantTableHeader = []
+      let uselessColumObj = []
+      const uselessHeader = ["schemaName","tbName","columns","statement"]
+      const uselessTableHeader = []
+      const widthArray = ['34%','12%','12%','12%','5%','5%','5%','15%']
       advisorHeader.forEach((item,Index) => {
         advisorColumObj = {
           title: formatTableTitle(item),
@@ -123,12 +128,16 @@ export default class IndexAdvisor extends Component {
         uselessTableHeader.push(uselessColumObj)
       })
       if (data[0].advise_indexes || data[0].useless_indexes || data[0].redundant_indexes) {
-        let res = [],redundantRes = [],uselessRes = [],
-        dataObj = [{"rows":data[0]['advise_indexes'],"header":advisorHeader},{"rows":data[0]['redundant_indexes'],"header":redundantHeader},{"rows":data[0]['useless_indexes'],"header":uselessHeader}],
-        arrayObj = [res,redundantRes,uselessRes]
+        const res = [], redundantRes = [], uselessRes = []
+        const dataObj = [
+          { rows: data[0]['advise_indexes'], header: advisorHeader },
+          { rows: data[0]['redundant_indexes'], header: redundantHeader },
+          { rows: data[0]['useless_indexes'], header: uselessHeader }
+        ]
+        const arrayObj = [res, redundantRes, uselessRes]
         dataObj.forEach((item, index) => {
           item.rows.forEach((oitem, oindex) => {
-            let tabledata = {}
+            const tabledata = {}
             for (let i = 0; i < item.header.length; i++) {
               tabledata[item.header[i]] = oitem[item.header[i]]
               tabledata['key'] = oindex
@@ -181,7 +190,10 @@ export default class IndexAdvisor extends Component {
     }
   }
   isDetails(row, record) {
-    let detailsColumObj = [],detailsTableHeader = [],widthArray = ['50%','25%','25%'],detailsHeader = ['template','count','improve']
+    let detailsColumObj = []
+    const detailsTableHeader = []
+    const widthArray = ['50%','25%','25%']
+    const detailsHeader = ['template','count','improve']
     detailsHeader.forEach((item,Index) => {
       detailsColumObj = {
         title: formatTableTitle(item),
@@ -192,9 +204,9 @@ export default class IndexAdvisor extends Component {
       }
       detailsTableHeader.push(detailsColumObj)
     })
-    let res = []
+    const res = []
     row.forEach((item, index) => {
-      let tabledata = {}
+      const tabledata = {}
       for (let i = 0; i < detailsHeader.length; i++) {
         tabledata[detailsHeader[i]] = item[detailsHeader[i]]
         tabledata['key'] = index
@@ -213,7 +225,7 @@ export default class IndexAdvisor extends Component {
   }
   // 回调函数，切换下一页
   changePage(current,pageSize){
-    let pageParams = {
+    const pageParams = {
       current: current,
       pagesize: pageSize,
     };
@@ -228,7 +240,7 @@ export default class IndexAdvisor extends Component {
     this.setState({
       pageSize: pageSize
     });
-    let pageParams = {
+    const pageParams = {
       current: current,
       pagesize: pageSize,
     };
@@ -276,11 +288,11 @@ export default class IndexAdvisor extends Component {
   }
   async handleSettingOk(){
     if(this.state.maxIndexNum && this.state.maxIndexStorage && this.state.minImprovedRate){
-      let params = {
+      const params = {
         configname:"self_optimization",
         config_dict:{max_index_num:this.state.maxIndexNum,max_index_storage:this.state.maxIndexStorage,min_improved_rate:this.state.minImprovedRate}
       }
-      const { success,data, msg } = await updateSetting(params);
+      const { success, msg } = await updateSetting(params);
       if (success) {
         this.setState({
           isSettingVisible: false,
@@ -341,7 +353,6 @@ export default class IndexAdvisor extends Component {
       this.setState({textareaVal: this.props.location.state.sqltext,selValue: this.props.location.state.database})
     }
     this.getItemList()
-    this.handleSetting(false)
   }
   render () {
     const paginationProps = {
@@ -357,7 +368,7 @@ export default class IndexAdvisor extends Component {
     return (
       <div className="contentWrap">
       <div className='indexadvisor bordmargin'>
-        <Card className="mb-20" extra={<SettingFilled className="more_link" onClick={() => { this.handleSetting(true) }} />} title="Smart Index Recommendation" bordered={false} style={{ width: '100%', height: 430 }}>
+        <Card className="mb-20" title="Smart Index Recommendation" bordered={false} style={{ width: '100%', height: 430 }}>
           <div className="flexbox">
 
             <div className="flextitle1">Database List：</div>
@@ -405,15 +416,20 @@ export default class IndexAdvisor extends Component {
             </Panel>
           </Collapse>
         </Card>
-        <Modal title="Details" width="40vw"  footer={null}
-         destroyOnClose='true' visible={this.state.isDetailsVisible} maskClosable = {false} onCancel={() => this.handleDetailsCancel()}>
-           <Table size='small' columns={this.state.columnsDetails} dataSource={this.state.dataDetails} rowKey={record => record.key} pagination={this.state.paginationDetails} />
-        </Modal>
-        <Modal title="Setting" width="40vw" style={{minWidth:768}} footer={<div style={{textAlign:'center'}}><Button key="submit" type="primary" onClick={() => this.handleSettingOk()}>Save</Button><Button key="back" onClick={() => this.handleSettingReset()}>Reset</Button></div>}
-         destroyOnClose='true' visible={this.state.isSettingVisible} maskClosable = {false} onOk={() => this.handleSettingOk()}  onCancel={() => this.handleSettingCancel()}>
-          <p style={{minWidth:720}}><label style={labelStyle}>Min_improved_rate: </label><InputNumber style={inputStyle} min={0} onChange={(e) => this.handleChangeRate(e)} stringMode value={this.state.minImprovedRate} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Minimum improved rate of the cost for the indexes</label></p>
-          <p style={{minWidth:720}}><label style={labelStyle}>Max_index_num: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeNum(e)} stringMode value={this.state.maxIndexNum} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum number of advised indexes</label></p>
-          <p style={{minWidth:720}}><label style={labelStyle}>Max_index_storage: </label><InputNumber style={inputStyle} min={1} onChange={(e) => this.handleChangeStorage(e)} stringMode value={this.state.maxIndexStorage} /><label style={{color:'#ADA6ED'}}><InfoCircleFilled /> Maximum index storage (Mb)</label></p>
+        <Modal
+          title="Details"
+          visible={this.state.isDetailsVisible}
+          onCancel={() => this.handleDetailsCancel()}
+          footer={null}
+          width={800}
+        >
+          <Table 
+            size='small' 
+            columns={this.state.columnsDetails} 
+            dataSource={this.state.dataDetails} 
+            rowKey={record => record.key} 
+            pagination={this.state.paginationDetails}
+          />
         </Modal>
       </div>
       </div>

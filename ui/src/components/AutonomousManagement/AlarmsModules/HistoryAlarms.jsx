@@ -42,7 +42,7 @@ export default class Alarms extends Component {
     },
   };
   async getHistoryAlarms (pageParams) {
-    let params = {
+    const params = {
       instance: this.state.host === '' ? null : this.state.host,
       alarm_type: this.state.alarm_type === '' ? null : this.state.alarm_type,
       alarm_level: this.state.alarm_level === '' ? null : this.state.alarm_level,
@@ -57,28 +57,26 @@ export default class Alarms extends Component {
     const { success, data, msg } = await getHistoryAlarmsInterface(params)
     if (success) {
       if (data.header.length > 0) {
-        let historyColumObj = {}
-        let operationColumObj = {}
-        let tableHeader = []
-        let hostOptionsFilterArr = []
-        let alarmOptionsFilterArr = []
-        let alarmLevelOptionsFilterArr = []
+        const tableHeader = []
+        const hostOptionsFilterArr = []
+        const alarmOptionsFilterArr = []
+        const alarmLevelOptionsFilterArr = []
         if(data.header.length > 9){
           data.header.push('operation')
         }
         data.header.forEach((item) => {
-          operationColumObj = {
+          const operationColumObj = {
             sorter: (a, b) => {
               if(Object.keys(a).includes(item)){
-                let aVal = a[item]
-                let bVal = b[item]
-                let c = isFinite(aVal),
+                const aVal = a[item]
+                const bVal = b[item]
+                const c = isFinite(aVal),
                   d = isFinite(bVal);
                 return (c !== d && d - c) || (c && d ? aVal - bVal : aVal.localeCompare(bVal));
               }
             }
           }
-          historyColumObj = {
+          const historyColumObj = {
             title: formatTableTitle(item),
             dataIndex: item,
             width: 180,
@@ -97,9 +95,9 @@ export default class Alarms extends Component {
           }
             tableHeader.push(historyColumObj)
         })
-        let res = []
+        const res = []
         data.rows.forEach((item, index) => {
-          let tabledata = {}
+          const tabledata = {}
           for (let i = 0; i < data.header.length; i++) {
               tabledata[data.header[i]] = item[i]
               tabledata['key'] = index
@@ -139,9 +137,9 @@ export default class Alarms extends Component {
           alarmOptionsFilterArr.push(item.alarm_type)
           alarmLevelOptionsFilterArr.push(item.alarm_level)
         })
-        let hostOptions = this.handleDataDeduplicate(hostOptionsFilterArr)
-        let alarmTypeOptions = this.handleDataDeduplicate(alarmOptionsFilterArr)
-        let alarmLevelOptions = this.handleDataConversion(this.handleDataDeduplicate(alarmLevelOptionsFilterArr))
+        const hostOptions = this.handleDataDeduplicate(hostOptionsFilterArr)
+        const alarmTypeOptions = this.handleDataDeduplicate(alarmOptionsFilterArr)
+        const alarmLevelOptions = this.handleDataConversion(this.handleDataDeduplicate(alarmLevelOptionsFilterArr))
         this.setState(() => ({
           hostOptionsFilter: hostOptions,
           alarmOptionsFilter: alarmTypeOptions,
@@ -169,7 +167,7 @@ export default class Alarms extends Component {
     }
   }
   async getHistoryAlarmsCount () {
-    let params = {
+    const params = {
       instance: this.state.host === '' ? null : this.state.host,
       alarm_type: this.state.alarm_type === '' ? null : this.state.alarm_type,
       alarm_level: this.state.alarm_level === '' ? null : this.state.alarm_level,
@@ -197,7 +195,7 @@ export default class Alarms extends Component {
     })
   }
   handleDataDeduplicate = (value) => {
-    let newArr = []
+    const newArr = []
     for (let i = 0; i < value.length; i++) {
       if (newArr.indexOf(value[i]) === -1 && value[i]) {
         newArr.push(value[i])
@@ -206,7 +204,7 @@ export default class Alarms extends Component {
     return newArr
   }
   handleDataConversion = (value) => {
-    let newArr = []
+    const newArr = []
     for (let i = 0; i < value.length; i++) {
       switch (value[i]) {
         case "CRITICAL":
@@ -246,7 +244,7 @@ export default class Alarms extends Component {
   }
   // 回调函数，切换下一页
   changePage(current,pageSize){
-    let pageParams = {
+    const pageParams = {
       current: current,
       pagesize: pageSize,
     };
@@ -261,7 +259,7 @@ export default class Alarms extends Component {
     this.setState({
       pageSize: pageSize
     });
-    let pageParams = {
+    const pageParams = {
       current: current,
       pagesize: pageSize,
     };

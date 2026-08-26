@@ -65,11 +65,7 @@ if [[ ! -d "${inst}/python" ]]; then
 echo \
 +"==================================================
 +If Python is not installed in your system,
-+ we suggest you download *miniconda* from
-+ the following website:
-+
-+   - official: https://docs.conda.io/en/latest/miniconda.html#linux-installers
-+   - mirror:   https://mirrors.tuna.tsinghua.edu.cn/anaconda/miniconda
++ we suggest you download *miniconda*.
 +
 +And then, execute the following command to install
 + it into the DBMind installation directory:

@@ -18,17 +18,9 @@ from .errors import SerializationFormatError
 
 JSONABLE_KEYWORD = '_jsonable'
 DTYPE_KEYWORD = '_dtype'
-ALLOWED_RPC_JSONABLE_TYPES = {
-    ('dbmind.common.rpc.base', 'RPCRequest'),
-    ('dbmind.common.rpc.base', 'RPCResponse'),
-    ('dbmind.common.types.sequence', 'Sequence'),
-}
 
 
 def recognize_data_type(v):
-    if isinstance(v, type):
-        return v.__module__, v.__name__
-
     if v.__module__ == 'builtin':
         return 'builtin', v.__name__
 
@@ -43,23 +35,17 @@ def initialize_cls(module, name, data):
         )
     if module == 'builtin':
         return data
-    if (module, name) not in ALLOWED_RPC_JSONABLE_TYPES:
-        raise SerializationFormatError(
-            'Not supported serialization or deserialization for %s.%s.' % (module, name)
-        )
+    cls = getattr(importlib.import_module(module), name)
+    if isinstance(cls, RPCJSONAble):
+        return cls.from_json(data)
 
-    try:
-        cls = getattr(importlib.import_module(module), name)
-        if issubclass(cls, RPCJSONAble) and cls is not RPCJSONAble:
-            return cls.get_instance(data)
-    except (ImportError, AttributeError, TypeError) as e:
-        raise SerializationFormatError(
-            'Not supported serialization or deserialization for %s.%s: %s.' % (module, name, e)
-        )
-
-    raise SerializationFormatError(
-        'Not supported serialization or deserialization for %s.%s.' % (module, name)
-    )
+    if isinstance(data, list):
+        return cls(*data)
+    elif isinstance(data, dict):
+        return cls(**data)
+    else:
+        # Maybe raise error.
+        return cls(data)
 
 
 class RPCJSONEncoder(json.JSONEncoder):
@@ -118,7 +104,7 @@ class RPCJSONAble:
         if not isinstance(data, dict):
             raise ValueError('Given deserialize string should be a dict.')
 
-        if not data[JSONABLE_KEYWORD] or tuple(data[DTYPE_KEYWORD]) != recognize_data_type(cls):
+        if not (data[JSONABLE_KEYWORD] and data[DTYPE_KEYWORD] != recognize_data_type(cls)):
             raise TypeError('Not supported given data for performing from_json() method. '
                             'Should get data from json() method.')
 
@@ -179,8 +165,11 @@ class RPCResponse(RPCJSONAble):
         self.result = result
 
     def jsonify(self):
+        request = self.request.json()
+        if 'pwd' in request:
+            request['pwd'] = '******'
         return {
-            'request': self.request.json(),
+            'request': request,
             'success': self.success,
             'exception': self.exception,
             'result': RPCJSONAble.serialize(self.result)

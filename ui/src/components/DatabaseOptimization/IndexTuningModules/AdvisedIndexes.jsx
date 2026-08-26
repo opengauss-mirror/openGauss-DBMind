@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Card, Table, message } from 'antd';
+import { Card, Table } from 'antd';
 import PropTypes from 'prop-types';
 import ResizeableTitle from '../../common/ResizeableTitle';
 import { formatTableTitle } from '../../../utils/function';
@@ -19,6 +19,8 @@ export default class AdvisedIndexes extends Component {
       },
       loading: false
     }
+    // 绑定方法以避免this指向问题
+    this.handleTableData = this.handleTableData.bind(this);
   }
   components = {
     header: {
@@ -29,7 +31,7 @@ export default class AdvisedIndexes extends Component {
     this.setState({loading: true})
     if (header.length > 0) {
       let historyColumObj = {}
-      let tableHeader = []
+      const tableHeader = []
       header.forEach(item => {
         historyColumObj = {
           title: formatTableTitle(item),
@@ -45,9 +47,9 @@ export default class AdvisedIndexes extends Component {
         }
         tableHeader.push(historyColumObj)
       })
-      let res = []
+      const res = []
       rows.forEach((item, index) => {
-        let tabledata = {}
+        const tabledata = {}
         for (let i = 0; i < header.length; i++) {
           tabledata[header[i]] = item[i]
         }

@@ -13,6 +13,7 @@
 import datetime
 
 from dbmind.common.utils import dbmind_assert
+from dbmind.common.utils.checking import split_ip_port
 from dbmind.service.web.context_manager import ACCESS_CONTEXT_NAME, get_access_context
 
 
@@ -164,7 +165,7 @@ def format_date_key(obj, old_date_key):
 def split_ip_and_port(address):
     if not address:
         return None, None
-    arr = address.split(':')
+    arr = split_ip_port(address)
     if len(arr) < 2:
         return arr[0], None
     return arr[0], arr[1]

@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Card } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../../common/EChart';
 
 export default class MeanBufferHitRateChart extends Component {
   constructor(props) {
@@ -111,15 +111,13 @@ export default class MeanBufferHitRateChart extends Component {
     return (
       
         <Card title={<span style={{fontWeight:'normal'}} title="Mean Buffer Hit Rate for Slow Query">Mean Buffer Hit Rate for Slow Query</span>} style={{ height: 322}}>
-          <ReactEcharts
+          <EChart
             ref={(e) => {
               this.echartsElement = e
             }}
             option={this.getOption()}
-            style={{ width: '100%', height: 260 }}
-            lazyUpdate={true}
-          >
-          </ReactEcharts>
+            style={{ height: 260 }}
+          />
         </Card>
 
     )

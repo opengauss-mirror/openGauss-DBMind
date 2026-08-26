@@ -1,6 +1,6 @@
 import React, { Component } from "react";
 import { Card } from "antd";
-import ReactEcharts from "echarts-for-react";
+import EChart from "../../common/EChart";
 
 export default class MeanCpuTimeChart extends Component {
   constructor(props) {
@@ -106,14 +106,13 @@ export default class MeanCpuTimeChart extends Component {
     return (
       <div>
         <Card title="Mean CPU Time" style={{ height: 321}}>
-          <ReactEcharts
+          <EChart
             ref={(e) => {
               this.echartsElement = e;
             }}
             option={this.getOption()}
             style={{ height: 260 }}
-            lazyUpdate={true}
-          ></ReactEcharts>
+          />
         </Card>
       </div>
     );

@@ -18,9 +18,11 @@ from ...types import Sequence
 
 
 class ThresholdDetector(AbstractDetector):
-    def __init__(self, high=float("inf"), low=-float("inf"), percentage: float = None):
+    def __init__(self, high=float("inf"), low=-float("inf"), percentage: float = None,
+                 closed: bool = None):
         self.high = high
         self.low = low
+        self.closed = closed
         if isinstance(percentage, (int, float)) and 0 <= percentage <= 1:
             self.percentage = percentage
         else:
@@ -30,12 +32,19 @@ class ThresholdDetector(AbstractDetector):
         """Nothing to impl"""
 
     def _predict(self, s: Sequence) -> Sequence:
-        n = len(s.values)
+        length = len(s.values)
+        if self.least_length is not None and length < self.least_length:
+            return Sequence(timestamps=s.timestamps, values=[False] * length)
+
         np_values = np.array(s.values)
-        predicted_values = (np_values > self.high) | (np_values < self.low)
+        if self.closed:
+            predicted_values = (np_values >= self.high) | (np_values <= self.low)
+        else:
+            predicted_values = (np_values > self.high) | (np_values < self.low)
+
         if self.percentage is None:
             return Sequence(timestamps=s.timestamps, values=predicted_values)
-        elif np.count_nonzero(predicted_values) >= self.percentage * n:
-            return Sequence(timestamps=s.timestamps, values=(True,) * n)
+        elif np.count_nonzero(predicted_values) >= self.percentage * length:
+            return Sequence(timestamps=s.timestamps, values=(True,) * length)
         else:
-            return Sequence(timestamps=s.timestamps, values=(False,) * n)
+            return Sequence(timestamps=s.timestamps, values=(False,) * length)

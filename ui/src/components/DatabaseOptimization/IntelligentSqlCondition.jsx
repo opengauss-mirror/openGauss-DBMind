@@ -2,13 +2,12 @@ import React, { Component } from 'react';
 import { Button, Input, message, Select, Card, Col, Row, Table, Form, DatePicker, Checkbox, Modal, InputNumber,Radio } from 'antd';
 import { getItemListInterface, getUserItemListInterface } from '../../api/aiTool';
 import { getIntelligentSqlCondition } from '../../api/databaseOptimization';
-import ReactEcharts from 'echarts-for-react';
 import moment from 'moment';
 import Export from '../../assets/imgs/Export.png';
 import Create from '../../assets/imgs/Create.png';
 import '../../assets/css/common.css'
 import '../../assets/css/main/databaseOptimization.css'
-import { formatTableTitle, formatTimestamp } from '../../utils/function';
+import { formatTableTitle } from '../../utils/function';
 import SlowSqlDiagnosis from '../DatabaseOptimization/SlowSqlDiagnosis';
 
 const { Option } = Select;
@@ -33,22 +32,22 @@ export default class IntelligentSqlCondition extends Component {
     }
   }
   timestampToTime (timestamp) {
-    let date = new Date(timestamp);
-    let Y = date.getFullYear() + '-';
-    let M = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1) + '-';
-    let D = date.getDate() + ' ';
-    let h = (date.getHours() < 10 ? '0' + (date.getHours()) : date.getHours()) + ':';
-    let m = (date.getMinutes() < 10 ? '0' + (date.getMinutes()) : date.getMinutes()) + ':';
-    let s = (date.getSeconds() < 10 ? '0' + (date.getSeconds()) : date.getSeconds());
-    let standardTime = new Date(Y + M + D + h + m + s)
-    let finaTime = Date.parse(standardTime)
+    const date = new Date(timestamp);
+    const Y = date.getFullYear() + '-';
+    const M = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1) + '-';
+    const D = date.getDate() + ' ';
+    const h = (date.getHours() < 10 ? '0' + (date.getHours()) : date.getHours()) + ':';
+    const m = (date.getMinutes() < 10 ? '0' + (date.getMinutes()) : date.getMinutes()) + ':';
+    const s = (date.getSeconds() < 10 ? '0' + (date.getSeconds()) : date.getSeconds());
+    const standardTime = new Date(Y + M + D + h + m + s)
+    const finaTime = Date.parse(standardTime)
     return finaTime;
   }
   onFinish = (values) => {
     this.setState({formData: values})
     let newData = Object.assign(values)
-    let stime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[0]._d) : 0
-    let etime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[1]._d) : 0
+    let stime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[0]._d) : null
+    let etime = newData.timePeriod ? this.timestampToTime(newData.timePeriod[1]._d) : null
     let paramsVal = {
       data_source: newData.dataSource ? newData.dataSource:'',
       databases:  newData.database ? newData.database:'',

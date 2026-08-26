@@ -22,6 +22,8 @@ from collections import deque
 
 import sqlparse
 
+from dbmind.common.utils.exporter import set_logger
+
 os.umask(0o0077)
 SQL_TYPE = ['select ', 'delete ', 'insert ', 'update ']
 SQL_AMOUNT = 0
@@ -478,6 +480,8 @@ def main(argv):
         args.max_reserved_period = float('inf')
     if not args.max_template_num:
         args.max_template_num = float('inf')
+    log_file_path = os.path.join(os.getcwd(), 'dbmind_extract_log.log')
+    set_logger(log_file_path, "info")
     extract_sql_from_log(args)
 
 

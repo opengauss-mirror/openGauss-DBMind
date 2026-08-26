@@ -29,7 +29,7 @@ export default class NodeTable extends Component {
   }
   handleTableData (header, rows) {
     let historyColumObj = {}
-    let tableHeader = []
+    const tableHeader = []
     header.forEach(item => {
       historyColumObj = {
         title: capitalizeFirst(item.replace(/_/g, ' ')),
@@ -48,9 +48,9 @@ export default class NodeTable extends Component {
       }
       tableHeader.push(historyColumObj)
     })
-    let res = []
+    const res = []
     rows.forEach((item, index) => {
-      let tabledata = {}
+      const tabledata = {}
       for (let i = 0; i < header.length; i++) {
         tabledata[header[i]] = item[i]
       }

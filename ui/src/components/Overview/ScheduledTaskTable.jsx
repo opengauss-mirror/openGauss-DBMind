@@ -2,11 +2,6 @@ import React, { Component } from 'react';
 import { Modal, message, Table, InputNumber } from 'antd';
 import ResizeableTitle from '../common/ResizeableTitle';
 import { getTimedTaskStatus, getStartTimed, getStopTimed, getResetInterval } from '../../api/overview';
-// import Stopped from '../../assets/imgs/stop.png';
-// import Running from '../../assets/imgs/run.png';
-// import iconrun from '../../assets/imgs/Initiate.png';
-// import iconsetting from '../../assets/imgs/update.png';
-// import iconwait from '../../assets/imgs/Pause.png';
 import { capitalizeFirst } from '../../utils/function';
 
 const demoImgArr = ['stop','run','Initiate','update','Pause']
@@ -31,8 +26,7 @@ export default class ScheduledTaskTable extends Component {
   };
   handleTableData (header, rows) {
     let historyColumObj = {}
-    let tableHeader = []
-    header.push('setting')
+    const tableHeader = []
     header.forEach(item => {
       historyColumObj = {
         title: capitalizeFirst(item.replace(/_/g, ' ')),
@@ -56,9 +50,9 @@ export default class ScheduledTaskTable extends Component {
       }
       tableHeader.push(historyColumObj)
     })
-    let res = []
+    const res = []
     rows.forEach((item, index) => {
-      let tabledata = {}
+      const tabledata = {}
       for (let i = 0; i < header.length; i++) {
         tabledata[header[i]] = item[i]
       }
@@ -88,7 +82,7 @@ export default class ScheduledTaskTable extends Component {
     })
   }
   async handleStart(name){
-    const { success, data, msg } = await getStartTimed(name)
+    const { success, msg } = await getStartTimed(name)
     if (success) {
       this.getTimedTaskStatus()
     } else {
@@ -96,7 +90,7 @@ export default class ScheduledTaskTable extends Component {
     }
   }
   async handleStopped(name){
-    const { success, data, msg } = await getStopTimed(name)
+    const { success, msg } = await getStopTimed(name)
     if (success) {
       this.getTimedTaskStatus()
     } else {
@@ -105,11 +99,11 @@ export default class ScheduledTaskTable extends Component {
   }
   async handleSettingOk(){
     if(this.state.name && this.state.interval){
-      let param = {
+      const param = {
         funcname:this.state.name,
         seconds:this.state.interval
       }
-      const { success, data, msg } = await getResetInterval(param)
+      const { success, msg } = await getResetInterval(param)
       if (success) {
         this.getTimedTaskStatus()
         this.setState({

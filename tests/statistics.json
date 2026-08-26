@@ -1,0 +1,119 @@
+{
+  "lineitem": {
+    "size": 80432431104,
+    "rows": 3000028242,
+    "primaryKey":"l_orderkey",
+    "column": {
+      "l_orderkey": 6501360.0,
+      "l_partkey": 101051000.0,
+      "l_suppkey": 4898730.0,
+      "l_linenumber": 7.0,
+      "l_quantity": 50.0,
+      "l_extendedprice": 2450150.0,
+      "l_discount": 11.0,
+      "l_tax": 9.0,
+      "l_returnflag": 3.0,
+      "l_linestatus": 2.0,
+      "l_shipdate": 2513.0,
+      "l_commitdate": 2463.0,
+      "l_receiptdate": 2524.0,
+      "l_shipinstruct": 4.0,
+      "l_shipmode": 7.0,
+      "l_comment": 1191360.0
+    }
+  },
+  "region": {
+    "size": 786432,
+    "rows": 5,
+    "primaryKey":"r_regionkey",
+    "column": {
+      "r_regionkey": 5.0,
+      "r_name": 5.0,
+      "r_comment": 5.0
+    }
+  },
+  "part": {
+    "size": 2387361792,
+    "rows": 100000000,
+    "primaryKey":"p_partkey",
+    "column": {
+      "p_partkey": 100000000.0,
+      "p_name": 100000000.0,
+      "p_mfgr": 5.0,
+      "p_brand": 25.0,
+      "p_type": 150.0,
+      "p_size": 50.0,
+      "p_container": 40.0,
+      "p_retailprice": 107474.0,
+      "p_comment": 121527.0
+    }
+  },
+  "supplier": {
+    "size": 5000000,
+    "rows": 5000000,
+    "primaryKey":"s_suppkey",
+    "column": {
+      "s_suppkey": 5000000.0,
+      "s_name": 5000000.0,
+      "s_address": 5000000.0,
+      "s_nationkey": 25.000000000000004,
+      "s_phone": 5000000.0,
+      "s_acctbal": 874825.0,
+      "s_comment": 4955070.0
+    }
+  },
+  "nation": {
+    "size": 983040,
+    "rows": 25,
+    "primaryKey":"n_nationkey",
+    "column": {
+      "n_nationkey": 25.0,
+      "n_name": 25.0,
+      "n_regionkey": 5.0,
+      "n_comment": 25.0
+    }
+  },
+  "partsupp": {
+    "size": 983040,
+    "rows": 400000000,
+    "primaryKey":"ps_partkey",
+    "column": {
+      "ps_partkey": 114948800.0,
+      "ps_suppkey": 4562980.0,
+      "ps_availqty": 10004.0,
+      "ps_supplycost": 99887.0,
+      "ps_comment": 400000000.0
+    }
+  },
+  "orders": {
+    "size": 21132926976,
+    "rows": 750000000,
+    "primaryKey":"o_orderkey",
+    "column": {
+      "o_orderkey": 750000000.0,
+      "o_custkey": 49459300.00000001,
+      "o_orderstatus": 3.0,
+      "o_totalprice": 26359499.999999996,
+      "o_orderdate": 2406.0,
+      "o_orderpriority": 5.0,
+      "o_clerk": 517224.0,
+      "o_shippriority": 1.0,
+      "o_comment": 34392000.0
+    }
+  },
+  "customer": {
+    "size": 4085743616,
+    "rows": 75000000,
+    "primaryKey":"c_custkey",
+    "column": {
+      "c_custkey": 75000000.0,
+      "c_name": 75000000.0,
+      "c_address": 75000000.0,
+      "c_nationkey": 25.0,
+      "c_phone": 75000000.0,
+      "c_acctbal": 1076630.0,
+      "c_mktsegment": 5.0,
+      "c_comment": 75000000.0
+    }
+  }
+}

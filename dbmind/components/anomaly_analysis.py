@@ -14,6 +14,7 @@
 import argparse
 import csv
 import http.client
+import json
 import multiprocessing as mp
 import os
 import platform
@@ -22,20 +23,27 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 
-from scipy.interpolate import interp1d
+try:
+    from scipy.interpolate import interp1d
+except ImportError:
+    pass
 
 from dbmind import global_vars
 from dbmind.cmd.edbmind import init_global_configs
 from dbmind.common.algorithm.correlation import CorrelationAnalysis
 from dbmind.common.tsdb import TsdbClientFactory
 from dbmind.common.utils.checking import (
-    check_ip_valid, check_port_valid, date_type, path_type
+    check_ip_valid,
+    date_type,
+    path_type,
+    prepare_ip,
+    split_ip_port,
+    WITH_PORT
 )
 from dbmind.common.utils.cli import write_to_terminal
 from dbmind.common.utils.component import initialize_tsdb_param
-from dbmind.constants import DISTINGUISHING_INSTANCE_LABEL
+from dbmind.constants import PORT_SUFFIX
 from dbmind.service import dai
-from dbmind.service.utils import SequenceUtils
 
 LEAST_WINDOW = int(7.2e3) * 1000
 LOOK_BACK = 0
@@ -49,51 +57,57 @@ http.client.HTTPConnection._http_vsn_str = "HTTP/1.0"
 
 
 def get_sequences(arg):
-    metric, instance, start_datetime, end_datetime = arg
-    result = []
-    host = instance.split(":")[0]
-    if global_vars.configs.get('TSDB', 'name') == "prometheus":
-        if ":" in instance and check_ip_valid(host) and check_port_valid(instance.split(":")[1]):
-            seqs = dai.get_metric_sequence(
-                metric,
-                start_datetime,
-                end_datetime
-            ).from_server(instance).fetchall()
-            if not seqs:
-                seqs = dai.get_metric_sequence(
-                    metric,
-                    start_datetime,
-                    end_datetime
-                ).from_server(host).fetchall()
-        elif check_ip_valid(instance):
-            instance_like = instance + "(:[0-9]{4,5}|)"
-            seqs = dai.get_metric_sequence(
-                metric,
-                start_datetime,
-                end_datetime
-            ).from_server_like(instance_like).fetchall()
-        else:
-            raise ValueError(f"Invalid instance: {instance}.")
-    else:
+    if not global_vars.configs.get('TSDB', 'name') in ("prometheus", "influxdb"):
         raise
+
+    metric, instance, start_datetime, end_datetime = arg
+    source_flag = dai.get_metric_source_flag(metric)
+    host = split_ip_port(instance)[0]
+    if WITH_PORT.match(instance):
+        seqs = dai.get_metric_sequence(
+            metric,
+            start_datetime,
+            end_datetime
+        ).from_server(instance).fetchall()
+        if not seqs:
+            seqs = dai.get_metric_sequence(
+                metric,
+                start_datetime,
+                end_datetime
+            ).from_server(host).fetchall()
+
+    elif check_ip_valid(instance):
+        instance_like = f"{prepare_ip(instance)}{PORT_SUFFIX}|{instance}"
+        seqs = dai.get_metric_sequence(
+            metric,
+            start_datetime,
+            end_datetime
+        ).from_server_like(instance_like).fetchall()
+    else:
+        raise ValueError(f"Invalid instance: {instance}.")
 
     start_time = datetime.timestamp(start_datetime)
     end_time = datetime.timestamp(end_datetime)
+    result = []
     for seq in seqs:
         length = (end_time - start_time) * 1000 // seq.step
-        if DISTINGUISHING_INSTANCE_LABEL not in seq.labels or len(seq) < 0.6 * length:
+        if source_flag not in seq.labels or len(seq) < 0.6 * length:
             continue
 
-        from_instance = SequenceUtils.from_server(seq).strip()
+        from_instance = seq.labels.get(source_flag)
         if seq.labels.get('event'):
             name = 'wait event-' + seq.labels.get('event')
         else:
             name = metric
-            if seq.labels.get('datname'):
-                name += ' on ' + seq.labels.get('datname')
-            elif seq.labels.get('device'):
-                name += ' on ' + seq.labels.get('device')
-            name += ' from ' + from_instance
+
+        if name.startswith("pg_"):
+            name = name.replace("pg_", "gs_", 1)
+
+        filtered_labels = {k: v for k, v in seq.labels.items()
+                           if k not in ["from_job", "job", "instance", "from_instance"]}
+        filtered_labels = json.dumps(filtered_labels) if filtered_labels else ""
+        name += filtered_labels
+        name += ' from ' + from_instance
 
         result.append((name, seq))
 
@@ -117,7 +131,7 @@ def get_correlations(arg):
     return name, corr, delay, sequence.values, sequence.timestamps
 
 
-def multi_process_correlation_calculation(metric, sequence_args, corr_threshold=0, topk=100):
+def multi_process_correlation_calculation(metric, sequence_args, topk=100):
     with mp.Pool() as pool:
         sequence_result = pool.map(get_sequences, iterable=sequence_args)
 
@@ -196,7 +210,7 @@ def main(argv):
     os.chdir(args.conf)
     init_global_configs(args.conf)
     if not initialize_tsdb_param():
-        parser.exit(1, "TSDB service does not exist, exiting...")
+        parser.exit(1, "TSDB service does not exist, exiting...\n")
  
     client = TsdbClientFactory.get_tsdb_client()
     all_metrics = client.all_metrics

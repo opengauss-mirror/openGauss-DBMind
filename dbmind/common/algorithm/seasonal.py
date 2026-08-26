@@ -14,7 +14,10 @@
 import warnings
 
 import numpy as np
-from scipy import signal
+try:
+    from scipy import signal
+except ImportError:
+    pass
 
 warnings.filterwarnings("ignore")
 
@@ -59,6 +62,7 @@ def is_seasonal_series(x, high_ac_threshold: float = 0.5, min_seasonal_freq=3):
     # it is difficult to identify the period. So we extract the trend components.
     window = max(MIN_WINDOW, len(x) // (min_seasonal_freq + 1))
     window = min(window, len(x) - 1)
+    window = int(window)
     detrended = x - decompose_trend(x, np.ones(window) / window)
 
     ac_coef = acf(detrended, nlags=len(x) - 1)  # auto-correlation coefficient

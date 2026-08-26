@@ -29,7 +29,7 @@ from dbmind.constants import __version__
 from .exceptions import OptionError
 from .xtuner import procedure_main
 from . import utils
-from dbmind.common.utils.checking import path_type, positive_int_type
+from dbmind.common.utils.checking import path_type, positive_int_type, check_ip_valid
 
 __description__ = 'X-Tuner: a self-tuning tool integrated by openGauss.'
 
@@ -105,6 +105,11 @@ def build_db_info(args):
             if option in ('port', 'ssh_port'):
                 if not check_port(value):
                     print('FATAL: Detect illegal port for %s.' % option, file=sys.stderr, flush=True)
+                    return
+
+            if option == 'host' and value.strip():
+                if not check_ip_valid(value):
+                    print('FATAL: Detect illegal host for %s.' % option, file=sys.stderr, flush=True)
                     return
 
     return db_info

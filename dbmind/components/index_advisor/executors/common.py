@@ -14,6 +14,12 @@
 from abc import abstractmethod
 from typing import List
 
+from dbmind.common.parser.others import parse_mixed_quotes_string
+
+REMOVE_ANSI_QUOTES_SQL = """SET sql_mode = REPLACE(@@sql_mode, 'ANSI_QUOTES,', '');
+SET sql_mode = REPLACE(@@sql_mode, ',ANSI_QUOTES', '');
+SET sql_mode = REPLACE(@@sql_mode, 'ANSI_QUOTES', '');"""
+
 
 class BaseExecutor:
     def __init__(self, dbname, user, password, host, port, schema, driver=None):
@@ -24,6 +30,9 @@ class BaseExecutor:
         self.port = port
         self.schema = schema
         self.driver = driver
+
+    def get_schemas(self):
+        return parse_mixed_quotes_string(self.schema)
 
     def get_schema(self):
         return self.schema

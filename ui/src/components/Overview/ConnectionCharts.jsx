@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { Empty, Row, Col } from 'antd';
-import ReactEcharts from 'echarts-for-react';
+import EChart from '../common/EChart';
 import { commonMetricMethod } from '../../utils/function';
 import { getConnection } from '../../api/overview';
 import db from '../../utils/storage';
@@ -88,9 +88,9 @@ export default class ConnectionCharts extends Component {
       commonMetricMethod(this.state.param,{label:this.state.metricData[1]},getConnection)
     ]).then((result)=>{
       if(result[0]){
-        let data = [result[0],result[1]]
-        let max = result[0][0].values.length ? result[0][0].values[result[0][0].values.length-1] : "0"
-        let min = result[1][0].values.length ? result[1][0].values[result[1][0].values.length-1] : "0"
+        const data = [result[0],result[1]]
+        const max = result[0][0].values.length ? result[0][0].values[result[0][0].values.length-1] : "0"
+        const min = result[1][0].values.length ? result[1][0].values[result[1][0].values.length-1] : "0"
         this.setState(() => ({
           ifShow: true,
           legendData: data,
@@ -100,9 +100,7 @@ export default class ConnectionCharts extends Component {
       } else {
         this.setState({ifShow: 0})
       }
-    }).catch((error) => {
-      console.log('error', error)
-    })
+    }).catch(() => {})
   }
   componentDidMount () {
     this.getConnectionAll()
@@ -115,15 +113,13 @@ export default class ConnectionCharts extends Component {
                   {this.state.metricData.map((item,index) => {
                       return (
                         <Col className="gutter-row" span={12}>
-                        <ReactEcharts
+                        <EChart
                           ref={(e) => {
-                            this.echartsElement = e
+                            this.echartsElement = e;
                           }}
                           option={this.getOption(index ? 'two' : 'one')}
-                          style={{ width: '100%', height: 90 }}
-                          lazyUpdate={true}
-                        >
-                        </ReactEcharts>
+                          style={{ height: 90 }}
+                        />
                         </Col>
                       )
                     })
