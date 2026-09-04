@@ -26,7 +26,6 @@ from logging.handlers import RotatingFileHandler
 from queue import Empty
 
 from dbmind.common.exceptions import DontIgnoreThisError
-from dbmind.common.security import EncryptedText
 
 RED_FMT = "\033[31;1m{}\033[0m"
 GREEN_FMT = "\033[32;1m{}\033[0m"
@@ -282,6 +281,7 @@ class MultiProcessingRFHandler(RotatingFileHandler):
     def add_sensitive_word(self, word):
         """Prevent sensitive information from leaking
         in plaintext through logs, such as passwords."""
+        from dbmind.common.security import EncryptedText
         if isinstance(word, (list, tuple)):
             for single_word in word:
                 self._sensitive_words.append(EncryptedText(single_word))
@@ -307,10 +307,14 @@ class MultiProcessingRFHandler(RotatingFileHandler):
             pass
 
     def format(self, record):
+        from dbmind.common.security import EncryptedText, reveal_secret
         s = super().format(record)
         lines = s.split("\n")
         for i, line in enumerate(lines):
-            has_sensitive_word = any(word in line for word in self._sensitive_words)
+            has_sensitive_word = any(
+                reveal_secret(word) in line if isinstance(word, EncryptedText) else word in line
+                for word in self._sensitive_words
+            )
             word_set = set(re.split("[^a-zA-Z]", line.upper()))
             if has_sensitive_word or word_set & SENSITIVE_WORD:
                 lines[i] = "Involves sensitive information, details are ignored."

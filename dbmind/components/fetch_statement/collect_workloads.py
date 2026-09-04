@@ -159,7 +159,10 @@ def collect_statement_from_statement_history(databases, schemas, start_time, end
         db_users = _add_quote(db_users)
         stmt += f" and user_name in {db_users}"
     if template_id is not None:
-        stmt += f" and unique_query_id = '{template_id}'"
+        # Digits-only + escape as defense in depth
+        if not (isinstance(template_id, (str, int)) and str(template_id).isdigit()):
+            raise ValueError('Invalid value for parameter template_id')
+        stmt += " and unique_query_id = '%s'" % escape_single_quote(str(template_id))
     stmt += f" limit {STATEMENT_LENGTH_LIMIT};"
     return stmt
 

@@ -54,11 +54,14 @@ class MicroserviceClient:
             self, username, password,
             funcname, *args, **kwargs
     ):
+        from dbmind.common.security import reveal_secret, protect_secret
         old_username = self.connection_kwargs.get('user')
         old_password = self.connection_kwargs.get('password')
         old_driver = self._driver
         self.connection_kwargs['user'] = username
-        self.connection_kwargs['password'] = password
+        # Keep wrapped form in kwargs when possible; DSN needs plaintext briefly.
+        wrapped = protect_secret(password) if password is not None else None
+        self.connection_kwargs['password'] = reveal_secret(wrapped) if wrapped is not None else None
 
         new_dsn = make_dsn(**self.connection_kwargs)
         self._driver = Driver()

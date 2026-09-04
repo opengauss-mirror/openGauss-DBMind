@@ -31,7 +31,6 @@ from dbmind.common.utils.base import is_valid_obj
 from dbmind.common.utils.checking import CheckWordValid, path_type, positive_int_type
 from dbmind.common.utils.cli import read_input_from_pipe
 from dbmind.common.utils.exporter import set_logger
-from dbmind.common.utils import escape_single_quote
 from dbmind.constants import __version__
 from dbmind.components.index_advisor.parser import get_query_tables
 from .executor import Executor
@@ -41,7 +40,47 @@ from .rules import (AlwaysTrue, DistinctStar, OrderbyConst, Star2Columns, UnionA
                     ImplicitConversion,
                     SelfJoin, Group2Hash)
 from .rules import Rule
-from .utils import get_table_names
+from .utils import (get_table_names, is_safe_sql_identifier, quote_sql_identifier,
+                    quote_sql_literal)
+
+MAX_SQL_REWRITE_LENGTH = 65536
+MAX_SQL_REWRITE_STATEMENTS = 1
+ALLOWED_SQL_REWRITE_PREFIXES = (
+    'select', 'with', 'insert', 'update', 'delete', 'explain',
+)
+# Only these statement kinds are sent to the database via PREPARE/EXPLAIN.
+ONLINE_CHECK_SQL_PREFIXES = ('select', 'with', 'explain')
+
+
+def validate_sql_rewrite_input(sqls):
+    if not isinstance(sqls, str) or not sqls.strip():
+        raise ValueError('The SQL statement is empty.')
+    if len(sqls) > MAX_SQL_REWRITE_LENGTH:
+        raise ValueError('The SQL statement is too large.')
+    statements = [s for s in sqlparse.split(sqls) if s and s.strip()]
+    if not statements:
+        raise ValueError('The SQL statement is empty.')
+    if len(statements) > MAX_SQL_REWRITE_STATEMENTS:
+        raise ValueError('Only a single SQL statement is supported.')
+    normalized = sqlparse.format(
+        statements[0], strip_comments=True, keyword_case='lower'
+    ).strip().lower()
+    if not any(normalized.startswith(prefix) for prefix in ALLOWED_SQL_REWRITE_PREFIXES):
+        raise ValueError('Unsupported SQL statement type for rewrite.')
+
+
+def _sql_allows_online_check(formatted_sql):
+    normalized = formatted_sql.strip().lower()
+    return any(normalized.startswith(prefix) for prefix in ONLINE_CHECK_SQL_PREFIXES)
+
+
+def _build_safe_schema_list(schemas_results):
+    safe_schemas = []
+    for row in schemas_results or []:
+        schema_name = row[0] if row else None
+        if is_safe_sql_identifier(schema_name):
+            safe_schemas.append(quote_sql_identifier(schema_name))
+    return ','.join(safe_schemas) if safe_schemas else quote_sql_identifier('public')
 
 
 def get_all_involved_tables(sql, table_names=None):
@@ -228,6 +267,7 @@ def canbe_parsed(sql):
 
 
 def rewrite_sql_api(database, sqls, rewritten_flags=None, if_format=True, driver=None):
+    validate_sql_rewrite_input(sqls)
     rewritten_sqls = []
     get_prepare_sqls = get_generate_prepare_sqls_function()
     if rewritten_flags is None:
@@ -244,16 +284,22 @@ def rewrite_sql_api(database, sqls, rewritten_flags=None, if_format=True, driver
         info_schema_columns = 'information_schema.gs_columns'
     table_schema_stmt = 'select distinct(table_schema) from %s;' % info_schema_tables
     schemas_results = executor(stmt=table_schema_stmt, return_tuples=True)
-    schemas = ','.join([res[0] for res in schemas_results]) if schemas_results else 'public'
-    for _sql in sqls.split(';'):
+    schemas = _build_safe_schema_list(schemas_results)
+    for _sql in sqlparse.split(sqls):
         if not _sql.strip():
             continue
-        sql = _sql + ';'
+        sql = _sql.strip() if _sql.strip().endswith(';') else _sql.strip() + ';'
         formatted_sql = sqlparse.format(sql, keyword_case='lower', identifier_case='lower', strip_comments=True)
-        prepare_sqls = get_prepare_sqls(formatted_sql, is_m_compat=is_m_compat)
-        sql_checking_stmt = f'set current_schema={schemas};{";".join(prepare_sqls)}'
-        checking_results = executor(stmt=sql_checking_stmt, return_tuples=False, fetch_all=True)
-        if not checking_results:
+        online_check = _sql_allows_online_check(formatted_sql)
+        if online_check:
+            prepare_sqls = get_prepare_sqls(formatted_sql, is_m_compat=is_m_compat)
+            sql_checking_stmt = f'set current_schema={schemas};{";".join(prepare_sqls)}'
+            checking_results = executor(stmt=sql_checking_stmt, return_tuples=False, fetch_all=True)
+            if not checking_results:
+                rewritten_sqls.append(sql)
+                rewritten_flags.append(False)
+                continue
+        elif not canbe_parsed(formatted_sql):
             rewritten_sqls.append(sql)
             rewritten_flags.append(False)
             continue
@@ -265,17 +311,25 @@ def rewrite_sql_api(database, sqls, rewritten_flags=None, if_format=True, driver
         for table_name in involved_tables:
             if not is_valid_obj(table_name):
                 raise ValueError(f"Invalid table name: {table_name}")
-            search_table_stmt = "select column_name, ordinal_position " \
-                                "from %s where table_name='%s';" % (info_schema_columns, escape_single_quote(table_name))
+            table_literal = quote_sql_literal(table_name)
+            search_table_stmt = (
+                "select column_name, ordinal_position "
+                "from %s where table_name=%s;" % (info_schema_columns, table_literal)
+            )
             results = sorted(executor(stmt=search_table_stmt, return_tuples=True), key=lambda x: x[1])
             table_columns[table_name] = [res[0] for res in results]
-            exists_primary_stmt = "SELECT count(*)  FROM information_schema.table_constraints WHERE " \
-                                  "constraint_type in ('PRIMARY KEY', 'UNIQUE') AND table_name = '%s'" % escape_single_quote(table_name)
+            exists_primary_stmt = (
+                "SELECT count(*)  FROM information_schema.table_constraints WHERE "
+                "constraint_type in ('PRIMARY KEY', 'UNIQUE') AND table_name = %s"
+                % table_literal
+            )
             table_exists_primary[table_name] = \
                 executor(stmt=exists_primary_stmt, return_tuples=True)[0][0]
-            notnull_columns_stmt = f"SELECT attname from pg_catalog.pg_attribute where " \
-                                   f"attrelid in (select oid from pg_catalog.pg_class " \
-                                   f"where relname='{escape_single_quote(table_name)}') and attnotnull=true"
+            notnull_columns_stmt = (
+                "SELECT attname from pg_catalog.pg_attribute where "
+                "attrelid in (select oid from pg_catalog.pg_class "
+                "where relname=%s) and attnotnull=true" % table_literal
+            )
             table_notnull_columns[table_name] = [_tuple[0] for _tuple in
                                                  executor(stmt=notnull_columns_stmt, return_tuples=True)]
         tableinfo.table_columns = table_columns

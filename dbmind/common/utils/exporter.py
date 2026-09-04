@@ -218,7 +218,8 @@ def exporter_parse_and_adjust_ssl_args(parser, argv):
             parser.error(
                 "You should pass ssl-keyfile-password through pipe when deploying the exporter, exit..."
             )
-        ssl_keyfile_password = str(EncryptedText(ssl_keyfile_password_raw))
+        # Reveal only for SSL key usage; EncryptedText.str is masked and must not be used as the password.
+        ssl_keyfile_password = EncryptedText(ssl_keyfile_password_raw).get()
         if not (ssl_keyfile_password and isinstance(ssl_keyfile_password, str)) or not\
                 is_private_key_encrypted(args.ssl_keyfile):
             parser.error(

@@ -35,6 +35,7 @@ from dbmind.app.monitoring import ad_pool_manager, generic_anomaly_detector, reg
 from dbmind.app.monitoring.monitoring_constants import AlarmInfo, DetectorInfo
 from dbmind.app.optimization import TemplateArgs
 from dbmind.app.optimization.index_recommendation import rpc_index_advise
+from dbmind.common.parser.index_advise_input import validate_index_advise_sqls
 from dbmind.app.optimization.index_recommendation_rpc_executor import RpcExecutor
 from dbmind.app.timed_task_utils import detect_anomaly, diagnose_cluster_state
 from dbmind.common.algorithm.anomaly_detection import detectors as detector_algorithm
@@ -918,8 +919,8 @@ def check_credential(username, password, scopes=None):
 
 
 def toolkit_index_advise(username, password, instance, database, sqls, max_index_num, max_index_storage):
+    result = validate_index_advise_sqls(sqls)
     with global_vars.agent_proxy.context(instance, username, password):
-        result = sqlparse.split(sqls)
         schema_query = [
             "select distinct(nspname) FROM pg_catalog.pg_namespace nsp JOIN pg_catalog.pg_class rel ON "
             "nsp.oid = rel.relnamespace WHERE nspname NOT IN "
@@ -993,6 +994,8 @@ def index_advise_final_result(detail_info):
 
 
 def toolkit_rewrite_sql(username, password, instance, database, sqls):
+    from dbmind.components.sql_rewriter.sql_rewriter import validate_sql_rewrite_input
+    validate_sql_rewrite_input(sqls)
     with global_vars.agent_proxy.context(instance, username, password):
         return rewrite_sql_api(database, sqls)
 
@@ -1762,6 +1765,10 @@ def collect_workloads(username, password, data_source, databases, schemas, start
         raise ValueError('Invalid value for parameter db_users')
     if sql_types is not None and existing_special_char(sql_types):
         raise ValueError('Invalid value for parameter sql_types')
+    if template_id is not None:
+        # unique_query_id must be digits-only to prevent SQL injection via string concat
+        if not (isinstance(template_id, str) and template_id.isdigit()):
+            raise ValueError('Invalid value for parameter template_id')
     # transfer timestamps to string format
     if start_time:
         start_time = time.strftime("%Y-%m-%d %H:%M:%S%z", time.localtime(start_time // 1000))

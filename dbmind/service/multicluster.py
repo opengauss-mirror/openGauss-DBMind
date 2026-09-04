@@ -375,7 +375,8 @@ class AgentProxy(AgentAdapter):
         rpc = self._agents[agent_addr]
         self._thread_context.rpc = rpc
         if username and pwd:
-            self._thread_context.rpc.pwd = pwd
+            from dbmind.common.security import protect_secret
+            self._thread_context.rpc.pwd = protect_secret(pwd)
             self._thread_context.rpc.username = username
         self._thread_context.agent_addr = agent_addr
         self._thread_context.cluster = self._cluster.search_one(agent_addr)
@@ -500,9 +501,10 @@ def _get_agent_instance_details(rpc: RPCClient):
         # Try to access /info URI below.
         # This URI /info is only used in the new version.
         get_info_url = rpc.url[:-len(DEFAULT_URI)] + '/info'
+        from dbmind.common.security import reveal_secret
         with create_requests_session(
             username=rpc.username,
-            password=rpc.pwd,
+            password=reveal_secret(rpc.pwd),
             ssl_context=rpc._ssl_context
         ) as session:
             response = session.get(get_info_url)

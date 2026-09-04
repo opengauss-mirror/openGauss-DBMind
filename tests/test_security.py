@@ -36,6 +36,15 @@ def test_equal():
     assert EncryptedText('test') != 123
 
 
+def test_encrypted_text_masks_str():
+    secret = 'test'
+    wrapped = EncryptedText(secret)
+    assert str(wrapped) == '******'
+    assert secret not in repr(wrapped)
+    assert wrapped.get() == secret
+    assert secret not in str(wrapped)
+
+
 def test_check_password_strength():
     assert not security.check_password_strength('Gauss_2')
     assert not security.check_password_strength('dbmind', 'dbmind')

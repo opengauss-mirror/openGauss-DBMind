@@ -527,13 +527,21 @@ def get_log_information():
 
 @request_mapping('/v1/api/toolkit/advise/index', methods=['POST'], api=True)
 @oauth2.token_authentication()
+@ParameterChecker.define_rules(
+    pagesize={"type": ParameterChecker.PINT32, "optional": True},
+    current={"type": ParameterChecker.UINT2, "optional": True},
+    instance={"type": ParameterChecker.INSTANCE, "optional": True},
+    max_index_num={"type": ParameterChecker.PINT32, "optional": True},
+    max_index_storage={"type": ParameterChecker.PINT32, "optional": True},
+    database={"type": ParameterChecker.NAME, "optional": True}
+)
 @standardized_api_output
 def advise_indexes(pagesize: int, current: int, instance: str, database: str,
                    max_index_num: int, max_index_storage: int, sqls: list):
     username, password = oauth2.credential
-    return data_transformer.toolkit_index_advise(username, password, current, pagesize, instance, database, sqls,
-                                                 max_index_num,
-                                                 max_index_storage)
+    sql_text = ''.join(sqls) if isinstance(sqls, list) else sqls
+    return data_transformer.toolkit_index_advise(username, password, instance, database, sql_text,
+                                                 max_index_num, max_index_storage)
 
 
 @request_mapping('/v1/api/values', methods=['GET'], api=True)
@@ -867,6 +875,17 @@ def get_agent_status():
 
 @request_mapping('/v1/api/workloads/collect', methods=['GET'], api=True)
 @oauth2.token_authentication()
+@ParameterChecker.define_rules(
+    duration={"type": ParameterChecker.INT32, "optional": True},
+    template_id={"type": ParameterChecker.DIGIT, "optional": True},
+    start_time={"type": ParameterChecker.TIMESTAMP, "optional": True},
+    end_time={"type": ParameterChecker.TIMESTAMP, "optional": True},
+    sql_types={"type": ParameterChecker.STRING, "optional": True},
+    db_users={"type": ParameterChecker.STRING, "optional": True},
+    schemas={"type": ParameterChecker.STRING, "optional": True},
+    databases={"type": ParameterChecker.STRING, "optional": True},
+    data_source={"type": ParameterChecker.STRING, "optional": True}
+)
 @standardized_api_output
 def collect_workloads(data_source: str = None, databases: str = None, schemas: str = None, start_time: int = None,
                       end_time: int = None, db_users: str = None, sql_types: str = None, template_id: str = None,
@@ -1473,7 +1492,8 @@ def advise_indexes(instance: str, database: str, max_index_num: int, max_index_s
          "success":true}
     """
     username, password = oauth2.credential
-    return data_transformer.toolkit_index_advise(username, password, instance, database, ''.join(sqls), max_index_num,
+    sql_text = ''.join(sqls) if isinstance(sqls, list) else sqls
+    return data_transformer.toolkit_index_advise(username, password, instance, database, sql_text, max_index_num,
                                                  max_index_storage)
 
 

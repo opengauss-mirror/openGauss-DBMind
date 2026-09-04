@@ -10,9 +10,41 @@
 # EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 # MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
+import re
 from collections import OrderedDict
 
 JOIN_KEYWORDS = ['join', 'left join', 'right join', 'inner join', 'full join']
+
+# Align with dbmind.common.utils.base.is_valid_obj, plus optional schema.table.
+_SAFE_SQL_IDENTIFIER_RE = re.compile(
+    r'^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)?$'
+)
+
+
+def is_safe_sql_identifier(name):
+    """Return True if name is a safe SQL identifier (no quote/injection chars)."""
+    if not isinstance(name, str) or not name:
+        return False
+    return bool(_SAFE_SQL_IDENTIFIER_RE.fullmatch(name))
+
+
+def validate_sql_identifier(name, kind='identifier'):
+    if not is_safe_sql_identifier(name):
+        raise ValueError('Invalid SQL %s: %r' % (kind, name))
+    return name
+
+
+def quote_sql_literal(value):
+    """Escape and quote a value as a SQL string literal."""
+    if not isinstance(value, str):
+        raise ValueError('SQL literal must be a string.')
+    return "'" + value.replace("'", "''") + "'"
+
+
+def quote_sql_identifier(name):
+    """Double-quote a validated SQL identifier (supports schema.table)."""
+    validate_sql_identifier(name)
+    return '.'.join('"%s"' % part.replace('"', '""') for part in name.split('.'))
 
 
 def get_table_names(from_clause, table_names=None):

@@ -23,8 +23,10 @@ from Crypto.Cipher import AES
 from Crypto.PublicKey import RSA
 from Crypto.Util.Padding import pad, unpad
 
-from dbmind.common import utils
 from dbmind.common.exceptions import CertCheckException
+
+# NOTE: do not import dbmind.common.utils at module top — it pulls EncryptedText
+# via utils.base and creates a circular import.
 
 lowercase_pattern = re.compile(r'[a-z]')
 uppercase_pattern = re.compile(r'[A-Z]')
@@ -103,7 +105,20 @@ def decrypt(s1: str, s2: str, iv: str, ct: str) -> str:
 
 
 class EncryptedText(str):
+    """Hold a secret as ciphertext only; the str face is always masked.
+
+    Call ``.get()`` only at the last trust boundary (e.g. RPC auth payload).
+    """
+
+    _MASK = '******'
+
+    def __new__(cls, plain_text):
+        # Do not embed plaintext into the str payload.
+        return super().__new__(cls, EncryptedText._MASK)
+
     def __init__(self, plain_text):
+        if not isinstance(plain_text, str):
+            raise TypeError('EncryptedText only accepts str plaintext.')
         self.iv = generate_an_iv()
         self.s1 = safe_random_string(16)
         self.s2 = safe_random_string(16)
@@ -112,19 +127,39 @@ class EncryptedText(str):
     def get(self):
         return decrypt(self.s1, self.s2, self.iv, self.cipher_text)
 
+    def __str__(self):
+        return self._MASK
+
     def __repr__(self):
-        return self.get()
+        return 'EncryptedText(%s)' % self._MASK
 
     def __eq__(self, other):
+        if isinstance(other, EncryptedText):
+            return self.get() == other.get()
         if isinstance(other, str):
             return self.get() == other
-        elif isinstance(other, EncryptedText):
-            return self.get() == other.get()
-        else:
-            return False
+        return False
 
     def __hash__(self):
         return hash(self.cipher_text)
+
+
+def reveal_secret(value):
+    """Return plaintext only when needed at a trust boundary."""
+    if isinstance(value, EncryptedText):
+        return value.get()
+    return value
+
+
+def protect_secret(value):
+    """Wrap a plaintext str as EncryptedText; leave EncryptedText unchanged."""
+    if value is None:
+        return None
+    if isinstance(value, EncryptedText):
+        return value
+    if isinstance(value, str):
+        return EncryptedText(value)
+    raise TypeError('protect_secret expects str or EncryptedText')
 
 
 def is_private_key_encrypted(key_file):
@@ -188,7 +223,8 @@ class CertVerifier(object):
                 f'must be greater than or equal {details["min_length"]} bits.'
             )
         if length < details['recommended_length']:
-            utils.cli.write_to_terminal(
+            from dbmind.common import utils as _utils
+            _utils.cli.write_to_terminal(
                 f"WARNING: {self.file_name}: Current {'CA file' if self.is_ca else 'CERT file'} public key "
                 f"length is {length} bits. {details['recommended_length']} bits are recommended.",
                 color="yellow"

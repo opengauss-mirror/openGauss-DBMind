@@ -259,7 +259,12 @@ class OAuth2:
         details = OAuth2.timed_session.get(token)
         if not details:
             return None, None
-        return details['username'], details['password']
+        from dbmind.common.security import EncryptedText, protect_secret
+        password = details['password']
+        # Defense in depth: always expose EncryptedText to callers, never a raw str.
+        if not isinstance(password, EncryptedText):
+            password = protect_secret(password)
+        return details['username'], password
 
     @property
     def token(self):

@@ -19,6 +19,13 @@ from .errors import SerializationFormatError
 JSONABLE_KEYWORD = '_jsonable'
 DTYPE_KEYWORD = '_dtype'
 
+# Only these modules may be imported during RPC JSON deserialization.
+# Classes must additionally be subclasses of RPCJSONAble.
+_ALLOWED_DESERIALIZE_MODULES = frozenset({
+    'dbmind.common.rpc.base',
+    'dbmind.common.types.sequence',
+})
+
 
 def recognize_data_type(v):
     if v.__module__ == 'builtin':
@@ -28,24 +35,54 @@ def recognize_data_type(v):
     return dtype.__module__, dtype.__name__
 
 
+def _validate_dtype(module, name):
+    if not isinstance(module, str) or not isinstance(name, str):
+        raise SerializationFormatError('Invalid deserialization type descriptor.')
+    if not module or not name:
+        raise SerializationFormatError('Invalid deserialization type descriptor.')
+    if (
+        '..' in module or module.startswith('.')
+        or '/' in module or '\\' in module
+        or not name.isidentifier()
+    ):
+        raise SerializationFormatError(
+            'Invalid deserialization type descriptor: %s.%s' % (module, name)
+        )
+
+
 def initialize_cls(module, name, data):
+    _validate_dtype(module, name)
     if module == 'builtin' and name == 'function':
         raise SerializationFormatError(
             'Not supported serialization or deserialization for function type.'
         )
     if module == 'builtin':
         return data
-    cls = getattr(importlib.import_module(module), name)
-    if isinstance(cls, RPCJSONAble):
-        return cls.from_json(data)
+    if module not in _ALLOWED_DESERIALIZE_MODULES:
+        raise SerializationFormatError(
+            'Deserialization of type %s.%s is not allowed.' % (module, name)
+        )
+    try:
+        cls = getattr(importlib.import_module(module), name)
+    except Exception as e:
+        raise SerializationFormatError(
+            'Cannot load type %s.%s for deserialization.' % (module, name)
+        ) from e
 
-    if isinstance(data, list):
-        return cls(*data)
-    elif isinstance(data, dict):
-        return cls(**data)
-    else:
-        # Maybe raise error.
-        return cls(data)
+    # Only RPCJSONAble subclasses are reconstructible; never call arbitrary constructors.
+    if not (isinstance(cls, type) and issubclass(cls, RPCJSONAble)):
+        raise SerializationFormatError(
+            'Only RPCJSONAble types can be deserialized, got %s.%s' % (module, name)
+        )
+
+    payload = dict(data) if isinstance(data, dict) else data
+    if not isinstance(payload, dict):
+        raise SerializationFormatError(
+            'RPCJSONAble deserialization requires a dict payload.'
+        )
+    payload[JSONABLE_KEYWORD] = True
+    payload[DTYPE_KEYWORD] = [module, name]
+    return cls.from_json(payload)
 
 
 class RPCJSONEncoder(json.JSONEncoder):
