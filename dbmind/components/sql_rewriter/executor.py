@@ -73,7 +73,7 @@ class Executor:
         info_schema_columns = 'information_schema.columns'
         if self.is_m_compat:
             info_schema_columns = 'information_schema.gs_columns'
-        sql = f"SELECT column_name FROM {info_schema_columns} WHERE table_catalog = '{self.dbname}' " \
+        sql = f"SELECT column_name FROM {info_schema_columns} WHERE table_catalog = '{escape_single_quote(self.dbname)}' " \
               f"AND table_schema = '{escape_single_quote(self.schema)}' AND table_name = '{escape_single_quote(table_name)}'" \
               f"AND is_nullable = 'NO';"
         return [_tuple[0] for _tuple in self._execute(sql)]
@@ -81,7 +81,10 @@ class Executor:
     def syntax_check(self, sql):
         if sql.upper().startswith('TRUNCATE TABLE'):
             return True
-        if not self._execute('SET current_schema=%s;EXPLAIN %s' % (self.schema, sql)):
+        from .utils import quote_sql_identifier, validate_sql_identifier
+        validate_sql_identifier(self.schema, kind='schema name')
+        schema_ident = quote_sql_identifier(self.schema)
+        if not self._execute('SET current_schema=%s;EXPLAIN %s' % (schema_ident, sql)):
             return False
         return True
 

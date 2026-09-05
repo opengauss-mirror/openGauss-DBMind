@@ -1054,9 +1054,11 @@ def check_credential(username, password, scopes=None):
 
 def toolkit_index_advise(username, password, current, pagesize, instance, database, sqls, max_index_num,
                          max_index_storage):
+    from dbmind.common.parser.index_advise_input import validate_index_advise_sqls
+    # Accept list (legacy) or str; validate before any DB-bound prepare/explain path.
+    result = validate_index_advise_sqls(sqls[0] if isinstance(sqls, list) and len(sqls) == 1 else sqls)
     database_schemas = get_database_schemas()
     with global_vars.agent_proxy.context(instance, username, password):
-        result = sqlparse.split(sqls[0])
         schema_names = []
         if instance in database_schemas and database in database_schemas[instance]:
             schema_names = database_schemas[instance][database]
@@ -1123,6 +1125,8 @@ def pagination(data, page, size):
 
 
 def toolkit_rewrite_sql(username, password, instance, database, sqls):
+    from dbmind.components.sql_rewriter.sql_rewriter import validate_sql_rewrite_input
+    validate_sql_rewrite_input(sqls)
     with global_vars.agent_proxy.context(instance, username, password):
         return rewrite_sql_api(database, sqls)
 
@@ -1413,6 +1417,19 @@ def get_collection_system_status():
 
 def collect_workloads(username, password, data_source, databases, schemas, start_time,
                       end_time, db_users, sql_types, template_id, duration=60):
+    from dbmind.common.utils.checking import existing_special_char
+    if data_source not in ('asp', 'dbe_perf.statement_history', 'pg_stat_activity'):
+        raise ValueError('Incorrect value for parameter data_source')
+    if databases is not None and existing_special_char(databases):
+        raise ValueError('Invalid value for parameter databases')
+    if schemas is not None and existing_special_char(schemas):
+        raise ValueError('Invalid value for parameter schemas')
+    if db_users is not None and existing_special_char(db_users):
+        raise ValueError('Invalid value for parameter db_users')
+    if sql_types is not None and existing_special_char(sql_types):
+        raise ValueError('Invalid value for parameter sql_types')
+    if template_id is not None and not (isinstance(template_id, str) and template_id.isdigit()):
+        raise ValueError('Invalid value for parameter template_id')
     # transfer timestamps to string format
     if start_time:
         start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time // 1000))

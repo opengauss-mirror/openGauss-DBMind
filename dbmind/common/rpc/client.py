@@ -20,6 +20,7 @@ import requests
 from dbmind.common.http.requests_utils import create_requests_session
 from dbmind.common.types.ssl import SSLContext
 from dbmind.common.utils.exporter import is_exporter_alive
+from dbmind.common.security import protect_secret, reveal_secret
 from .base import RPCRequest, RPCResponse
 from .errors import RPCExecutionError, RPCConnectionError
 from .server import DEFAULT_URI, HEARTBEAT_FLAG, AUTH_FLAG
@@ -43,7 +44,8 @@ class RPCClient:
             raise ValueError('Invalid url format: %s.' % url)
 
         self.username = username
-        self.pwd = pwd
+        # Keep secrets wrapped; reveal only when building the RPC auth payload.
+        self.pwd = protect_secret(pwd) if pwd is not None else None
         self.timeout = None
 
         self._ssl_context = SSLContext(ssl_cert, ssl_key, ssl_key_password, ca_file)
@@ -60,7 +62,7 @@ class RPCClient:
 
     def _call_without_lock(self, funcname, *args, **kwargs):
         """Internal private implementation."""
-        req = RPCRequest(self.username, self.pwd, funcname, args, kwargs)
+        req = RPCRequest(self.username, reveal_secret(self.pwd), funcname, args, kwargs)
         try:
             recv = self._post(self.url, json=req.json(), timeout=self.timeout)
         except requests.exceptions.ConnectionError as e:
@@ -101,7 +103,7 @@ class RPCClient:
             old_pwd = self.pwd
 
             self.username = username
-            self.pwd = password
+            self.pwd = protect_secret(password) if password is not None else None
 
             try:
                 return self._call_without_lock(funcname, *args, **kwargs)
@@ -126,7 +128,7 @@ class RPCClient:
                 old_pwd = self.pwd
 
                 self.username = username
-                self.pwd = password
+                self.pwd = protect_secret(password) if password is not None else None
 
                 try:
                     return (self._call_without_lock(AUTH_FLAG) == 'ok'), None

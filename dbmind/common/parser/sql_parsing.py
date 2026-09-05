@@ -356,7 +356,9 @@ def get_generate_prepare_sqls_function():
         prepare_args = '' if not placeholder_size else '(%s)' % (','.join(['NULL'] * placeholder_size))
         dbmind_assert(len(sqlparse.split(statement)) == 1)
         if is_m_compat:
-            return [f'prepare {prepare_id} from "{statement}"', f'explain execute {prepare_id}{prepare_args}',
+            # Escape double quotes so user SQL cannot break out of FROM "..."
+            safe_statement = statement.replace('"', '""')
+            return [f'prepare {prepare_id} from "{safe_statement}"', f'explain execute {prepare_id}{prepare_args}',
                     f'deallocate prepare {prepare_id}']
         return [f'prepare {prepare_id} as {statement}', f'explain execute {prepare_id}{prepare_args}',
                 f'deallocate prepare {prepare_id}']
