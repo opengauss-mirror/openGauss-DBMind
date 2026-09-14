@@ -2,6 +2,9 @@
   "name": "dbmind",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "react-draggable": "^3.3.0"
+  },
   "dependencies": {
     "@ant-design/icons": "5.0.1",
     "antd": "^4.16.11",
@@ -13,37 +16,26 @@
     "qs": "^6.10.1",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
-    "react-resizable": "^3.0.4",
+    "react-draggable": "^3.3.0",
+    "react-resizable": "^1.11.1",
     "react-router-dom": "^5.3.0",
-    "react-scripts": "4.0.3",
+    "react-scripts": "5.0.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "build:analyze": "npm run build && npx serve -s build -p 3001",
     "test": "react-scripts test",
-    "test:coverage": "react-scripts test --coverage --watchAll=false",
-    "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
-    "lint:fix": "eslint src --ext .js,.jsx,.ts,.tsx --fix",
-    "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,json,css,scss,md}\"",
-    "eject": "react-scripts eject",
-    "serve": "serve -s build -p 3000"
+    "eject": "react-scripts eject"
   },
   "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ],
+    "extends": "react-app",
     "rules": {
-      "no-unused-vars": "warn",
-      "no-console": "warn",
-      "prefer-const": "warn",
-      "no-var": "warn",
-      "no-undef": "warn",
-      "jsx-a11y/alt-text": "warn",
-      "react-hooks/exhaustive-deps": "warn"
+      "no-undef": "off",
+      "no-restricted-globals": "off",
+      "no-unused-vars": "off",
+      "no-useless-escape": "off"
     }
   },
   "browserslist": {
@@ -58,6 +50,15 @@
       "last 1 safari version"
     ]
   },
+  "babel": {
+    "presets": [
+      "react-app"
+    ],
+    "plugins": [
+      "@babel/plugin-proposal-optional-chaining",
+      "@babel/plugin-proposal-nullish-coalescing-operator"
+    ]
+  },
   "devDependencies": {
     "babel-eslint": "^10.1.0",
     "eslint": "^7.32.0",
@@ -65,8 +66,8 @@
     "eslint-plugin-jsx-a11y": "^6.6.1",
     "eslint-plugin-react": "^7.30.1",
     "http-proxy-middleware": "^2.0.4",
-    "@babel/plugin-proposal-private-property-in-object": "^7.16.7",
-    "prettier": "^2.8.0",
-    "serve": "^14.0.0"
+    "@babel/plugin-proposal-private-property-in-object":"^7.13.0",
+    "@babel/plugin-proposal-optional-chaining":"^7.16.0",
+    "@babel/plugin-proposal-nullish-coalescing-operator":"^7.16.0"
   }
 }
