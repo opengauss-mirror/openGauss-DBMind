@@ -68,6 +68,7 @@ mkdir dbmind-installer-${platform}
 cp -r dbmind-installer-${platform}-python3.*.sh dbmind-installer-${platform}/
 cp -r requirements-aarch64.txt dbmind-installer-${platform}/
 cp -r requirements-optional.txt dbmind-installer-${platform}/
+cp -r requirements-x86.txt dbmind-installer-${platform}/
 tar -zcf dbmind-installer-${platform}.tar.gz dbmind-installer-${platform}
 echo "Successfully generated DBMind installation package $installer_name."
 
