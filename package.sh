@@ -17,11 +17,10 @@ wget https://repo.anaconda.com/miniconda/Miniconda3-py39_24.4.0-0-Linux-${platfo
 wget https://nodejs.org/dist/v18.20.0/node-v18.20.0-linux-${version}.tar.xz --no-check-certificate && tar -xJvf node-v18.20.0-linux-${version}.tar.xz
 
 export CI=False
-export PATH=$(pwd)/node-v16.9.0-linux-${version}/bin:$(pwd)/python/bin:$PATH
+export PATH=$(pwd)/node-v18.20.0-linux-${version}/bin:$(pwd)/python/bin:$PATH
 
 # 清理旧的依赖
 rm -rf ui/node_modules
-rm -rf ui/package-lock.json
 
 # 进入ui目录并使用--legacy-peer-deps安装依赖
 cd ui
