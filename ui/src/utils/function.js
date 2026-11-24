@@ -1,3 +1,15 @@
+/*
+ * Copyright (c) 2026 Huawei Technologies Co., Ltd.
+ * openGauss-DBMind is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *          http://license.coscl.org.cn/MulanPSL2
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
+ * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
 import { getMetric } from '../api/autonomousManagement';
 import { message } from 'antd';
 // 1.时间戳转为年月日时分秒  2018-05-06 10:18:11
